@@ -4,5 +4,5 @@ import { IsJWT } from 'class-validator';
 export class RefreshTokenDto {
   @ApiProperty()
   @IsJWT()
-  refreshToken: string;
+  refresh_token: string;
 }

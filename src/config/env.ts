@@ -1,8 +1,22 @@
 import { createEnv } from '@t3-oss/env-core';
 import * as dotenv from 'dotenv';
 import { z } from 'zod';
+import { parseDurationToMs } from '../shared/runtime/duration';
 
 dotenv.config();
+
+const booleanString = z
+  .union([z.boolean(), z.enum(['true', 'false'])])
+  .transform((v) => v === true || v === 'true');
+
+const durationString = (defaultValue: string) =>
+  z
+    .string()
+    .default(defaultValue)
+    .transform((value) => {
+      parseDurationToMs(value);
+      return value;
+    });
 
 export const env = createEnv({
   server: {
@@ -16,31 +30,52 @@ export const env = createEnv({
     DATABASE_USER: z.string().min(1),
     DATABASE_PASSWORD: z.string(),
     DATABASE_NAME: z.string().min(1),
-    DATABASE_SYNC: z
-      .union([z.boolean(), z.enum(['true', 'false'])])
-      .default(false)
-      .transform((v) => v === true || v === 'true'),
-    DATABASE_LOGGING: z
-      .union([z.boolean(), z.enum(['true', 'false'])])
-      .default(false)
-      .transform((v) => v === true || v === 'true'),
-    DATABASE_SSL: z
-      .union([z.boolean(), z.enum(['true', 'false'])])
-      .default(false)
-      .transform((v) => v === true || v === 'true'),
+    DATABASE_SYNC: booleanString.default(false),
+    DATABASE_LOGGING: booleanString.default(false),
+    DATABASE_SSL: booleanString.default(false),
+    DATABASE_SSL_CA: z.string().optional(),
 
-    JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 chars'),
-    JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
+    REDIS_URL: z.string().url().optional(),
+
+    JWT_ACCESS_SECRET: z
+      .string()
+      .min(32, 'JWT_ACCESS_SECRET must be at least 32 chars'),
+    JWT_ACCESS_EXPIRES_IN: durationString('15m'),
     JWT_REFRESH_SECRET: z
       .string()
       .min(32, 'JWT_REFRESH_SECRET must be at least 32 chars'),
-    JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
+    JWT_REFRESH_EXPIRES_IN: durationString('7d'),
+    VERIFICATION_OTP_EXPIRES_IN: durationString('15m'),
+    VERIFICATION_RESEND_LIMIT_PER_HOUR: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(3),
 
-    CORS_ORIGIN: z.string().default('*'),
-    SWAGGER_ENABLED: z
-      .union([z.boolean(), z.enum(['true', 'false'])])
-      .default(true)
-      .transform((v) => v === true || v === 'true'),
+    PASSWORD_RESET_OTP_EXPIRES_IN: durationString('15m'),
+
+    CORS_ORIGIN: z.string().default('http://localhost:3000'),
+    AUTH_COOKIE_SAMESITE: z.enum(['strict', 'lax', 'none']).optional(),
+    SWAGGER_ENABLED: booleanString.default(true),
+    RESEND_API_KEY: z.string().min(1),
+    RESEND_MAIL_FROM: z.email(),
+    SEED_ADMIN_EMAIL: z.email().default('admin@example.com'),
+    SEED_ADMIN_PASSWORD: z.string().min(12).default('Admin@123456'),
+    SEED_ADMIN_FULL_NAME: z.string().min(1).default('Admin User'),
+
+    GOOGLE_CLIENT_ID: z.string().min(1),
+    GOOGLE_CLIENT_SECRET: z.string().min(1),
+    GOOGLE_CALLBACK_URL: z.string().min(1),
+    GOOGLE_DEFAULT_COUNTRY: z.string().default('Unknown'),
+
+    FRONTEND_URL: z.string().default('http://localhost:5173'),
+    EMAIL_LOGO_URL: z.string().url().optional(),
+    SUPPORT_EMAIL: z.email().default('support@skillbridge.com'),
+
+    AWS_REGION: z.string().optional(),
+    AWS_S3_BUCKET: z.string().optional(),
+    AWS_ACCESS_KEY_ID: z.string().optional(),
+    AWS_SECRET_ACCESS_KEY: z.string().optional(),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
