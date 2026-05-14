@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuthResult, AuthService } from '../auth/auth.service';
 import { UsersService } from '../users/users.service';
+import { User } from '../users/entities/user.entity';
 import { CompleteCandidateOnboardingDto } from './dto/complete-candidate-onboarding.dto';
 import {
   CandidateProfile,
@@ -37,7 +38,7 @@ export class CandidateService {
   ): Promise<CandidateOnboardingResult> {
     const profile = await this.candidateProfileRepository.manager.transaction(
       async (manager) => {
-        let user;
+        let user: User;
         try {
           user = await this.usersService.getUserForOnboarding(manager, userId);
         } catch (error: unknown) {

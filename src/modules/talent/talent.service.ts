@@ -115,7 +115,7 @@ export class TalentService {
     const avatarUrl = await this.uploadService.uploadAvatar(photo);
 
     await this.talentProfileRepository.manager.transaction(async (manager) => {
-      let user;
+      let user: User;
       try {
         user = await this.usersService.getUserForOnboarding(manager, userId);
       } catch (error: unknown) {
@@ -250,7 +250,7 @@ export class TalentService {
   ): Promise<TalentOnboardingResult> {
     const profile = await this.talentProfileRepository.manager.transaction(
       async (manager) => {
-        let user;
+        let user: User;
         try {
           user = await this.usersService.getUserForOnboarding(manager, userId);
         } catch (error: unknown) {
@@ -310,7 +310,7 @@ export class TalentService {
   ): Promise<TalentOnboardingResult> {
     const profile = await this.talentProfileRepository.manager.transaction(
       async (manager) => {
-        let user;
+        let user: User;
         try {
           user = await this.usersService.getUserForOnboarding(manager, userId);
         } catch (error: unknown) {

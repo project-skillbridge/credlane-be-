@@ -8,6 +8,14 @@
     "lib": ["ES2023"],
     "types": ["node", "jest"],
     "outDir": "./dist",
+    "baseUrl": "./",
+    "paths": {
+      "@database/*": ["src/database/*"],
+      "@modules/*": ["src/modules/*"],
+      "@shared/*": ["src/common/*"],
+      "@config/*": ["src/config/*"],
+      "@guards/*": ["src/modules/auth/guards/*"]
+    },
 
     "esModuleInterop": true,
     "isolatedModules": true,
@@ -17,7 +25,6 @@
     "declaration": true,
     "removeComments": true,
     "sourceMap": true,
-    "incremental": true,
     "skipLibCheck": true,
 
     "emitDecoratorMetadata": true,
@@ -26,7 +33,7 @@
     "strict": true,
     "strictNullChecks": true,
     "strictPropertyInitialization": false,
-    "noImplicitAny": false,
+    "noImplicitAny": true,
     "strictBindCallApply": false,
     "noFallthroughCasesInSwitch": true,
     "noImplicitReturns": true,

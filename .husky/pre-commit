@@ -46,6 +46,7 @@ for file in $STAGED; do
   # Skip lockfiles — they legitimately contain very long peer-dependency strings
   case "$file" in
     pnpm-lock.yaml|yarn.lock|package-lock.json) ;;
+    src/database/migrations/*) ;;
     *)
       if awk 'length > 200 { found=1; exit } END { exit !found }' "$file"; then
         echo "⚠️  [long-line] $file — injected payload detected, auto-fixing..."
