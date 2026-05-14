@@ -132,6 +132,6 @@ jobs:
             if pm2 describe "$APP_NAME" > /dev/null 2>&1; then
               pm2 restart ecosystem.config.cjs --only "$APP_NAME" --env "$ENV_FLAG" --update-env
             else
-              pm2 start ecosystem.config.cjs --env "$ENV_FLAG"
+              pm2 start ecosystem.config.cjs --only "$APP_NAME" --env "$ENV_FLAG"
             fi
             pm2 save
