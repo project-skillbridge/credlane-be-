@@ -43,12 +43,18 @@ for file in $STAGED; do
   [ -f "$file" ] || continue
 
   # ── Check 1: Long lines (the hiding technique) ──────────────────────────────
-  if awk 'length > 200 { found=1; exit } END { exit !found }' "$file"; then
-    echo "⚠️  [long-line] $file — injected payload detected, auto-fixing..."
-    fix_long_lines "$file"
-    git add "$file"
-    FIXED=1
-  fi
+  # Skip lockfiles — they legitimately contain very long peer-dependency strings
+  case "$file" in
+    pnpm-lock.yaml|yarn.lock|package-lock.json) ;;
+    *)
+      if awk 'length > 200 { found=1; exit } END { exit !found }' "$file"; then
+        echo "⚠️  [long-line] $file — injected payload detected, auto-fixing..."
+        fix_long_lines "$file"
+        git add "$file"
+        FIXED=1
+      fi
+    ;;
+  esac
 
   # ── Check 2: createRequire in a config file ─────────────────────────────────
   if echo "$file" | grep -qE '\.(mjs|cjs|js|ts)$|postcss|config'; then
