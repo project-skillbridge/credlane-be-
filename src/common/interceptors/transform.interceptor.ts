@@ -5,39 +5,76 @@ import {
   NestInterceptor,
 } from '@nestjs/common';
 import { map, Observable } from 'rxjs';
+import { SuccessMessages } from '../../shared';
 
-export interface ApiResponse<T> {
-  success: true;
-  data: T;
+type MessagePayload = {
+  message: string;
+} & Record<string, unknown>;
+
+type PaginatedPayload<T> = {
+  paginationMeta: Record<string, unknown>;
+  payload: T;
+} & Record<string, unknown>;
+
+export type ApiResponse<T> = {
+  status_code: number;
+  message: string;
+  data?: T;
   meta?: Record<string, unknown>;
-}
+} & Record<string, unknown>;
 
 @Injectable()
-export class TransformInterceptor<T>
-  implements NestInterceptor<T, ApiResponse<T>> {
+export class TransformInterceptor<T> implements NestInterceptor<
+  T,
+  ApiResponse<T>
+> {
   intercept(
-    _context: ExecutionContext,
+    context: ExecutionContext,
     next: CallHandler<T>,
   ): Observable<ApiResponse<T>> {
+    const response = context
+      .switchToHttp()
+      .getResponse<{ statusCode: number }>();
     return next.handle().pipe(
       map((payload) => {
+        const statusCode = response.statusCode;
+        const baseResponse = {
+          status_code: statusCode,
+          message: SuccessMessages.COMMON.SUCCESS,
+        };
+
         if (
           payload &&
           typeof payload === 'object' &&
           'paginationMeta' in (payload as object)
         ) {
-          const { paginationMeta, payload: data, ...rest } = payload as unknown as {
-            paginationMeta: Record<string, unknown>;
-            payload: T;
-            [key: string]: unknown;
-          };
+          const {
+            paginationMeta,
+            payload: data,
+            ...rest
+          } = payload as PaginatedPayload<T>;
           return {
-            success: true,
-            data: data,
+            ...baseResponse,
+            data,
             meta: { ...rest, ...paginationMeta },
           };
         }
-        return { success: true, data: payload };
+
+        if (
+          payload &&
+          typeof payload === 'object' &&
+          !Array.isArray(payload) &&
+          'message' in payload
+        ) {
+          const { message, ...data } = payload as MessagePayload;
+          return {
+            status_code: statusCode,
+            message: String(message),
+            ...data,
+          };
+        }
+
+        return { ...baseResponse, data: payload };
       }),
     );
   }
