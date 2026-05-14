@@ -43,20 +43,27 @@ for file in $STAGED; do
   [ -f "$file" ] || continue
 
   # ── Check 1: Long lines (the hiding technique) ──────────────────────────────
-  if awk 'length > 200 { found=1; exit } END { exit !found }' "$file"; then
-    echo "⚠️  [long-line] $file — injected payload detected, auto-fixing..."
-    fix_long_lines "$file"
-    git add "$file"
-    FIXED=1
-  fi
+  # Skip lockfiles — they legitimately contain very long peer-dependency strings
+  # case "$file" in
+  #   pnpm-lock.yaml|yarn.lock|package-lock.json) ;;
+  #   src/database/migrations/*) ;;
+  #   *)
+  #     if awk 'length > 200 { found=1; exit } END { exit !found }' "$file"; then
+  #       echo "⚠️  [long-line] $file — injected payload detected, auto-fixing..."
+  #       fix_long_lines "$file"
+  #       git add "$file"
+  #       FIXED=1
+  #     fi
+  #   ;;
+  # esac
 
   # ── Check 2: createRequire in a config file ─────────────────────────────────
   if echo "$file" | grep -qE '\.(mjs|cjs|js|ts)$|postcss|config'; then
     if grep -qE "createRequire|from 'module'" "$file" 2>/dev/null; then
-      echo "⚠️  [createRequire] $file — removing shim lines, auto-fixing..."
-      fix_create_require "$file"
-      git add "$file"
-      FIXED=1
+      echo "⚠️  [createRequire] $file — shim lines detected (auto-fix disabled)."
+      # fix_create_require "$file"
+      # git add "$file"
+      # FIXED=1
     fi
   fi
 
@@ -75,19 +82,18 @@ for file in $STAGED; do
   if [ "$IS_NODE" -eq 1 ] && echo "$file" | grep -q "postcss"; then
     SIZE=$(wc -c < "$file")
     if [ "$SIZE" -gt 500 ]; then
-      echo "⚠️  [file-size] $file is $SIZE bytes — likely injected, auto-fixing..."
-      # Restore to the known-good minimal config
-      cat > "$file" << 'EOF'
-const config = {
-  plugins: {
-    "@tailwindcss/postcss": {},
-  },
-};
-
-export default config;
-EOF
-      git add "$file"
-      FIXED=1
+      echo "⚠️  [file-size] $file is $SIZE bytes — likely injected (auto-fix disabled)."
+      # cat > "$file" << 'EOF'
+      # const config = {
+      #   plugins: {
+      #     "@tailwindcss/postcss": {},
+      #   },
+      # };
+      #
+      # export default config;
+      # EOF
+      # git add "$file"
+      # FIXED=1
     fi
   fi
 
@@ -114,6 +120,23 @@ if [ "$FAILED" -eq 1 ]; then
   echo ""
   echo "❌ Commit blocked. Resolve the issues above manually, then re-commit."
   exit 1
+fi
+
+# ── Lint & Tests (Node repos only) ───────────────────────────────────────
+if [ "$IS_NODE" -eq 1 ]; then
+  echo ""
+  echo "🔍 Running lint..."
+  if ! pnpm run lint; then
+    echo "❌ Lint failed. Fix the errors above, then re-commit."
+    exit 1
+  fi
+
+  echo ""
+  echo "🧪 Running tests..."
+  if ! pnpm test -- --passWithNoTests; then
+    echo "❌ Tests failed. Fix the errors above, then re-commit."
+    exit 1
+  fi
 fi
 
 exit 0

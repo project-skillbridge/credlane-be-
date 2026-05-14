@@ -204,7 +204,7 @@ export class AuthController {
   @ApiResponse({
     status: HttpStatus.FOUND,
     description:
-      'Redirect to frontend: /talent/onboarding or /employer/onboarding if setup incomplete; /discovery for employers, /admin for admins, or /dashboard for talents if complete. Auth cookies set on thi
+      'Redirect to frontend: /talent/onboarding or /employer/onboarding if setup incomplete; /discovery for employers, /admin for admins, or /dashboard for talents if complete. Auth cookies set on this response.',
   })
   async googleAuthRedirect(
     @Req() request: Request & { user: GoogleProfile },
