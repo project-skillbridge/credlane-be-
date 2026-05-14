@@ -13,6 +13,7 @@ import { jwtConfig } from './config/jwt.config';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './modules/auth/guards/roles.guard';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { TalentModule } from './modules/talent/talent.module';
 import { EmployerModule } from './modules/employer/employer.module';
 import { HealthModule } from './modules/health/health.module';
@@ -37,6 +38,7 @@ import { WelcomeController } from './welcome.controller';
     InquiriesModule,
     UsersModule,
     AuthModule,
+    DashboardModule,
     TalentModule,
     EmployerModule,
     MailModule,
