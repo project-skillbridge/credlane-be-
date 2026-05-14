@@ -8,6 +8,7 @@ import {
 } from '../talent/entities/talent-profile.entity';
 import { User, UserRole } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
+import { DASHBOARD_PROFILE_COMPLETENESS_CONFIG } from './dashboard-profile-completeness.config';
 import {
   DashboardHomeResponse,
   DashboardJourneyStatus,
@@ -37,11 +38,7 @@ export class DashboardService {
 
     return {
       firstName: user.first_name,
-      profileCompletionPercentage: this.calculateProfileCompletion(
-        user,
-        profile,
-        onboardingComplete,
-      ),
+      profileCompletionPercentage: this.calculateProfileCompletion(user, profile),
       journeyOverview: this.buildJourneyOverview(onboardingComplete),
     };
   }
@@ -52,7 +49,6 @@ export class DashboardService {
   ): boolean {
     return Boolean(
       user.onboarding_complete ||
-      profile?.profile_verified ||
       (profile?.onboarding_step ?? 0) >= 3 ||
       profile?.status === TalentProfileStatus.JOB_READY,
     );
@@ -61,37 +57,24 @@ export class DashboardService {
   private calculateProfileCompletion(
     user: User,
     profile: TalentProfile | null,
-    onboardingComplete: boolean,
   ): number {
-    if (onboardingComplete) {
-      return 100;
-    }
-
     if (!profile) {
       return 0;
     }
 
-    const stepScores = [0, 20, 40, 60];
     const onboardingStep = Math.max(
       0,
       Math.min(profile.onboarding_step ?? 0, 3),
     );
-    const onboardingStepScore = stepScores[onboardingStep] ?? 0;
+    const onboardingStepScore =
+      DASHBOARD_PROFILE_COMPLETENESS_CONFIG.onboardingStepScores[onboardingStep] ?? 0;
 
-    const additionalScore =
-      (user.avatar_url ? 4 : 0) +
-      (this.hasAnyText(
-        profile.goal,
-        profile.track,
-        profile.role_track,
-        ...(profile.role_tracks ?? []),
-      )
-        ? 8
-        : 0) +
-      (profile.region?.trim() ? 8 : 0) +
-      (profile.education_level?.trim() ? 8 : 0) +
-      (profile.linkedin_url?.trim() || profile.bio?.trim() ? 8 : 0) +
-      (profile.profile_verified ? 10 : 0);
+    const additionalScore = DASHBOARD_PROFILE_COMPLETENESS_CONFIG.rules.reduce(
+      (total, rule) =>
+        total +
+        (rule.isFilled({ user, profile }) ? rule.weight : 0),
+      0,
+    );
 
     return Math.min(100, onboardingStepScore + additionalScore);
   }
@@ -125,9 +108,5 @@ export class DashboardService {
         status: DashboardJourneyStatus.LOCKED,
       },
     ];
-  }
-
-  private hasAnyText(...values: Array<string | null | undefined>): boolean {
-    return values.some((value) => Boolean(value?.trim()));
   }
 }

@@ -64,6 +64,7 @@ describe('DashboardService', () => {
       goal: 'land_first_role',
       track: 'frontend_developer',
       region: 'Lagos',
+      profile_verified: true,
       status: TalentProfileStatus.IN_PROGRESS,
     });
 
@@ -92,7 +93,7 @@ describe('DashboardService', () => {
 
     const profile = makeProfile({
       onboarding_step: 3,
-      profile_verified: true,
+      profile_verified: false,
       goal: 'land_first_role',
       track: 'frontend_developer',
       role_tracks: ['frontend_developer'],
