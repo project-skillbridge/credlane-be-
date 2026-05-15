@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuthResult, AuthService } from '../auth/auth.service';
 import { UsersService } from '../users/users.service';
+import { User } from '../users/entities/user.entity';
 import { CompleteEmployerOnboardingDto } from './dto/complete-employer-onboarding.dto';
 import { SaveEmployerProfileDto } from './dto/save-employer-profile.dto';
 import { EmployerProfile } from './entities/employer-profile.entity';
@@ -34,7 +35,7 @@ export class EmployerService {
     dto: SaveEmployerProfileDto,
   ): Promise<{ status: string; message: string }> {
     await this.employerProfileRepository.manager.transaction(async (manager) => {
-      let user;
+      let user: User;
       try {
         user = await this.usersService.getUserForOnboarding(manager, userId);
       } catch (error: unknown) {
@@ -74,7 +75,7 @@ export class EmployerService {
   ): Promise<EmployerOnboardingResult> {
     const profile = await this.employerProfileRepository.manager.transaction(
       async (manager) => {
-        let user;
+        let user: User;
         try {
           user = await this.usersService.getUserForOnboarding(manager, userId);
         } catch (error: unknown) {
