@@ -89,10 +89,7 @@ export class AuthController {
   ) {
     const result = await this.authService.verifyEmail(dto);
     setAuthCookies(response, result.tokens);
-    return {
-      message: result.message,
-      user: result.user,
-    };
+    return this.authService.toResponse(result);
   }
 
   @Public()
