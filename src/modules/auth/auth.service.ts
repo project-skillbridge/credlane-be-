@@ -74,11 +74,7 @@ export interface AuthResponse {
   data: AuthSession['data'];
 }
 
-export interface VerifyEmailResult {
-  message: string;
-  user: AuthUser;
-  tokens: AuthTokens;
-}
+export type VerifyEmailResult = AuthResult;
 
 export interface ForgotPasswordResponse {
   status: 'success';
@@ -165,7 +161,7 @@ export class AuthService {
 
     return {
       message: SuccessMessages.AUTH.EMAIL_VERIFIED,
-      user: this.toAuthUser(verifiedUser),
+      data: { user: this.toAuthUser(verifiedUser) },
       tokens,
     };
   }
