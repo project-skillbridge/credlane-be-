@@ -8,7 +8,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
+import { TalentProfile } from '../../talent/entities/talent-profile.entity';
 import { AssessmentType } from './assessment-question.entity';
 
 @Entity('assessment_attempts')
@@ -19,11 +19,11 @@ export class AssessmentAttempt {
 
   @ApiProperty({ format: 'uuid' })
   @Column({ type: 'uuid' })
-  user_id: string;
+  talent_profile_id: string;
 
-  @ManyToOne(() => User)
-  @JoinColumn({ name: 'user_id' })
-  user: User;
+  @ManyToOne(() => TalentProfile)
+  @JoinColumn({ name: 'talent_profile_id' })
+  talent_profile: TalentProfile;
 
   @ApiProperty({ enum: AssessmentType })
   @Column({ type: 'enum', enum: AssessmentType })

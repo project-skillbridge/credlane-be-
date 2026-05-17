@@ -150,8 +150,9 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
             default: 'gen_random_uuid()',
           },
           {
-            name: 'user_id',
+            name: 'talent_profile_id',
             type: 'uuid',
+            comment: 'Reference to talent taking the assessment',
           },
           {
             name: 'assessment_type',
@@ -205,20 +206,20 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       }),
     );
 
-    // Add foreign key for user_id
+    // Add foreign key for talent_profile_id
     await queryRunner.createForeignKey(
       'assessment_attempts',
       new TableForeignKey({
-        columnNames: ['user_id'],
-        referencedTableName: 'users',
+        columnNames: ['talent_profile_id'],
+        referencedTableName: 'talent_profiles',
         referencedColumnNames: ['id'],
         onDelete: 'CASCADE',
       }),
     );
 
-    // Create index on user_id and assessment_type
+    // Create index on talent_profile_id and assessment_type
     await queryRunner.query(`
-      CREATE INDEX "idx_assessment_attempts_user_type" ON "assessment_attempts" ("user_id", "assessment_type")
+      CREATE INDEX "idx_assessment_attempts_talent_type" ON "assessment_attempts" ("talent_profile_id", "assessment_type")
     `);
 
     // Create assessment_responses table
@@ -314,9 +315,9 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
             default: 'gen_random_uuid()',
           },
           {
-            name: 'talent_id',
+            name: 'talent_profile_id',
             type: 'uuid',
-            comment: 'Talent who answered the question',
+            comment: 'Talent profile who answered the question',
           },
           {
             name: 'question_id',
@@ -337,7 +338,8 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
             name: 'is_correct',
             type: 'boolean',
             isNullable: true,
-            comment: 'Whether answer was correct (null for subjective questions)',
+            comment:
+              'Whether answer was correct (null for subjective questions)',
           },
           {
             name: 'raw_score',
@@ -369,8 +371,8 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
     await queryRunner.createForeignKey(
       'talent_question_history',
       new TableForeignKey({
-        columnNames: ['talent_id'],
-        referencedTableName: 'users',
+        columnNames: ['talent_profile_id'],
+        referencedTableName: 'talent_profiles',
         referencedColumnNames: ['id'],
         onDelete: 'CASCADE',
       }),
@@ -386,13 +388,13 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       }),
     );
 
-    // Composite foreign key to ensure attempt belongs to the same talent
+    // Composite foreign key to ensure attempt belongs to the same talent profile
     await queryRunner.createForeignKey(
       'talent_question_history',
       new TableForeignKey({
-        columnNames: ['attempt_id', 'talent_id'],
+        columnNames: ['attempt_id', 'talent_profile_id'],
         referencedTableName: 'assessment_attempts',
-        referencedColumnNames: ['id', 'user_id'],
+        referencedColumnNames: ['id', 'talent_profile_id'],
         onDelete: 'CASCADE',
       }),
     );
@@ -402,13 +404,13 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       'talent_question_history',
       new TableUnique({
         name: 'uq_talent_question_history_talent_question',
-        columnNames: ['talent_id', 'question_id'],
+        columnNames: ['talent_profile_id', 'question_id'],
       }),
     );
 
     // Create indexes on talent_question_history
     await queryRunner.query(`
-      CREATE INDEX "idx_talent_question_history_talent" ON "talent_question_history" ("talent_id")
+      CREATE INDEX "idx_talent_question_history_talent_profile" ON "talent_question_history" ("talent_profile_id")
     `);
     await queryRunner.query(`
       CREATE INDEX "idx_talent_question_history_question" ON "talent_question_history" ("question_id")

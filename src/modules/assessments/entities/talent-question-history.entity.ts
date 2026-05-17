@@ -7,7 +7,7 @@ import {
   ManyToOne,
   PrimaryGeneratedColumn,
 } from 'typeorm';
-import { User } from '../../users/entities/user.entity';
+import { TalentProfile } from '../../talent/entities/talent-profile.entity';
 import { AssessmentQuestion } from './assessment-question.entity';
 import { AssessmentAttempt } from './assessment-attempt.entity';
 
@@ -19,11 +19,11 @@ export class TalentQuestionHistory {
 
   @ApiProperty({ format: 'uuid' })
   @Column({ type: 'uuid' })
-  talent_id: string;
+  talent_profile_id: string;
 
-  @ManyToOne(() => User)
-  @JoinColumn({ name: 'talent_id' })
-  talent: User;
+  @ManyToOne(() => TalentProfile)
+  @JoinColumn({ name: 'talent_profile_id' })
+  talent_profile: TalentProfile;
 
   @ApiProperty({ format: 'uuid' })
   @Column({ type: 'uuid' })
