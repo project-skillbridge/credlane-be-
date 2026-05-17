@@ -3,13 +3,14 @@ import {
   QueryRunner,
   Table,
   TableForeignKey,
+  TableUnique,
 } from 'typeorm';
 
 export class CreateAssessmentTables1779200000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // Create assessment_type enum
+    // Create assessment_type enum (skill and advanced only - personal questions hardcoded on frontend)
     await queryRunner.query(`
-      CREATE TYPE "assessment_type_enum" AS ENUM ('personal', 'skill', 'advanced')
+      CREATE TYPE "assessment_type_enum" AS ENUM ('skill', 'advanced')
     `);
 
     // Create question_type enum
@@ -17,9 +18,9 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       CREATE TYPE "question_type_enum" AS ENUM ('single_pick', 'multi_pick', 'required_text', 'optional_text')
     `);
 
-    // Create skill_level enum
+    // Create verified_level enum (renamed from skill_level for clarity)
     await queryRunner.query(`
-      CREATE TYPE "skill_level_enum" AS ENUM ('entry', 'junior', 'mid', 'senior', 'expert')
+      CREATE TYPE "verified_level_enum" AS ENUM ('entry', 'junior', 'mid', 'senior', 'expert')
     `);
 
     // Create assessment_tier enum
@@ -27,7 +28,12 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       CREATE TYPE "assessment_tier_enum" AS ENUM ('not_ready', 'emerging', 'job_ready')
     `);
 
-    // Create assessment_questions table
+    // Create slot_type enum for question categorization in advanced assessments
+    await queryRunner.query(`
+      CREATE TYPE "slot_type_enum" AS ENUM ('situational', 'work_task', 'reflection')
+    `);
+
+    // Create assessment_questions table (for skill and advanced assessments only)
     await queryRunner.createTable(
       new Table({
         name: 'assessment_questions',
@@ -51,25 +57,8 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
             type: 'text',
           },
           {
-            name: 'section',
-            type: 'integer',
-            isNullable: true,
-            comment: 'Section number for personal assessment (1-7)',
-          },
-          {
             name: 'question_number',
             type: 'integer',
-          },
-          {
-            name: 'is_required',
-            type: 'boolean',
-            default: true,
-          },
-          {
-            name: 'min_char_count',
-            type: 'integer',
-            isNullable: true,
-            comment: 'Minimum character count for text responses',
           },
           {
             name: 'options',
@@ -81,26 +70,48 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
             name: 'correct_answer',
             type: 'text',
             isNullable: true,
-            comment: 'Correct answer for skill assessment questions only',
+            comment: 'Correct answer for skill assessment questions',
           },
           {
             name: 'track',
             type: 'varchar',
             length: '100',
             isNullable: true,
-            comment: 'Track for skill assessment questions only',
+            comment:
+              'Track for skill assessment questions (e.g., frontend_developer)',
           },
           {
-            name: 'level',
-            type: 'skill_level_enum',
+            name: 'verified_level',
+            type: 'verified_level_enum',
             isNullable: true,
-            comment: 'Level for skill assessment questions only',
+            comment: 'Target verified level for this question',
           },
           {
-            name: 'has_follow_up',
+            name: 'competency',
+            type: 'varchar',
+            length: '100',
+            isNullable: true,
+            comment:
+              'Specific competency being tested (e.g., react-hooks, async-programming)',
+          },
+          {
+            name: 'slot_type',
+            type: 'slot_type_enum',
+            isNullable: true,
+            comment: 'Question categorization for advanced assessments',
+          },
+          {
+            name: 'metadata',
+            type: 'jsonb',
+            isNullable: true,
+            comment:
+              'Additional flexible data (difficulty, tags, author, etc.)',
+          },
+          {
+            name: 'is_live',
             type: 'boolean',
             default: false,
-            comment: 'Whether this question triggers an inline follow-up field',
+            comment: 'Whether question is active/published or draft',
           },
           {
             name: 'created_at',
@@ -116,12 +127,15 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       }),
     );
 
-    // Create index on assessment_type and track/level for skill questions
+    // Create index on assessment_type and track/verified_level for skill questions
     await queryRunner.query(`
       CREATE INDEX "idx_assessment_questions_type" ON "assessment_questions" ("assessment_type")
     `);
     await queryRunner.query(`
-      CREATE INDEX "idx_assessment_questions_track_level" ON "assessment_questions" ("track", "level") WHERE "assessment_type" = 'skill'
+      CREATE INDEX "idx_assessment_questions_track_level" ON "assessment_questions" ("track", "verified_level") WHERE "assessment_type" = 'skill'
+    `);
+    await queryRunner.query(`
+      CREATE INDEX "idx_assessment_questions_live" ON "assessment_questions" ("is_live")
     `);
 
     // Create assessment_attempts table
@@ -281,6 +295,105 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       CREATE INDEX "idx_assessment_responses_attempt" ON "assessment_responses" ("attempt_id")
     `);
 
+    // Create talent_question_history table (tracks all questions user has seen/answered)
+    await queryRunner.createTable(
+      new Table({
+        name: 'talent_question_history',
+        columns: [
+          {
+            name: 'id',
+            type: 'uuid',
+            isPrimary: true,
+            default: 'gen_random_uuid()',
+          },
+          {
+            name: 'user_id',
+            type: 'uuid',
+            comment: 'User who answered the question',
+          },
+          {
+            name: 'question_id',
+            type: 'uuid',
+            comment: 'Question that was answered',
+          },
+          {
+            name: 'attempt_id',
+            type: 'uuid',
+            comment: 'Which assessment attempt this was part of',
+          },
+          {
+            name: 'user_answer',
+            type: 'jsonb',
+            comment: 'The actual answer provided',
+          },
+          {
+            name: 'is_correct',
+            type: 'boolean',
+            isNullable: true,
+            comment: 'Whether answer was correct (for skill questions)',
+          },
+          {
+            name: 'answered_at',
+            type: 'timestamp with time zone',
+            default: 'now()',
+          },
+          {
+            name: 'created_at',
+            type: 'timestamp with time zone',
+            default: 'now()',
+          },
+        ],
+      }),
+    );
+
+    // Add foreign keys to talent_question_history
+    await queryRunner.createForeignKey(
+      'talent_question_history',
+      new TableForeignKey({
+        columnNames: ['user_id'],
+        referencedTableName: 'users',
+        referencedColumnNames: ['id'],
+        onDelete: 'CASCADE',
+      }),
+    );
+
+    await queryRunner.createForeignKey(
+      'talent_question_history',
+      new TableForeignKey({
+        columnNames: ['question_id'],
+        referencedTableName: 'assessment_questions',
+        referencedColumnNames: ['id'],
+        onDelete: 'CASCADE',
+      }),
+    );
+
+    await queryRunner.createForeignKey(
+      'talent_question_history',
+      new TableForeignKey({
+        columnNames: ['attempt_id'],
+        referencedTableName: 'assessment_attempts',
+        referencedColumnNames: ['id'],
+        onDelete: 'CASCADE',
+      }),
+    );
+
+    // Add unique constraint - prevent user from answering same question in same attempt twice
+    await queryRunner.createUniqueConstraint(
+      'talent_question_history',
+      new TableUnique({
+        name: 'uq_talent_question_history_user_question_attempt',
+        columnNames: ['user_id', 'question_id', 'attempt_id'],
+      }),
+    );
+
+    // Create indexes on talent_question_history
+    await queryRunner.query(`
+      CREATE INDEX "idx_talent_question_history_user" ON "talent_question_history" ("user_id")
+    `);
+    await queryRunner.query(`
+      CREATE INDEX "idx_talent_question_history_question" ON "talent_question_history" ("question_id")
+    `);
+
     // Create assessment_results table
     await queryRunner.createTable(
       new Table({
@@ -310,7 +423,7 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
           },
           {
             name: 'validated_level',
-            type: 'skill_level_enum',
+            type: 'verified_level_enum',
             isNullable: true,
             comment: 'Validated level for skill assessment only',
           },
@@ -337,10 +450,9 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
     // Add assessment tracking fields to talent_profiles
     await queryRunner.query(`
       ALTER TABLE "talent_profiles" 
-      ADD COLUMN IF NOT EXISTS "personal_assessment_completed_at" timestamp with time zone,
       ADD COLUMN IF NOT EXISTS "skill_assessment_completed_at" timestamp with time zone,
       ADD COLUMN IF NOT EXISTS "advanced_assessment_completed_at" timestamp with time zone,
-      ADD COLUMN IF NOT EXISTS "validated_level" skill_level_enum,
+      ADD COLUMN IF NOT EXISTS "validated_level" verified_level_enum,
       ADD COLUMN IF NOT EXISTS "assessment_locked_until" timestamp with time zone
     `);
   }
@@ -352,19 +464,20 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       DROP COLUMN IF EXISTS "assessment_locked_until",
       DROP COLUMN IF EXISTS "validated_level",
       DROP COLUMN IF EXISTS "advanced_assessment_completed_at",
-      DROP COLUMN IF EXISTS "skill_assessment_completed_at",
-      DROP COLUMN IF EXISTS "personal_assessment_completed_at"
+      DROP COLUMN IF EXISTS "skill_assessment_completed_at"
     `);
 
     // Drop tables in reverse order (respecting foreign keys)
     await queryRunner.dropTable('assessment_results', true);
+    await queryRunner.dropTable('talent_question_history', true);
     await queryRunner.dropTable('assessment_responses', true);
     await queryRunner.dropTable('assessment_attempts', true);
     await queryRunner.dropTable('assessment_questions', true);
 
     // Drop enums
+    await queryRunner.query(`DROP TYPE IF EXISTS "slot_type_enum"`);
     await queryRunner.query(`DROP TYPE IF EXISTS "assessment_tier_enum"`);
-    await queryRunner.query(`DROP TYPE IF EXISTS "skill_level_enum"`);
+    await queryRunner.query(`DROP TYPE IF EXISTS "verified_level_enum"`);
     await queryRunner.query(`DROP TYPE IF EXISTS "question_type_enum"`);
     await queryRunner.query(`DROP TYPE IF EXISTS "assessment_type_enum"`);
   }

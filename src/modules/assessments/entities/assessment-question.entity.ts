@@ -8,7 +8,6 @@ import {
 } from 'typeorm';
 
 export enum AssessmentType {
-  PERSONAL = 'personal',
   SKILL = 'skill',
   ADVANCED = 'advanced',
 }
@@ -20,12 +19,18 @@ export enum QuestionType {
   OPTIONAL_TEXT = 'optional_text',
 }
 
-export enum SkillLevel {
+export enum VerifiedLevel {
   ENTRY = 'entry',
   JUNIOR = 'junior',
   MID = 'mid',
   SENIOR = 'senior',
   EXPERT = 'expert',
+}
+
+export enum SlotType {
+  SITUATIONAL = 'situational',
+  WORK_TASK = 'work_task',
+  REFLECTION = 'reflection',
 }
 
 @Entity('assessment_questions')
@@ -46,29 +51,9 @@ export class AssessmentQuestion {
   @Column({ type: 'text' })
   question_text: string;
 
-  @ApiProperty({
-    required: false,
-    nullable: true,
-    description: 'Section number for personal assessment (1-7)',
-  })
-  @Column({ type: 'integer', nullable: true })
-  section: number | null;
-
   @ApiProperty()
   @Column({ type: 'integer' })
   question_number: number;
-
-  @ApiProperty({ default: true })
-  @Column({ type: 'boolean', default: true })
-  is_required: boolean;
-
-  @ApiProperty({
-    required: false,
-    nullable: true,
-    description: 'Minimum character count for text responses',
-  })
-  @Column({ type: 'integer', nullable: true })
-  min_char_count: number | null;
 
   @ApiProperty({
     required: false,
@@ -81,7 +66,7 @@ export class AssessmentQuestion {
   @ApiProperty({
     required: false,
     nullable: true,
-    description: 'Correct answer for skill assessment questions only',
+    description: 'Correct answer for skill assessment questions',
   })
   @Column({ type: 'text', nullable: true })
   correct_answer: string | null;
@@ -89,7 +74,8 @@ export class AssessmentQuestion {
   @ApiProperty({
     required: false,
     nullable: true,
-    description: 'Track for skill assessment questions only',
+    description:
+      'Track for skill assessment questions (e.g., frontend_developer)',
   })
   @Column({ type: 'varchar', length: 100, nullable: true })
   track: string | null;
@@ -97,18 +83,44 @@ export class AssessmentQuestion {
   @ApiProperty({
     required: false,
     nullable: true,
-    enum: SkillLevel,
-    description: 'Level for skill assessment questions only',
+    enum: VerifiedLevel,
+    description: 'Target verified level for this question',
   })
-  @Column({ type: 'enum', enum: SkillLevel, nullable: true })
-  level: SkillLevel | null;
+  @Column({ type: 'enum', enum: VerifiedLevel, nullable: true })
+  verified_level: VerifiedLevel | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description:
+      'Specific competency being tested (e.g., react-hooks, async-programming)',
+  })
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  competency: string | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    enum: SlotType,
+    description: 'Question categorization for advanced assessments',
+  })
+  @Column({ type: 'enum', enum: SlotType, nullable: true })
+  slot_type: SlotType | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'Additional flexible data (difficulty, tags, author, etc.)',
+  })
+  @Column({ type: 'jsonb', nullable: true })
+  metadata: Record<string, any> | null;
 
   @ApiProperty({
     default: false,
-    description: 'Whether this question triggers an inline follow-up field',
+    description: 'Whether question is active/published or draft',
   })
   @Column({ type: 'boolean', default: false })
-  has_follow_up: boolean;
+  is_live: boolean;
 
   @ApiProperty()
   @CreateDateColumn({ type: 'timestamp with time zone' })

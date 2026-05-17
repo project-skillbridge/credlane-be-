@@ -10,7 +10,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
-import { SkillLevel } from '../../assessments/entities/assessment-question.entity';
+import { VerifiedLevel } from '../../assessments/entities/assessment-question.entity';
 
 export enum TalentProfileStatus {
   NOT_STARTED = 'not_started',
@@ -116,14 +116,6 @@ export class TalentProfile {
   @ApiProperty({
     required: false,
     nullable: true,
-    description: 'When personal assessment was completed',
-  })
-  @Column({ type: 'timestamp with time zone', nullable: true })
-  personal_assessment_completed_at: Date | null;
-
-  @ApiProperty({
-    required: false,
-    nullable: true,
     description: 'When skill assessment was completed',
   })
   @Column({ type: 'timestamp with time zone', nullable: true })
@@ -140,16 +132,16 @@ export class TalentProfile {
   @ApiProperty({
     required: false,
     nullable: true,
-    enum: SkillLevel,
+    enum: VerifiedLevel,
     description: 'Validated skill level from skill assessment',
   })
   @Column({
     type: 'enum',
-    enum: SkillLevel,
-    enumName: 'skill_level_enum',
+    enum: VerifiedLevel,
+    enumName: 'verified_level_enum',
     nullable: true,
   })
-  validated_level: SkillLevel | null;
+  validated_level: VerifiedLevel | null;
 
   @ApiProperty({
     required: false,

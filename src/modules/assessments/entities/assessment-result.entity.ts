@@ -8,7 +8,7 @@ import {
   PrimaryGeneratedColumn,
 } from 'typeorm';
 import { AssessmentAttempt } from './assessment-attempt.entity';
-import { SkillLevel } from './assessment-question.entity';
+import { VerifiedLevel } from './assessment-question.entity';
 
 export enum AssessmentTier {
   NOT_READY = 'not_ready',
@@ -48,11 +48,11 @@ export class AssessmentResult {
   @ApiProperty({
     required: false,
     nullable: true,
-    enum: SkillLevel,
+    enum: VerifiedLevel,
     description: 'Validated level for skill assessment only',
   })
-  @Column({ type: 'enum', enum: SkillLevel, nullable: true })
-  validated_level: SkillLevel | null;
+  @Column({ type: 'enum', enum: VerifiedLevel, nullable: true })
+  validated_level: VerifiedLevel | null;
 
   @ApiProperty()
   @CreateDateColumn({ type: 'timestamp with time zone' })
