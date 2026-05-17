@@ -295,6 +295,13 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       CREATE INDEX "idx_assessment_responses_attempt" ON "assessment_responses" ("attempt_id")
     `);
 
+    // Add CHECK constraint to ensure at least one of question_id or question_text is present
+    await queryRunner.query(`
+      ALTER TABLE "assessment_responses" 
+      ADD CONSTRAINT "CHK_responses_question_present" 
+      CHECK (question_id IS NOT NULL OR question_text IS NOT NULL)
+    `);
+
     // Create talent_question_history table (tracks all questions user has seen/answered)
     await queryRunner.createTable(
       new Table({
@@ -367,12 +374,13 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       }),
     );
 
+    // Composite foreign key to ensure attempt belongs to the same user
     await queryRunner.createForeignKey(
       'talent_question_history',
       new TableForeignKey({
-        columnNames: ['attempt_id'],
+        columnNames: ['attempt_id', 'user_id'],
         referencedTableName: 'assessment_attempts',
-        referencedColumnNames: ['id'],
+        referencedColumnNames: ['id', 'user_id'],
         onDelete: 'CASCADE',
       }),
     );
@@ -447,6 +455,13 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       }),
     );
 
+    // Add CHECK constraint to ensure score is non-negative
+    await queryRunner.query(`
+      ALTER TABLE "assessment_results" 
+      ADD CONSTRAINT "CHK_assessment_score_non_negative" 
+      CHECK (score >= 0)
+    `);
+
     // Add assessment tracking fields to talent_profiles
     await queryRunner.query(`
       ALTER TABLE "talent_profiles" 
@@ -465,6 +480,14 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       DROP COLUMN IF EXISTS "validated_level",
       DROP COLUMN IF EXISTS "advanced_assessment_completed_at",
       DROP COLUMN IF EXISTS "skill_assessment_completed_at"
+    `);
+
+    // Drop constraints before dropping tables
+    await queryRunner.query(`
+      ALTER TABLE "assessment_results" DROP CONSTRAINT IF EXISTS "CHK_assessment_score_non_negative"
+    `);
+    await queryRunner.query(`
+      ALTER TABLE "assessment_responses" DROP CONSTRAINT IF EXISTS "CHK_responses_question_present"
     `);
 
     // Drop tables in reverse order (respecting foreign keys)
