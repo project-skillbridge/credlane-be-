@@ -10,6 +10,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { SkillLevel } from '../../assessments/entities/assessment-question.entity';
 
 export enum TalentProfileStatus {
   NOT_STARTED = 'not_started',
@@ -139,11 +140,16 @@ export class TalentProfile {
   @ApiProperty({
     required: false,
     nullable: true,
-    enum: ['entry', 'junior', 'mid', 'senior', 'expert'],
+    enum: SkillLevel,
     description: 'Validated skill level from skill assessment',
   })
-  @Column({ type: 'varchar', length: 50, nullable: true })
-  validated_level: string | null;
+  @Column({
+    type: 'enum',
+    enum: SkillLevel,
+    enumName: 'skill_level_enum',
+    nullable: true,
+  })
+  validated_level: SkillLevel | null;
 
   @ApiProperty({
     required: false,
