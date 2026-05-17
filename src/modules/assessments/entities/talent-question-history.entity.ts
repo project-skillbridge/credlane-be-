@@ -19,11 +19,11 @@ export class TalentQuestionHistory {
 
   @ApiProperty({ format: 'uuid' })
   @Column({ type: 'uuid' })
-  user_id: string;
+  talent_id: string;
 
   @ManyToOne(() => User)
-  @JoinColumn({ name: 'user_id' })
-  user: User;
+  @JoinColumn({ name: 'talent_id' })
+  talent: User;
 
   @ApiProperty({ format: 'uuid' })
   @Column({ type: 'uuid' })
@@ -48,10 +48,26 @@ export class TalentQuestionHistory {
   @ApiProperty({
     required: false,
     nullable: true,
-    description: 'Whether answer was correct (for skill questions)',
+    description: 'Whether answer was correct (null for subjective questions)',
   })
   @Column({ type: 'boolean', nullable: true })
   is_correct: boolean | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'Raw points earned for this answer',
+  })
+  @Column({ type: 'float', nullable: true })
+  raw_score: number | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'Maximum possible points for this question',
+  })
+  @Column({ type: 'float', nullable: true })
+  max_score: number | null;
 
   @ApiProperty()
   @Column({

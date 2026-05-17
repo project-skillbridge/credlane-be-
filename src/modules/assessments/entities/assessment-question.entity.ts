@@ -110,7 +110,8 @@ export class AssessmentQuestion {
   @ApiProperty({
     required: false,
     nullable: true,
-    description: 'Additional flexible data (difficulty, tags, author, etc.)',
+    description:
+      'Structured metadata: { difficulty: "easy"|"medium"|"hard", estimated_time_seconds: number, tags: string[], rubric?: { criteria: string, max_points: number }[], author?: string, version?: number, explanation?: string, hints?: string[] }',
   })
   @Column({ type: 'jsonb', nullable: true })
   metadata: Record<string, any> | null;

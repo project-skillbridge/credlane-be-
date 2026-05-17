@@ -105,7 +105,7 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
             type: 'jsonb',
             isNullable: true,
             comment:
-              'Additional flexible data (difficulty, tags, author, etc.)',
+              'Structured metadata: { difficulty: "easy"|"medium"|"hard", estimated_time_seconds: number, tags: string[], rubric?: { criteria: string, max_points: number }[], author?: string, version?: number, explanation?: string, hints?: string[] }',
           },
           {
             name: 'is_live',
@@ -302,7 +302,7 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       CHECK (question_id IS NOT NULL OR question_text IS NOT NULL)
     `);
 
-    // Create talent_question_history table (tracks all questions user has seen/answered)
+    // Create talent_question_history table (tracks all questions talent has seen/answered)
     await queryRunner.createTable(
       new Table({
         name: 'talent_question_history',
@@ -314,9 +314,9 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
             default: 'gen_random_uuid()',
           },
           {
-            name: 'user_id',
+            name: 'talent_id',
             type: 'uuid',
-            comment: 'User who answered the question',
+            comment: 'Talent who answered the question',
           },
           {
             name: 'question_id',
@@ -337,7 +337,19 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
             name: 'is_correct',
             type: 'boolean',
             isNullable: true,
-            comment: 'Whether answer was correct (for skill questions)',
+            comment: 'Whether answer was correct (null for subjective questions)',
+          },
+          {
+            name: 'raw_score',
+            type: 'float',
+            isNullable: true,
+            comment: 'Raw points earned for this answer',
+          },
+          {
+            name: 'max_score',
+            type: 'float',
+            isNullable: true,
+            comment: 'Maximum possible points for this question',
           },
           {
             name: 'answered_at',
@@ -357,7 +369,7 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
     await queryRunner.createForeignKey(
       'talent_question_history',
       new TableForeignKey({
-        columnNames: ['user_id'],
+        columnNames: ['talent_id'],
         referencedTableName: 'users',
         referencedColumnNames: ['id'],
         onDelete: 'CASCADE',
@@ -374,29 +386,29 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       }),
     );
 
-    // Composite foreign key to ensure attempt belongs to the same user
+    // Composite foreign key to ensure attempt belongs to the same talent
     await queryRunner.createForeignKey(
       'talent_question_history',
       new TableForeignKey({
-        columnNames: ['attempt_id', 'user_id'],
+        columnNames: ['attempt_id', 'talent_id'],
         referencedTableName: 'assessment_attempts',
         referencedColumnNames: ['id', 'user_id'],
         onDelete: 'CASCADE',
       }),
     );
 
-    // Add unique constraint - prevent user from answering same question in same attempt twice
+    // Add unique constraint - prevent talent from seeing same question twice (across all attempts)
     await queryRunner.createUniqueConstraint(
       'talent_question_history',
       new TableUnique({
-        name: 'uq_talent_question_history_user_question_attempt',
-        columnNames: ['user_id', 'question_id', 'attempt_id'],
+        name: 'uq_talent_question_history_talent_question',
+        columnNames: ['talent_id', 'question_id'],
       }),
     );
 
     // Create indexes on talent_question_history
     await queryRunner.query(`
-      CREATE INDEX "idx_talent_question_history_user" ON "talent_question_history" ("user_id")
+      CREATE INDEX "idx_talent_question_history_talent" ON "talent_question_history" ("talent_id")
     `);
     await queryRunner.query(`
       CREATE INDEX "idx_talent_question_history_question" ON "talent_question_history" ("question_id")
