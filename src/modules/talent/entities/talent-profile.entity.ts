@@ -76,7 +76,11 @@ export class TalentProfile {
   @Column({ type: 'varchar', length: 100, nullable: true })
   track: string | null;
 
-  @ApiProperty({ default: false, description: 'True when all profile fields including optional ones are complete' })
+  @ApiProperty({
+    default: false,
+    description:
+      'True when all profile fields including optional ones are complete',
+  })
   @Column({ type: 'boolean', default: false })
   profile_verified: boolean;
 
@@ -107,6 +111,47 @@ export class TalentProfile {
   @ApiProperty({ required: false, nullable: true })
   @Column({ type: 'timestamp with time zone', nullable: true })
   published_at: Date | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'When personal assessment was completed',
+  })
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  personal_assessment_completed_at: Date | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'When skill assessment was completed',
+  })
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  skill_assessment_completed_at: Date | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'When advanced assessment was completed',
+  })
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  advanced_assessment_completed_at: Date | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    enum: ['entry', 'junior', 'mid', 'senior', 'expert'],
+    description: 'Validated skill level from skill assessment',
+  })
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  validated_level: string | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'Date until which advanced assessment retakes are locked',
+  })
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  assessment_locked_until: Date | null;
 
   @ApiProperty()
   @CreateDateColumn({ name: 'created_at', type: 'timestamp with time zone' })
