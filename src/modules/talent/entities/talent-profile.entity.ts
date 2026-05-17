@@ -76,6 +76,15 @@ export class TalentProfile {
   @Column({ type: 'varchar', length: 100, nullable: true })
   track: string | null;
 
+  @ApiProperty({
+    example: 'intermediate',
+    required: false,
+    nullable: true,
+    description: 'Self-reported skill level for the selected track (onboarding step 2)',
+  })
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  claimed_level: string | null;
+
   @ApiProperty({ default: false, description: 'True when all profile fields including optional ones are complete' })
   @Column({ type: 'boolean', default: false })
   profile_verified: boolean;

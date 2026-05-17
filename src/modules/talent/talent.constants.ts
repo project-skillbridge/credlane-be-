@@ -21,6 +21,15 @@ export const TALENT_ROLE_TRACKS = [
 
 export type TalentRoleTrack = (typeof TALENT_ROLE_TRACKS)[number];
 
+export const TALENT_CLAIMED_LEVELS = [
+  'beginner',
+  'intermediate',
+  'advanced',
+  'expert',
+] as const;
+
+export type TalentClaimedLevel = (typeof TALENT_CLAIMED_LEVELS)[number];
+
 export const TALENT_EDUCATION_LEVELS = [
   'high_school',
   'associate',
