@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiHideProperty, ApiProperty } from '@nestjs/swagger';
 import {
   Column,
   CreateDateColumn,
@@ -113,12 +113,7 @@ export class TalentProfile {
   @Column({ type: 'timestamp with time zone', nullable: true })
   published_at: Date | null;
 
-  @ApiProperty({
-    required: false,
-    nullable: true,
-    description:
-      'All 48 personal assessment responses (AI context for advanced assessment)',
-  })
+  @ApiHideProperty()
   @Column({ type: 'jsonb', nullable: true })
   personal_assessment_answers: Record<string, any> | null;
 
