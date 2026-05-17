@@ -2,8 +2,9 @@ import 'reflect-metadata';
 import dataSource from '../data-source';
 import { Seeder } from './seeder.interface';
 import { userSeeder } from './user.seeder';
+import { AssessmentQuestionsSeeder } from './assessment-questions.seeder';
 
-const seeders: Seeder[] = [userSeeder];
+const seeders: Seeder[] = [userSeeder, AssessmentQuestionsSeeder];
 
 async function run() {
   await dataSource.initialize();
