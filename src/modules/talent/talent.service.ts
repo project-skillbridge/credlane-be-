@@ -16,7 +16,7 @@ import { SetGoalDto } from './dto/set-goal.dto';
 import { SetTracksDto } from './dto/set-tracks.dto';
 import { SetProfileDto } from './dto/set-profile.dto';
 import { SaveGoalDto } from './dto/save-goal.dto';
-import { SaveTrackDto } from './dto/save-track.dto';
+import { SaveTrackBody } from './dto/save-track.dto';
 import { SaveTalentProfileDto } from './dto/save-talent-profile.dto';
 import {
   TalentProfile,
@@ -97,7 +97,7 @@ export class TalentService {
   /** BE-ONB-TAL-002 — save single track, 422 on invalid. */
   async saveTrackStep(
     userId: string,
-    dto: SaveTrackDto,
+    dto: SaveTrackBody,
   ): Promise<{ status: string; message: string }> {
     const profile = await this.findOrCreateProfile(userId);
     profile.track = dto.track;

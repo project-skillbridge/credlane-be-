@@ -1,12 +1,26 @@
 import { ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty } from 'class-validator';
-import {
-  TALENT_CLAIMED_LEVELS,
-  TALENT_ROLE_TRACKS,
-  type TalentClaimedLevel,
-} from '../talent.constants';
+import { TALENT_ROLE_TRACKS } from '../talent.constants';
 
-export class SaveTrackDto {
+export type SaveTrackClaimedLevel =
+  | 'beginner'
+  | 'intermediate'
+  | 'advanced'
+  | 'expert';
+
+const SAVE_TRACK_CLAIMED_LEVEL_LIST: SaveTrackClaimedLevel[] = [
+  'beginner',
+  'intermediate',
+  'advanced',
+  'expert',
+];
+
+export type SaveTrackBody = {
+  track: string;
+  claimed_level: SaveTrackClaimedLevel;
+};
+
+export class SaveTrackDto implements SaveTrackBody {
   @ApiProperty({
     example: 'frontend_developer',
     enum: TALENT_ROLE_TRACKS,
@@ -18,10 +32,12 @@ export class SaveTrackDto {
 
   @ApiProperty({
     example: 'intermediate',
-    enum: TALENT_CLAIMED_LEVELS,
+    enum: SAVE_TRACK_CLAIMED_LEVEL_LIST,
     description: 'Self-reported skill level for the selected track',
   })
   @IsNotEmpty({ message: 'Claimed level is required' })
-  @IsIn(TALENT_CLAIMED_LEVELS, { message: 'Invalid claimed level selection' })
-  claimed_level: TalentClaimedLevel;
+  @IsIn(SAVE_TRACK_CLAIMED_LEVEL_LIST, {
+    message: 'Invalid claimed level selection',
+  })
+  claimed_level: SaveTrackClaimedLevel;
 }
