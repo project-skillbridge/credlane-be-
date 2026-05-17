@@ -138,6 +138,23 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       CREATE INDEX "idx_assessment_questions_live" ON "assessment_questions" ("is_live")
     `);
 
+    // Add CHECK constraint to enforce metadata structure
+    await queryRunner.query(`
+      ALTER TABLE "assessment_questions"
+      ADD CONSTRAINT "CHK_assessment_questions_metadata_valid"
+      CHECK (
+        metadata IS NULL OR (
+          jsonb_typeof(metadata) = 'object'
+          AND metadata ? 'difficulty'
+          AND metadata ? 'estimated_time_seconds'
+          AND metadata ? 'tags'
+          AND (metadata->>'difficulty') IN ('easy', 'medium', 'hard')
+          AND jsonb_typeof(metadata->'tags') = 'array'
+          AND (metadata->>'estimated_time_seconds')::numeric > 0
+        )
+      )
+    `);
+
     // Create assessment_attempts table
     await queryRunner.createTable(
       new Table({
@@ -408,6 +425,17 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       }),
     );
 
+    // Add CHECK constraints for scoring fields
+    await queryRunner.query(`
+      ALTER TABLE "talent_question_history" 
+      ADD CONSTRAINT "CHK_talent_question_history_scores_valid" 
+      CHECK (
+        (raw_score IS NULL OR raw_score >= 0) AND
+        (max_score IS NULL OR max_score > 0) AND
+        (raw_score IS NULL OR max_score IS NULL OR raw_score <= max_score)
+      )
+    `);
+
     // Create indexes on talent_question_history
     await queryRunner.query(`
       CREATE INDEX "idx_talent_question_history_talent_profile" ON "talent_question_history" ("talent_profile_id")
@@ -479,6 +507,9 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
     // Add assessment tracking fields to talent_profiles
     await queryRunner.query(`
       ALTER TABLE "talent_profiles" 
+      ADD COLUMN IF NOT EXISTS "personal_assessment_answers" jsonb,
+      ADD COLUMN IF NOT EXISTS "claimed_level" verified_level_enum,
+      ADD COLUMN IF NOT EXISTS "personal_assessment_completed_at" timestamp with time zone,
       ADD COLUMN IF NOT EXISTS "skill_assessment_completed_at" timestamp with time zone,
       ADD COLUMN IF NOT EXISTS "advanced_assessment_completed_at" timestamp with time zone,
       ADD COLUMN IF NOT EXISTS "validated_level" verified_level_enum,
@@ -493,15 +524,24 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       DROP COLUMN IF EXISTS "assessment_locked_until",
       DROP COLUMN IF EXISTS "validated_level",
       DROP COLUMN IF EXISTS "advanced_assessment_completed_at",
-      DROP COLUMN IF EXISTS "skill_assessment_completed_at"
+      DROP COLUMN IF EXISTS "skill_assessment_completed_at",
+      DROP COLUMN IF EXISTS "personal_assessment_completed_at",
+      DROP COLUMN IF EXISTS "claimed_level",
+      DROP COLUMN IF EXISTS "personal_assessment_answers"
     `);
 
     // Drop constraints before dropping tables
+    await queryRunner.query(`
+      ALTER TABLE "talent_question_history" DROP CONSTRAINT IF EXISTS "CHK_talent_question_history_scores_valid"
+    `);
     await queryRunner.query(`
       ALTER TABLE "assessment_results" DROP CONSTRAINT IF EXISTS "CHK_assessment_score_non_negative"
     `);
     await queryRunner.query(`
       ALTER TABLE "assessment_responses" DROP CONSTRAINT IF EXISTS "CHK_responses_question_present"
+    `);
+    await queryRunner.query(`
+      ALTER TABLE "assessment_questions" DROP CONSTRAINT IF EXISTS "CHK_assessment_questions_metadata_valid"
     `);
 
     // Drop tables in reverse order (respecting foreign keys)

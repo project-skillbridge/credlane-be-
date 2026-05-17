@@ -116,6 +116,37 @@ export class TalentProfile {
   @ApiProperty({
     required: false,
     nullable: true,
+    description:
+      'All 48 personal assessment responses (AI context for advanced assessment)',
+  })
+  @Column({ type: 'jsonb', nullable: true })
+  personal_assessment_answers: Record<string, any> | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    enum: VerifiedLevel,
+    description: 'Self-reported skill level from personal assessment Q13',
+  })
+  @Column({
+    type: 'enum',
+    enum: VerifiedLevel,
+    enumName: 'verified_level_enum',
+    nullable: true,
+  })
+  claimed_level: VerifiedLevel | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'When personal assessment was completed',
+  })
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  personal_assessment_completed_at: Date | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
     description: 'When skill assessment was completed',
   })
   @Column({ type: 'timestamp with time zone', nullable: true })
