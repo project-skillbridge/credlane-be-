@@ -50,6 +50,22 @@ describe('validateSectionAnswers', () => {
     }
   });
 
+  it('accepts an empty array for optional multi-select questions', () => {
+    const result = validateSectionAnswers(
+      2,
+      {
+        specialization: 'frontend',
+        primary_tool_duration: '1_2_years',
+        mentoring_experience: 'yes_informally',
+        shipped_deliverable: 'yes_multiple',
+        tools: [],
+      },
+      profile,
+    );
+
+    expect(result.tools).toEqual([]);
+  });
+
   it('requires onboarding track before validating specialization', () => {
     const profileWithoutTrack = makeTalentProfile({ track: null });
 

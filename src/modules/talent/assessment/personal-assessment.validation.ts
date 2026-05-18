@@ -211,9 +211,17 @@ function validateQuestionValue(
       return;
     }
     case 'multi': {
-      if (!isStringArray(value)) {
+      const isValidMultiValue =
+        isStringArray(value) ||
+        (!question.required &&
+          Array.isArray(value) &&
+          value.every((item) => typeof item === 'string'));
+
+      if (!isValidMultiValue) {
         throwFieldError({
-          message: `${question.key} must be a non-empty array of strings`,
+          message: question.required
+            ? `${question.key} must be a non-empty array of strings`
+            : `${question.key} must be an array of strings`,
           field: question.key,
         });
       }
@@ -224,14 +232,16 @@ function validateQuestionValue(
           receivedValue: value,
         });
       }
-      const invalid = value.filter((item) => !options.includes(item));
-      if (invalid.length > 0) {
-        throwFieldError({
-          message: invalidMultiPickMessage(question.key, invalid, options),
-          field: question.key,
-          allowedValues: options,
-          receivedValue: invalid,
-        });
+      if (Array.isArray(value) && value.length > 0) {
+        const invalid = value.filter((item) => !options.includes(item));
+        if (invalid.length > 0) {
+          throwFieldError({
+            message: invalidMultiPickMessage(question.key, invalid, options),
+            field: question.key,
+            allowedValues: options,
+            receivedValue: invalid,
+          });
+        }
       }
     }
   }
