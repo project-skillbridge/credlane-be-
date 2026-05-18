@@ -528,7 +528,6 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
     await queryRunner.query(`
       ALTER TABLE "talent_profiles" 
       ADD COLUMN IF NOT EXISTS "personal_assessment_answers" jsonb,
-      ADD COLUMN IF NOT EXISTS "claimed_level" verified_level_enum,
       ADD COLUMN IF NOT EXISTS "personal_assessment_completed_at" timestamp with time zone,
       ADD COLUMN IF NOT EXISTS "skill_assessment_completed_at" timestamp with time zone,
       ADD COLUMN IF NOT EXISTS "advanced_assessment_completed_at" timestamp with time zone,
@@ -546,7 +545,6 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       DROP COLUMN IF EXISTS "advanced_assessment_completed_at",
       DROP COLUMN IF EXISTS "skill_assessment_completed_at",
       DROP COLUMN IF EXISTS "personal_assessment_completed_at",
-      DROP COLUMN IF EXISTS "claimed_level",
       DROP COLUMN IF EXISTS "personal_assessment_answers"
     `);
 
