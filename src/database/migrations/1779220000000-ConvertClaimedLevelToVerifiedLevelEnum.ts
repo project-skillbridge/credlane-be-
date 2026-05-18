@@ -15,7 +15,7 @@ export class ConvertClaimedLevelToVerifiedLevelEnum1779220000000
       return;
     }
 
-    if (column.type === 'enum' || column.enumName === 'verified_level_enum') {
+    if (column.enumName === 'verified_level_enum') {
       return;
     }
 
@@ -41,7 +41,7 @@ export class ConvertClaimedLevelToVerifiedLevelEnum1779220000000
   public async down(queryRunner: QueryRunner): Promise<void> {
     const table = await queryRunner.getTable('talent_profiles');
     const column = table?.findColumnByName('claimed_level');
-    if (!column || column.type !== 'enum') {
+    if (!column || column.enumName !== 'verified_level_enum') {
       return;
     }
 
