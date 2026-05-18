@@ -24,6 +24,7 @@ import {
 import { SubmitSkillAssessmentDto } from './dto/skill-assessment.dto';
 import { ErrorMessages, SuccessMessages } from '../../../shared';
 import { SKILL_ASSESSMENT_LEVEL_THRESHOLDS } from '../talent.constants';
+import { RubricScoringService } from '../../ai/rubric-scoring.service';
 
 
 
@@ -91,6 +92,8 @@ export class SkillAssessmentService {
 
     @InjectRepository(TalentQuestionHistory)
     private readonly historyRepo: Repository<TalentQuestionHistory>,
+
+    private readonly rubricScoring: RubricScoringService,
   ) {}
 
   // -------------------------------------------------------------------------
@@ -265,21 +268,35 @@ export class SkillAssessmentService {
       });
     }
 
-    // AI rubric scoring for text answers ---------------------------------
-    //    Integration point for Chiziterem's rubric service.
-    let textScore = 0;
-    const textTotal = textAnswers.length;
+    // AI rubric scoring for text answers
+    const scoredTextAnswers = await this.rubricScoring.scoreAnswers(
+      textAnswers.map(({ question, answer }) => ({
+        question_id: question.id,
+        question_text: question.question_text,
+        answer,
+      })),
+    );
 
-    for (const { answer } of textAnswers) {
-      if (answer.trim().length > 10) {
-        textScore += 0.5; // placeholder rubric score
+    let textScore = 0;
+    let textMaxScore = 0;
+
+    for (const scored of scoredTextAnswers) {
+      textScore += scored.raw_score;
+      textMaxScore += scored.max_score;
+
+      const historyEntry = historyToSave.find(
+        (h) => h.question_id === scored.question_id,
+      );
+      if (historyEntry) {
+        historyEntry.raw_score = scored.raw_score;
+        historyEntry.max_score = scored.max_score;
       }
     }
 
-    const totalQuestions = mcqTotal + textTotal;
     const totalScore = mcqCorrect + textScore;
-    const percentage = totalQuestions > 0
-      ? Math.round((totalScore / totalQuestions) * 100)
+    const totalMaxScore = mcqTotal + textMaxScore;
+    const percentage = totalMaxScore > 0
+      ? Math.round((totalScore / totalMaxScore) * 100)
       : 0;
 
     const validatedLevel = this.resolveValidatedLevel(
@@ -300,6 +317,8 @@ export class SkillAssessmentService {
       const result = manager.create(AssessmentResult, {
         attempt_id: attempt.id,
         score: Math.round(totalScore),
+        max_score: totalMaxScore,
+        percentage,
         validated_level: validatedLevel,
         tier: null,
       });
@@ -317,14 +336,14 @@ export class SkillAssessmentService {
     });
 
     this.logger.log(
-      `Skill assessment submitted: attempt=${attempt.id} user=${userId} score=${totalScore}/${totalQuestions} validated=${validatedLevel} downgraded=${downgraded}`,
+      `Skill assessment submitted: attempt=${attempt.id} user=${userId} score=${totalScore}/${totalMaxScore} validated=${validatedLevel} downgraded=${downgraded}`,
     );
 
     return {
       status: 'success',
       message: SuccessMessages.SKILL_ASSESSMENT.SUBMITTED,
       score: Math.round(totalScore),
-      total: totalQuestions,
+      total: totalMaxScore,
       percentage,
       validated_level: validatedLevel,
       claimed_level: claimed,

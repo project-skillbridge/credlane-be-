@@ -10,6 +10,7 @@ import { appConfig } from './config/app.config';
 import { databaseConfig } from './config/database.config';
 import './config/env';
 import { jwtConfig } from './config/jwt.config';
+import { AiModule } from './modules/ai/ai.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './modules/auth/guards/roles.guard';
@@ -34,6 +35,7 @@ import { WelcomeController } from './welcome.controller';
       useFactory: (configService: ConfigService) =>
         configService.getOrThrow<TypeOrmModuleOptions>('database'),
     }),
+    AiModule,
     HealthModule,
     InquiriesModule,
     UsersModule,
