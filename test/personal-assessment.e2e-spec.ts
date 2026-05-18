@@ -226,7 +226,10 @@ describe('Personal assessment (e2e)', () => {
   });
 
   it('POST /api/v1/talent/assessment/personal/complete succeeds with full answers', async () => {
-    profileStore.personal_assessment_answers = buildFullPersonalAssessmentAnswers();
+    profileStore.personal_assessment_answers = {
+      ...buildFullPersonalAssessmentAnswers(),
+      _meta: { completedSections: [1, 2, 3, 4, 5, 6, 7] },
+    };
     MockJwtAuthGuard.nextUser = {
       sub: talentUser.id,
       email: talentUser.email,
@@ -244,7 +247,10 @@ describe('Personal assessment (e2e)', () => {
   });
 
   it('POST /api/v1/talent/assessment/personal/complete rejects Unknown country', async () => {
-    profileStore.personal_assessment_answers = buildFullPersonalAssessmentAnswers();
+    profileStore.personal_assessment_answers = {
+      ...buildFullPersonalAssessmentAnswers(),
+      _meta: { completedSections: [1, 2, 3, 4, 5, 6, 7] },
+    };
     const usersWithUnknown = makeTalentUser({
       id: talentUser.id,
       country: OAUTH_DEFAULT_COUNTRY,
