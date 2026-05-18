@@ -27,6 +27,15 @@ export const ErrorMessages = {
     INVALID_SECTION: 'Section must be an integer between 1 and 7',
     ALREADY_COMPLETED: 'Personal assessment is already completed',
   },
+  SKILL_ASSESSMENT: {
+    PROFILE_NOT_FOUND: 'Talent profile not found',
+    CLAIMED_LEVEL_MISSING: 'claimed_level is required to start a skill assessment; please complete onboarding track step first',
+    TRACK_MISSING: 'track is required to start a skill assessment; please complete onboarding track step first',
+    NO_QUESTIONS_AVAILABLE: 'No skill assessment questions are currently available for your track and level',
+    ATTEMPT_NOT_FOUND: 'Assessment attempt not found',
+    ATTEMPT_ALREADY_SUBMITTED: 'This assessment attempt has already been submitted',
+    ATTEMPT_CORRUPT: 'Assessment attempt has no questions; please start a new session',
+  },
   ONBOARDING: {
     INVALID_USER: 'Invalid user',
     ALREADY_COMPLETED: 'Onboarding already completed',
