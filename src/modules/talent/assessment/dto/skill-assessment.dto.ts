@@ -3,7 +3,6 @@ import {
   ArrayNotEmpty,
   IsArray,
   IsNotEmpty,
-  IsString,
   IsUUID,
   ValidateNested,
 } from 'class-validator';
