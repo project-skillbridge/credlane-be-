@@ -190,46 +190,29 @@ describe('PersonalAssessmentService', () => {
     const context = await service.getAiContext(userId);
 
     expect(repository.save).not.toHaveBeenCalled();
-    expect(context.profileId).toBe('');
-    expect(context.personalAssessmentCompleted).toBe(false);
-    expect(context.onboarding).toEqual({
-      track: null,
-      educationLevel: null,
-      region: null,
-      linkedinProfile: null,
-      claimedLevel: null,
-      country: 'Nigeria',
-    });
-    expect(context.answers.job_title).toBeNull();
-    expect(context.progress.nextSection).toBe(1);
-    expect(context.progress.isComplete).toBe(false);
+    expect(context.track).toBeNull();
+    expect(context.educationLevel).toBeNull();
+    expect(context.country).toBe('Nigeria');
+    expect(context.job_title).toBeNull();
+    expect(context).not.toHaveProperty('answers');
+    expect(context).not.toHaveProperty('onboarding');
   });
 
-  it('getAiContext merges stored answers with onboarding fields', async () => {
+  it('getAiContext returns flat onboarding and answer fields', async () => {
     profileStore.personal_assessment_answers = section1Answers();
 
     const context = await service.getAiContext(userId);
 
-    expect(context.userId).toBe(userId);
-    expect(context.onboarding).toEqual({
-      track: 'frontend_developer',
-      educationLevel: 'bachelor',
-      region: 'Lagos',
-      linkedinProfile: 'https://www.linkedin.com/in/casey',
-      claimedLevel: 'mid',
-      country: 'Nigeria',
-    });
-    expect(context.answers.job_title).toBe('Software Engineer');
-    expect(context.answers.skill_track).toBe('frontend_developer');
-    expect(context.answers.country).toBe('Nigeria');
-    expect(context.sections[1].job_title).toBe('Software Engineer');
-    expect(context.personalAssessmentCompleted).toBe(false);
-    expect(context.progress).toEqual({
-      completedSections: [],
-      nextSection: 1,
-      totalSections: 7,
-      sectionsCompleted: 0,
-      isComplete: false,
-    });
+    expect(context.track).toBe('frontend_developer');
+    expect(context.educationLevel).toBe('bachelor');
+    expect(context.region).toBe('Lagos');
+    expect(context.linkedinProfile).toBe('https://www.linkedin.com/in/casey');
+    expect(context.claimedLevel).toBe('mid');
+    expect(context.country).toBe('Nigeria');
+    expect(context.job_title).toBe('Software Engineer');
+    expect(context.skill_track).toBe('frontend_developer');
+    expect(context.education_level).toBe('bachelor');
+    expect(context).not.toHaveProperty('answers');
+    expect(context).not.toHaveProperty('sections');
   });
 });

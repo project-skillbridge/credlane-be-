@@ -84,9 +84,9 @@ export class PersonalAssessmentController {
 
   @Get('context')
   @ApiOperation({
-    summary: 'Assembled talent profile for AI assessment context',
+    summary: 'Flat AI Prompt Chain context payload',
     description:
-      'Merges stored personal assessment answers with onboarding profile fields.',
+      'Returns a single flat object: onboarding fields (track, educationLevel, region, linkedinProfile, claimedLevel, country) plus all personal assessment answer keys. Use GET .../progress for resume state.',
   })
   getContext(@CurrentUser('sub') userId: string) {
     return this.personalAssessmentService.getAiContext(userId);

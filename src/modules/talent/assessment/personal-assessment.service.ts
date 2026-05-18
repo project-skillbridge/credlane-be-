@@ -7,15 +7,12 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ErrorMessages, SuccessMessages } from '../../../shared';
 import { UsersService } from '../../users/users.service';
-import { User } from '../../users/entities/user.entity';
 import { TalentProfile } from '../entities/talent-profile.entity';
+import { PERSONAL_ASSESSMENT_SECTION_COUNT, SKIPPED_ONBOARDING_ANSWER_KEYS } from './personal-assessment.schema';
 import {
-  PERSONAL_ASSESSMENT_SECTION_COUNT,
-  PersonalAssessmentQuestion,
-  SKIPPED_ONBOARDING_ANSWER_KEYS,
-  getSectionQuestions,
-} from './personal-assessment.schema';
-import { VerifiedLevel } from '../../assessments/entities/assessment-question.entity';
+  buildPersonalAssessmentAiPromptContext,
+  type PersonalAssessmentAiPromptContextPayload,
+} from './personal-assessment-ai-prompt-context';
 import {
   getPersonalAssessmentProgress,
   readCompletedSections,
@@ -24,7 +21,6 @@ import {
 import {
   assertAssessmentReadyForComplete,
   assertOnboardingFieldsForComplete,
-  getSkippedProfileValue,
   validateSectionAnswers,
 } from './personal-assessment.validation';
 
@@ -32,24 +28,8 @@ type PersonalAssessmentStore = Record<string, unknown> & {
   _meta?: { completedSections: number[] };
 };
 
-export type TalentPersonalAssessmentContext = {
-  userId: string;
-  profileId: string;
-  personalAssessmentCompleted: boolean;
-  personalAssessmentCompletedAt: string | null;
-  progress: PersonalAssessmentResumeProgress;
-  onboarding: {
-    track: string | null;
-    educationLevel: string | null;
-    region: string | null;
-    linkedinProfile: string | null;
-    claimedLevel: VerifiedLevel | null;
-    country: string;
-  };
-  validatedLevel: string | null;
-  answers: Record<string, unknown>;
-  sections: Record<number, Record<string, unknown>>;
-};
+/** Flat AI Prompt Chain payload returned by GET .../context. */
+export type TalentPersonalAssessmentContext = PersonalAssessmentAiPromptContextPayload;
 
 @Injectable()
 export class PersonalAssessmentService {
@@ -189,71 +169,6 @@ export class PersonalAssessmentService {
     };
   }
 
-  private resolveAnswer(
-    question: PersonalAssessmentQuestion,
-    stored: Record<string, unknown>,
-    profile: TalentProfile,
-    user: User,
-  ): unknown {
-    if (question.skipStorage) {
-      return getSkippedProfileValue(question, profile, user);
-    }
-    return stored[question.key] ?? null;
-  }
-
-  private buildAiContext(
-    userId: string,
-    profile: TalentProfile,
-    user: User,
-    stored: Record<string, unknown>,
-  ): TalentPersonalAssessmentContext {
-    const answers: Record<string, unknown> = {};
-    const sections: Record<number, Record<string, unknown>> = {};
-
-    for (let section = 1; section <= PERSONAL_ASSESSMENT_SECTION_COUNT; section++) {
-      const sectionAnswers: Record<string, unknown> = {};
-      for (const question of getSectionQuestions(section)) {
-        const value = this.resolveAnswer(question, stored, profile, user);
-        sectionAnswers[question.key] = value;
-        answers[question.key] = value;
-
-        if (question.otherTextKey) {
-          const other = stored[question.otherTextKey] ?? null;
-          sectionAnswers[question.otherTextKey] = other;
-          answers[question.otherTextKey] = other;
-        }
-        if (question.followUpKey) {
-          const followUp = stored[question.followUpKey] ?? null;
-          sectionAnswers[question.followUpKey] = followUp;
-          answers[question.followUpKey] = followUp;
-        }
-      }
-      sections[section] = sectionAnswers;
-    }
-
-    const store = this.readStore(profile);
-
-    return {
-      userId,
-      profileId: profile.id ?? '',
-      personalAssessmentCompleted: Boolean(profile.personal_assessment_completed_at),
-      personalAssessmentCompletedAt:
-        profile.personal_assessment_completed_at?.toISOString() ?? null,
-      progress: getPersonalAssessmentProgress(store._meta),
-      onboarding: {
-        track: profile.track ?? null,
-        educationLevel: profile.education_level ?? null,
-        region: profile.region ?? null,
-        linkedinProfile: profile.linkedin_url ?? null,
-        claimedLevel: profile.claimed_level ?? null,
-        country: user.country,
-      },
-      validatedLevel: profile.validated_level ?? null,
-      answers,
-      sections,
-    };
-  }
-
   async getResumeProgress(userId: string): Promise<{
     personalAssessmentCompleted: boolean;
     personalAssessmentCompletedAt: string | null;
@@ -275,17 +190,12 @@ export class PersonalAssessmentService {
   async getAiContext(userId: string): Promise<TalentPersonalAssessmentContext> {
     const user = await this.usersService.findOne(userId);
     const profile = await this.findProfileByUserId(userId);
+    const emptyProfile = Object.assign(new TalentProfile(), { user_id: userId });
 
-    if (!profile) {
-      const emptyProfile = Object.assign(new TalentProfile(), { user_id: userId });
-      return this.buildAiContext(userId, emptyProfile, user, {});
-    }
-
-    return this.buildAiContext(
-      userId,
-      profile,
+    return buildPersonalAssessmentAiPromptContext(
+      profile ?? emptyProfile,
       user,
-      this.withoutMeta(this.readStore(profile)),
+      profile ? this.withoutMeta(this.readStore(profile)) : {},
     );
   }
 }

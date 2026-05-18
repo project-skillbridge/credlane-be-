@@ -251,11 +251,12 @@ describe('Personal assessment (e2e)', () => {
       .get('/api/v1/talent/assessment/personal/context')
       .expect(200)
       .expect((res) => {
-        expect(res.body.data.userId).toBe(talentUser.id);
-        expect(res.body.data.answers.skill_track).toBe('frontend_developer');
-        expect(res.body.data.answers.job_title).toBe('Software Engineer');
-        expect(res.body.data.onboarding.track).toBe('frontend_developer');
-        expect(res.body.data.onboarding.country).toBe('Nigeria');
+        expect(res.body.data.track).toBe('frontend_developer');
+        expect(res.body.data.skill_track).toBe('frontend_developer');
+        expect(res.body.data.job_title).toBe('Software Engineer');
+        expect(res.body.data.country).toBe('Nigeria');
+        expect(res.body.data).not.toHaveProperty('answers');
+        expect(res.body.data).not.toHaveProperty('onboarding');
       });
   });
 
