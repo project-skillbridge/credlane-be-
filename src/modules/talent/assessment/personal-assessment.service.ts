@@ -143,24 +143,44 @@ export class PersonalAssessmentService {
   async complete(
     userId: string,
   ): Promise<{ status: string; message: string; completedAt: string }> {
-    const profile = await this.findOrCreateProfile(userId);
     const user = await this.usersService.findOne(userId);
 
-    if (profile.personal_assessment_completed_at) {
-      throw new UnprocessableEntityException(
-        ErrorMessages.ASSESSMENT.ALREADY_COMPLETED,
-      );
-    }
+    const completedAt =
+      await this.talentProfileRepository.manager.transaction(async (manager) => {
+        let profile = await manager.findOne(TalentProfile, {
+          where: { user_id: userId },
+          lock: { mode: 'pessimistic_write' },
+        });
 
-    assertOnboardingFieldsForComplete(profile, user);
-    const store = this.readStore(profile);
-    const stored = this.withoutMeta(store);
-    const completedSections = readCompletedSections(store._meta);
-    assertAssessmentReadyForComplete(stored, completedSections, profile, user);
+        if (!profile) {
+          profile = await manager.save(
+            manager.create(TalentProfile, { user_id: userId }),
+          );
+        }
 
-    const completedAt = new Date();
-    profile.personal_assessment_completed_at = completedAt;
-    await this.talentProfileRepository.save(profile);
+        if (profile.personal_assessment_completed_at) {
+          throw new UnprocessableEntityException(
+            ErrorMessages.ASSESSMENT.ALREADY_COMPLETED,
+          );
+        }
+
+        assertOnboardingFieldsForComplete(profile, user);
+        const store = this.readStore(profile);
+        const stored = this.withoutMeta(store);
+        const completedSections = readCompletedSections(store._meta);
+        assertAssessmentReadyForComplete(
+          stored,
+          completedSections,
+          profile,
+          user,
+        );
+
+        const completedAt = new Date();
+        profile.personal_assessment_completed_at = completedAt;
+        await manager.save(TalentProfile, profile);
+
+        return completedAt;
+      });
 
     return {
       status: 'success',
