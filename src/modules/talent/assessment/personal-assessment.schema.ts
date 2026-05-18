@@ -453,6 +453,7 @@ export const PERSONAL_ASSESSMENT_SECTIONS: Record<
       questionNumber: 12,
       inputType: 'single',
       required: true,
+      // Options from SPECIALIZATIONS_BY_TRACK at runtime (validated in personal-assessment.validation).
     },
     {
       key: 'claimed_level',
@@ -468,6 +469,7 @@ export const PERSONAL_ASSESSMENT_SECTIONS: Record<
       inputType: 'multi',
       required: false,
       otherTextKey: 'tools_other',
+      // Options from TOOLS_BY_TRACK at runtime (validated in personal-assessment.validation).
     },
     {
       key: 'primary_tool_duration',
