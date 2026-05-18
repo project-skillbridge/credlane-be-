@@ -21,6 +21,19 @@ export const TALENT_ROLE_TRACKS = [
 
 export type TalentRoleTrack = (typeof TALENT_ROLE_TRACKS)[number];
 
+import { VerifiedLevel } from '../assessments/entities/assessment-question.entity';
+
+/** Same values as `verified_level_enum` / `ValidatedLevel` on the profile. */
+export const TALENT_CLAIMED_LEVELS = [
+  VerifiedLevel.ENTRY,
+  VerifiedLevel.JUNIOR,
+  VerifiedLevel.MID,
+  VerifiedLevel.SENIOR,
+  VerifiedLevel.EXPERT,
+] as const;
+
+export type TalentClaimedLevel = VerifiedLevel;
+
 export const TALENT_EDUCATION_LEVELS = [
   'high_school',
   'associate',

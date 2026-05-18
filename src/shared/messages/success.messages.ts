@@ -14,6 +14,10 @@ export const SuccessMessages = {
     WAITLIST_JOINED: 'Added to waitlist',
     MESSAGE_RECEIVED: 'Message received',
   },
+  ASSESSMENT: {
+    SECTION_SAVED: 'Personal assessment section saved',
+    COMPLETED: 'Personal assessment completed',
+  },
   ONBOARDING: {
     TALENT_COMPLETED: 'Talent onboarding completed',
     EMPLOYER_COMPLETED: 'Employer onboarding completed',

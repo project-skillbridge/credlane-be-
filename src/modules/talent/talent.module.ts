@@ -4,6 +4,8 @@ import { UsersModule } from '../users/users.module';
 import { AuthModule } from '../auth/auth.module';
 import { UploadModule } from '../upload/upload.module';
 import { TalentProfile } from './entities/talent-profile.entity';
+import { PersonalAssessmentController } from './assessment/personal-assessment.controller';
+import { PersonalAssessmentService } from './assessment/personal-assessment.service';
 import { TalentController } from './talent.controller';
 import { TalentService } from './talent.service';
 
@@ -14,7 +16,7 @@ import { TalentService } from './talent.service';
     AuthModule,
     UploadModule,
   ],
-  controllers: [TalentController],
-  providers: [TalentService],
+  controllers: [TalentController, PersonalAssessmentController],
+  providers: [TalentService, PersonalAssessmentService],
 })
 export class TalentModule {}

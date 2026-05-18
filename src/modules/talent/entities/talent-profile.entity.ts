@@ -82,8 +82,25 @@ export class TalentProfile {
     description:
       'True when all profile fields including optional ones are complete',
   })
+
   @Column({ type: 'boolean', default: false })
   profile_verified: boolean;
+
+  @ApiProperty({
+    example: VerifiedLevel.MID,
+    required: false,
+    nullable: true,
+    enum: VerifiedLevel,
+    description:
+      'Self-reported skill level for the selected track (onboarding step 2); same enum as validated_level',
+  })
+  @Column({
+    type: 'enum',
+    enum: VerifiedLevel,
+    enumName: 'verified_level_enum',
+    nullable: true,
+  })
+  claimed_level: VerifiedLevel | null;
 
   @ApiProperty({ default: 0 })
   @Column({ type: 'integer', default: 0 })
@@ -116,20 +133,6 @@ export class TalentProfile {
   @ApiHideProperty()
   @Column({ type: 'jsonb', nullable: true })
   personal_assessment_answers: Record<string, any> | null;
-
-  @ApiProperty({
-    required: false,
-    nullable: true,
-    enum: VerifiedLevel,
-    description: 'Self-reported skill level from personal assessment Q13',
-  })
-  @Column({
-    type: 'enum',
-    enum: VerifiedLevel,
-    enumName: 'verified_level_enum',
-    nullable: true,
-  })
-  claimed_level: VerifiedLevel | null;
 
   @ApiProperty({
     required: false,
