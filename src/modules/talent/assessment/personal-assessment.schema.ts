@@ -725,3 +725,18 @@ export function getSectionQuestions(
 ): PersonalAssessmentQuestion[] {
   return PERSONAL_ASSESSMENT_SECTIONS[section] ?? [];
 }
+
+export function getAllPersonalAssessmentQuestions(): PersonalAssessmentQuestion[] {
+  const questions: PersonalAssessmentQuestion[] = [];
+  for (let section = 1; section <= PERSONAL_ASSESSMENT_SECTION_COUNT; section++) {
+    questions.push(...getSectionQuestions(section));
+  }
+  return questions;
+}
+
+/** Question keys filled from onboarding / user profile — not collected via section POST. */
+export function getOnboardingBackedQuestionKeys(): readonly string[] {
+  return getAllPersonalAssessmentQuestions()
+    .filter((question) => question.skipStorage)
+    .map((question) => question.key);
+}
