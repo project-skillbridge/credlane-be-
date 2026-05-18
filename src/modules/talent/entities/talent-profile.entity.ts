@@ -87,13 +87,20 @@ export class TalentProfile {
   profile_verified: boolean;
 
   @ApiProperty({
-    example: 'intermediate',
+    example: VerifiedLevel.MID,
     required: false,
     nullable: true,
-    description: 'Self-reported skill level for the selected track (onboarding step 2)',
+    enum: VerifiedLevel,
+    description:
+      'Self-reported skill level for the selected track (onboarding step 2); same enum as validated_level',
   })
-  @Column({ type: 'varchar', length: 50, nullable: true })
-  claimed_level: string | null;
+  @Column({
+    type: 'enum',
+    enum: VerifiedLevel,
+    enumName: 'verified_level_enum',
+    nullable: true,
+  })
+  claimed_level: VerifiedLevel | null;
 
   @ApiProperty({ default: 0 })
   @Column({ type: 'integer', default: 0 })

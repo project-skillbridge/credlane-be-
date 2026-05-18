@@ -15,6 +15,7 @@ import {
   SKIPPED_ONBOARDING_ANSWER_KEYS,
   getSectionQuestions,
 } from './personal-assessment.schema';
+import { VerifiedLevel } from '../../assessments/entities/assessment-question.entity';
 import {
   assertAllSectionsComplete,
   assertOnboardingFieldsForComplete,
@@ -36,7 +37,7 @@ export type TalentPersonalAssessmentContext = {
     educationLevel: string | null;
     region: string | null;
     linkedinProfile: string | null;
-    claimedLevel: string | null;
+    claimedLevel: VerifiedLevel | null;
     country: string;
   };
   validatedLevel: string | null;

@@ -172,7 +172,7 @@ describe('PersonalAssessmentService', () => {
       educationLevel: 'bachelor',
       region: 'Lagos',
       linkedinProfile: 'https://www.linkedin.com/in/casey',
-      claimedLevel: 'intermediate',
+      claimedLevel: 'mid',
       country: 'Nigeria',
     });
     expect(context.answers.job_title).toBe('Software Engineer');

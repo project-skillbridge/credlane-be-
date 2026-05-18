@@ -1,3 +1,4 @@
+import { VerifiedLevel } from '../../assessments/entities/assessment-question.entity';
 import { TalentProfile, TalentProfileStatus } from '../entities/talent-profile.entity';
 import { User, UserRole } from '../../users/entities/user.entity';
 
@@ -38,7 +39,7 @@ export function makeTalentProfile(overrides: Partial<TalentProfile> = {}): Talen
     education_level: 'bachelor',
     linkedin_url: 'https://www.linkedin.com/in/casey',
     track: 'frontend_developer',
-    claimed_level: 'intermediate',
+    claimed_level: VerifiedLevel.MID,
     profile_verified: true,
     onboarding_step: 3,
     status: TalentProfileStatus.JOB_READY,
