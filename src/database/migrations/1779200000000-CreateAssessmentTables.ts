@@ -405,13 +405,12 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       }),
     );
 
-    // Composite foreign key to ensure attempt belongs to the same talent profile
     await queryRunner.createForeignKey(
       'talent_question_history',
       new TableForeignKey({
-        columnNames: ['attempt_id', 'talent_profile_id'],
+        columnNames: ['attempt_id'],
         referencedTableName: 'assessment_attempts',
-        referencedColumnNames: ['id', 'talent_profile_id'],
+        referencedColumnNames: ['id'],
         onDelete: 'CASCADE',
       }),
     );
