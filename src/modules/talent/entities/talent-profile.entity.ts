@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiHideProperty, ApiProperty } from '@nestjs/swagger';
 import {
   Column,
   CreateDateColumn,
@@ -10,6 +10,7 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 import { User } from '../../users/entities/user.entity';
+import { VerifiedLevel } from '../../assessments/entities/assessment-question.entity';
 
 export enum TalentProfileStatus {
   NOT_STARTED = 'not_started',
@@ -77,6 +78,15 @@ export class TalentProfile {
   track: string | null;
 
   @ApiProperty({
+    default: false,
+    description:
+      'True when all profile fields including optional ones are complete',
+  })
+
+  @Column({ type: 'boolean', default: false })
+  profile_verified: boolean;
+
+  @ApiProperty({
     example: 'intermediate',
     required: false,
     nullable: true,
@@ -84,10 +94,6 @@ export class TalentProfile {
   })
   @Column({ type: 'varchar', length: 50, nullable: true })
   claimed_level: string | null;
-
-  @ApiProperty({ default: false, description: 'True when all profile fields including optional ones are complete' })
-  @Column({ type: 'boolean', default: false })
-  profile_verified: boolean;
 
   @ApiProperty({ default: 0 })
   @Column({ type: 'integer', default: 0 })
@@ -116,6 +122,56 @@ export class TalentProfile {
   @ApiProperty({ required: false, nullable: true })
   @Column({ type: 'timestamp with time zone', nullable: true })
   published_at: Date | null;
+
+  @ApiHideProperty()
+  @Column({ type: 'jsonb', nullable: true })
+  personal_assessment_answers: Record<string, any> | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'When personal assessment was completed',
+  })
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  personal_assessment_completed_at: Date | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'When skill assessment was completed',
+  })
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  skill_assessment_completed_at: Date | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'When advanced assessment was completed',
+  })
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  advanced_assessment_completed_at: Date | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    enum: VerifiedLevel,
+    description: 'Validated skill level from skill assessment',
+  })
+  @Column({
+    type: 'enum',
+    enum: VerifiedLevel,
+    enumName: 'verified_level_enum',
+    nullable: true,
+  })
+  validated_level: VerifiedLevel | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'Date until which advanced assessment retakes are locked',
+  })
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  assessment_locked_until: Date | null;
 
   @ApiProperty()
   @CreateDateColumn({ name: 'created_at', type: 'timestamp with time zone' })
