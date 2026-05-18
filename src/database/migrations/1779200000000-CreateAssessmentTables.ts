@@ -325,7 +325,7 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
         columnNames: ['question_id'],
         referencedTableName: 'assessment_questions',
         referencedColumnNames: ['id'],
-        onDelete: 'SET NULL',
+        onDelete: 'RESTRICT',
       }),
     );
 
