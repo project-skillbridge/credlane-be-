@@ -155,6 +155,27 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
       )
     `);
 
+    // Add CHECK constraint to enforce skill vs advanced field requirements
+    await queryRunner.query(`
+      ALTER TABLE "assessment_questions"
+      ADD CONSTRAINT "CHK_assessment_questions_type_fields"
+      CHECK (
+        (
+          assessment_type = 'skill'
+          AND track IS NOT NULL
+          AND verified_level IS NOT NULL
+          AND competency IS NOT NULL
+          AND slot_type IS NULL
+        ) OR (
+          assessment_type = 'advanced'
+          AND slot_type IS NOT NULL
+          AND track IS NULL
+          AND verified_level IS NULL
+          AND competency IS NULL
+        )
+      )
+    `);
+
     // Create assessment_attempts table
     await queryRunner.createTable(
       new Table({
@@ -492,7 +513,7 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
         columnNames: ['attempt_id'],
         referencedTableName: 'assessment_attempts',
         referencedColumnNames: ['id'],
-        onDelete: 'CASCADE',
+        onDelete: 'RESTRICT',
       }),
     );
 
@@ -541,6 +562,9 @@ export class CreateAssessmentTables1779200000000 implements MigrationInterface {
     `);
     await queryRunner.query(`
       ALTER TABLE "assessment_questions" DROP CONSTRAINT IF EXISTS "CHK_assessment_questions_metadata_valid"
+    `);
+    await queryRunner.query(`
+      ALTER TABLE "assessment_questions" DROP CONSTRAINT IF EXISTS "CHK_assessment_questions_type_fields"
     `);
 
     // Drop tables in reverse order (respecting foreign keys)
