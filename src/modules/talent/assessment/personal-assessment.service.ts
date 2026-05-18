@@ -52,10 +52,14 @@ export class PersonalAssessmentService {
     private readonly usersService: UsersService,
   ) {}
 
-  private async findOrCreateProfile(userId: string): Promise<TalentProfile> {
-    const existing = await this.talentProfileRepository.findOne({
+  private findProfileByUserId(userId: string): Promise<TalentProfile | null> {
+    return this.talentProfileRepository.findOne({
       where: { user_id: userId },
     });
+  }
+
+  private async findOrCreateProfile(userId: string): Promise<TalentProfile> {
+    const existing = await this.findProfileByUserId(userId);
     if (existing) {
       return existing;
     }
@@ -179,11 +183,12 @@ export class PersonalAssessmentService {
     return stored[question.key] ?? null;
   }
 
-  async getAiContext(userId: string): Promise<TalentPersonalAssessmentContext> {
-    const profile = await this.findOrCreateProfile(userId);
-    const user = await this.usersService.findOne(userId);
-    const stored = this.withoutMeta(this.readStore(profile));
-
+  private buildAiContext(
+    userId: string,
+    profile: TalentProfile,
+    user: User,
+    stored: Record<string, unknown>,
+  ): TalentPersonalAssessmentContext {
     const answers: Record<string, unknown> = {};
     const sections: Record<number, Record<string, unknown>> = {};
 
@@ -210,21 +215,38 @@ export class PersonalAssessmentService {
 
     return {
       userId,
-      profileId: profile.id,
+      profileId: profile.id ?? '',
       personalAssessmentCompleted: Boolean(profile.personal_assessment_completed_at),
       personalAssessmentCompletedAt:
         profile.personal_assessment_completed_at?.toISOString() ?? null,
       onboarding: {
-        track: profile.track,
-        educationLevel: profile.education_level,
-        region: profile.region,
-        linkedinProfile: profile.linkedin_url,
-        claimedLevel: profile.claimed_level,
+        track: profile.track ?? null,
+        educationLevel: profile.education_level ?? null,
+        region: profile.region ?? null,
+        linkedinProfile: profile.linkedin_url ?? null,
+        claimedLevel: profile.claimed_level ?? null,
         country: user.country,
       },
-      validatedLevel: profile.validated_level,
+      validatedLevel: profile.validated_level ?? null,
       answers,
       sections,
     };
+  }
+
+  async getAiContext(userId: string): Promise<TalentPersonalAssessmentContext> {
+    const user = await this.usersService.findOne(userId);
+    const profile = await this.findProfileByUserId(userId);
+
+    if (!profile) {
+      const emptyProfile = Object.assign(new TalentProfile(), { user_id: userId });
+      return this.buildAiContext(userId, emptyProfile, user, {});
+    }
+
+    return this.buildAiContext(
+      userId,
+      profile,
+      user,
+      this.withoutMeta(this.readStore(profile)),
+    );
   }
 }

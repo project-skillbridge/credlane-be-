@@ -142,6 +142,25 @@ describe('PersonalAssessmentService', () => {
     });
   });
 
+  it('getAiContext does not create a profile when none exists', async () => {
+    repository.findOne.mockResolvedValue(null);
+
+    const context = await service.getAiContext(userId);
+
+    expect(repository.save).not.toHaveBeenCalled();
+    expect(context.profileId).toBe('');
+    expect(context.personalAssessmentCompleted).toBe(false);
+    expect(context.onboarding).toEqual({
+      track: null,
+      educationLevel: null,
+      region: null,
+      linkedinProfile: null,
+      claimedLevel: null,
+      country: 'Nigeria',
+    });
+    expect(context.answers.job_title).toBeNull();
+  });
+
   it('getAiContext merges stored answers with onboarding fields', async () => {
     profileStore.personal_assessment_answers = section1Answers();
 
