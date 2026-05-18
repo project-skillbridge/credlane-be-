@@ -90,14 +90,19 @@ describe('PersonalAssessmentService', () => {
   });
 
   it('complete rejects Unknown country', async () => {
-    profileStore.personal_assessment_answers = buildFullPersonalAssessmentAnswers();
+    profileStore.personal_assessment_answers = {
+      ...buildFullPersonalAssessmentAnswers(),
+      _meta: { completedSections: [1, 2, 3, 4, 5, 6, 7] },
+    };
     (usersService.findOne as jest.Mock).mockResolvedValue(
       makeTalentUser({ id: userId, country: OAUTH_DEFAULT_COUNTRY }),
     );
 
-    await expect(service.complete(userId)).rejects.toBeInstanceOf(
-      UnprocessableEntityException,
-    );
+    await expect(service.complete(userId)).rejects.toMatchObject({
+      response: {
+        missingOnboardingFields: expect.arrayContaining(['country']),
+      },
+    });
   });
 
   it('getAiContext merges stored answers with onboarding fields', async () => {
