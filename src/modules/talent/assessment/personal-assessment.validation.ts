@@ -4,6 +4,7 @@ import { User } from '../../users/entities/user.entity';
 import { OAUTH_DEFAULT_COUNTRY } from '../../users/users.service';
 import {
   ONBOARDING_TRACK_TO_ASSESSMENT_TRACK,
+  PERSONAL_ASSESSMENT_SECTION_COUNT,
   PersonalAssessmentQuestion,
   SPECIALIZATIONS_BY_TRACK,
   TOOLS_BY_TRACK,
@@ -374,7 +375,7 @@ export function assertAllSectionsComplete(
   profile: TalentProfile,
   user: User,
 ): void {
-  for (let section = 1; section <= 7; section++) {
+  for (let section = 1; section <= PERSONAL_ASSESSMENT_SECTION_COUNT; section++) {
     for (const question of getSectionQuestions(section)) {
       if (!question.required) {
         continue;
