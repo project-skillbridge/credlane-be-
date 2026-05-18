@@ -492,6 +492,7 @@ export const PERSONAL_ASSESSMENT_SECTIONS: Record<
       required: true,
       options: SHIPPED_DELIVERABLE,
     },
+    // skipStorage: ignored on section POST; profileField supplies linkedin_url for context/complete.
     {
       key: 'portfolio_url',
       questionNumber: 18,
