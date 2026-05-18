@@ -18,6 +18,11 @@ export const SuccessMessages = {
     SECTION_SAVED: 'Personal assessment section saved',
     COMPLETED: 'Personal assessment completed',
   },
+  SKILL_ASSESSMENT: {
+    STARTED: 'Skill assessment session created',
+    SUBMITTED: 'Skill assessment submitted successfully',
+    DOWNGRADE_NOTICE: 'Your assessment has been personalised to your verified level.',
+  },
   ONBOARDING: {
     TALENT_COMPLETED: 'Talent onboarding completed',
     EMPLOYER_COMPLETED: 'Employer onboarding completed',
