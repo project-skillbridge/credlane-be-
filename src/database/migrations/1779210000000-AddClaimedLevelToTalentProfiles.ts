@@ -28,7 +28,7 @@ export class AddClaimedLevelToTalentProfiles1779210000000
       return;
     }
 
-    if (column.type === 'enum' || column.enumName === 'verified_level_enum') {
+    if (column.enumName === 'verified_level_enum') {
       return;
     }
 
