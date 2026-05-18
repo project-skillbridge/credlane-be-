@@ -178,6 +178,40 @@ describe('Personal assessment (e2e)', () => {
         expect(res.body.status_code).toBe(200);
         expect(res.body.section).toBe(1);
         expect(res.body.status).toBe('success');
+        expect(res.body.progress).toEqual({
+          completedSections: [1],
+          nextSection: 2,
+          totalSections: 7,
+          sectionsCompleted: 1,
+          isComplete: false,
+        });
+      });
+  });
+
+  it('GET /api/v1/talent/assessment/personal/progress returns resume state', async () => {
+    profileStore.personal_assessment_answers = {
+      ...section1Answers(),
+      _meta: { completedSections: [1, 2] },
+    };
+    MockJwtAuthGuard.nextUser = {
+      sub: talentUser.id,
+      email: talentUser.email,
+      role: UserRole.TALENT,
+      onboardingComplete: true,
+    };
+
+    await request(app.getHttpServer())
+      .get('/api/v1/talent/assessment/personal/progress')
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.data.progress).toEqual({
+          completedSections: [1, 2],
+          nextSection: 3,
+          totalSections: 7,
+          sectionsCompleted: 2,
+          isComplete: false,
+        });
+        expect(res.body.data.personalAssessmentCompleted).toBe(false);
       });
   });
 
@@ -243,6 +277,29 @@ describe('Personal assessment (e2e)', () => {
       .expect((res) => {
         expect(res.body.status).toBe('success');
         expect(res.body.completedAt).toBeDefined();
+      });
+  });
+
+  it('POST /api/v1/talent/assessment/personal/complete rejects unsaved sections', async () => {
+    profileStore.personal_assessment_answers = {
+      ...buildFullPersonalAssessmentAnswers(),
+      _meta: { completedSections: [1, 2] },
+    };
+    MockJwtAuthGuard.nextUser = {
+      sub: talentUser.id,
+      email: talentUser.email,
+      role: UserRole.TALENT,
+      onboardingComplete: true,
+    };
+
+    await request(app.getHttpServer())
+      .post('/api/v1/talent/assessment/personal/complete')
+      .expect(422)
+      .expect((res) => {
+        expect(res.body.message).toBe('Personal assessment is incomplete');
+        expect(res.body.incompleteSections).toEqual(
+          expect.arrayContaining([3, 4, 5, 6, 7]),
+        );
       });
   });
 

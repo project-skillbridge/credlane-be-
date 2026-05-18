@@ -96,6 +96,13 @@ describe('PersonalAssessmentService', () => {
       status: 'success',
       message: SuccessMessages.ASSESSMENT.SECTION_SAVED,
       section: 1,
+      progress: {
+        completedSections: [1],
+        nextSection: 2,
+        totalSections: 7,
+        sectionsCompleted: 1,
+        isComplete: false,
+      },
     });
     expect(profileStore.personal_assessment_answers).toMatchObject({
       job_title: 'Software Engineer',
@@ -124,6 +131,41 @@ describe('PersonalAssessmentService', () => {
     expect(result.status).toBe('success');
     expect(result.message).toBe(SuccessMessages.ASSESSMENT.COMPLETED);
     expect(profileStore.personal_assessment_completed_at).toBeInstanceOf(Date);
+  });
+
+  it('complete rejects when sections are not all saved', async () => {
+    profileStore.personal_assessment_answers = {
+      ...buildFullPersonalAssessmentAnswers(),
+      _meta: { completedSections: [1, 2, 3] },
+    };
+
+    await expect(service.complete(userId)).rejects.toMatchObject({
+      response: {
+        message: 'Personal assessment is incomplete',
+        incompleteSections: expect.arrayContaining([4, 5, 6, 7]),
+        missingFields: expect.arrayContaining([
+          expect.objectContaining({ field: 'section_4', section: 4 }),
+        ]),
+      },
+    });
+  });
+
+  it('getResumeProgress returns section progress without creating a profile', async () => {
+    profileStore.personal_assessment_answers = {
+      ...section1Answers(),
+      _meta: { completedSections: [1] },
+    };
+
+    const resume = await service.getResumeProgress(userId);
+
+    expect(resume.progress).toEqual({
+      completedSections: [1],
+      nextSection: 2,
+      totalSections: 7,
+      sectionsCompleted: 1,
+      isComplete: false,
+    });
+    expect(resume.personalAssessmentCompleted).toBe(false);
   });
 
   it('complete rejects Unknown country', async () => {
@@ -159,6 +201,8 @@ describe('PersonalAssessmentService', () => {
       country: 'Nigeria',
     });
     expect(context.answers.job_title).toBeNull();
+    expect(context.progress.nextSection).toBe(1);
+    expect(context.progress.isComplete).toBe(false);
   });
 
   it('getAiContext merges stored answers with onboarding fields', async () => {
@@ -180,5 +224,12 @@ describe('PersonalAssessmentService', () => {
     expect(context.answers.country).toBe('Nigeria');
     expect(context.sections[1].job_title).toBe('Software Engineer');
     expect(context.personalAssessmentCompleted).toBe(false);
+    expect(context.progress).toEqual({
+      completedSections: [],
+      nextSection: 1,
+      totalSections: 7,
+      sectionsCompleted: 0,
+      isComplete: false,
+    });
   });
 });

@@ -380,50 +380,149 @@ export function assertOnboardingFieldsForComplete(
   }
 }
 
-export function assertAllSectionsComplete(
+export type PersonalAssessmentFieldIssue = {
+  field: string;
+  section: number;
+  message: string;
+};
+
+export function resolveStoredAnswerValue(
+  question: PersonalAssessmentQuestion,
   storedAnswers: Record<string, unknown>,
   profile: TalentProfile,
   user: User,
-): void {
-  for (let section = 1; section <= PERSONAL_ASSESSMENT_SECTION_COUNT; section++) {
-    for (const question of getSectionQuestions(section)) {
-      if (!question.required) {
-        continue;
-      }
+): unknown {
+  if (question.skipStorage) {
+    return getSkippedProfileValue(question, profile, user);
+  }
+  return storedAnswers[question.key] ?? null;
+}
 
-      if (question.skipStorage) {
-        const value = getSkippedProfileValue(question, profile, user);
-        if (value === null || value === undefined || value === '') {
-          throw new UnprocessableEntityException({
-            message: `Missing required onboarding field: ${question.key}`,
-            field: question.key,
-            section,
-          });
-        }
-        continue;
-      }
+function collectQuestionCompleteIssues(
+  question: PersonalAssessmentQuestion,
+  storedAnswers: Record<string, unknown>,
+  profile: TalentProfile,
+  user: User,
+  section: number,
+): PersonalAssessmentFieldIssue[] {
+  const issues: PersonalAssessmentFieldIssue[] = [];
 
-      const value = storedAnswers[question.key];
-      if (value === undefined || value === null) {
-        throw new UnprocessableEntityException({
-          message: `Section ${section} is incomplete: ${question.key} is required`,
-          field: question.key,
+  if (!question.required) {
+    return issues;
+  }
+
+  const value = resolveStoredAnswerValue(question, storedAnswers, profile, user);
+
+  if (!questionHasAnswerValue(question, value)) {
+    const message = question.skipStorage
+      ? `Missing required onboarding field: ${question.key}`
+      : `${question.key} is required`;
+    issues.push({ field: question.key, section, message });
+    return issues;
+  }
+
+  try {
+    const options = resolveOptionsForValidation(question, profile, value);
+    const needsEnumValidation =
+      question.inputType === 'single' || question.inputType === 'multi';
+    if (
+      needsEnumValidation &&
+      !question.options?.length &&
+      !options?.length
+    ) {
+      return issues;
+    }
+    validateQuestionValue(question, value, options);
+  } catch (error: unknown) {
+    const message =
+      error instanceof UnprocessableEntityException
+        ? String(
+            (error.getResponse() as { message?: string }).message ??
+              'Invalid value',
+          )
+        : 'Invalid value';
+    issues.push({ field: question.key, section, message });
+    return issues;
+  }
+
+  if (question.otherTextKey) {
+    const selected = question.skipStorage
+      ? value
+      : storedAnswers[question.key];
+    const includesOther =
+      question.inputType === 'multi'
+        ? isStringArray(selected) && selected.includes('other')
+        : selected === 'other';
+
+    if (includesOther && !isNonEmptyString(storedAnswers[question.otherTextKey])) {
+      issues.push({
+        field: question.otherTextKey,
+        section,
+        message: `${question.otherTextKey} is required when other is selected`,
+      });
+    }
+  }
+
+  if (question.followUpKey && question.followUpWhen) {
+    const mainValue = question.skipStorage
+      ? value
+      : storedAnswers[question.key];
+    if (mainValue === question.followUpWhen) {
+      if (!isNonEmptyString(storedAnswers[question.followUpKey])) {
+        issues.push({
+          field: question.followUpKey,
           section,
+          message: `${question.followUpKey} is required`,
         });
-      }
-
-      if (question.followUpKey && question.followUpWhen) {
-        if (value === question.followUpWhen) {
-          const followUp = storedAnswers[question.followUpKey];
-          if (!isNonEmptyString(followUp)) {
-            throw new UnprocessableEntityException({
-              message: `${question.followUpKey} is required`,
-              field: question.followUpKey,
-              section,
-            });
-          }
-        }
       }
     }
   }
+
+  return issues;
 }
+
+/** Validates onboarding, saved sections, and every required answer before complete. */
+export function assertAssessmentReadyForComplete(
+  storedAnswers: Record<string, unknown>,
+  completedSections: number[],
+  profile: TalentProfile,
+  user: User,
+): void {
+  const issues: PersonalAssessmentFieldIssue[] = [];
+  const completedSet = new Set(completedSections);
+
+  for (let section = 1; section <= PERSONAL_ASSESSMENT_SECTION_COUNT; section++) {
+    if (!completedSet.has(section)) {
+      issues.push({
+        field: `section_${section}`,
+        section,
+        message: `Section ${section} must be saved before completing the assessment`,
+      });
+    }
+
+    for (const question of getSectionQuestions(section)) {
+      issues.push(
+        ...collectQuestionCompleteIssues(
+          question,
+          storedAnswers,
+          profile,
+          user,
+          section,
+        ),
+      );
+    }
+  }
+
+  if (issues.length > 0) {
+    const incompleteSections = [
+      ...new Set(issues.map((issue) => issue.section)),
+    ].sort((a, b) => a - b);
+
+    throw new UnprocessableEntityException({
+      message: 'Personal assessment is incomplete',
+      missingFields: issues,
+      incompleteSections,
+    });
+  }
+}
+

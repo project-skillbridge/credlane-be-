@@ -1,10 +1,12 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import { OAUTH_DEFAULT_COUNTRY } from '../../users/users.service';
 import {
+  assertAssessmentReadyForComplete,
   assertOnboardingFieldsForComplete,
   validateSectionAnswers,
 } from './personal-assessment.validation';
 import {
+  buildFullPersonalAssessmentAnswers,
   makeTalentProfile,
   makeTalentUser,
   section1Answers,
@@ -80,6 +82,46 @@ describe('validateSectionAnswers', () => {
       const body = getExceptionBody(error);
       expect(body.field).toBe('specialization');
       expect(body.message).toContain('onboarding/track');
+    }
+  });
+});
+
+describe('assertAssessmentReadyForComplete', () => {
+  const profile = makeTalentProfile();
+  const user = makeTalentUser();
+
+  it('passes when all sections are saved and answers are valid', () => {
+    expect(() =>
+      assertAssessmentReadyForComplete(
+        buildFullPersonalAssessmentAnswers(),
+        [1, 2, 3, 4, 5, 6, 7],
+        profile,
+        user,
+      ),
+    ).not.toThrow();
+  });
+
+  it('aggregates missing sections and invalid required fields', () => {
+    try {
+      assertAssessmentReadyForComplete(
+        { job_title: 'x' },
+        [1],
+        profile,
+        user,
+      );
+      fail('expected UnprocessableEntityException');
+    } catch (error: unknown) {
+      const body = getExceptionBody(error);
+      expect(body.message).toBe('Personal assessment is incomplete');
+      expect(body.incompleteSections).toEqual(
+        expect.arrayContaining([2, 3, 4, 5, 6, 7]),
+      );
+      expect(body.missingFields).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ field: 'section_2', section: 2 }),
+          expect.objectContaining({ field: 'years_experience', section: 1 }),
+        ]),
+      );
     }
   });
 });

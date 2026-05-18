@@ -72,6 +72,16 @@ export class PersonalAssessmentController {
     return this.personalAssessmentService.complete(userId);
   }
 
+  @Get('progress')
+  @ApiOperation({
+    summary: 'Personal assessment resume progress',
+    description:
+      'Returns completed section numbers and the next section to continue.',
+  })
+  getProgress(@CurrentUser('sub') userId: string) {
+    return this.personalAssessmentService.getResumeProgress(userId);
+  }
+
   @Get('context')
   @ApiOperation({
     summary: 'Assembled talent profile for AI assessment context',

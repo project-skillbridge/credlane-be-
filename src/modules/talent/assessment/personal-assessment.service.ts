@@ -17,7 +17,12 @@ import {
 } from './personal-assessment.schema';
 import { VerifiedLevel } from '../../assessments/entities/assessment-question.entity';
 import {
-  assertAllSectionsComplete,
+  getPersonalAssessmentProgress,
+  readCompletedSections,
+  type PersonalAssessmentResumeProgress,
+} from './personal-assessment.progress';
+import {
+  assertAssessmentReadyForComplete,
   assertOnboardingFieldsForComplete,
   getSkippedProfileValue,
   validateSectionAnswers,
@@ -32,6 +37,7 @@ export type TalentPersonalAssessmentContext = {
   profileId: string;
   personalAssessmentCompleted: boolean;
   personalAssessmentCompletedAt: string | null;
+  progress: PersonalAssessmentResumeProgress;
   onboarding: {
     track: string | null;
     educationLevel: string | null;
@@ -102,7 +108,12 @@ export class PersonalAssessmentService {
     userId: string,
     section: number,
     rawAnswers: Record<string, unknown>,
-  ): Promise<{ status: string; message: string; section: number }> {
+  ): Promise<{
+    status: string;
+    message: string;
+    section: number;
+    progress: PersonalAssessmentResumeProgress;
+  }> {
     if (
       !Number.isInteger(section) ||
       section < 1 ||
@@ -138,10 +149,14 @@ export class PersonalAssessmentService {
       await manager.save(TalentProfile, profile);
     });
 
+    const profile = await this.findOrCreateProfile(userId);
+    const store = this.readStore(profile);
+
     return {
       status: 'success',
       message: SuccessMessages.ASSESSMENT.SECTION_SAVED,
       section,
+      progress: getPersonalAssessmentProgress(store._meta),
     };
   }
 
@@ -158,8 +173,10 @@ export class PersonalAssessmentService {
     }
 
     assertOnboardingFieldsForComplete(profile, user);
-    const stored = this.withoutMeta(this.readStore(profile));
-    assertAllSectionsComplete(stored, profile, user);
+    const store = this.readStore(profile);
+    const stored = this.withoutMeta(store);
+    const completedSections = readCompletedSections(store._meta);
+    assertAssessmentReadyForComplete(stored, completedSections, profile, user);
 
     const completedAt = new Date();
     profile.personal_assessment_completed_at = completedAt;
@@ -214,12 +231,15 @@ export class PersonalAssessmentService {
       sections[section] = sectionAnswers;
     }
 
+    const store = this.readStore(profile);
+
     return {
       userId,
       profileId: profile.id ?? '',
       personalAssessmentCompleted: Boolean(profile.personal_assessment_completed_at),
       personalAssessmentCompletedAt:
         profile.personal_assessment_completed_at?.toISOString() ?? null,
+      progress: getPersonalAssessmentProgress(store._meta),
       onboarding: {
         track: profile.track ?? null,
         educationLevel: profile.education_level ?? null,
@@ -231,6 +251,24 @@ export class PersonalAssessmentService {
       validatedLevel: profile.validated_level ?? null,
       answers,
       sections,
+    };
+  }
+
+  async getResumeProgress(userId: string): Promise<{
+    personalAssessmentCompleted: boolean;
+    personalAssessmentCompletedAt: string | null;
+    progress: PersonalAssessmentResumeProgress;
+  }> {
+    const profile = await this.findProfileByUserId(userId);
+    const store = profile ? this.readStore(profile) : {};
+
+    return {
+      personalAssessmentCompleted: Boolean(
+        profile?.personal_assessment_completed_at,
+      ),
+      personalAssessmentCompletedAt:
+        profile?.personal_assessment_completed_at?.toISOString() ?? null,
+      progress: getPersonalAssessmentProgress(store._meta),
     };
   }
 
