@@ -13,6 +13,9 @@ import {
 } from '../assessments/entities';
 import { PersonalAssessmentController } from './assessment/personal-assessment.controller';
 import { PersonalAssessmentService } from './assessment/personal-assessment.service';
+import { AdvancedAssessmentAiService } from './assessment/advanced-assessment-ai.service';
+import { AdvancedAssessmentController } from './assessment/advanced-assessment.controller';
+import { AdvancedAssessmentService } from './assessment/advanced-assessment.service';
 import { SkillAssessmentController } from './assessment/skill-assessment.controller';
 import { SkillAssessmentService } from './assessment/skill-assessment.service';
 import { TalentController } from './talent.controller';
@@ -36,7 +39,14 @@ import { TalentService } from './talent.service';
     TalentController,
     PersonalAssessmentController,
     SkillAssessmentController,
+    AdvancedAssessmentController,
   ],
-  providers: [TalentService, PersonalAssessmentService, SkillAssessmentService],
+  providers: [
+    TalentService,
+    PersonalAssessmentService,
+    SkillAssessmentService,
+    AdvancedAssessmentAiService,
+    AdvancedAssessmentService,
+  ],
 })
-export class TalentModule {}
+export class TalentModule {}
