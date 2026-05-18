@@ -23,6 +23,10 @@ export const ErrorMessages = {
   INQUIRIES: {
     EMAIL_ALREADY_ON_WAITLIST: 'Email already on waitlist',
   },
+  ASSESSMENT: {
+    INVALID_SECTION: 'Section must be an integer between 1 and 7',
+    ALREADY_COMPLETED: 'Personal assessment is already completed',
+  },
   ONBOARDING: {
     INVALID_USER: 'Invalid user',
     ALREADY_COMPLETED: 'Onboarding already completed',

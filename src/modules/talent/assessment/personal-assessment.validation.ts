@@ -1,0 +1,418 @@
+import { UnprocessableEntityException } from '@nestjs/common';
+import { TalentProfile } from '../entities/talent-profile.entity';
+import { User } from '../../users/entities/user.entity';
+import { OAUTH_DEFAULT_COUNTRY } from '../../users/users.service';
+import {
+  ONBOARDING_TRACK_TO_ASSESSMENT_TRACK,
+  PersonalAssessmentQuestion,
+  SPECIALIZATIONS_BY_TRACK,
+  TOOLS_BY_TRACK,
+  getSectionQuestions,
+} from './personal-assessment.schema';
+
+function isNonEmptyString(value: unknown): value is string {
+  return typeof value === 'string' && value.trim().length > 0;
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every((item) => typeof item === 'string')
+  );
+}
+
+function resolveAssessmentTrack(profile: TalentProfile): string | null {
+  if (!profile.track) {
+    return null;
+  }
+  return ONBOARDING_TRACK_TO_ASSESSMENT_TRACK[profile.track] ?? null;
+}
+
+function getDynamicOptions(
+  question: PersonalAssessmentQuestion,
+  profile: TalentProfile,
+): readonly string[] | undefined {
+  if (question.key === 'specialization') {
+    const track = resolveAssessmentTrack(profile);
+    return track ? SPECIALIZATIONS_BY_TRACK[track] : undefined;
+  }
+  if (question.key === 'tools') {
+    const track = resolveAssessmentTrack(profile);
+    return track ? TOOLS_BY_TRACK[track] : undefined;
+  }
+  return question.options;
+}
+
+function isTrackDependentQuestion(question: PersonalAssessmentQuestion): boolean {
+  return question.key === 'specialization' || question.key === 'tools';
+}
+
+function questionHasAnswerValue(
+  question: PersonalAssessmentQuestion,
+  value: unknown,
+): boolean {
+  if (value === undefined || value === null) {
+    return false;
+  }
+  if (question.inputType === 'multi') {
+    return isStringArray(value);
+  }
+  if (question.inputType === 'text_optional') {
+    return isNonEmptyString(value);
+  }
+  return isNonEmptyString(value);
+}
+
+function throwFieldError(payload: {
+  message: string;
+  field: string;
+  allowedValues?: readonly string[];
+  receivedValue?: string | string[];
+  section?: number;
+}): never {
+  throw new UnprocessableEntityException({
+    ...payload,
+    allowedValues: payload.allowedValues ? [...payload.allowedValues] : undefined,
+  });
+}
+
+function formatAllowedValuesList(options: readonly string[]): string {
+  return options.join(', ');
+}
+
+function invalidSinglePickMessage(
+  field: string,
+  received: string,
+  options: readonly string[],
+): string {
+  return `Invalid value for ${field}: "${received}". Valid values are: ${formatAllowedValuesList(options)}`;
+}
+
+function invalidMultiPickMessage(
+  field: string,
+  invalid: string[],
+  options: readonly string[],
+): string {
+  const receivedList = invalid.map((item) => `"${item}"`).join(', ');
+  return `Invalid value(s) for ${field}: ${receivedList}. Valid values are: ${formatAllowedValuesList(options)}`;
+}
+
+/** Ensures track-based options exist before validating specialization / tools. */
+function resolveOptionsForValidation(
+  question: PersonalAssessmentQuestion,
+  profile: TalentProfile,
+  value: unknown,
+): readonly string[] | undefined {
+  const options = getDynamicOptions(question, profile);
+
+  if (!isTrackDependentQuestion(question)) {
+    return options;
+  }
+
+  if (!questionHasAnswerValue(question, value)) {
+    return options;
+  }
+
+  if (!profile.track?.trim()) {
+    throwFieldError({
+      message: `${question.key} requires a skill track on your profile. Complete talent onboarding (POST /api/v1/talent/onboarding/track) before saving this section.`,
+      field: question.key,
+    });
+  }
+
+  const assessmentTrack = resolveAssessmentTrack(profile);
+  if (!assessmentTrack) {
+    throwFieldError({
+      message: `Cannot validate ${question.key} for track "${profile.track}". Use a supported onboarding track value.`,
+      field: question.key,
+      receivedValue: profile.track,
+    });
+  }
+
+  if (!options?.length) {
+    throwFieldError({
+      message: `No ${question.key} options are configured for assessment track "${assessmentTrack}".`,
+      field: question.key,
+    });
+  }
+
+  return options;
+}
+
+function validateQuestionValue(
+  question: PersonalAssessmentQuestion,
+  value: unknown,
+  options: readonly string[] | undefined,
+): void {
+  switch (question.inputType) {
+    case 'text_required': {
+      if (!isNonEmptyString(value)) {
+        throw new UnprocessableEntityException({
+          message: `${question.key} is required`,
+          field: question.key,
+        });
+      }
+      if (
+        question.minLength !== undefined &&
+        value.trim().length < question.minLength
+      ) {
+        throw new UnprocessableEntityException({
+          message: `${question.key} must be at least ${question.minLength} characters`,
+          field: question.key,
+        });
+      }
+      return;
+    }
+    case 'text_optional': {
+      if (value === undefined || value === null || value === '') {
+        return;
+      }
+      if (!isNonEmptyString(value)) {
+        throw new UnprocessableEntityException({
+          message: `${question.key} must be a string`,
+          field: question.key,
+        });
+      }
+      if (
+        question.minLength !== undefined &&
+        value.trim().length < question.minLength
+      ) {
+        throw new UnprocessableEntityException({
+          message: `${question.key} must be at least ${question.minLength} characters`,
+          field: question.key,
+        });
+      }
+      return;
+    }
+    case 'single': {
+      if (!isNonEmptyString(value)) {
+        throwFieldError({
+          message: `${question.key} is required`,
+          field: question.key,
+        });
+      }
+      if (!options?.length) {
+        throwFieldError({
+          message: `No valid options are available for ${question.key}.`,
+          field: question.key,
+          receivedValue: value,
+        });
+      }
+      if (!options.includes(value)) {
+        throwFieldError({
+          message: invalidSinglePickMessage(question.key, value, options),
+          field: question.key,
+          allowedValues: options,
+          receivedValue: value,
+        });
+      }
+      return;
+    }
+    case 'multi': {
+      if (!isStringArray(value)) {
+        throwFieldError({
+          message: `${question.key} must be a non-empty array of strings`,
+          field: question.key,
+        });
+      }
+      if (!options?.length) {
+        throwFieldError({
+          message: `No valid options are available for ${question.key}.`,
+          field: question.key,
+          receivedValue: value,
+        });
+      }
+      const invalid = value.filter((item) => !options.includes(item));
+      if (invalid.length > 0) {
+        throwFieldError({
+          message: invalidMultiPickMessage(question.key, invalid, options),
+          field: question.key,
+          allowedValues: options,
+          receivedValue: invalid,
+        });
+      }
+    }
+  }
+}
+
+export function validateSectionAnswers(
+  section: number,
+  answers: Record<string, unknown>,
+  profile: TalentProfile,
+): Record<string, unknown> {
+  const questions = getSectionQuestions(section);
+  if (questions.length === 0) {
+    throw new UnprocessableEntityException({
+      message: 'Invalid section number',
+      field: 'section',
+    });
+  }
+
+  const sanitized: Record<string, unknown> = {};
+
+  for (const question of questions) {
+    if (question.skipStorage) {
+      continue;
+    }
+
+    const value = answers[question.key];
+
+    if (question.required && (value === undefined || value === null)) {
+      throwFieldError({
+        message: `${question.key} is required`,
+        field: question.key,
+      });
+    }
+
+    if (value === undefined || value === null) {
+      continue;
+    }
+
+    const options = resolveOptionsForValidation(question, profile, value);
+    validateQuestionValue(question, value, options);
+    sanitized[question.key] =
+      typeof value === 'string' ? value.trim() : value;
+
+    if (question.otherTextKey) {
+      const otherValue = answers[question.otherTextKey];
+      const selected = sanitized[question.key];
+      const includesOther =
+        question.inputType === 'multi'
+          ? isStringArray(selected) && selected.includes('other')
+          : selected === 'other';
+
+      if (includesOther) {
+        if (!isNonEmptyString(otherValue)) {
+          throw new UnprocessableEntityException({
+            message: `${question.otherTextKey} is required when other is selected`,
+            field: question.otherTextKey,
+          });
+        }
+        sanitized[question.otherTextKey] = otherValue.trim();
+      }
+    }
+
+    if (question.followUpKey && question.followUpWhen) {
+      const followUpValue = answers[question.followUpKey];
+      if (sanitized[question.key] === question.followUpWhen) {
+        if (!isNonEmptyString(followUpValue)) {
+          throw new UnprocessableEntityException({
+            message: `${question.followUpKey} is required`,
+            field: question.followUpKey,
+          });
+        }
+        sanitized[question.followUpKey] = followUpValue.trim();
+      }
+    }
+  }
+
+  return sanitized;
+}
+
+export function getSkippedProfileValue(
+  question: PersonalAssessmentQuestion,
+  profile: TalentProfile,
+  user: User,
+): unknown {
+  switch (question.profileField) {
+    case 'track':
+      return profile.track;
+    case 'education_level':
+      return profile.education_level;
+    case 'region':
+      return profile.region;
+    case 'linkedin_url':
+      return profile.linkedin_url;
+    case 'claimed_level':
+      return profile.claimed_level;
+    case 'country':
+      return user.country;
+    default:
+      return null;
+  }
+}
+
+function isRealCountrySet(country: string | null | undefined): boolean {
+  const trimmed = country?.trim();
+  if (!trimmed) {
+    return false;
+  }
+  return trimmed.toLowerCase() !== OAUTH_DEFAULT_COUNTRY.toLowerCase();
+}
+
+export function assertOnboardingFieldsForComplete(
+  profile: TalentProfile,
+  user: User,
+): void {
+  const missing: string[] = [];
+
+  if (!profile.track?.trim()) {
+    missing.push('track');
+  }
+  if (!profile.education_level?.trim()) {
+    missing.push('educationLevel');
+  }
+  if (!profile.region?.trim()) {
+    missing.push('region');
+  }
+  if (!isRealCountrySet(user.country)) {
+    missing.push('country');
+  }
+
+  if (missing.length > 0) {
+    throw new UnprocessableEntityException({
+      message:
+        'Complete talent onboarding before finishing personal assessment',
+      missingOnboardingFields: missing,
+    });
+  }
+}
+
+export function assertAllSectionsComplete(
+  storedAnswers: Record<string, unknown>,
+  profile: TalentProfile,
+  user: User,
+): void {
+  for (let section = 1; section <= 7; section++) {
+    for (const question of getSectionQuestions(section)) {
+      if (!question.required) {
+        continue;
+      }
+
+      if (question.skipStorage) {
+        const value = getSkippedProfileValue(question, profile, user);
+        if (value === null || value === undefined || value === '') {
+          throw new UnprocessableEntityException({
+            message: `Missing required onboarding field: ${question.key}`,
+            field: question.key,
+            section,
+          });
+        }
+        continue;
+      }
+
+      const value = storedAnswers[question.key];
+      if (value === undefined || value === null) {
+        throw new UnprocessableEntityException({
+          message: `Section ${section} is incomplete: ${question.key} is required`,
+          field: question.key,
+          section,
+        });
+      }
+
+      if (question.followUpKey && question.followUpWhen) {
+        if (value === question.followUpWhen) {
+          const followUp = storedAnswers[question.followUpKey];
+          if (!isNonEmptyString(followUp)) {
+            throw new UnprocessableEntityException({
+              message: `${question.followUpKey} is required`,
+              field: question.followUpKey,
+              section,
+            });
+          }
+        }
+      }
+    }
+  }
+}
