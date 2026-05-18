@@ -106,20 +106,32 @@ export class PersonalAssessmentService {
       throw new BadRequestException(ErrorMessages.ASSESSMENT.INVALID_SECTION);
     }
 
-    const profile = await this.findOrCreateProfile(userId);
     const filtered = Object.fromEntries(
       Object.entries(rawAnswers).filter(
         ([key]) => !SKIPPED_ONBOARDING_ANSWER_KEYS.has(key),
       ),
     );
 
-    const validated = validateSectionAnswers(section, filtered, profile);
-    profile.personal_assessment_answers = this.withSectionSaved(
-      this.readStore(profile),
-      section,
-      validated,
-    );
-    await this.talentProfileRepository.save(profile);
+    await this.talentProfileRepository.manager.transaction(async (manager) => {
+      let profile = await manager.findOne(TalentProfile, {
+        where: { user_id: userId },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      if (!profile) {
+        profile = await manager.save(
+          manager.create(TalentProfile, { user_id: userId }),
+        );
+      }
+
+      const validated = validateSectionAnswers(section, filtered, profile);
+      profile.personal_assessment_answers = this.withSectionSaved(
+        this.readStore(profile),
+        section,
+        validated,
+      );
+      await manager.save(TalentProfile, profile);
+    });
 
     return {
       status: 'success',

@@ -80,25 +80,60 @@ describe('Personal assessment (e2e)', () => {
         },
         {
           provide: getRepositoryToken(TalentProfile),
-          useValue: {
-            findOne: jest.fn().mockImplementation(
-              ({ where }: { where: { user_id: string } }) =>
-                Promise.resolve(
-                  where.user_id === talentUser.id ? profileStore : null,
-                ),
-            ),
-            create: jest.fn().mockImplementation((data: Partial<TalentProfile>) => {
-              profileStore = makeTalentProfile({
-                ...data,
-                user_id: talentUser.id,
-              });
-              return profileStore;
-            }),
-            save: jest.fn().mockImplementation((profile: TalentProfile) => {
+          useValue: (() => {
+            const resolveProfile = (options?: { where?: { user_id: string } }) =>
+              options?.where?.user_id === talentUser.id ? profileStore : null;
+
+            const persistProfile = (profile: TalentProfile) => {
               profileStore = profile;
               return Promise.resolve(profile);
-            }),
-          },
+            };
+
+            const entityManager = {
+              findOne: jest.fn().mockImplementation(
+                (
+                  entityOrOptions: { where?: { user_id: string } },
+                  maybeOptions?: { where?: { user_id: string } },
+                ) =>
+                  Promise.resolve(resolveProfile(maybeOptions ?? entityOrOptions)),
+              ),
+              create: jest.fn().mockImplementation(
+                (_entity: unknown, data: Partial<TalentProfile>) => {
+                  profileStore = makeTalentProfile({
+                    ...data,
+                    user_id: talentUser.id,
+                  });
+                  return profileStore;
+                },
+              ),
+              save: jest.fn().mockImplementation(
+                (_entity: unknown, profile: TalentProfile) =>
+                  persistProfile(profile),
+              ),
+            };
+
+            return {
+              findOne: entityManager.findOne,
+              create: jest.fn().mockImplementation(
+                (data: Partial<TalentProfile>) => {
+                  profileStore = makeTalentProfile({
+                    ...data,
+                    user_id: talentUser.id,
+                  });
+                  return profileStore;
+                },
+              ),
+              save: jest.fn().mockImplementation((profile: TalentProfile) =>
+                persistProfile(profile),
+              ),
+              manager: {
+                transaction: jest.fn().mockImplementation(
+                  (work: (manager: typeof entityManager) => Promise<unknown>) =>
+                    work(entityManager),
+                ),
+              },
+            };
+          })(),
         },
         { provide: APP_GUARD, useClass: MockJwtAuthGuard },
         { provide: APP_GUARD, useClass: RolesGuard },
