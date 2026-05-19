@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { GuidanceReport, GuidanceReportInput } from './ai.types';
+import { guidanceReportSchema } from './ai.schemas';
 import { OpenRouterService } from './openrouter.service';
 
 const SYSTEM_PROMPT = `You are a professional career development advisor providing constructive, actionable feedback to a candidate who did not pass a skills assessment.
@@ -34,18 +35,6 @@ Rules:
 - Be specific to the track and competencies provided
 - retake_advice must mention the 14-day window`.trim();
 
-    const raw = await this.openRouter.chat<GuidanceReport>(
-      SYSTEM_PROMPT,
-      userPrompt,
-      0.5,
-    );
-
-    return {
-      summary: String(raw?.summary ?? ''),
-      strengths: Array.isArray(raw?.strengths) ? raw.strengths : [],
-      improvement_areas: Array.isArray(raw?.improvement_areas) ? raw.improvement_areas : [],
-      recommended_resources: Array.isArray(raw?.recommended_resources) ? raw.recommended_resources : [],
-      retake_advice: String(raw?.retake_advice ?? ''),
-    };
+    return this.openRouter.chat(SYSTEM_PROMPT, userPrompt, guidanceReportSchema, 0.5);
   }
 }

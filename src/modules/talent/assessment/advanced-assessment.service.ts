@@ -21,7 +21,10 @@ import {
 } from '../../assessments/entities';
 import { AssessmentTier } from '../../assessments/entities/assessment-result.entity';
 import { ErrorMessages, SuccessMessages } from '../../../shared';
-import { TalentProfile, TalentProfileStatus } from '../entities/talent-profile.entity';
+import {
+  TalentProfile,
+  TalentProfileStatus,
+} from '../entities/talent-profile.entity';
 import { VerifiedLevel } from '../../assessments/entities/assessment-question.entity';
 import {
   ADVANCED_ASSESSMENT_LONG_TEXT_COUNT,
@@ -360,9 +363,7 @@ export class AdvancedAssessmentService {
           answered_at: new Date(),
         });
       } else {
-        const answer = submitted
-          ? String(submitted.answer)
-          : '';
+        const answer = submitted ? String(submitted.answer) : '';
 
         // Abnormal timing: long-text answered in <5s
         if (
@@ -426,7 +427,8 @@ export class AdvancedAssessmentService {
           claimed_level: profile.claimed_level ?? VerifiedLevel.ENTRY,
           validated_level: profile.validated_level ?? VerifiedLevel.ENTRY,
           percentage,
-          strong_competencies: this.extractStrongCompetencies(scoredTextAnswers),
+          strong_competencies:
+            this.extractStrongCompetencies(scoredTextAnswers),
           weak_competencies: this.extractWeakCompetencies(scoredTextAnswers),
         });
       } catch (e) {
@@ -434,9 +436,10 @@ export class AdvancedAssessmentService {
       }
     }
 
-    const personalContext = tier === AssessmentTier.JOB_READY
-      ? await this.personalAssessmentService.getAiContext(userId)
-      : null;
+    const personalContext =
+      tier === AssessmentTier.JOB_READY
+        ? await this.personalAssessmentService.getAiContext(userId)
+        : null;
 
     await this.talentProfileRepo.manager.transaction(async (manager) => {
       await manager.save(AssessmentResponse, responsesToSave);
@@ -611,6 +614,16 @@ export class AdvancedAssessmentService {
       ? answer.join(',').toLowerCase().trim()
       : String(answer).toLowerCase().trim();
 
+    if (question.correct_answer) {
+      const userAnswer = Array.isArray(answer)
+        ? answer.join(',').toLowerCase().trim()
+        : String(answer).toLowerCase().trim();
+      const correctAnswer = String(question.correct_answer)
+        .toLowerCase()
+        .trim();
+      return userAnswer === correctAnswer;
+    }
+
     if (!question.options || question.options.length === 0) return false;
 
     // For advanced MCQs without stored correct_answer, any option is valid
@@ -618,6 +631,7 @@ export class AdvancedAssessmentService {
     //  but session JSON only stores question_text + options, not correct_answer)
     // We treat any non-empty answer that matches one of the options as submitted
     const optionsLower = question.options.map((o) => o.toLowerCase().trim());
+
     return optionsLower.some((opt) => userAnswer.includes(opt));
   }
 
@@ -782,8 +796,8 @@ export class AdvancedAssessmentService {
   }
 
   private readSessionVerifiedLevel(attempt: AssessmentAttempt): string {
-    const verifiedLevel = this.readSessionPayload(attempt).context
-      ?.verified_level;
+    const verifiedLevel =
+      this.readSessionPayload(attempt).context?.verified_level;
     return typeof verifiedLevel === 'string' ? verifiedLevel : '';
   }
 

@@ -1,9 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
-import {
-  RubricScore,
-  ScoredTextAnswer,
-  TextAnswerInput,
-} from './ai.types';
+import { ScoredTextAnswer, TextAnswerInput } from './ai.types';
+import { rubricFullSchema, rubricLt3Schema } from './ai.schemas';
 import { OpenRouterService } from './openrouter.service';
 
 const SYSTEM_PROMPT = `You are an expert technical assessor scoring candidate answers for a professional skills assessment.
@@ -21,11 +18,7 @@ export class RubricScoringService {
 
   async scoreAnswers(inputs: TextAnswerInput[]): Promise<ScoredTextAnswer[]> {
     if (inputs.length === 0) return [];
-
-    const results = await Promise.all(
-      inputs.map((input) => this.scoreOne(input)),
-    );
-    return results;
+    return Promise.all(inputs.map((input) => this.scoreOne(input)));
   }
 
   private async scoreOne(input: TextAnswerInput): Promise<ScoredTextAnswer> {
@@ -54,60 +47,36 @@ Rules:
 - feedback: one sentence, specific to this answer
 - Be strict — vague or generic answers score low on specificity`.trim();
 
+    const maxScore = isLt3 ? MAX_SCORE_LT3 : MAX_SCORE_FULL;
+
     try {
-      const raw = await this.openRouter.chat<Record<string, unknown>>(
-        SYSTEM_PROMPT,
-        userPrompt,
-        0.1,
-      );
-
-      const rubric = this.parseRubric(raw, isLt3);
-      const maxScore = isLt3 ? MAX_SCORE_LT3 : MAX_SCORE_FULL;
-
-      return {
-        question_id: input.question_id,
-        rubric,
-        raw_score: rubric.total,
-        max_score: maxScore,
-      };
+      if (isLt3) {
+        const raw = await this.openRouter.chat(SYSTEM_PROMPT, userPrompt, rubricLt3Schema, 0.1);
+        return {
+          question_id: input.question_id,
+          rubric: { ...raw, specificity: 0, completeness: 0 },
+          raw_score: raw.total,
+          max_score: maxScore,
+        };
+      } else {
+        const raw = await this.openRouter.chat(SYSTEM_PROMPT, userPrompt, rubricFullSchema, 0.1);
+        return {
+          question_id: input.question_id,
+          rubric: raw,
+          raw_score: raw.total,
+          max_score: maxScore,
+        };
+      }
     } catch (error) {
       this.logger.warn(
         `Rubric scoring failed for question ${input.question_id}, storing null: ${String(error)}`,
       );
-      // Spec: AI scoring timeout → store raw answer, null ai_evaluation_json, queue retry, show 'Score pending'
-      const maxScore = isLt3 ? MAX_SCORE_LT3 : MAX_SCORE_FULL;
       return {
         question_id: input.question_id,
-        rubric: {
-          relevance: 0,
-          reasoning: 0,
-          specificity: 0,
-          completeness: 0,
-          total: 0,
-          feedback: 'Score pending',
-        },
+        rubric: { relevance: 0, reasoning: 0, specificity: 0, completeness: 0, total: 0, feedback: 'Score pending' },
         raw_score: 0,
         max_score: maxScore,
       };
     }
-  }
-
-  private parseRubric(raw: Record<string, unknown>, isLt3: boolean): RubricScore {
-    const clamp = (v: unknown): number =>
-      Math.min(3, Math.max(0, Math.round(Number(v) || 0)));
-
-    const relevance     = clamp(raw['relevance']);
-    const reasoning     = clamp(raw['reasoning']);
-    const specificity   = isLt3 ? 0 : clamp(raw['specificity']);
-    const completeness  = isLt3 ? 0 : clamp(raw['completeness']);
-    const feedback =
-      typeof raw['feedback'] === 'string' && raw['feedback'].length > 0
-        ? raw['feedback']
-        : 'No feedback provided';
-    const total         = isLt3
-      ? relevance + reasoning
-      : relevance + reasoning + specificity + completeness;
-
-    return { relevance, reasoning, specificity, completeness, total, feedback };
   }
 }

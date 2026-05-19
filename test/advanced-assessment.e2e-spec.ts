@@ -87,6 +87,7 @@ function makeSessionJson() {
     options: ['Option A', 'Option B', 'Option C', 'Option D'],
     slot_type: null,
     metadata: null,
+    correct_answer: i < 10 ? 'Option A' : 'Option B'
   }));
 
   const shortText = SHORT_IDS.map((id, i) => ({
