@@ -447,7 +447,7 @@ export class AdvancedAssessmentService {
     }
 
     const totalRawScore = mcqRawScore + textRawScore;
-    const maxScore = ADVANCED_ASSESSMENT_MCQ_COUNT + textMaxScore;
+    const maxScore = Math.round(ADVANCED_ASSESSMENT_MCQ_COUNT + textMaxScore);
     const percentage =
       maxScore > 0 ? Math.round((totalRawScore / maxScore) * 100) : 0;
 
