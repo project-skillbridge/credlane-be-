@@ -102,12 +102,7 @@ describe('assertAssessmentReadyForComplete', () => {
 
   it('aggregates missing sections and invalid required fields', () => {
     try {
-      assertAssessmentReadyForComplete(
-        { job_title: 'x' },
-        [1],
-        profile,
-        user,
-      );
+      assertAssessmentReadyForComplete({ job_title: 'x' }, [1], profile, user);
       fail('expected UnprocessableEntityException');
     } catch (error: unknown) {
       const body = getExceptionBody(error);
@@ -130,7 +125,9 @@ describe('assertOnboardingFieldsForComplete', () => {
     const profile = makeTalentProfile();
     const user = makeTalentUser({ country: null });
 
-    expect(() => assertOnboardingFieldsForComplete(profile, user)).not.toThrow();
+    expect(() =>
+      assertOnboardingFieldsForComplete(profile, user),
+    ).not.toThrow();
   });
 
   it('passes when onboarding fields are present', () => {

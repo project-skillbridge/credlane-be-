@@ -45,24 +45,30 @@ describe('PersonalAssessmentService', () => {
     };
 
     const entityManager = {
-      findOne: jest.fn().mockImplementation(
-        (
-          entityOrOptions: { where?: { user_id: string } },
-          maybeOptions?: { where?: { user_id: string } },
-        ) =>
-          Promise.resolve(
-            resolveProfileByUserId(maybeOptions ?? entityOrOptions),
-          ),
-      ),
-      create: jest.fn().mockImplementation(
-        (_entity: unknown, data: Partial<TalentProfile>) => {
-          profileStore = makeTalentProfile({ ...data, user_id: userId });
-          return profileStore;
-        },
-      ),
-      save: jest.fn().mockImplementation(
-        (_entity: unknown, profile: TalentProfile) => persistProfile(profile),
-      ),
+      findOne: jest
+        .fn()
+        .mockImplementation(
+          (
+            entityOrOptions: { where?: { user_id: string } },
+            maybeOptions?: { where?: { user_id: string } },
+          ) =>
+            Promise.resolve(
+              resolveProfileByUserId(maybeOptions ?? entityOrOptions),
+            ),
+        ),
+      create: jest
+        .fn()
+        .mockImplementation(
+          (_entity: unknown, data: Partial<TalentProfile>) => {
+            profileStore = makeTalentProfile({ ...data, user_id: userId });
+            return profileStore;
+          },
+        ),
+      save: jest
+        .fn()
+        .mockImplementation((_entity: unknown, profile: TalentProfile) =>
+          persistProfile(profile),
+        ),
     };
 
     repository = {
@@ -71,14 +77,18 @@ describe('PersonalAssessmentService', () => {
         profileStore = makeTalentProfile({ ...data, user_id: userId });
         return profileStore;
       }),
-      save: jest.fn().mockImplementation((profile: TalentProfile) =>
-        persistProfile(profile),
-      ),
-      manager: {
-        transaction: jest.fn().mockImplementation(
-          (work: (manager: typeof entityManager) => Promise<unknown>) =>
-            work(entityManager),
+      save: jest
+        .fn()
+        .mockImplementation((profile: TalentProfile) =>
+          persistProfile(profile),
         ),
+      manager: {
+        transaction: jest
+          .fn()
+          .mockImplementation(
+            (work: (manager: typeof entityManager) => Promise<unknown>) =>
+              work(entityManager),
+          ),
       },
     };
 
