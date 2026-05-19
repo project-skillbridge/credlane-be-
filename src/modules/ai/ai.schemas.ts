@@ -1,0 +1,43 @@
+import { z } from 'zod';
+
+const score = () => z.number().int().min(0).max(3);
+
+export const rubricFullSchema = z.object({
+  relevance: score(),
+  reasoning: score(),
+  specificity: score(),
+  completeness: score(),
+  total: z.number().int().min(0).max(12),
+  feedback: z.string(),
+});
+
+export const rubricLt3Schema = z.object({
+  relevance: score(),
+  reasoning: score(),
+  total: z.number().int().min(0).max(6),
+  feedback: z.string(),
+});
+
+export const generatedQuestionSchema = z.object({
+  question_text: z.string(),
+  options: z.array(z.string()).nullable(),
+  correct_answer: z.string().nullable(),
+  competency: z.string().nullable(),
+  industry_context: z.string().nullable(),
+});
+
+export const questionGenerationSchema = z.object({
+  questions: z.array(generatedQuestionSchema),
+});
+
+export const lt3Schema = z.object({
+  question_text: z.string(),
+});
+
+export const guidanceReportSchema = z.object({
+  summary: z.string(),
+  strengths: z.array(z.string()),
+  improvement_areas: z.array(z.string()),
+  recommended_resources: z.array(z.string()),
+  retake_advice: z.string(),
+});
