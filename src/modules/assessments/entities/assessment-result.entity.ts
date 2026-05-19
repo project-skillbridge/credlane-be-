@@ -64,7 +64,7 @@ export class AssessmentResult {
 
   @ApiProperty({ required: false, nullable: true })
   @Column({ type: 'jsonb', nullable: true })
-  guidance_report: Record<string, any> | null;
+  guidance_report: Record<string, unknown> | null;
 
   @ApiProperty({
     required: false,

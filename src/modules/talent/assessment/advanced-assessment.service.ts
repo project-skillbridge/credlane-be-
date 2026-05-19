@@ -402,7 +402,7 @@ export class AdvancedAssessmentService {
         (r) => r.question_id === scored.question_id,
       );
       if (resp) {
-        resp.ai_evaluation_json = scored.rubric;
+        resp.ai_evaluation_json = { ...scored.rubric };
       }
     }
 
@@ -451,7 +451,7 @@ export class AdvancedAssessmentService {
         percentage,
         tier,
         validated_level: null,
-        guidance_report: guidanceReport ?? null,
+        guidance_report: guidanceReport ? { ...guidanceReport } : null,
         integrity_confidence: integrityConfidence,
       });
       await manager.save(AssessmentResult, result);
