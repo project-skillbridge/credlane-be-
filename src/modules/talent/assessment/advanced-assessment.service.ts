@@ -402,7 +402,7 @@ export class AdvancedAssessmentService {
         (r) => r.question_id === scored.question_id,
       );
       if (resp) {
-        resp.ai_evaluation_json = scored.rubric as unknown as Record<string, unknown>;
+        resp.ai_evaluation_json = scored.rubric;
       }
     }
 
