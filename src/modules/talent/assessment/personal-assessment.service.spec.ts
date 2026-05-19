@@ -183,7 +183,7 @@ describe('PersonalAssessmentService', () => {
       _meta: { completedSections: [1, 2, 3, 4, 5, 6, 7] },
     };
     (usersService.findOne as jest.Mock).mockResolvedValue(
-      makeTalentUser({ id: userId, country: null }),
+      makeTalentUser({ id: userId, country: undefined }),
     );
 
     await expect(service.complete(userId)).rejects.toMatchObject({
