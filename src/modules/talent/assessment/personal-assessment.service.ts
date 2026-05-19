@@ -17,6 +17,7 @@ import {
   ONBOARDING_TRACK_TO_ASSESSMENT_TRACK,
   PERSONAL_ASSESSMENT_SECTION_COUNT,
   PERSONAL_ASSESSMENT_SECTIONS,
+  PERSONAL_ASSESSMENT_SECTION_TITLES,
   PersonalAssessmentInputType,
   PersonalAssessmentQuestion,
   SKIPPED_ONBOARDING_ANSWER_KEYS,
@@ -52,6 +53,7 @@ export type GeneratedPersonalAssessmentQuestion = {
   key: string;
   sourceQuestionNumber: number;
   sourceSection: number;
+  sourceSectionTitle: string;
   inputType: PersonalAssessmentInputType;
   required: boolean;
   minLength?: number;
@@ -498,11 +500,13 @@ export class PersonalAssessmentService {
     profile: TalentProfile,
   ): GeneratedPersonalAssessmentQuestion {
     const options = this.resolveQuestionOptions(question, profile);
+    const sourceSection = this.findQuestionSection(question.key);
     return {
       id: randomUUID(),
       key: question.key,
       sourceQuestionNumber: question.questionNumber,
-      sourceSection: this.findQuestionSection(question.key),
+      sourceSection,
+      sourceSectionTitle: this.sectionTitle(sourceSection),
       inputType: question.inputType,
       required: question.required,
       ...(question.minLength !== undefined && {
@@ -551,6 +555,10 @@ export class PersonalAssessmentService {
       }
     }
     return 0;
+  }
+
+  private sectionTitle(section: number): string {
+    return PERSONAL_ASSESSMENT_SECTION_TITLES[section] ?? 'Personal Assessment';
   }
 
   private defaultQuestionPrompt(question: PersonalAssessmentQuestion): string {
