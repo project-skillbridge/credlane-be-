@@ -327,18 +327,22 @@ export const questionBankSeeder: Seeder = {
   name: 'QuestionBankSeeder',
   async run(dataSource: DataSource) {
     const repository = dataSource.getRepository(AssessmentQuestion);
-    const texts = questionSeeds.map((seed) => seed.question_text);
+    const normalizedTexts = questionSeeds.map((seed) =>
+      seed.question_text.trim().toLowerCase(),
+    );
     const existingRows = await repository
       .createQueryBuilder('question')
-      .select('question.question_text', 'question_text')
+      .select('LOWER(TRIM(question.question_text))', 'normalized_text')
       .where('question.assessment_type = :assessmentType', {
         assessmentType: AssessmentType.ADVANCED,
       })
-      .andWhere('question.question_text IN (:...texts)', { texts })
-      .getRawMany();
+      .andWhere('LOWER(TRIM(question.question_text)) IN (:...texts)', {
+        texts: normalizedTexts,
+      })
+      .getRawMany<{ normalized_text: string }>();
 
     const existing = new Set(
-      existingRows.map((row) => String(row.question_text).trim().toLowerCase()),
+      existingRows.map((row) => String(row.normalized_text)),
     );
 
     const maxRow = await repository
@@ -347,7 +351,7 @@ export const questionBankSeeder: Seeder = {
       .where('question.assessment_type = :assessmentType', {
         assessmentType: AssessmentType.ADVANCED,
       })
-      .getRawOne();
+      .getRawOne<{ max: string | null }>();
 
     const startNumber = Number(maxRow?.max ?? 0) + 1;
     let nextNumber = startNumber;
