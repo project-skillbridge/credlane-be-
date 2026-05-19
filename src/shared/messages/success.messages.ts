@@ -21,7 +21,12 @@ export const SuccessMessages = {
   SKILL_ASSESSMENT: {
     STARTED: 'Skill assessment session created',
     SUBMITTED: 'Skill assessment submitted successfully',
-    DOWNGRADE_NOTICE: 'Your assessment has been personalised to your verified level.',
+    DOWNGRADE_NOTICE:
+      'Your assessment has been personalised to your verified level.',
+  },
+  ADVANCED_ASSESSMENT: {
+    STARTED: 'Advanced assessment session created',
+    SESSION_RESUMED: 'Advanced assessment session returned',
   },
   ONBOARDING: {
     TALENT_COMPLETED: 'Talent onboarding completed',

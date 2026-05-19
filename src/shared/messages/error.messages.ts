@@ -29,12 +29,25 @@ export const ErrorMessages = {
   },
   SKILL_ASSESSMENT: {
     PROFILE_NOT_FOUND: 'Talent profile not found',
-    CLAIMED_LEVEL_MISSING: 'claimed_level is required to start a skill assessment; please complete onboarding track step first',
-    TRACK_MISSING: 'track is required to start a skill assessment; please complete onboarding track step first',
-    NO_QUESTIONS_AVAILABLE: 'No skill assessment questions are currently available for your track and level',
+    CLAIMED_LEVEL_MISSING:
+      'claimed_level is required to start a skill assessment; please complete onboarding track step first',
+    TRACK_MISSING:
+      'track is required to start a skill assessment; please complete onboarding track step first',
+    NO_QUESTIONS_AVAILABLE:
+      'No skill assessment questions are currently available for your track and level',
     ATTEMPT_NOT_FOUND: 'Assessment attempt not found',
-    ATTEMPT_ALREADY_SUBMITTED: 'This assessment attempt has already been submitted',
-    ATTEMPT_CORRUPT: 'Assessment attempt has no questions; please start a new session',
+    ATTEMPT_ALREADY_SUBMITTED:
+      'This assessment attempt has already been submitted',
+    ATTEMPT_CORRUPT:
+      'Assessment attempt has no questions; please start a new session',
+  },
+  ADVANCED_ASSESSMENT: {
+    PROFILE_NOT_FOUND: 'Talent profile not found',
+    LEVEL_NOT_VERIFIED: 'LEVEL_NOT_VERIFIED',
+    BANK_EXHAUSTED: 'BANK_EXHAUSTED',
+    ACTIVE_SESSION_EXISTS: 'Active advanced assessment session already exists',
+    SESSION_NOT_FOUND: 'Advanced assessment session not found',
+    SESSION_CORRUPT: 'Advanced assessment session has no questions',
   },
   ONBOARDING: {
     INVALID_USER: 'Invalid user',
