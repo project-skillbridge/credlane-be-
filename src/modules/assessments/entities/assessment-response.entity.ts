@@ -56,6 +56,14 @@ export class AssessmentResponse {
   @Column({ type: 'boolean', nullable: true })
   is_correct: boolean | null;
 
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'AI rubric evaluation JSON for text answers (advanced assessment)',
+  })
+  @Column({ type: 'jsonb', nullable: true })
+  ai_evaluation_json: Record<string, unknown> | null;
+
   @ApiProperty()
   @Column({
     type: 'timestamp with time zone',

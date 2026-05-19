@@ -27,6 +27,9 @@ export const SuccessMessages = {
   ADVANCED_ASSESSMENT: {
     STARTED: 'Advanced assessment session created',
     SESSION_RESUMED: 'Advanced assessment session returned',
+    SUBMITTED: 'Advanced assessment submitted and scored',
+    INTEGRITY_WARNED: 'Integrity warning recorded. One more violation will void this session.',
+    INTEGRITY_FLAGGED: 'Integrity event recorded',
   },
   ONBOARDING: {
     TALENT_COMPLETED: 'Talent onboarding completed',

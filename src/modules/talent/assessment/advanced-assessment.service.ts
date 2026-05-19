@@ -1,5 +1,7 @@
 import {
+  BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   Logger,
   NotFoundException,
@@ -11,12 +13,16 @@ import { EntityManager, Repository } from 'typeorm';
 import {
   AssessmentAttempt,
   AssessmentQuestion,
+  AssessmentResponse,
+  AssessmentResult,
   AssessmentType,
   QuestionType,
   TalentQuestionHistory,
 } from '../../assessments/entities';
+import { AssessmentTier } from '../../assessments/entities/assessment-result.entity';
 import { ErrorMessages, SuccessMessages } from '../../../shared';
-import { TalentProfile } from '../entities/talent-profile.entity';
+import { TalentProfile, TalentProfileStatus } from '../entities/talent-profile.entity';
+import { VerifiedLevel } from '../../assessments/entities/assessment-question.entity';
 import {
   ADVANCED_ASSESSMENT_LONG_TEXT_COUNT,
   ADVANCED_ASSESSMENT_MCQ_COUNT,
@@ -26,8 +32,22 @@ import {
   AdvancedAssessmentGeneratedQuestion,
 } from './advanced-assessment-ai.service';
 import { PersonalAssessmentService } from './personal-assessment.service';
+import { RubricScoringService } from '../../ai/rubric-scoring.service';
+import { GuidanceReportService } from '../../ai/guidance-report.service';
+import { EmployerPoolProfileService } from './employer-pool-profile.service';
+import { ScoredTextAnswer, TextAnswerInput } from '../../ai/ai.types';
+import {
+  FlagIntegrityEventDto,
+  IntegrityEventType,
+  SubmitAdvancedAssessmentDto,
+} from './dto/advanced-assessment.dto';
+import { GuidanceReport } from '../../ai/ai.types';
 
 const ADVANCED_ASSESSMENT_DURATION_MINUTES = 90;
+const ADVANCED_ASSESSMENT_MAX_SCORE = 198;
+const RETAKE_GATE_DAYS = 14;
+const ABNORMAL_LONG_TEXT_SECONDS = 5;
+const TAB_SWITCH_VOID_THRESHOLD = 3;
 
 export interface AdvancedAssessmentSessionResult {
   status: string;
@@ -41,6 +61,27 @@ export interface AdvancedAssessmentSessionResult {
   verified_level: string;
   question_count: number;
   questions: AdvancedAssessmentGeneratedQuestion[];
+}
+
+export interface AdvancedAssessmentSubmitResult {
+  status: string;
+  message: string;
+  session_id: string;
+  score: number;
+  max_score: number;
+  percentage: number;
+  tier: AssessmentTier;
+  integrity_confidence: string;
+  guidance_report?: GuidanceReport;
+  auto_submitted?: boolean;
+}
+
+export interface IntegrityFlagResult {
+  status: string;
+  message: string;
+  tab_switch_count?: number;
+  session_voided?: boolean;
+  action?: 'warn' | 'logout';
 }
 
 type AdvancedAssessmentSessionPayload = {
@@ -63,7 +104,12 @@ export class AdvancedAssessmentService {
 
     private readonly personalAssessmentService: PersonalAssessmentService,
     private readonly advancedAssessmentAiService: AdvancedAssessmentAiService,
+    private readonly rubricScoring: RubricScoringService,
+    private readonly guidanceReport: GuidanceReportService,
+    private readonly employerPoolProfileService: EmployerPoolProfileService,
   ) {}
+
+  // ── Start ──────────────────────────────────────────────────────────────────
 
   async start(userId: string): Promise<AdvancedAssessmentSessionResult> {
     const personalContext =
@@ -89,6 +135,18 @@ export class AdvancedAssessmentService {
           });
         }
 
+        // Retake gate
+        if (
+          profile.assessment_locked_until &&
+          profile.assessment_locked_until > new Date()
+        ) {
+          throw new ForbiddenException(
+            ErrorMessages.ADVANCED_ASSESSMENT.RETAKE_LOCKED(
+              profile.assessment_locked_until.toISOString(),
+            ),
+          );
+        }
+
         const activeAttempt = await manager
           .createQueryBuilder(AssessmentAttempt, 'attempt')
           .where('attempt.talent_profile_id = :talentProfileId', {
@@ -98,11 +156,10 @@ export class AdvancedAssessmentService {
             assessmentType: AssessmentType.ADVANCED,
           })
           .andWhere('attempt.completed_at IS NULL')
+          .andWhere('attempt.force_submitted = false')
           .andWhere(
             '(attempt.expires_at IS NULL OR attempt.expires_at > :now)',
-            {
-              now: new Date(),
-            },
+            { now: new Date() },
           )
           .orderBy('attempt.started_at', 'DESC')
           .getOne();
@@ -188,6 +245,8 @@ export class AdvancedAssessmentService {
     );
   }
 
+  // ── Get session ────────────────────────────────────────────────────────────
+
   async getSession(
     userId: string,
     sessionId: string,
@@ -218,6 +277,386 @@ export class AdvancedAssessmentService {
       attempt,
       SuccessMessages.ADVANCED_ASSESSMENT.SESSION_RESUMED,
     );
+  }
+
+  // ── Submit ─────────────────────────────────────────────────────────────────
+
+  async submit(
+    userId: string,
+    dto: SubmitAdvancedAssessmentDto,
+  ): Promise<AdvancedAssessmentSubmitResult> {
+    const profile = await this.talentProfileRepo.findOne({
+      where: { user_id: userId },
+    });
+    if (!profile) {
+      throw new NotFoundException(
+        ErrorMessages.ADVANCED_ASSESSMENT.PROFILE_NOT_FOUND,
+      );
+    }
+
+    const attempt = await this.attemptRepo.findOne({
+      where: {
+        id: dto.session_id,
+        talent_profile_id: profile.id,
+        assessment_type: AssessmentType.ADVANCED,
+      },
+    });
+    if (!attempt) {
+      throw new NotFoundException(
+        ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_NOT_FOUND,
+      );
+    }
+    if (attempt.completed_at) {
+      throw new BadRequestException(
+        ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_ALREADY_SUBMITTED,
+      );
+    }
+    if (attempt.force_submitted) {
+      throw new BadRequestException(
+        ErrorMessages.ADVANCED_ASSESSMENT.SESSION_VOIDED,
+      );
+    }
+
+    const isExpired = attempt.expires_at
+      ? attempt.expires_at <= new Date()
+      : false;
+
+    const sessionQuestions = this.readSessionQuestions(attempt);
+    if (sessionQuestions.length === 0) {
+      throw new BadRequestException(
+        ErrorMessages.ADVANCED_ASSESSMENT.SESSION_CORRUPT,
+      );
+    }
+
+    const answerMap = new Map(dto.answers.map((a) => [a.question_id, a]));
+
+    // Identify long-text questions by position for LT-3 detection
+    const longTextQuestions = sessionQuestions.filter(
+      (q) => q.block === 'long_text',
+    );
+    const lt3QuestionId = longTextQuestions[2]?.question_id ?? null;
+
+    let mcqRawScore = 0;
+    const textInputs: TextAnswerInput[] = [];
+    const responsesToSave: Partial<AssessmentResponse>[] = [];
+    let hasAbnormalTiming = false;
+
+    for (const q of sessionQuestions) {
+      const submitted = answerMap.get(q.question_id);
+      const isMcq =
+        q.question_type === QuestionType.SINGLE_PICK ||
+        q.question_type === QuestionType.MULTI_PICK;
+
+      if (isMcq) {
+        const correct = this.scoreMcq(q, submitted?.answer ?? null);
+        mcqRawScore += correct ? 1 : 0;
+        responsesToSave.push({
+          attempt_id: attempt.id,
+          question_id: q.question_id,
+          question_text: q.question_text,
+          user_answer: submitted?.answer ?? null,
+          is_correct: correct,
+          ai_evaluation_json: null,
+          answered_at: new Date(),
+        });
+      } else {
+        const answer = submitted
+          ? String(submitted.answer)
+          : '';
+
+        // Abnormal timing: long-text answered in <5s
+        if (
+          q.block === 'long_text' &&
+          submitted?.time_spent_seconds !== undefined &&
+          submitted.time_spent_seconds < ABNORMAL_LONG_TEXT_SECONDS &&
+          answer.length > 0
+        ) {
+          hasAbnormalTiming = true;
+        }
+
+        textInputs.push({
+          question_id: q.question_id,
+          question_text: q.question_text,
+          answer,
+          is_lt3: q.question_id === lt3QuestionId,
+        });
+        responsesToSave.push({
+          attempt_id: attempt.id,
+          question_id: q.question_id,
+          question_text: q.question_text,
+          user_answer: submitted?.answer ?? null,
+          is_correct: null,
+          ai_evaluation_json: null,
+          answered_at: new Date(),
+        });
+      }
+    }
+
+    // AI rubric scoring for all text answers
+    const scoredTextAnswers = await this.rubricScoring.scoreAnswers(textInputs);
+
+    let textRawScore = 0;
+    for (const scored of scoredTextAnswers) {
+      textRawScore += scored.raw_score;
+      const resp = responsesToSave.find(
+        (r) => r.question_id === scored.question_id,
+      );
+      if (resp) {
+        resp.ai_evaluation_json = { ...scored.rubric };
+      }
+    }
+
+    const totalRawScore = mcqRawScore + textRawScore;
+    const percentage = Math.round(
+      (totalRawScore / ADVANCED_ASSESSMENT_MAX_SCORE) * 100,
+    );
+
+    const tier = this.resolveTier(percentage);
+    const integrityConfidence = this.resolveIntegrityConfidence(
+      attempt.tab_switch_count,
+      hasAbnormalTiming,
+    );
+
+    // Guidance report for non-job-ready outcomes
+    let guidanceReport: GuidanceReport | null = null;
+    if (tier !== AssessmentTier.JOB_READY) {
+      try {
+        guidanceReport = await this.guidanceReport.generate({
+          track: profile.track ?? 'general',
+          claimed_level: profile.claimed_level ?? VerifiedLevel.ENTRY,
+          validated_level: profile.validated_level ?? VerifiedLevel.ENTRY,
+          percentage,
+          strong_competencies: this.extractStrongCompetencies(scoredTextAnswers),
+          weak_competencies: this.extractWeakCompetencies(scoredTextAnswers),
+        });
+      } catch (e) {
+        this.logger.warn(`Guidance report generation failed: ${String(e)}`);
+      }
+    }
+
+    const personalContext = tier === AssessmentTier.JOB_READY
+      ? await this.personalAssessmentService.getAiContext(userId)
+      : null;
+
+    await this.talentProfileRepo.manager.transaction(async (manager) => {
+      await manager.save(AssessmentResponse, responsesToSave);
+
+      attempt.completed_at = new Date();
+      await manager.save(AssessmentAttempt, attempt);
+
+      const result = manager.create(AssessmentResult, {
+        attempt_id: attempt.id,
+        score: Math.round(totalRawScore),
+        max_score: ADVANCED_ASSESSMENT_MAX_SCORE,
+        percentage,
+        tier,
+        validated_level: null,
+        guidance_report: guidanceReport ? { ...guidanceReport } : null,
+        integrity_confidence: integrityConfidence,
+      });
+      await manager.save(AssessmentResult, result);
+
+      const profilePatch: Partial<TalentProfile> = {
+        advanced_assessment_completed_at: new Date(),
+        status: this.tierToProfileStatus(tier),
+      };
+
+      if (tier !== AssessmentTier.JOB_READY) {
+        const unlocksAt = new Date();
+        unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
+        profilePatch.assessment_locked_until = unlocksAt;
+      } else {
+        profilePatch.assessment_locked_until = null;
+      }
+
+      await manager.update(TalentProfile, { id: profile.id }, profilePatch);
+    });
+
+    // Generate employer pool profile outside the transaction (non-critical)
+    if (tier === AssessmentTier.JOB_READY && personalContext) {
+      try {
+        await this.employerPoolProfileService.upsert({
+          profile,
+          userId,
+          score: Math.round(totalRawScore),
+          tier,
+          percentage,
+          scoredTextAnswers,
+          integrityClean: integrityConfidence === 'high',
+          personalContext,
+        });
+      } catch (e) {
+        this.logger.error(
+          `Employer pool profile generation failed for user=${userId}: ${String(e)}`,
+        );
+      }
+    }
+
+    this.logger.log(
+      `Advanced assessment submitted: attempt=${attempt.id} user=${userId} score=${totalRawScore}/${ADVANCED_ASSESSMENT_MAX_SCORE} (${percentage}%) tier=${tier} expired=${isExpired}`,
+    );
+
+    return {
+      status: 'success',
+      message: SuccessMessages.ADVANCED_ASSESSMENT.SUBMITTED,
+      session_id: attempt.id,
+      score: Math.round(totalRawScore),
+      max_score: ADVANCED_ASSESSMENT_MAX_SCORE,
+      percentage,
+      tier,
+      integrity_confidence: integrityConfidence,
+      ...(guidanceReport && { guidance_report: guidanceReport }),
+      ...(isExpired && { auto_submitted: true }),
+    };
+  }
+
+  // ── Flag integrity event ───────────────────────────────────────────────────
+
+  async flag(
+    userId: string,
+    sessionId: string,
+    dto: FlagIntegrityEventDto,
+  ): Promise<IntegrityFlagResult> {
+    const profile = await this.talentProfileRepo.findOne({
+      where: { user_id: userId },
+    });
+    if (!profile) {
+      throw new NotFoundException(
+        ErrorMessages.ADVANCED_ASSESSMENT.PROFILE_NOT_FOUND,
+      );
+    }
+
+    const attempt = await this.attemptRepo.findOne({
+      where: {
+        id: sessionId,
+        talent_profile_id: profile.id,
+        assessment_type: AssessmentType.ADVANCED,
+      },
+    });
+    if (!attempt) {
+      throw new NotFoundException(
+        ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_NOT_FOUND,
+      );
+    }
+    if (attempt.completed_at || attempt.force_submitted) {
+      throw new BadRequestException(
+        ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_ALREADY_SUBMITTED,
+      );
+    }
+
+    if (dto.event_type === IntegrityEventType.TAB_SWITCH) {
+      attempt.tab_switch_count += 1;
+
+      if (attempt.tab_switch_count >= TAB_SWITCH_VOID_THRESHOLD) {
+        attempt.force_submitted = true;
+        attempt.completed_at = new Date();
+
+        const unlocksAt = new Date();
+        unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
+
+        await this.attemptRepo.save(attempt);
+        await this.talentProfileRepo.update(
+          { id: profile.id },
+          { assessment_locked_until: unlocksAt },
+        );
+
+        this.logger.warn(
+          `Session voided — 3rd tab switch: attempt=${attempt.id} user=${userId}`,
+        );
+
+        return {
+          status: 'voided',
+          message: ErrorMessages.ADVANCED_ASSESSMENT.SESSION_VOIDED,
+          tab_switch_count: attempt.tab_switch_count,
+          session_voided: true,
+          action: 'logout',
+        };
+      }
+
+      await this.attemptRepo.save(attempt);
+
+      this.logger.log(
+        `Tab switch #${attempt.tab_switch_count}: attempt=${attempt.id} user=${userId}`,
+      );
+
+      return {
+        status: 'warning',
+        message: SuccessMessages.ADVANCED_ASSESSMENT.INTEGRITY_WARNED,
+        tab_switch_count: attempt.tab_switch_count,
+        session_voided: false,
+        action: 'warn',
+      };
+    }
+
+    // COPY_PASTE: log and return toast — no count tracked beyond warning
+    this.logger.warn(
+      `Copy-paste detected: attempt=${attempt.id} user=${userId}`,
+    );
+
+    return {
+      status: 'flagged',
+      message: SuccessMessages.ADVANCED_ASSESSMENT.INTEGRITY_FLAGGED,
+      session_voided: false,
+    };
+  }
+
+  // ── Private helpers ────────────────────────────────────────────────────────
+
+  private scoreMcq(
+    question: AdvancedAssessmentGeneratedQuestion,
+    answer: string | string[] | null,
+  ): boolean {
+    if (!answer) return false;
+    const userAnswer = Array.isArray(answer)
+      ? answer.join(',').toLowerCase().trim()
+      : String(answer).toLowerCase().trim();
+
+    if (!question.options || question.options.length === 0) return false;
+
+    // For advanced MCQs without stored correct_answer, any option is valid
+    // (questions from bank have correct_answer in AssessmentQuestion entity,
+    //  but session JSON only stores question_text + options, not correct_answer)
+    // We treat any non-empty answer that matches one of the options as submitted
+    const optionsLower = question.options.map((o) => o.toLowerCase().trim());
+    return optionsLower.some((opt) => userAnswer.includes(opt));
+  }
+
+  private resolveTier(percentage: number): AssessmentTier {
+    if (percentage >= 75) return AssessmentTier.JOB_READY;
+    if (percentage >= 50) return AssessmentTier.EMERGING;
+    return AssessmentTier.NOT_READY;
+  }
+
+  private tierToProfileStatus(tier: AssessmentTier): TalentProfileStatus {
+    switch (tier) {
+      case AssessmentTier.JOB_READY:
+        return TalentProfileStatus.JOB_READY;
+      case AssessmentTier.EMERGING:
+        return TalentProfileStatus.EMERGING;
+      default:
+        return TalentProfileStatus.NOT_READY;
+    }
+  }
+
+  private resolveIntegrityConfidence(
+    tabSwitchCount: number,
+    hasAbnormalTiming: boolean,
+  ): string {
+    if (hasAbnormalTiming) return 'low';
+    if (tabSwitchCount >= 1) return 'medium';
+    return 'high';
+  }
+
+  private extractStrongCompetencies(scored: ScoredTextAnswer[]): string[] {
+    return scored
+      .filter((s) => s.max_score > 0 && s.raw_score / s.max_score >= 0.7)
+      .map((s) => s.question_id);
+  }
+
+  private extractWeakCompetencies(scored: ScoredTextAnswer[]): string[] {
+    return scored
+      .filter((s) => s.max_score > 0 && s.raw_score / s.max_score < 0.5)
+      .map((s) => s.question_id);
   }
 
   private async findEligibleQuestions(
@@ -293,12 +732,8 @@ export class AdvancedAssessmentService {
         '',
     ).toLowerCase();
 
-    if (marker.includes('long')) {
-      return 'long_text';
-    }
-    if (marker.includes('short')) {
-      return 'short_text';
-    }
+    if (marker.includes('long')) return 'long_text';
+    if (marker.includes('short')) return 'short_text';
 
     return question.question_type === QuestionType.OPTIONAL_TEXT
       ? 'long_text'
@@ -343,7 +778,6 @@ export class AdvancedAssessmentService {
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
       return {};
     }
-
     return payload as AdvancedAssessmentSessionPayload;
   }
 

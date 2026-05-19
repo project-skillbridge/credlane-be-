@@ -36,6 +36,14 @@ export class AssessmentResult {
   @Column({ type: 'integer' })
   score: number;
 
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ type: 'integer', nullable: true })
+  max_score: number | null;
+
+  @ApiProperty({ required: false, nullable: true, description: '0–100' })
+  @Column({ type: 'integer', nullable: true })
+  percentage: number | null;
+
   @ApiProperty({
     required: false,
     nullable: true,
@@ -53,6 +61,18 @@ export class AssessmentResult {
   })
   @Column({ type: 'enum', enum: VerifiedLevel, nullable: true })
   validated_level: VerifiedLevel | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ type: 'jsonb', nullable: true })
+  guidance_report: Record<string, unknown> | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'high | medium | low',
+  })
+  @Column({ type: 'varchar', length: 10, nullable: true })
+  integrity_confidence: string | null;
 
   @ApiProperty()
   @CreateDateColumn({ type: 'timestamp with time zone' })

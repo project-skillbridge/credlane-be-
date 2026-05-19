@@ -7,6 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { MulterError } from 'multer';
 import { ErrorMessages } from '../../shared';
 
 @Catch()
@@ -23,7 +24,17 @@ export class HttpExceptionFilter implements ExceptionFilter {
     let error = 'InternalServerError';
     let details: Record<string, unknown> = {};
 
-    if (exception instanceof HttpException) {
+    if (exception instanceof MulterError) {
+      status = HttpStatus.BAD_REQUEST;
+      error = 'Bad Request';
+      if (exception.code === 'LIMIT_FILE_SIZE') {
+        message = ErrorMessages.ONBOARDING.FILE_TOO_LARGE;
+      } else if (exception.code === 'LIMIT_UNEXPECTED_FILE') {
+        message = `Unexpected field: ${exception.field}`;
+      } else {
+        message = exception.message;
+      }
+    } else if (exception instanceof HttpException) {
       status = exception.getStatus();
       const res = exception.getResponse();
       if (typeof res === 'string') {
