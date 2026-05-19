@@ -1,7 +1,6 @@
-import { BadRequestException, UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { SuccessMessages } from '../../../shared';
-import { OAUTH_DEFAULT_COUNTRY } from '../../users/users.service';
 import { UserRole } from '../../users/entities/user.entity';
 import { TalentProfile } from '../entities/talent-profile.entity';
 import { UsersService } from '../../users/users.service';
@@ -46,24 +45,30 @@ describe('PersonalAssessmentService', () => {
     };
 
     const entityManager = {
-      findOne: jest.fn().mockImplementation(
-        (
-          entityOrOptions: { where?: { user_id: string } },
-          maybeOptions?: { where?: { user_id: string } },
-        ) =>
-          Promise.resolve(
-            resolveProfileByUserId(maybeOptions ?? entityOrOptions),
-          ),
-      ),
-      create: jest.fn().mockImplementation(
-        (_entity: unknown, data: Partial<TalentProfile>) => {
-          profileStore = makeTalentProfile({ ...data, user_id: userId });
-          return profileStore;
-        },
-      ),
-      save: jest.fn().mockImplementation(
-        (_entity: unknown, profile: TalentProfile) => persistProfile(profile),
-      ),
+      findOne: jest
+        .fn()
+        .mockImplementation(
+          (
+            entityOrOptions: { where?: { user_id: string } },
+            maybeOptions?: { where?: { user_id: string } },
+          ) =>
+            Promise.resolve(
+              resolveProfileByUserId(maybeOptions ?? entityOrOptions),
+            ),
+        ),
+      create: jest
+        .fn()
+        .mockImplementation(
+          (_entity: unknown, data: Partial<TalentProfile>) => {
+            profileStore = makeTalentProfile({ ...data, user_id: userId });
+            return profileStore;
+          },
+        ),
+      save: jest
+        .fn()
+        .mockImplementation((_entity: unknown, profile: TalentProfile) =>
+          persistProfile(profile),
+        ),
     };
 
     repository = {
@@ -72,14 +77,18 @@ describe('PersonalAssessmentService', () => {
         profileStore = makeTalentProfile({ ...data, user_id: userId });
         return profileStore;
       }),
-      save: jest.fn().mockImplementation((profile: TalentProfile) =>
-        persistProfile(profile),
-      ),
-      manager: {
-        transaction: jest.fn().mockImplementation(
-          (work: (manager: typeof entityManager) => Promise<unknown>) =>
-            work(entityManager),
+      save: jest
+        .fn()
+        .mockImplementation((profile: TalentProfile) =>
+          persistProfile(profile),
         ),
+      manager: {
+        transaction: jest
+          .fn()
+          .mockImplementation(
+            (work: (manager: typeof entityManager) => Promise<unknown>) =>
+              work(entityManager),
+          ),
       },
     };
 
@@ -168,18 +177,21 @@ describe('PersonalAssessmentService', () => {
     expect(resume.personalAssessmentCompleted).toBe(false);
   });
 
-  it('complete rejects Unknown country', async () => {
+  it('complete rejects unknown or missing country', async () => {
     profileStore.personal_assessment_answers = {
       ...buildFullPersonalAssessmentAnswers(),
       _meta: { completedSections: [1, 2, 3, 4, 5, 6, 7] },
     };
     (usersService.findOne as jest.Mock).mockResolvedValue(
-      makeTalentUser({ id: userId, country: OAUTH_DEFAULT_COUNTRY }),
+      makeTalentUser({ id: userId, country: undefined }),
     );
 
     await expect(service.complete(userId)).rejects.toMatchObject({
       response: {
-        missingOnboardingFields: expect.arrayContaining(['country']),
+        message: 'Personal assessment is incomplete',
+        missingFields: expect.arrayContaining([
+          expect.objectContaining({ field: 'country', section: 1 }),
+        ]),
       },
     });
   });
