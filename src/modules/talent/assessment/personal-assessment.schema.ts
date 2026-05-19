@@ -26,6 +26,16 @@ export type PersonalAssessmentQuestion = {
 
 export const PERSONAL_ASSESSMENT_SECTION_COUNT = 7;
 
+export const PERSONAL_ASSESSMENT_SECTION_TITLES: Record<number, string> = {
+  1: 'Professional Background',
+  2: 'Skills & Expertise',
+  3: 'Leadership & Responsibility',
+  4: 'International & Remote Experience',
+  5: 'Work Style',
+  6: 'Achievements & Proof',
+  7: 'Availability & Intent',
+};
+
 /** Ignored in section POST bodies — sourced from onboarding / user profile. */
 export const SKIPPED_ONBOARDING_ANSWER_KEYS = new Set([
   'education_level',
