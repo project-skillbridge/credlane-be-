@@ -18,7 +18,14 @@ export class RubricScoringService {
 
   async scoreAnswers(inputs: TextAnswerInput[]): Promise<ScoredTextAnswer[]> {
     if (inputs.length === 0) return [];
-    return Promise.all(inputs.map((input) => this.scoreOne(input)));
+    const scored: ScoredTextAnswer[] = [];
+
+    // Score sequentially to avoid bursty rate limits from free/shared models.
+    for (const input of inputs) {
+      scored.push(await this.scoreOne(input));
+    }
+
+    return scored;
   }
 
   private async scoreOne(input: TextAnswerInput): Promise<ScoredTextAnswer> {
