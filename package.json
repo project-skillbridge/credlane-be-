@@ -45,7 +45,9 @@
     "@nestjs/swagger": "^11.4.2",
     "@nestjs/throttler": "^6.5.0",
     "@nestjs/typeorm": "^11.0.1",
+    "@openrouter/ai-sdk-provider": "^2.9.0",
     "@t3-oss/env-core": "^0.13.11",
+    "ai": "^6.0.185",
     "argon2": "^0.44.0",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.76.8",
@@ -113,6 +115,12 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "setupFiles": [
+      "<rootDir>/test-setup.ts"
+    ],
+    "moduleNameMapper": {
+      "^@t3-oss/env-core$": "<rootDir>/../test/mocks/env-core.ts"
+    }
   }
 }

@@ -14,6 +14,23 @@ export const SuccessMessages = {
     WAITLIST_JOINED: 'Added to waitlist',
     MESSAGE_RECEIVED: 'Message received',
   },
+  ASSESSMENT: {
+    SECTION_SAVED: 'Personal assessment section saved',
+    COMPLETED: 'Personal assessment completed',
+  },
+  SKILL_ASSESSMENT: {
+    STARTED: 'Skill assessment session created',
+    SUBMITTED: 'Skill assessment submitted successfully',
+    DOWNGRADE_NOTICE:
+      'Your assessment has been personalised to your verified level.',
+  },
+  ADVANCED_ASSESSMENT: {
+    STARTED: 'Advanced assessment session created',
+    SESSION_RESUMED: 'Advanced assessment session returned',
+    SUBMITTED: 'Advanced assessment submitted and scored',
+    INTEGRITY_WARNED: 'Integrity warning recorded. One more violation will void this session.',
+    INTEGRITY_FLAGGED: 'Integrity event recorded',
+  },
   ONBOARDING: {
     TALENT_COMPLETED: 'Talent onboarding completed',
     EMPLOYER_COMPLETED: 'Employer onboarding completed',

@@ -33,11 +33,10 @@ export class SetProfileDto {
   })
   linkedinUrl?: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: 'https://bucket.s3.region.amazonaws.com/avatars/user.jpg',
     description: 'Avatar URL returned from the avatar upload endpoint',
   })
-  @IsOptional()
   @IsUrl({}, { message: 'avatarUrl must be a valid URL' })
-  avatarUrl?: string;
+  avatarUrl: string;
 }

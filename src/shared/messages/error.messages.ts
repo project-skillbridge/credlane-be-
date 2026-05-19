@@ -23,6 +23,46 @@ export const ErrorMessages = {
   INQUIRIES: {
     EMAIL_ALREADY_ON_WAITLIST: 'Email already on waitlist',
   },
+  ASSESSMENT: {
+    INVALID_SECTION: 'Section must be an integer between 1 and 7',
+    ALREADY_COMPLETED: 'Personal assessment is already completed',
+  },
+  SKILL_ASSESSMENT: {
+    PROFILE_NOT_FOUND: 'Talent profile not found',
+    PERSONAL_ASSESSMENT_INCOMPLETE:
+      'Complete your personal assessment before starting a skill assessment',
+    CLAIMED_LEVEL_MISSING:
+      'claimed_level is required to start a skill assessment; please complete onboarding track step first',
+    TRACK_MISSING:
+      'track is required to start a skill assessment; please complete onboarding track step first',
+    NO_QUESTIONS_AVAILABLE:
+      'No skill assessment questions are currently available for your track and level',
+    ATTEMPT_NOT_FOUND: 'Assessment attempt not found',
+    ATTEMPT_ALREADY_SUBMITTED:
+      'This assessment attempt has already been submitted',
+    ATTEMPT_CORRUPT:
+      'Assessment attempt has no questions; please start a new session',
+    PASS_REQUIRED:
+      'You need a score of 75% or higher in the skill assessment before starting the advanced assessment',
+  },
+  ADVANCED_ASSESSMENT: {
+    PROFILE_NOT_FOUND: 'Talent profile not found',
+    PERSONAL_ASSESSMENT_INCOMPLETE:
+      'Complete your personal assessment before starting the advanced assessment',
+    SKILL_GATE_REQUIRED:
+      'Complete and pass the skill assessment before starting the advanced assessment',
+    LEVEL_NOT_VERIFIED: 'LEVEL_NOT_VERIFIED',
+    BANK_EXHAUSTED: 'BANK_EXHAUSTED',
+    ACTIVE_SESSION_EXISTS: 'Active advanced assessment session already exists',
+    SESSION_NOT_FOUND: 'Advanced assessment session not found',
+    SESSION_CORRUPT: 'Advanced assessment session has no questions',
+    ATTEMPT_NOT_FOUND: 'Assessment session not found',
+    ATTEMPT_ALREADY_SUBMITTED: 'This assessment session has already been submitted',
+    SESSION_EXPIRED: 'Assessment session has expired',
+    RETAKE_LOCKED: (unlocksAt: string) =>
+      `Advanced assessment is locked until ${unlocksAt}. Retakes are available after a 14-day gate.`,
+    SESSION_VOIDED: 'Assessment session has been voided due to integrity violations. A 14-day retake gate has started.',
+  },
   ONBOARDING: {
     INVALID_USER: 'Invalid user',
     ALREADY_COMPLETED: 'Onboarding already completed',
