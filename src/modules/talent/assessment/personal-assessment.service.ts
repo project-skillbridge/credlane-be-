@@ -81,7 +81,8 @@ type PersonalAssessmentStore = Record<string, unknown> & {
 };
 
 /** Flat AI Prompt Chain payload returned by GET .../context. */
-export type TalentPersonalAssessmentContext = PersonalAssessmentAiPromptContextPayload;
+export type TalentPersonalAssessmentContext =
+  PersonalAssessmentAiPromptContextPayload;
 
 @Injectable()
 export class PersonalAssessmentService {
@@ -156,7 +157,7 @@ export class PersonalAssessmentService {
       );
     }
 
-    assertOnboardingFieldsForComplete(profile, user);
+    assertOnboardingFieldsForComplete(profile);
 
     const session = await this.generatePersonalAssessmentSession(profile, user);
     const store = this.readStore(profile);
@@ -196,10 +197,8 @@ export class PersonalAssessmentService {
     userId: string,
     rawAnswers: Record<string, unknown>,
   ): Promise<{ status: string; message: string; completedAt: string }> {
-    const user = await this.usersService.findOne(userId);
-
-    const completedAt =
-      await this.talentProfileRepository.manager.transaction(async (manager) => {
+    const completedAt = await this.talentProfileRepository.manager.transaction(
+      async (manager) => {
         let profile = await manager.findOne(TalentProfile, {
           where: { user_id: userId },
           lock: { mode: 'pessimistic_write' },
@@ -217,7 +216,7 @@ export class PersonalAssessmentService {
           );
         }
 
-        assertOnboardingFieldsForComplete(profile, user);
+        assertOnboardingFieldsForComplete(profile);
 
         const store = this.readStore(profile);
         const session = store._meta?.generatedSession;
@@ -253,7 +252,8 @@ export class PersonalAssessmentService {
         await manager.save(TalentProfile, profile);
 
         return completedAt;
-      });
+      },
+    );
 
     return {
       status: 'success',
@@ -268,7 +268,9 @@ export class PersonalAssessmentService {
   ): Promise<GeneratedPersonalAssessmentSession> {
     const sourceQuestions = this.personalAssessmentGenerationBank(profile);
     const aiSelection = await this.tryGeneratePersonalAssessment(profile, user);
-    const questionMap = new Map(sourceQuestions.map((question) => [question.key, question]));
+    const questionMap = new Map(
+      sourceQuestions.map((question) => [question.key, question]),
+    );
     const selected: Array<{
       question: PersonalAssessmentQuestion;
       prompt: string;
@@ -365,16 +367,18 @@ export class PersonalAssessmentService {
     profile: TalentProfile,
     user: Awaited<ReturnType<UsersService['findOne']>>,
   ): string {
-    const bank = this.personalAssessmentGenerationBank(profile).map((question) => ({
-      source_key: question.key,
-      section: this.findQuestionSection(question.key),
-      question_number: question.questionNumber,
-      input_type: question.inputType,
-      required: question.required,
-      base_prompt: this.defaultQuestionPrompt(question),
-      options: this.resolveQuestionOptions(question, profile) ?? null,
-      min_length: question.minLength ?? null,
-    }));
+    const bank = this.personalAssessmentGenerationBank(profile).map(
+      (question) => ({
+        source_key: question.key,
+        section: this.findQuestionSection(question.key),
+        question_number: question.questionNumber,
+        input_type: question.inputType,
+        required: question.required,
+        base_prompt: this.defaultQuestionPrompt(question),
+        options: this.resolveQuestionOptions(question, profile) ?? null,
+        min_length: question.minLength ?? null,
+      }),
+    );
 
     return JSON.stringify({
       instruction:
@@ -463,7 +467,9 @@ export class PersonalAssessmentService {
     return [
       ...priority
         .map((key) => byKey.get(key))
-        .filter((question): question is PersonalAssessmentQuestion => Boolean(question)),
+        .filter((question): question is PersonalAssessmentQuestion =>
+          Boolean(question),
+        ),
       ...bank.filter((question) => !priority.includes(question.key)),
     ];
   }
@@ -472,12 +478,17 @@ export class PersonalAssessmentService {
     session: GeneratedPersonalAssessmentSession,
   ): PersonalAssessmentQuestion[] {
     const byKey = new Map(
-      getAllPersonalAssessmentQuestions().map((question) => [question.key, question]),
+      getAllPersonalAssessmentQuestions().map((question) => [
+        question.key,
+        question,
+      ]),
     );
 
     return session.questions
       .map((question) => byKey.get(question.key))
-      .filter((question): question is PersonalAssessmentQuestion => Boolean(question));
+      .filter((question): question is PersonalAssessmentQuestion =>
+        Boolean(question),
+      );
   }
 
   private toGeneratedPersonalQuestion(
@@ -494,7 +505,9 @@ export class PersonalAssessmentService {
       sourceSection: this.findQuestionSection(question.key),
       inputType: question.inputType,
       required: question.required,
-      ...(question.minLength !== undefined && { minLength: question.minLength }),
+      ...(question.minLength !== undefined && {
+        minLength: question.minLength,
+      }),
       prompt,
       helperText,
       ...(options && { options }),
@@ -529,7 +542,11 @@ export class PersonalAssessmentService {
       section <= PERSONAL_ASSESSMENT_SECTION_COUNT;
       section++
     ) {
-      if (PERSONAL_ASSESSMENT_SECTIONS[section].some((question) => question.key === key)) {
+      if (
+        PERSONAL_ASSESSMENT_SECTIONS[section].some(
+          (question) => question.key === key,
+        )
+      ) {
         return section;
       }
     }
@@ -604,8 +621,8 @@ export class PersonalAssessmentService {
   ): Promise<{ status: string; message: string; completedAt: string }> {
     const user = await this.usersService.findOne(userId);
 
-    const completedAt =
-      await this.talentProfileRepository.manager.transaction(async (manager) => {
+    const completedAt = await this.talentProfileRepository.manager.transaction(
+      async (manager) => {
         let profile = await manager.findOne(TalentProfile, {
           where: { user_id: userId },
           lock: { mode: 'pessimistic_write' },
@@ -623,7 +640,7 @@ export class PersonalAssessmentService {
           );
         }
 
-        assertOnboardingFieldsForComplete(profile, user);
+        assertOnboardingFieldsForComplete(profile);
         const store = this.readStore(profile);
         const stored = this.withoutMeta(store);
         const completedSections = readCompletedSections(store._meta);
@@ -639,7 +656,8 @@ export class PersonalAssessmentService {
         await manager.save(TalentProfile, profile);
 
         return completedAt;
-      });
+      },
+    );
 
     return {
       status: 'success',
@@ -669,7 +687,9 @@ export class PersonalAssessmentService {
   async getAiContext(userId: string): Promise<TalentPersonalAssessmentContext> {
     const user = await this.usersService.findOne(userId);
     const profile = await this.findProfileByUserId(userId);
-    const emptyProfile = Object.assign(new TalentProfile(), { user_id: userId });
+    const emptyProfile = Object.assign(new TalentProfile(), {
+      user_id: userId,
+    });
 
     return buildPersonalAssessmentAiPromptContext(
       profile ?? emptyProfile,

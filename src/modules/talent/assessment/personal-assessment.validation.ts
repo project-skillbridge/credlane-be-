@@ -1,7 +1,6 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import { TalentProfile } from '../entities/talent-profile.entity';
 import { User } from '../../users/entities/user.entity';
-import { OAUTH_DEFAULT_COUNTRY } from '../../users/users.service';
 import {
   ONBOARDING_TRACK_TO_ASSESSMENT_TRACK,
   PERSONAL_ASSESSMENT_SECTION_COUNT,
@@ -45,7 +44,9 @@ function getDynamicOptions(
   return question.options;
 }
 
-function isTrackDependentQuestion(question: PersonalAssessmentQuestion): boolean {
+function isTrackDependentQuestion(
+  question: PersonalAssessmentQuestion,
+): boolean {
   return question.key === 'specialization' || question.key === 'tools';
 }
 
@@ -74,7 +75,9 @@ function throwFieldError(payload: {
 }): never {
   throw new UnprocessableEntityException({
     ...payload,
-    allowedValues: payload.allowedValues ? [...payload.allowedValues] : undefined,
+    allowedValues: payload.allowedValues
+      ? [...payload.allowedValues]
+      : undefined,
   });
 }
 
@@ -282,8 +285,7 @@ export function validateSectionAnswers(
 
     const options = resolveOptionsForValidation(question, profile, value);
     validateQuestionValue(question, value, options);
-    sanitized[question.key] =
-      typeof value === 'string' ? value.trim() : value;
+    sanitized[question.key] = typeof value === 'string' ? value.trim() : value;
 
     if (question.otherTextKey) {
       const otherValue = answers[question.otherTextKey];
@@ -409,17 +411,8 @@ export function getSkippedProfileValue(
   }
 }
 
-function isRealCountrySet(country: string | null | undefined): boolean {
-  const trimmed = country?.trim();
-  if (!trimmed) {
-    return false;
-  }
-  return trimmed.toLowerCase() !== OAUTH_DEFAULT_COUNTRY.toLowerCase();
-}
-
 export function assertOnboardingFieldsForComplete(
   profile: TalentProfile,
-  user: User,
 ): void {
   const missing: string[] = [];
 
@@ -431,9 +424,6 @@ export function assertOnboardingFieldsForComplete(
   }
   if (!profile.region?.trim()) {
     missing.push('region');
-  }
-  if (!isRealCountrySet(user.country)) {
-    missing.push('country');
   }
 
   if (missing.length > 0) {
@@ -476,7 +466,12 @@ function collectQuestionCompleteIssues(
     return issues;
   }
 
-  const value = resolveStoredAnswerValue(question, storedAnswers, profile, user);
+  const value = resolveStoredAnswerValue(
+    question,
+    storedAnswers,
+    profile,
+    user,
+  );
 
   if (!questionHasAnswerValue(question, value)) {
     const message = question.skipStorage
@@ -490,11 +485,7 @@ function collectQuestionCompleteIssues(
     const options = resolveOptionsForValidation(question, profile, value);
     const needsEnumValidation =
       question.inputType === 'single' || question.inputType === 'multi';
-    if (
-      needsEnumValidation &&
-      !question.options?.length &&
-      !options?.length
-    ) {
+    if (needsEnumValidation && !question.options?.length && !options?.length) {
       return issues;
     }
     validateQuestionValue(question, value, options);
@@ -511,15 +502,16 @@ function collectQuestionCompleteIssues(
   }
 
   if (question.otherTextKey) {
-    const selected = question.skipStorage
-      ? value
-      : storedAnswers[question.key];
+    const selected = question.skipStorage ? value : storedAnswers[question.key];
     const includesOther =
       question.inputType === 'multi'
         ? isStringArray(selected) && selected.includes('other')
         : selected === 'other';
 
-    if (includesOther && !isNonEmptyString(storedAnswers[question.otherTextKey])) {
+    if (
+      includesOther &&
+      !isNonEmptyString(storedAnswers[question.otherTextKey])
+    ) {
       issues.push({
         field: question.otherTextKey,
         section,
@@ -556,7 +548,11 @@ export function assertAssessmentReadyForComplete(
   const issues: PersonalAssessmentFieldIssue[] = [];
   const completedSet = new Set(completedSections);
 
-  for (let section = 1; section <= PERSONAL_ASSESSMENT_SECTION_COUNT; section++) {
+  for (
+    let section = 1;
+    section <= PERSONAL_ASSESSMENT_SECTION_COUNT;
+    section++
+  ) {
     if (!completedSet.has(section)) {
       issues.push({
         field: `section_${section}`,
@@ -590,4 +586,3 @@ export function assertAssessmentReadyForComplete(
     });
   }
 }
-
