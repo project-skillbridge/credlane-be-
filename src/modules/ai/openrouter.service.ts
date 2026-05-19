@@ -48,7 +48,7 @@ export class OpenRouterService {
         ],
       });
 
-      return result.output as T;
+      return result.output;
     } catch (error: unknown) {
       this.logger.error(this.formatError(error));
       throw new ServiceUnavailableException('AI service temporarily unavailable');
