@@ -1,7 +1,6 @@
-import { BadRequestException, UnprocessableEntityException } from '@nestjs/common';
+import { BadRequestException } from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { SuccessMessages } from '../../../shared';
-import { OAUTH_DEFAULT_COUNTRY } from '../../users/users.service';
 import { UserRole } from '../../users/entities/user.entity';
 import { TalentProfile } from '../entities/talent-profile.entity';
 import { UsersService } from '../../users/users.service';
@@ -168,19 +167,18 @@ describe('PersonalAssessmentService', () => {
     expect(resume.personalAssessmentCompleted).toBe(false);
   });
 
-  it('complete rejects Unknown country', async () => {
+  it('complete allows Unknown country', async () => {
     profileStore.personal_assessment_answers = {
       ...buildFullPersonalAssessmentAnswers(),
       _meta: { completedSections: [1, 2, 3, 4, 5, 6, 7] },
     };
     (usersService.findOne as jest.Mock).mockResolvedValue(
-      makeTalentUser({ id: userId, country: OAUTH_DEFAULT_COUNTRY }),
+      makeTalentUser({ id: userId }),
     );
 
-    await expect(service.complete(userId)).rejects.toMatchObject({
-      response: {
-        missingOnboardingFields: expect.arrayContaining(['country']),
-      },
+    await expect(service.complete(userId)).resolves.toMatchObject({
+      status: 'success',
+      message: SuccessMessages.ASSESSMENT.COMPLETED,
     });
   });
 

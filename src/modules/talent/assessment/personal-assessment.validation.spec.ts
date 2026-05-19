@@ -1,5 +1,4 @@
 import { UnprocessableEntityException } from '@nestjs/common';
-import { OAUTH_DEFAULT_COUNTRY } from '../../users/users.service';
 import {
   assertAssessmentReadyForComplete,
   assertOnboardingFieldsForComplete,
@@ -127,19 +126,11 @@ describe('assertAssessmentReadyForComplete', () => {
 });
 
 describe('assertOnboardingFieldsForComplete', () => {
-  it('treats Unknown country as missing', () => {
+  it('does not require country before assessment', () => {
     const profile = makeTalentProfile();
-    const user = makeTalentUser({ country: OAUTH_DEFAULT_COUNTRY });
+    const user = makeTalentUser({ country: null });
 
-    try {
-      assertOnboardingFieldsForComplete(profile, user);
-      fail('expected UnprocessableEntityException');
-    } catch (error: unknown) {
-      const body = getExceptionBody(error);
-      expect(body.missingOnboardingFields).toEqual(
-        expect.arrayContaining(['country']),
-      );
-    }
+    expect(() => assertOnboardingFieldsForComplete(profile, user)).not.toThrow();
   });
 
   it('passes when onboarding fields are present', () => {
