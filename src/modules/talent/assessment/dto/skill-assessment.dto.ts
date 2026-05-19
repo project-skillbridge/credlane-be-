@@ -3,7 +3,10 @@ import {
   ArrayNotEmpty,
   IsArray,
   IsNotEmpty,
+  IsNumber,
+  IsOptional,
   IsUUID,
+  Min,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -29,6 +32,15 @@ export class SkillAnswerDto {
   })
   @IsNotEmpty()
   answer: string | string[];
+
+  @ApiProperty({
+    required: false,
+    description: 'Seconds spent on this question',
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  time_spent_seconds?: number;
 }
 
 export class SubmitSkillAssessmentDto {

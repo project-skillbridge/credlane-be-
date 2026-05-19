@@ -40,14 +40,14 @@ export class SkillAssessmentController {
   @ApiOperation({
     summary: 'Start a skill assessment',
     description:
-      'Reads verified_level from profile, blocks if claimed_level or track is ' +
-      'missing, generates questions via the AI layer, creates an assessment ' +
-      'session, and returns questions to the frontend.',
+      'Requires completed personal assessment plus onboarding track and claimed level. ' +
+      'Generates a personalised AI question set, creates a session, and returns the ordered questions.',
   })
   @ApiCreatedResponse({ description: 'Assessment session created with questions' })
   @ApiNotFoundResponse({ description: 'Talent profile not found' })
   @ApiUnprocessableEntityResponse({
-    description: 'claimed_level or track missing, or no questions available',
+    description:
+      'Personal assessment incomplete, or required onboarding fields missing',
   })
   @ApiForbiddenResponse({ description: 'Not a talent user' })
   @UsePipes(
@@ -70,9 +70,8 @@ export class SkillAssessmentController {
   @ApiOperation({
     summary: 'Submit skill assessment answers',
     description:
-      'Receives answers, scores MCQs immediately, passes text answers to the ' +
-      'AI rubric layer, writes validated_level to the talent profile. ' +
-      'If downgraded, returns downgraded=true and a personalised message.',
+      'Scores MCQs immediately, sends text answers to the AI rubric layer, writes validated_level to the talent profile, ' +
+      'and enforces the 75% pass gate for advanced access. Failed attempts return guidance plus a 14-day retry date.',
   })
   @ApiOkResponse({ description: 'Assessment scored and validated_level written' })
   @ApiNotFoundResponse({ description: 'Profile or attempt not found' })
