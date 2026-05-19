@@ -177,7 +177,7 @@ describe('PersonalAssessmentService', () => {
     expect(resume.personalAssessmentCompleted).toBe(false);
   });
 
-  it('complete allows unknown or missing country', async () => {
+  it('complete rejects unknown or missing country', async () => {
     profileStore.personal_assessment_answers = {
       ...buildFullPersonalAssessmentAnswers(),
       _meta: { completedSections: [1, 2, 3, 4, 5, 6, 7] },
@@ -186,9 +186,13 @@ describe('PersonalAssessmentService', () => {
       makeTalentUser({ id: userId, country: null }),
     );
 
-    await expect(service.complete(userId)).resolves.toMatchObject({
-      status: 'success',
-      message: SuccessMessages.ASSESSMENT.COMPLETED,
+    await expect(service.complete(userId)).rejects.toMatchObject({
+      response: {
+        message: 'Personal assessment is incomplete',
+        missingFields: expect.arrayContaining([
+          expect.objectContaining({ field: 'country', section: 1 }),
+        ]),
+      },
     });
   });
 
