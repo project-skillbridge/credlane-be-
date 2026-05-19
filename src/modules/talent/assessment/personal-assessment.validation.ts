@@ -321,6 +321,71 @@ export function validateSectionAnswers(
   return sanitized;
 }
 
+export function validateGeneratedPersonalAssessmentAnswers(
+  questions: PersonalAssessmentQuestion[],
+  answers: Record<string, unknown>,
+  profile: TalentProfile,
+): Record<string, unknown> {
+  const sanitized: Record<string, unknown> = {};
+
+  for (const question of questions) {
+    if (question.skipStorage) {
+      continue;
+    }
+
+    const value = answers[question.key];
+
+    if (question.required && (value === undefined || value === null)) {
+      throwFieldError({
+        message: `${question.key} is required`,
+        field: question.key,
+      });
+    }
+
+    if (value === undefined || value === null) {
+      continue;
+    }
+
+    const options = resolveOptionsForValidation(question, profile, value);
+    validateQuestionValue(question, value, options);
+    sanitized[question.key] = typeof value === 'string' ? value.trim() : value;
+
+    if (question.otherTextKey) {
+      const otherValue = answers[question.otherTextKey];
+      const selected = sanitized[question.key];
+      const includesOther =
+        question.inputType === 'multi'
+          ? isStringArray(selected) && selected.includes('other')
+          : selected === 'other';
+
+      if (includesOther) {
+        if (!isNonEmptyString(otherValue)) {
+          throw new UnprocessableEntityException({
+            message: `${question.otherTextKey} is required when other is selected`,
+            field: question.otherTextKey,
+          });
+        }
+        sanitized[question.otherTextKey] = otherValue.trim();
+      }
+    }
+
+    if (question.followUpKey && question.followUpWhen) {
+      const followUpValue = answers[question.followUpKey];
+      if (sanitized[question.key] === question.followUpWhen) {
+        if (!isNonEmptyString(followUpValue)) {
+          throw new UnprocessableEntityException({
+            message: `${question.followUpKey} is required`,
+            field: question.followUpKey,
+          });
+        }
+        sanitized[question.followUpKey] = followUpValue.trim();
+      }
+    }
+  }
+
+  return sanitized;
+}
+
 export function getSkippedProfileValue(
   question: PersonalAssessmentQuestion,
   profile: TalentProfile,

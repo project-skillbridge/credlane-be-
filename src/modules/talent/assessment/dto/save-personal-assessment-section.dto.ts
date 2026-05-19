@@ -14,3 +14,17 @@ export class SavePersonalAssessmentSectionDto {
   @IsObject()
   answers: Record<string, unknown>;
 }
+
+export class SubmitGeneratedPersonalAssessmentDto {
+  @ApiProperty({
+    description:
+      'Answers keyed by generated question key. Keys match the question keys returned by POST /personal/start.',
+    example: {
+      job_title: 'Product Manager',
+      years_experience: '3_5_yrs',
+      industries: ['fintech'],
+    },
+  })
+  @IsObject()
+  answers: Record<string, unknown>;
+}

@@ -30,6 +30,16 @@ export const questionGenerationSchema = z.object({
   questions: z.array(generatedQuestionSchema),
 });
 
+export const personalAssessmentGeneratedQuestionSchema = z.object({
+  source_key: z.string(),
+  prompt: z.string(),
+  helper_text: z.string().nullable(),
+});
+
+export const personalAssessmentGenerationSchema = z.object({
+  questions: z.array(personalAssessmentGeneratedQuestionSchema).min(15).max(20),
+});
+
 export const lt3Schema = z.object({
   question_text: z.string(),
 });
