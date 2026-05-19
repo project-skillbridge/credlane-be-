@@ -13,13 +13,13 @@ import { VerifiedLevel } from '../../assessments/entities/assessment-question.en
 import { TalentProfileStatus } from '../entities/talent-profile.entity';
 import { AdvancedAssessmentService } from './advanced-assessment.service';
 import { IntegrityEventType } from './dto/advanced-assessment.dto';
-import {
-  makeTalentProfile,
-} from './personal-assessment.test-fixtures';
+import { makeTalentProfile } from './personal-assessment.test-fixtures';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function makeAttempt(overrides: Partial<AssessmentAttempt> = {}): AssessmentAttempt {
+function makeAttempt(
+  overrides: Partial<AssessmentAttempt> = {},
+): AssessmentAttempt {
   return Object.assign(new AssessmentAttempt(), {
     id: 'attempt-1',
     talent_profile_id: 'profile-1',
@@ -46,6 +46,7 @@ function makeSessionJson() {
     options: ['Option A', 'Option B', 'Option C', 'Option D'],
     slot_type: null,
     metadata: null,
+    correct_answer: i < 10 ? 'Option A' : 'Option B',
   }));
 
   const shortTextQuestions = Array.from({ length: 5 }, (_, i) => ({
@@ -92,7 +93,14 @@ function makeSubmitDto(overrides: Record<string, unknown> = {}) {
 function makeScoredAnswers(rawScore: number, maxScore: number) {
   return Array.from({ length: 10 }, (_, i) => ({
     question_id: i < 5 ? `short-${i + 1}` : `long-${i - 4}`,
-    rubric: { relevance: 2, reasoning: 2, specificity: 2, completeness: 2, total: 8, feedback: 'Good.' },
+    rubric: {
+      relevance: 2,
+      reasoning: 2,
+      specificity: 2,
+      completeness: 2,
+      total: 8,
+      feedback: 'Good.',
+    },
     raw_score: rawScore / 10,
     max_score: maxScore / 10,
   }));
@@ -141,12 +149,14 @@ describe('AdvancedAssessmentService', () => {
     const savedResults: unknown[] = [];
 
     const entityManager = {
-      save: jest.fn().mockImplementation(
-        (_entity: unknown, data: unknown) => Promise.resolve(data),
-      ),
-      create: jest.fn().mockImplementation(
-        (_entity: unknown, data: unknown) => data,
-      ),
+      save: jest
+        .fn()
+        .mockImplementation((_entity: unknown, data: unknown) =>
+          Promise.resolve(data),
+        ),
+      create: jest
+        .fn()
+        .mockImplementation((_entity: unknown, data: unknown) => data),
       update: jest.fn().mockResolvedValue(undefined),
     };
 
@@ -154,10 +164,12 @@ describe('AdvancedAssessmentService', () => {
       findOne: jest.fn().mockResolvedValue(profileStore),
       update: jest.fn().mockResolvedValue(undefined),
       manager: {
-        transaction: jest.fn().mockImplementation(
-          (work: (em: typeof entityManager) => Promise<unknown>) =>
-            work(entityManager),
-        ),
+        transaction: jest
+          .fn()
+          .mockImplementation(
+            (work: (em: typeof entityManager) => Promise<unknown>) =>
+              work(entityManager),
+          ),
       },
     };
 
@@ -224,7 +236,14 @@ describe('AdvancedAssessmentService', () => {
       rubricScoring.scoreAnswers.mockResolvedValue(
         Array.from({ length: 10 }, (_, i) => ({
           question_id: i < 5 ? `short-${i + 1}` : `long-${i - 4}`,
-          rubric: { relevance: 3, reasoning: 3, specificity: 3, completeness: 3, total: 12, feedback: 'Excellent.' },
+          rubric: {
+            relevance: 3,
+            reasoning: 3,
+            specificity: 3,
+            completeness: 3,
+            total: 12,
+            feedback: 'Excellent.',
+          },
           raw_score: 12,
           max_score: 12,
         })),
@@ -240,9 +259,7 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('generates guidance report when tier is not job_ready', async () => {
-      rubricScoring.scoreAnswers.mockResolvedValue(
-        makeScoredAnswers(30, 100),
-      );
+      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(30, 100));
 
       const result = await service.submit(userId, makeSubmitDto() as never);
 
@@ -257,7 +274,8 @@ describe('AdvancedAssessmentService', () => {
 
       await service.submit(userId, makeSubmitDto() as never);
 
-      const transaction = talentProfileRepo.manager.transaction.mock.calls[0][0];
+      const transaction =
+        talentProfileRepo.manager.transaction.mock.calls[0][0];
       // The transaction ran — entityManager.update was called with locked_until
       expect(talentProfileRepo.manager.transaction).toHaveBeenCalled();
     });
@@ -313,7 +331,14 @@ describe('AdvancedAssessmentService', () => {
       rubricScoring.scoreAnswers.mockResolvedValue(
         Array.from({ length: 10 }, (_, i) => ({
           question_id: i < 5 ? `short-${i + 1}` : `long-${i - 4}`,
-          rubric: { relevance: 0, reasoning: 0, specificity: 0, completeness: 0, total: 0, feedback: 'No answer provided.' },
+          rubric: {
+            relevance: 0,
+            reasoning: 0,
+            specificity: 0,
+            completeness: 0,
+            total: 0,
+            feedback: 'No answer provided.',
+          },
           raw_score: 0,
           max_score: 12,
         })),
@@ -351,6 +376,29 @@ describe('AdvancedAssessmentService', () => {
 
       expect(result.integrity_confidence).toBe('medium');
     });
+
+    it('scores MCQs correctly when correct_answer is present in session', async () => {
+      // 10 correct (Option A) + 5 wrong (Option B) = 10/15 from MCQs
+      rubricScoring.scoreAnswers.mockResolvedValue(
+        Array.from({ length: 10 }, (_, i) => ({
+          question_id: i < 5 ? `short-${i + 1}` : `long-${i - 4}`,
+          rubric: {
+            relevance: 3,
+            reasoning: 3,
+            specificity: 3,
+            completeness: 3,
+            total: 12,
+            feedback: 'Good.',
+          },
+          raw_score: 12,
+          max_score: 12,
+        })),
+      );
+      const result = await service.submit(userId, makeSubmitDto() as never);
+      // 10 MCQ correct + 10 × 12 text = 10 + 120 = 130 / 198 = ~65.6%
+      expect(result.score).toBe(130);
+      expect(result.percentage).toBeGreaterThanOrEqual(65);
+    });
   });
 
   // ── flag ────────────────────────────────────────────────────────────────────
@@ -370,7 +418,9 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('returns warn action on second tab switch', async () => {
-      attemptRepo.findOne.mockResolvedValue(makeAttempt({ tab_switch_count: 1 }));
+      attemptRepo.findOne.mockResolvedValue(
+        makeAttempt({ tab_switch_count: 1 }),
+      );
 
       const result = await service.flag(userId, 'attempt-1', {
         event_type: IntegrityEventType.TAB_SWITCH,
@@ -381,7 +431,9 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('voids session and returns logout action on third tab switch', async () => {
-      attemptRepo.findOne.mockResolvedValue(makeAttempt({ tab_switch_count: 2 }));
+      attemptRepo.findOne.mockResolvedValue(
+        makeAttempt({ tab_switch_count: 2 }),
+      );
 
       const result = await service.flag(userId, 'attempt-1', {
         event_type: IntegrityEventType.TAB_SWITCH,
@@ -399,13 +451,17 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('sets 14-day retake gate when session is voided', async () => {
-      attemptRepo.findOne.mockResolvedValue(makeAttempt({ tab_switch_count: 2 }));
+      attemptRepo.findOne.mockResolvedValue(
+        makeAttempt({ tab_switch_count: 2 }),
+      );
 
       await service.flag(userId, 'attempt-1', {
         event_type: IntegrityEventType.TAB_SWITCH,
       });
 
-      const [[, patch]] = talentProfileRepo.update.mock.calls as [[unknown, { assessment_locked_until: Date }]];
+      const [[, patch]] = talentProfileRepo.update.mock.calls as [
+        [unknown, { assessment_locked_until: Date }],
+      ];
       const gateDate = patch.assessment_locked_until;
       const diffDays = Math.round(
         (gateDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
@@ -462,7 +518,9 @@ describe('AdvancedAssessmentService', () => {
     it('throws 403 when assessment_locked_until is in the future', async () => {
       const lockedProfile = makeTalentProfile({
         validated_level: VerifiedLevel.MID,
-        assessment_locked_until: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000),
+        assessment_locked_until: new Date(
+          Date.now() + 10 * 24 * 60 * 60 * 1000,
+        ),
       });
 
       const lockedEntityManager = {
