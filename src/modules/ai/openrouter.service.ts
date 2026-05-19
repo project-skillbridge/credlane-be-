@@ -1,6 +1,7 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
-import { generateText } from 'ai';
+import { generateText, Output, zodSchema } from 'ai';
+import { z } from 'zod';
 import { env } from '../../config/env';
 
 @Injectable()
@@ -23,11 +24,13 @@ export class OpenRouterService {
   async chat<T>(
     systemPrompt: string,
     userPrompt: string,
+    schema: z.ZodType<T>,
     temperature = 0.2,
   ): Promise<T> {
     try {
-      const { text } = await generateText({
+      const result = await generateText({
         model: this.provider(this.model),
+        output: Output.object({ schema: zodSchema(schema) }),
         temperature,
         messages: [
           { role: 'system', content: systemPrompt },
@@ -35,11 +38,7 @@ export class OpenRouterService {
         ],
       });
 
-      if (!text) {
-        throw new Error('Empty response from model');
-      }
-
-      return JSON.parse(text) as T;
+      return result.output as T;
     } catch (error) {
       this.logger.error(`OpenRouter call failed: ${String(error)}`);
       throw new ServiceUnavailableException('AI service temporarily unavailable');
