@@ -77,7 +77,7 @@ export const env = createEnv({
     AWS_ACCESS_KEY_ID: z.string().optional(),
     AWS_SECRET_ACCESS_KEY: z.string().optional(),
 
-    OPENROUTER_API_KEY: z.string().min(1),
+    OPENROUTER_API_KEY: z.string().min(1).optional(),
     OPENROUTER_MODEL: z.string().default('openai/gpt-4o'),
     OPENROUTER_BASE_URL: z.string().default('https://openrouter.ai/api/v1'),
   },
