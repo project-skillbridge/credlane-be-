@@ -3,8 +3,8 @@ import { AssessmentQuestion, QuestionType } from '../../assessments/entities';
 import { TalentPersonalAssessmentContext } from './personal-assessment.service';
 
 export const ADVANCED_ASSESSMENT_TOTAL_QUESTIONS = 25;
-export const ADVANCED_ASSESSMENT_MCQ_COUNT = 15;
-export const ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT = 5;
+export const ADVANCED_ASSESSMENT_MCQ_COUNT = 10;
+export const ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT = 10;
 export const ADVANCED_ASSESSMENT_LONG_TEXT_COUNT = 5;
 
 export type AdvancedAssessmentBlock = 'mcq' | 'short_text' | 'long_text';

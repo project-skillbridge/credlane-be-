@@ -29,6 +29,8 @@ export const ErrorMessages = {
   },
   SKILL_ASSESSMENT: {
     PROFILE_NOT_FOUND: 'Talent profile not found',
+    PERSONAL_ASSESSMENT_INCOMPLETE:
+      'Complete your personal assessment before starting a skill assessment',
     CLAIMED_LEVEL_MISSING:
       'claimed_level is required to start a skill assessment; please complete onboarding track step first',
     TRACK_MISSING:
@@ -40,9 +42,15 @@ export const ErrorMessages = {
       'This assessment attempt has already been submitted',
     ATTEMPT_CORRUPT:
       'Assessment attempt has no questions; please start a new session',
+    PASS_REQUIRED:
+      'You need a score of 75% or higher in the skill assessment before starting the advanced assessment',
   },
   ADVANCED_ASSESSMENT: {
     PROFILE_NOT_FOUND: 'Talent profile not found',
+    PERSONAL_ASSESSMENT_INCOMPLETE:
+      'Complete your personal assessment before starting the advanced assessment',
+    SKILL_GATE_REQUIRED:
+      'Complete and pass the skill assessment before starting the advanced assessment',
     LEVEL_NOT_VERIFIED: 'LEVEL_NOT_VERIFIED',
     BANK_EXHAUSTED: 'BANK_EXHAUSTED',
     ACTIVE_SESSION_EXISTS: 'Active advanced assessment session already exists',

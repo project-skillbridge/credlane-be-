@@ -17,6 +17,7 @@ import {
   AssessmentResult,
   AssessmentType,
   QuestionType,
+  SlotType,
   TalentQuestionHistory,
 } from '../../assessments/entities';
 import { AssessmentTier } from '../../assessments/entities/assessment-result.entity';
@@ -38,19 +39,25 @@ import { PersonalAssessmentService } from './personal-assessment.service';
 import { RubricScoringService } from '../../ai/rubric-scoring.service';
 import { GuidanceReportService } from '../../ai/guidance-report.service';
 import { EmployerPoolProfileService } from './employer-pool-profile.service';
-import { ScoredTextAnswer, TextAnswerInput } from '../../ai/ai.types';
+import { GeneratedQuestion, GuidanceReport, ScoredTextAnswer, TextAnswerInput } from '../../ai/ai.types';
+import { QuestionGenerationService } from '../../ai/question-generation.service';
 import {
   FlagIntegrityEventDto,
   IntegrityEventType,
   SubmitAdvancedAssessmentDto,
 } from './dto/advanced-assessment.dto';
-import { GuidanceReport } from '../../ai/ai.types';
 
 const ADVANCED_ASSESSMENT_DURATION_MINUTES = 90;
-const ADVANCED_ASSESSMENT_MAX_SCORE = 198;
 const RETAKE_GATE_DAYS = 14;
+const SKILL_PASS_PERCENTAGE = 75;
 const ABNORMAL_LONG_TEXT_SECONDS = 5;
 const TAB_SWITCH_VOID_THRESHOLD = 3;
+const ADVANCED_SHORT_TEXT_MIN_CHARS = 60;
+const ADVANCED_SHORT_TEXT_MAX_CHARS = 600;
+const ADVANCED_LONG_TEXT_MIN_CHARS = 150;
+const ADVANCED_LONG_TEXT_MAX_CHARS = 2000;
+
+const BASE_LONG_TEXT_COUNT = ADVANCED_ASSESSMENT_LONG_TEXT_COUNT - 1;
 
 export interface AdvancedAssessmentSessionResult {
   status: string;
@@ -94,6 +101,12 @@ type AdvancedAssessmentSessionPayload = {
   questions?: unknown;
 };
 
+type AdvancedQuestionBank = {
+  mcq: AssessmentQuestion[];
+  shortText: AssessmentQuestion[];
+  longText: AssessmentQuestion[];
+};
+
 @Injectable()
 export class AdvancedAssessmentService {
   private readonly logger = new Logger(AdvancedAssessmentService.name);
@@ -102,17 +115,22 @@ export class AdvancedAssessmentService {
     @InjectRepository(TalentProfile)
     private readonly talentProfileRepo: Repository<TalentProfile>,
 
+    @InjectRepository(AssessmentQuestion)
+    private readonly questionRepo: Repository<AssessmentQuestion>,
+
     @InjectRepository(AssessmentAttempt)
     private readonly attemptRepo: Repository<AssessmentAttempt>,
+
+    @InjectRepository(AssessmentResult)
+    private readonly resultRepo: Repository<AssessmentResult>,
 
     private readonly personalAssessmentService: PersonalAssessmentService,
     private readonly advancedAssessmentAiService: AdvancedAssessmentAiService,
     private readonly rubricScoring: RubricScoringService,
     private readonly guidanceReport: GuidanceReportService,
     private readonly employerPoolProfileService: EmployerPoolProfileService,
+    private readonly questionGeneration: QuestionGenerationService,
   ) {}
-
-  // ── Start ──────────────────────────────────────────────────────────────────
 
   async start(userId: string): Promise<AdvancedAssessmentSessionResult> {
     const personalContext =
@@ -131,6 +149,12 @@ export class AdvancedAssessmentService {
           );
         }
 
+        if (!profile.personal_assessment_completed_at) {
+          throw new UnprocessableEntityException(
+            ErrorMessages.ADVANCED_ASSESSMENT.PERSONAL_ASSESSMENT_INCOMPLETE,
+          );
+        }
+
         if (!profile.validated_level) {
           throw new UnprocessableEntityException({
             error: 'LEVEL_NOT_VERIFIED',
@@ -138,7 +162,19 @@ export class AdvancedAssessmentService {
           });
         }
 
-        // Retake gate
+        const latestSkillResult = await this.findLatestSkillResult(
+          manager,
+          profile.id,
+        );
+        if (
+          !latestSkillResult ||
+          (latestSkillResult.percentage ?? 0) < SKILL_PASS_PERCENTAGE
+        ) {
+          throw new UnprocessableEntityException(
+            ErrorMessages.ADVANCED_ASSESSMENT.SKILL_GATE_REQUIRED,
+          );
+        }
+
         if (
           profile.assessment_locked_until &&
           profile.assessment_locked_until > new Date()
@@ -179,7 +215,12 @@ export class AdvancedAssessmentService {
           manager,
           profile.id,
         );
-        const selectedQuestions = this.selectQuestionBlocks(eligibleQuestions);
+        const selectedQuestions = await this.selectQuestionBlocks(
+          manager,
+          profile,
+          personalContext,
+          eligibleQuestions,
+        );
 
         const aiResult = this.advancedAssessmentAiService.generateQuestions(
           {
@@ -248,8 +289,6 @@ export class AdvancedAssessmentService {
     );
   }
 
-  // ── Get session ────────────────────────────────────────────────────────────
-
   async getSession(
     userId: string,
     sessionId: string,
@@ -281,8 +320,6 @@ export class AdvancedAssessmentService {
       SuccessMessages.ADVANCED_ASSESSMENT.SESSION_RESUMED,
     );
   }
-
-  // ── Submit ─────────────────────────────────────────────────────────────────
 
   async submit(
     userId: string,
@@ -331,86 +368,88 @@ export class AdvancedAssessmentService {
       );
     }
 
-    const answerMap = new Map(dto.answers.map((a) => [a.question_id, a]));
-
-    // Identify long-text questions by position for LT-3 detection
+    const answerMap = new Map(dto.answers.map((answer) => [answer.question_id, answer]));
     const longTextQuestions = sessionQuestions.filter(
-      (q) => q.block === 'long_text',
+      (question) => question.block === 'long_text',
     );
-    const lt3QuestionId = longTextQuestions[2]?.question_id ?? null;
+    const lt3QuestionId =
+      longTextQuestions[longTextQuestions.length - 1]?.question_id ?? null;
 
     let mcqRawScore = 0;
     const textInputs: TextAnswerInput[] = [];
     const responsesToSave: Partial<AssessmentResponse>[] = [];
     let hasAbnormalTiming = false;
 
-    for (const q of sessionQuestions) {
-      const submitted = answerMap.get(q.question_id);
+    for (const question of sessionQuestions) {
+      const submitted = answerMap.get(question.question_id);
       const isMcq =
-        q.question_type === QuestionType.SINGLE_PICK ||
-        q.question_type === QuestionType.MULTI_PICK;
+        question.question_type === QuestionType.SINGLE_PICK ||
+        question.question_type === QuestionType.MULTI_PICK;
 
       if (isMcq) {
-        const correct = this.scoreMcq(q, submitted?.answer ?? null);
+        const correct = this.scoreMcq(question, submitted?.answer ?? null);
         mcqRawScore += correct ? 1 : 0;
         responsesToSave.push({
           attempt_id: attempt.id,
-          question_id: q.question_id,
-          question_text: q.question_text,
+          question_id: question.question_id,
+          question_text: question.question_text,
           user_answer: submitted?.answer ?? null,
           is_correct: correct,
           ai_evaluation_json: null,
           answered_at: new Date(),
         });
-      } else {
-        const answer = submitted ? String(submitted.answer) : '';
-
-        // Abnormal timing: long-text answered in <5s
-        if (
-          q.block === 'long_text' &&
-          submitted?.time_spent_seconds !== undefined &&
-          submitted.time_spent_seconds < ABNORMAL_LONG_TEXT_SECONDS &&
-          answer.length > 0
-        ) {
-          hasAbnormalTiming = true;
-        }
-
-        textInputs.push({
-          question_id: q.question_id,
-          question_text: q.question_text,
-          answer,
-          is_lt3: q.question_id === lt3QuestionId,
-        });
-        responsesToSave.push({
-          attempt_id: attempt.id,
-          question_id: q.question_id,
-          question_text: q.question_text,
-          user_answer: submitted?.answer ?? null,
-          is_correct: null,
-          ai_evaluation_json: null,
-          answered_at: new Date(),
-        });
+        continue;
       }
+
+      const answer = submitted ? String(submitted.answer) : '';
+      this.assertTextLength(question, answer);
+
+      if (
+        question.block === 'long_text' &&
+        submitted?.time_spent_seconds !== undefined &&
+        submitted.time_spent_seconds < ABNORMAL_LONG_TEXT_SECONDS &&
+        answer.length > 0
+      ) {
+        hasAbnormalTiming = true;
+      }
+
+      textInputs.push({
+        question_id: question.question_id,
+        question_text: question.question_text,
+        answer,
+        is_lt3: question.question_id === lt3QuestionId,
+      });
+      responsesToSave.push({
+        attempt_id: attempt.id,
+        question_id: question.question_id,
+        question_text: question.question_text,
+        user_answer: submitted?.answer ?? null,
+        is_correct: null,
+        ai_evaluation_json: null,
+        answered_at: new Date(),
+      });
     }
 
-    // AI rubric scoring for all text answers
     const scoredTextAnswers = await this.rubricScoring.scoreAnswers(textInputs);
 
     let textRawScore = 0;
+    let textMaxScore = 0;
     for (const scored of scoredTextAnswers) {
       textRawScore += scored.raw_score;
-      const resp = responsesToSave.find(
-        (r) => r.question_id === scored.question_id,
+      textMaxScore += scored.max_score;
+
+      const response = responsesToSave.find(
+        (entry) => entry.question_id === scored.question_id,
       );
-      if (resp) {
-        resp.ai_evaluation_json = { ...scored.rubric };
+      if (response) {
+        response.ai_evaluation_json = { ...scored.rubric };
       }
     }
 
     const totalRawScore = mcqRawScore + textRawScore;
-    const percentage = Math.round(
-      (totalRawScore / ADVANCED_ASSESSMENT_MAX_SCORE) * 100,
-    );
+    const maxScore = Math.round(ADVANCED_ASSESSMENT_MCQ_COUNT + textMaxScore);
+    const percentage =
+      maxScore > 0 ? Math.round((totalRawScore / maxScore) * 100) : 0;
 
     const tier = this.resolveTier(percentage);
     const integrityConfidence = this.resolveIntegrityConfidence(
@@ -418,7 +457,6 @@ export class AdvancedAssessmentService {
       hasAbnormalTiming,
     );
 
-    // Guidance report for non-job-ready outcomes
     let guidanceReport: GuidanceReport | null = null;
     if (tier !== AssessmentTier.JOB_READY) {
       try {
@@ -431,8 +469,8 @@ export class AdvancedAssessmentService {
             this.extractStrongCompetencies(scoredTextAnswers),
           weak_competencies: this.extractWeakCompetencies(scoredTextAnswers),
         });
-      } catch (e) {
-        this.logger.warn(`Guidance report generation failed: ${String(e)}`);
+      } catch (error) {
+        this.logger.warn(`Guidance report generation failed: ${String(error)}`);
       }
     }
 
@@ -450,7 +488,7 @@ export class AdvancedAssessmentService {
       const result = manager.create(AssessmentResult, {
         attempt_id: attempt.id,
         score: Math.round(totalRawScore),
-        max_score: ADVANCED_ASSESSMENT_MAX_SCORE,
+        max_score: maxScore,
         percentage,
         tier,
         validated_level: null,
@@ -475,7 +513,6 @@ export class AdvancedAssessmentService {
       await manager.update(TalentProfile, { id: profile.id }, profilePatch);
     });
 
-    // Generate employer pool profile outside the transaction (non-critical)
     if (tier === AssessmentTier.JOB_READY && personalContext) {
       try {
         await this.employerPoolProfileService.upsert({
@@ -488,15 +525,15 @@ export class AdvancedAssessmentService {
           integrityClean: integrityConfidence === 'high',
           personalContext,
         });
-      } catch (e) {
+      } catch (error) {
         this.logger.error(
-          `Employer pool profile generation failed for user=${userId}: ${String(e)}`,
+          `Employer pool profile generation failed for user=${userId}: ${String(error)}`,
         );
       }
     }
 
     this.logger.log(
-      `Advanced assessment submitted: attempt=${attempt.id} user=${userId} score=${totalRawScore}/${ADVANCED_ASSESSMENT_MAX_SCORE} (${percentage}%) tier=${tier} expired=${isExpired}`,
+      `Advanced assessment submitted: attempt=${attempt.id} user=${userId} score=${totalRawScore}/${maxScore} (${percentage}%) tier=${tier} expired=${isExpired}`,
     );
 
     return {
@@ -504,7 +541,7 @@ export class AdvancedAssessmentService {
       message: SuccessMessages.ADVANCED_ASSESSMENT.SUBMITTED,
       session_id: attempt.id,
       score: Math.round(totalRawScore),
-      max_score: ADVANCED_ASSESSMENT_MAX_SCORE,
+      max_score: maxScore,
       percentage,
       tier,
       integrity_confidence: integrityConfidence,
@@ -512,8 +549,6 @@ export class AdvancedAssessmentService {
       ...(isExpired && { auto_submitted: true }),
     };
   }
-
-  // ── Flag integrity event ───────────────────────────────────────────────────
 
   async flag(
     userId: string,
@@ -564,7 +599,7 @@ export class AdvancedAssessmentService {
         );
 
         this.logger.warn(
-          `Session voided — 3rd tab switch: attempt=${attempt.id} user=${userId}`,
+          `Session voided - 3rd tab switch: attempt=${attempt.id} user=${userId}`,
         );
 
         return {
@@ -591,7 +626,6 @@ export class AdvancedAssessmentService {
       };
     }
 
-    // COPY_PASTE: log and return toast — no count tracked beyond warning
     this.logger.warn(
       `Copy-paste detected: attempt=${attempt.id} user=${userId}`,
     );
@@ -603,36 +637,22 @@ export class AdvancedAssessmentService {
     };
   }
 
-  // ── Private helpers ────────────────────────────────────────────────────────
-
   private scoreMcq(
     question: AdvancedAssessmentGeneratedQuestion,
     answer: string | string[] | null,
   ): boolean {
-    if (!answer) return false;
+    if (!answer || !question.correct_answer) {
+      return false;
+    }
+
     const userAnswer = Array.isArray(answer)
       ? answer.join(',').toLowerCase().trim()
       : String(answer).toLowerCase().trim();
+    const correctAnswer = String(question.correct_answer)
+      .toLowerCase()
+      .trim();
 
-    if (question.correct_answer) {
-      const userAnswer = Array.isArray(answer)
-        ? answer.join(',').toLowerCase().trim()
-        : String(answer).toLowerCase().trim();
-      const correctAnswer = String(question.correct_answer)
-        .toLowerCase()
-        .trim();
-      return userAnswer === correctAnswer;
-    }
-
-    if (!question.options || question.options.length === 0) return false;
-
-    // For advanced MCQs without stored correct_answer, any option is valid
-    // (questions from bank have correct_answer in AssessmentQuestion entity,
-    //  but session JSON only stores question_text + options, not correct_answer)
-    // We treat any non-empty answer that matches one of the options as submitted
-    const optionsLower = question.options.map((o) => o.toLowerCase().trim());
-
-    return optionsLower.some((opt) => userAnswer.includes(opt));
+    return userAnswer === correctAnswer;
   }
 
   private resolveTier(percentage: number): AssessmentTier {
@@ -663,14 +683,63 @@ export class AdvancedAssessmentService {
 
   private extractStrongCompetencies(scored: ScoredTextAnswer[]): string[] {
     return scored
-      .filter((s) => s.max_score > 0 && s.raw_score / s.max_score >= 0.7)
-      .map((s) => s.question_id);
+      .filter((score) => score.max_score > 0 && score.raw_score / score.max_score >= 0.7)
+      .map((score) => score.question_id);
   }
 
   private extractWeakCompetencies(scored: ScoredTextAnswer[]): string[] {
     return scored
-      .filter((s) => s.max_score > 0 && s.raw_score / s.max_score < 0.5)
-      .map((s) => s.question_id);
+      .filter((score) => score.max_score > 0 && score.raw_score / score.max_score < 0.5)
+      .map((score) => score.question_id);
+  }
+
+  private assertTextLength(
+    question: AdvancedAssessmentGeneratedQuestion,
+    answer: string,
+  ): void {
+    const trimmed = answer.trim();
+    if (!trimmed) {
+      return;
+    }
+
+    if (question.block === 'short_text') {
+      if (
+        trimmed.length < ADVANCED_SHORT_TEXT_MIN_CHARS ||
+        trimmed.length > ADVANCED_SHORT_TEXT_MAX_CHARS
+      ) {
+        throw new UnprocessableEntityException(
+          `Question ${question.question_number} must be between ${ADVANCED_SHORT_TEXT_MIN_CHARS} and ${ADVANCED_SHORT_TEXT_MAX_CHARS} characters`,
+        );
+      }
+      return;
+    }
+
+    if (
+      trimmed.length < ADVANCED_LONG_TEXT_MIN_CHARS ||
+      trimmed.length > ADVANCED_LONG_TEXT_MAX_CHARS
+    ) {
+      throw new UnprocessableEntityException(
+        `Question ${question.question_number} must be between ${ADVANCED_LONG_TEXT_MIN_CHARS} and ${ADVANCED_LONG_TEXT_MAX_CHARS} characters`,
+      );
+    }
+  }
+
+  private async findLatestSkillResult(
+    manager: EntityManager,
+    talentProfileId: string,
+  ): Promise<AssessmentResult | null> {
+    return manager
+      .createQueryBuilder(AssessmentResult, 'result')
+      .innerJoin(AssessmentAttempt, 'attempt', 'attempt.id = result.attempt_id')
+      .where('attempt.talent_profile_id = :talentProfileId', {
+        talentProfileId,
+      })
+      .andWhere('attempt.assessment_type = :assessmentType', {
+        assessmentType: AssessmentType.SKILL,
+      })
+      .orderBy('attempt.completed_at', 'DESC', 'NULLS LAST')
+      .addOrderBy('result.created_at', 'DESC')
+      .getOne();
   }
 
   private async findEligibleQuestions(
@@ -698,34 +767,208 @@ export class AdvancedAssessmentService {
       .getMany();
   }
 
-  private selectQuestionBlocks(questions: AssessmentQuestion[]): {
-    mcq: AssessmentQuestion[];
-    shortText: AssessmentQuestion[];
-    longText: AssessmentQuestion[];
-  } {
-    const mcq = questions
-      .filter((question) => this.isMcq(question))
-      .slice(0, ADVANCED_ASSESSMENT_MCQ_COUNT);
-    const textQuestions = questions.filter((question) => !this.isMcq(question));
-    const shortText = textQuestions
-      .filter((question) => this.textBlock(question) === 'short_text')
-      .slice(0, ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT);
-    const longText = textQuestions
-      .filter((question) => this.textBlock(question) === 'long_text')
-      .slice(0, ADVANCED_ASSESSMENT_LONG_TEXT_COUNT);
+  private async selectQuestionBlocks(
+    manager: EntityManager,
+    profile: TalentProfile,
+    personalContext: Record<string, unknown>,
+    questions: AssessmentQuestion[],
+  ): Promise<AdvancedQuestionBank> {
+    const bankMcq = questions.filter((question) => this.isMcq(question));
+    const bankText = questions.filter((question) => !this.isMcq(question));
+    const bankShort = bankText.filter(
+      (question) => this.textBlock(question) === 'short_text',
+    );
+    const bankLong = bankText.filter(
+      (question) => this.textBlock(question) === 'long_text',
+    );
 
-    if (
-      mcq.length < ADVANCED_ASSESSMENT_MCQ_COUNT ||
-      shortText.length < ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT ||
-      longText.length < ADVANCED_ASSESSMENT_LONG_TEXT_COUNT
-    ) {
-      throw new ServiceUnavailableException({
-        error: 'BANK_EXHAUSTED',
-        message: ErrorMessages.ADVANCED_ASSESSMENT.BANK_EXHAUSTED,
+    const mcq = [...bankMcq.slice(0, ADVANCED_ASSESSMENT_MCQ_COUNT)];
+    const shortText = [...bankShort.slice(0, ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT)];
+    const longText = [...bankLong.slice(0, BASE_LONG_TEXT_COUNT)];
+
+    const generatedQuestions: Array<GeneratedQuestion & { block: 'mcq' | 'short_text' | 'long_text' }> = [];
+    const industryContext = this.resolveIndustryContext(personalContext);
+    const competencyHint = this.resolveCompetencyHint(personalContext);
+    const verifiedLevel = profile.validated_level ?? VerifiedLevel.ENTRY;
+    const track = profile.track ?? 'general';
+
+    const mcqDeficit = ADVANCED_ASSESSMENT_MCQ_COUNT - mcq.length;
+    if (mcqDeficit > 0) {
+      const generated = await this.questionGeneration.generateQuestions({
+        track,
+        verified_level: verifiedLevel,
+        assessment_type: 'advanced',
+        question_type: QuestionType.SINGLE_PICK,
+        slot_type: SlotType.WORK_TASK,
+        competency: competencyHint,
+        industry_context: industryContext,
+        count: mcqDeficit,
       });
+      generatedQuestions.push(
+        ...generated.map((question) => ({ ...question, block: 'mcq' as const })),
+      );
     }
 
-    return { mcq, shortText, longText };
+    const shortDeficit = ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT - shortText.length;
+    if (shortDeficit > 0) {
+      const generated = await this.questionGeneration.generateQuestions({
+        track,
+        verified_level: verifiedLevel,
+        assessment_type: 'advanced',
+        question_type: QuestionType.REQUIRED_TEXT,
+        slot_type: SlotType.SITUATIONAL,
+        competency: competencyHint,
+        industry_context: industryContext,
+        count: shortDeficit,
+      });
+      generatedQuestions.push(
+        ...generated.map((question) => ({
+          ...question,
+          block: 'short_text' as const,
+        })),
+      );
+    }
+
+    const longDeficit = BASE_LONG_TEXT_COUNT - longText.length;
+    if (longDeficit > 0) {
+      const generated = await this.questionGeneration.generateQuestions({
+        track,
+        verified_level: verifiedLevel,
+        assessment_type: 'advanced',
+        question_type: QuestionType.OPTIONAL_TEXT,
+        slot_type: SlotType.WORK_TASK,
+        competency: competencyHint,
+        industry_context: industryContext,
+        count: longDeficit,
+      });
+      generatedQuestions.push(
+        ...generated.map((question) => ({ ...question, block: 'long_text' as const })),
+      );
+    }
+
+    const reflectionQuestion = await this.questionGeneration.generateQuestions({
+      track,
+      verified_level: verifiedLevel,
+      assessment_type: 'advanced',
+      question_type: QuestionType.OPTIONAL_TEXT,
+      slot_type: SlotType.REFLECTION,
+      competency: competencyHint,
+      industry_context: industryContext,
+      count: 1,
+    });
+    generatedQuestions.push({
+      ...reflectionQuestion[0],
+      block: 'long_text',
+    });
+
+    const persistedGenerated = await this.persistGeneratedQuestions(
+      manager,
+      track,
+      verifiedLevel,
+      generatedQuestions,
+    );
+
+    const generatedMcq = persistedGenerated.filter((question) =>
+      this.isMcq(question),
+    );
+    const generatedShort = persistedGenerated.filter(
+      (question) => !this.isMcq(question) && this.textBlock(question) === 'short_text',
+    );
+    const generatedLong = persistedGenerated.filter(
+      (question) => !this.isMcq(question) && this.textBlock(question) === 'long_text',
+    );
+
+    return {
+      mcq: [...mcq, ...generatedMcq].slice(0, ADVANCED_ASSESSMENT_MCQ_COUNT),
+      shortText: [...shortText, ...generatedShort].slice(
+        0,
+        ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT,
+      ),
+      longText: [...longText, ...generatedLong].slice(
+        0,
+        ADVANCED_ASSESSMENT_LONG_TEXT_COUNT,
+      ),
+    };
+  }
+
+  private async persistGeneratedQuestions(
+    manager: EntityManager,
+    track: string,
+    verifiedLevel: VerifiedLevel,
+    generated: Array<GeneratedQuestion & { block: 'mcq' | 'short_text' | 'long_text' }>,
+  ): Promise<AssessmentQuestion[]> {
+    if (generated.length === 0) {
+      return [];
+    }
+
+    const nextQuestionNumber = await this.nextAdvancedQuestionNumber(manager);
+    const questions = generated.map((question, index) =>
+      manager.create(AssessmentQuestion, {
+        assessment_type: AssessmentType.ADVANCED,
+        question_type: question.question_type,
+        question_text: question.question_text,
+        question_number: nextQuestionNumber + index,
+        options: question.options,
+        correct_answer: question.correct_answer,
+        track,
+        verified_level: verifiedLevel,
+        competency: question.competency,
+        slot_type:
+          question.slot_type ??
+          (question.block === 'long_text' ? SlotType.WORK_TASK : SlotType.SITUATIONAL),
+        metadata: {
+          generated: true,
+          answer_block: question.block,
+          lt3_reflection:
+            question.slot_type === SlotType.REFLECTION || question.block === 'long_text',
+        },
+        is_live: false,
+      }),
+    );
+
+    return manager.save(AssessmentQuestion, questions);
+  }
+
+  private async nextAdvancedQuestionNumber(
+    manager: EntityManager,
+  ): Promise<number> {
+    const row = await manager
+      .createQueryBuilder(AssessmentQuestion, 'question')
+      .select('MAX(question.question_number)', 'max')
+      .where('question.assessment_type = :assessmentType', {
+        assessmentType: AssessmentType.ADVANCED,
+      })
+      .getRawOne<{ max: string | null }>();
+
+    return Number(row?.max ?? 0) + 1;
+  }
+
+  private resolveIndustryContext(
+    context: Record<string, unknown>,
+  ): string | undefined {
+    const industries = context['industries'];
+    if (Array.isArray(industries) && industries.length > 0) {
+      return industries.map(String).join(', ');
+    }
+
+    const jobTitle = context['job_title'];
+    return typeof jobTitle === 'string' && jobTitle.trim().length > 0
+      ? jobTitle.trim()
+      : undefined;
+  }
+
+  private resolveCompetencyHint(
+    context: Record<string, unknown>,
+  ): string | undefined {
+    const specialization = context['specialization'];
+    if (typeof specialization === 'string' && specialization.trim().length > 0) {
+      return specialization.trim();
+    }
+
+    const primaryToolDuration = context['primary_tool_duration'];
+    return typeof primaryToolDuration === 'string'
+      ? primaryToolDuration
+      : undefined;
   }
 
   private isMcq(question: AssessmentQuestion): boolean {

@@ -46,7 +46,9 @@ export class AdvancedAssessmentController {
   @ApiOperation({
     summary: 'Start an advanced assessment',
     description:
-      'Requires a verified skill level. Enforces the 14-day retake gate. Blocks duplicate active sessions, excludes previously served questions, creates a timed server-side session, and returns 25 ordered questions as MCQ, short-text, then long-text blocks.',
+      'Requires completed personal assessment, a passed skill assessment, and a verified level. ' +
+      'Enforces the 14-day retake gate, blocks duplicate active sessions, excludes previously served questions, ' +
+      'and returns 25 ordered questions in 10 MCQ, 10 short-text, and 5 long-text blocks.',
   })
   @ApiCreatedResponse({ description: 'Advanced assessment session created' })
   @ApiConflictResponse({
@@ -60,7 +62,8 @@ export class AdvancedAssessmentController {
     description: 'BANK_EXHAUSTED when fewer than 25 eligible questions exist',
   })
   @ApiUnprocessableEntityResponse({
-    description: 'LEVEL_NOT_VERIFIED when no validated skill level exists',
+    description:
+      'Personal assessment incomplete, skill gate not passed, or no validated skill level exists',
   })
   @UsePipes(
     new ValidationPipe({
@@ -99,7 +102,7 @@ export class AdvancedAssessmentController {
   @ApiOperation({
     summary: 'Submit advanced assessment answers',
     description:
-      'Scores MCQs immediately (1/0). Passes text answers to the AI rubric layer (short-text: 4 dims, long-text LT-3: 2 dims). Computes percentage out of 198 pts max. ' +
+      'Scores MCQs immediately (1/0). Passes text answers to the AI rubric layer (short-text: 4 dims, final long-text reflection: 2 dims). Computes percentage against the dynamic session max. ' +
       '≥75% → Job Ready + employer pool profile. 50–74% → Emerging + guidance report + 14-day gate. <50% → Not Ready + guidance report + 14-day gate. ' +
       'Accepts submissions on expired sessions (auto_submitted=true, unanswered questions scored 0).',
   })
