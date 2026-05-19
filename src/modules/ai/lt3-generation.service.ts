@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { GeneratedLt3Question, GenerateLt3Input } from './ai.types';
+import { lt3Schema } from './ai.schemas';
 import { OpenRouterService } from './openrouter.service';
 
 const SYSTEM_PROMPT = `You are a senior technical assessor creating a follow-up reflection question based on a candidate's previous answer.
@@ -27,14 +28,6 @@ Generate one LT-3 reflection question that:
 
 Return JSON: {"question_text": "..."}`.trim();
 
-    const raw = await this.openRouter.chat<{ question_text: string }>(
-      SYSTEM_PROMPT,
-      userPrompt,
-      0.4,
-    );
-
-    return {
-      question_text: String(raw?.question_text ?? ''),
-    };
+    return this.openRouter.chat(SYSTEM_PROMPT, userPrompt, lt3Schema, 0.4);
   }
 }

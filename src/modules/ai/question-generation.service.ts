@@ -1,9 +1,10 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { QuestionType, SlotType } from '../assessments/entities/assessment-question.entity';
+import { QuestionType } from '../assessments/entities/assessment-question.entity';
 import {
   GeneratedQuestion,
   GenerateQuestionsInput,
 } from './ai.types';
+import { questionGenerationSchema } from './ai.schemas';
 import { OpenRouterService } from './openrouter.service';
 
 const SYSTEM_PROMPT = `You are a senior technical curriculum designer creating assessment questions for a professional skills evaluation platform.
@@ -19,14 +20,8 @@ export class QuestionGenerationService {
   async generateQuestions(input: GenerateQuestionsInput): Promise<GeneratedQuestion[]> {
     const userPrompt = this.buildPrompt(input);
 
-    const raw = await this.openRouter.chat<{ questions: unknown[] }>(
-      SYSTEM_PROMPT,
-      userPrompt,
-      0.7,
-    );
-
-    const questions = Array.isArray(raw?.questions) ? raw.questions : [];
-    return questions.map((q) => this.parseQuestion(q as Record<string, unknown>, input));
+    const raw = await this.openRouter.chat(SYSTEM_PROMPT, userPrompt, questionGenerationSchema, 0.7);
+    return raw.questions.map((q) => this.parseQuestion(q, input));
   }
 
   private buildPrompt(input: GenerateQuestionsInput): string {
@@ -62,22 +57,17 @@ ${isMcq ? '- options: exactly 4 strings, plausible distractors\n- correct_answer
   }
 
   private parseQuestion(
-    raw: Record<string, unknown>,
+    raw: { question_text: string; options: string[] | null; correct_answer: string | null; competency: string | null; industry_context: string | null },
     input: GenerateQuestionsInput,
   ): GeneratedQuestion {
-    const str = (v: unknown): string =>
-      typeof v === 'string' ? v : '';
-    const strOrNull = (v: unknown): string | null =>
-      typeof v === 'string' && v.length > 0 ? v : null;
-
     return {
-      question_text: str(raw['question_text']),
+      question_text: raw.question_text,
       question_type: input.question_type,
-      slot_type: (raw['slot_type'] as SlotType) ?? input.slot_type ?? null,
-      options: Array.isArray(raw['options']) ? (raw['options'] as string[]) : null,
-      correct_answer: strOrNull(raw['correct_answer']),
-      competency: strOrNull(raw['competency']),
-      industry_context: strOrNull(raw['industry_context']),
+      slot_type: input.slot_type ?? null,
+      options: raw.options,
+      correct_answer: raw.correct_answer,
+      competency: raw.competency,
+      industry_context: raw.industry_context,
     };
   }
 }
