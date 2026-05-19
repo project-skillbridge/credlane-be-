@@ -1,6 +1,7 @@
 import { UnprocessableEntityException } from '@nestjs/common';
 import { TalentProfile } from '../entities/talent-profile.entity';
 import { User } from '../../users/entities/user.entity';
+import { TALENT_CLAIMED_LEVELS } from '../talent.constants';
 import {
   ONBOARDING_TRACK_TO_ASSESSMENT_TRACK,
   PERSONAL_ASSESSMENT_SECTION_COUNT,
@@ -40,6 +41,9 @@ function getDynamicOptions(
   if (question.key === 'tools') {
     const track = resolveAssessmentTrack(profile);
     return track ? TOOLS_BY_TRACK[track] : undefined;
+  }
+  if (question.key === 'claimed_level') {
+    return TALENT_CLAIMED_LEVELS;
   }
   return question.options;
 }
@@ -331,7 +335,7 @@ export function validateGeneratedPersonalAssessmentAnswers(
   const sanitized: Record<string, unknown> = {};
 
   for (const question of questions) {
-    if (question.skipStorage) {
+    if (question.skipStorage && question.key !== 'claimed_level') {
       continue;
     }
 
