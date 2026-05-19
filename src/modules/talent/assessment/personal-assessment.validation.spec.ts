@@ -123,11 +123,8 @@ describe('assertAssessmentReadyForComplete', () => {
 describe('assertOnboardingFieldsForComplete', () => {
   it('does not require country before assessment', () => {
     const profile = makeTalentProfile();
-    const user = makeTalentUser({ country: null });
 
-    expect(() =>
-      assertOnboardingFieldsForComplete(profile, user),
-    ).not.toThrow();
+    expect(() => assertOnboardingFieldsForComplete(profile)).not.toThrow();
   });
 
   it('passes when onboarding fields are present', () => {

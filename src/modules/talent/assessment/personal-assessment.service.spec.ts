@@ -177,13 +177,13 @@ describe('PersonalAssessmentService', () => {
     expect(resume.personalAssessmentCompleted).toBe(false);
   });
 
-  it('complete allows Unknown country', async () => {
+  it('complete allows unknown or missing country', async () => {
     profileStore.personal_assessment_answers = {
       ...buildFullPersonalAssessmentAnswers(),
       _meta: { completedSections: [1, 2, 3, 4, 5, 6, 7] },
     };
     (usersService.findOne as jest.Mock).mockResolvedValue(
-      makeTalentUser({ id: userId }),
+      makeTalentUser({ id: userId, country: null }),
     );
 
     await expect(service.complete(userId)).resolves.toMatchObject({
