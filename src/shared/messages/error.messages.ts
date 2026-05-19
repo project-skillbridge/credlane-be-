@@ -48,6 +48,12 @@ export const ErrorMessages = {
     ACTIVE_SESSION_EXISTS: 'Active advanced assessment session already exists',
     SESSION_NOT_FOUND: 'Advanced assessment session not found',
     SESSION_CORRUPT: 'Advanced assessment session has no questions',
+    ATTEMPT_NOT_FOUND: 'Assessment session not found',
+    ATTEMPT_ALREADY_SUBMITTED: 'This assessment session has already been submitted',
+    SESSION_EXPIRED: 'Assessment session has expired',
+    RETAKE_LOCKED: (unlocksAt: string) =>
+      `Advanced assessment is locked until ${unlocksAt}. Retakes are available after a 14-day gate.`,
+    SESSION_VOIDED: 'Assessment session has been voided due to integrity violations. A 14-day retake gate has started.',
   },
   ONBOARDING: {
     INVALID_USER: 'Invalid user',

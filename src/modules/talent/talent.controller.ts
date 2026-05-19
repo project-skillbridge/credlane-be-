@@ -167,6 +167,7 @@ export class TalentController {
   @UseInterceptors(
     FileInterceptor('photo', {
       storage: memoryStorage(),
+      limits: { fileSize: MAX_FILE_BYTES },
       fileFilter: (_req, file, cb) => {
         if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
           cb(null, true);
@@ -187,9 +188,6 @@ export class TalentController {
   ) {
     if (!photo) {
       throw new UnprocessableEntityException(ErrorMessages.ONBOARDING.PHOTO_REQUIRED);
-    }
-    if (photo.size > MAX_FILE_BYTES) {
-      throw new UnprocessableEntityException(ErrorMessages.ONBOARDING.PHOTO_TOO_LARGE);
     }
     return this.talentService.saveTalentProfile(userId, photo, dto);
   }
