@@ -542,7 +542,7 @@ export class SkillAssessmentService {
   ): SkillAssessmentSessionQuestion[] {
     const questions = this.readSessionPayload(attempt).questions;
     return Array.isArray(questions)
-      ? (questions as SkillAssessmentSessionQuestion[])
+      ? (questions)
       : [];
   }
 
