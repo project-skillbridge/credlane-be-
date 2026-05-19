@@ -13,8 +13,14 @@ export class OpenRouterService {
   private readonly timeoutMs = 45_000;
 
   constructor() {
+    if (!env.OPENROUTER_API_KEY) {
+      this.logger.warn(
+        'OPENROUTER_API_KEY is not configured; AI endpoints will be unavailable',
+      );
+    }
+
     this.provider = createOpenRouter({
-      apiKey: env.OPENROUTER_API_KEY,
+      apiKey: env.OPENROUTER_API_KEY ?? '',
       baseURL: env.OPENROUTER_BASE_URL,
       compatibility: 'strict',
       appUrl: 'https://skillbridge.hng14.com',
@@ -33,6 +39,10 @@ export class OpenRouterService {
     schema: z.ZodType<T>,
     temperature = 0.2,
   ): Promise<T> {
+    if (!env.OPENROUTER_API_KEY) {
+      throw new ServiceUnavailableException('AI service is not configured');
+    }
+
     try {
       const result = await generateText({
         model: this.provider(this.model, {
