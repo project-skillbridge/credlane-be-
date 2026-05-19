@@ -68,9 +68,9 @@ export class EmployerPoolProfileService {
     };
 
     if (existing) {
-      await this.poolRepo.update({ id: existing.id }, patch);
+      await this.poolRepo.update({ id: existing.id }, patch as any);
       this.logger.log(`Employer pool profile updated: talent=${profile.id}`);
-      return { ...existing, ...patch } as EmployerPoolProfile;
+      return { ...existing, ...patch };
     }
 
     const created = this.poolRepo.create(patch);
