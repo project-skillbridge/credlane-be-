@@ -114,6 +114,12 @@
       "**/*.(t|j)s"
     ],
     "coverageDirectory": "../coverage",
-    "testEnvironment": "node"
+    "testEnvironment": "node",
+    "setupFiles": [
+      "<rootDir>/test-setup.ts"
+    ],
+    "moduleNameMapper": {
+      "^@t3-oss/env-core$": "<rootDir>/../test/mocks/env-core.ts"
+    }
   }
 }
