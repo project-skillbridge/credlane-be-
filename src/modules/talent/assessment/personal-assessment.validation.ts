@@ -341,7 +341,10 @@ export function validateGeneratedPersonalAssessmentAnswers(
 
     const value = answers[question.key];
 
-    if (question.required && (value === undefined || value === null)) {
+    if (
+      question.key === 'claimed_level' &&
+      (value === undefined || value === null)
+    ) {
       throwFieldError({
         message: `${question.key} is required`,
         field: question.key,
