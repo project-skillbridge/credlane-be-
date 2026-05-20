@@ -59,9 +59,9 @@ export class PersonalAssessmentController {
   @Post('submit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Submit generated personal assessment answers',
+    summary: 'Save and finalize generated personal assessment answers',
     description:
-      'Validates answers against the generated 15-20 question session and marks Stage 1 complete.',
+      'Persists the generated answers and finalizes the assessment when the generated session is ready. Use this as the primary generated-flow endpoint.',
   })
   @ApiUnprocessableEntityResponse({
     description: 'Session missing, validation failed, or already completed',
@@ -83,11 +83,14 @@ export class PersonalAssessmentController {
   @Post('section/:section')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Save personal assessment answers for one section (1–7)',
+    summary: 'Deprecated: Save personal assessment answers for one section (1–7)',
     description:
-      'Ignores track, educationLevel, region, linkedinProfile, and claimedLevel — those come from onboarding on the talent profile.',
+      'Legacy compatibility route for the old staged flow. Prefer POST /submit for the generated assessment experience.',
+    deprecated: true,
   })
-  @ApiUnprocessableEntityResponse({ description: 'Section validation failed' })
+  @ApiUnprocessableEntityResponse({
+    description: 'Legacy section validation failed',
+  })
   @UsePipes(
     new ValidationPipe({
       whitelist: true,
@@ -110,12 +113,12 @@ export class PersonalAssessmentController {
   @Post('complete')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary: 'Mark personal assessment complete',
+    summary: 'Finalize submitted personal assessment answers',
     description:
-      'Requires all sections saved and onboarding fields present (track, educationLevel, region).',
+      'Finalizes the generated assessment using the stored answers and session metadata. Use POST /submit for the primary flow.',
   })
   @ApiUnprocessableEntityResponse({
-    description: 'Incomplete sections or missing onboarding fields',
+    description: 'Missing onboarding fields, missing generated session, or already completed',
   })
   complete(@CurrentUser('sub') userId: string) {
     return this.personalAssessmentService.complete(userId);

@@ -6,7 +6,6 @@ import { TalentProfile } from '../entities/talent-profile.entity';
 import { UsersService } from '../../users/users.service';
 import { PersonalAssessmentService } from './personal-assessment.service';
 import {
-  buildFullPersonalAssessmentAnswers,
   makeTalentProfile,
   makeTalentUser,
   section1Answers,
@@ -129,10 +128,34 @@ describe('PersonalAssessmentService', () => {
     );
   });
 
-  it('complete marks personal assessment finished when data is valid', async () => {
+  it('submitGenerated saves sparse generated answers and completes the assessment', async () => {
+    const startResult = await service.startGenerated(userId);
+
+    const result = await service.submitGenerated(userId, {
+      job_title: 'Software Engineer',
+    });
+
+    expect(result.status).toBe('success');
+    expect(result.message).toBe(SuccessMessages.ASSESSMENT.COMPLETED);
+    expect(profileStore.personal_assessment_completed_at).toBeInstanceOf(Date);
+    expect(profileStore.personal_assessment_answers).toMatchObject({
+      job_title: 'Software Engineer',
+      claimed_level: 'mid',
+      _meta: {
+        generatedSession: expect.objectContaining({
+          sessionId: startResult.session.sessionId,
+        }),
+        completedSections: [1, 2, 3, 4, 5, 6, 7],
+      },
+    });
+  });
+
+  it('complete finalizes stored generated answers without section coverage', async () => {
+    const startResult = await service.startGenerated(userId);
     profileStore.personal_assessment_answers = {
-      ...buildFullPersonalAssessmentAnswers(),
-      _meta: { completedSections: [1, 2, 3, 4, 5, 6, 7] },
+      ...section1Answers(),
+      claimed_level: 'mid',
+      _meta: { generatedSession: startResult.session },
     };
 
     const result = await service.complete(userId);
@@ -140,21 +163,13 @@ describe('PersonalAssessmentService', () => {
     expect(result.status).toBe('success');
     expect(result.message).toBe(SuccessMessages.ASSESSMENT.COMPLETED);
     expect(profileStore.personal_assessment_completed_at).toBeInstanceOf(Date);
-  });
-
-  it('complete rejects when sections are not all saved', async () => {
-    profileStore.personal_assessment_answers = {
-      ...buildFullPersonalAssessmentAnswers(),
-      _meta: { completedSections: [1, 2, 3] },
-    };
-
-    await expect(service.complete(userId)).rejects.toMatchObject({
-      response: {
-        message: 'Personal assessment is incomplete',
-        incompleteSections: expect.arrayContaining([4, 5, 6, 7]),
-        missingFields: expect.arrayContaining([
-          expect.objectContaining({ field: 'section_4', section: 4 }),
-        ]),
+    expect(profileStore.personal_assessment_answers).toMatchObject({
+      claimed_level: 'mid',
+      _meta: {
+        generatedSession: expect.objectContaining({
+          sessionId: startResult.session.sessionId,
+        }),
+        completedSections: [1, 2, 3, 4, 5, 6, 7],
       },
     });
   });
@@ -177,21 +192,15 @@ describe('PersonalAssessmentService', () => {
     expect(resume.personalAssessmentCompleted).toBe(false);
   });
 
-  it('complete rejects unknown or missing country', async () => {
+  it('complete rejects when the generated session is missing', async () => {
     profileStore.personal_assessment_answers = {
-      ...buildFullPersonalAssessmentAnswers(),
-      _meta: { completedSections: [1, 2, 3, 4, 5, 6, 7] },
+      claimed_level: 'mid',
     };
-    (usersService.findOne as jest.Mock).mockResolvedValue(
-      makeTalentUser({ id: userId, country: undefined }),
-    );
 
     await expect(service.complete(userId)).rejects.toMatchObject({
       response: {
-        message: 'Personal assessment is incomplete',
-        missingFields: expect.arrayContaining([
-          expect.objectContaining({ field: 'country', section: 1 }),
-        ]),
+        message:
+          'Generate a personal assessment session before submitting answers',
       },
     });
   });
