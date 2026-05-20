@@ -172,7 +172,9 @@ describe('AdvancedAssessmentService', () => {
     attemptRepo = {
       findOne: jest
         .fn()
-        .mockImplementation(() => Promise.resolve(attemptData.current)),
+        .mockImplementation(() =>
+          Promise.resolve(Object.assign(new AssessmentAttempt(), attemptData.current)),
+        ),
       save: jest.fn().mockImplementation((attempt: AssessmentAttempt) => {
         attemptData.current = attempt;
         return Promise.resolve(attempt);
