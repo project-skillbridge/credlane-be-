@@ -129,7 +129,7 @@ describe('assertOnboardingFieldsForComplete', () => {
 
   it('passes when onboarding fields are present', () => {
     expect(() =>
-      assertOnboardingFieldsForComplete(makeTalentProfile(), makeTalentUser()),
+      assertOnboardingFieldsForComplete(makeTalentProfile()),
     ).not.toThrow();
   });
 });
