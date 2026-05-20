@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 const score = () => z.number().int().min(0).max(3);
+const lt3Score = () => z.number().int().min(0).max(4);
 
 export const rubricFullSchema = z.object({
   relevance: score(),
@@ -11,10 +12,11 @@ export const rubricFullSchema = z.object({
   feedback: z.string(),
 });
 
+// LT-3 reflection: 2 dimensions only, 0-4 per dimension, max 8.
 export const rubricLt3Schema = z.object({
-  relevance: score(),
-  reasoning: score(),
-  total: z.number().int().min(0).max(6),
+  relevance: lt3Score(),
+  reasoning: lt3Score(),
+  total: z.number().int().min(0).max(8),
   feedback: z.string(),
 });
 

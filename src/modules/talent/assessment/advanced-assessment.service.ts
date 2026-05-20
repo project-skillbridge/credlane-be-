@@ -15,7 +15,10 @@ import {
   AssessmentQuestion,
   AssessmentResponse,
   AssessmentResult,
+  AssessmentScore,
+  AssessmentScoreQuestionType,
   AssessmentType,
+  IntegrityConfidenceLevel,
   QuestionType,
   SlotType,
   TalentQuestionHistory,
@@ -28,16 +31,16 @@ import {
 } from '../entities/talent-profile.entity';
 import { VerifiedLevel } from '../../assessments/entities/assessment-question.entity';
 import {
-  ADVANCED_ASSESSMENT_LONG_TEXT_COUNT,
+  ADVANCED_ASSESSMENT_BASE_QUESTIONS,
   ADVANCED_ASSESSMENT_MCQ_COUNT,
   ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT,
-  ADVANCED_ASSESSMENT_TOTAL_QUESTIONS,
   AdvancedAssessmentAiService,
   AdvancedAssessmentGeneratedQuestion,
 } from './advanced-assessment-ai.service';
 import { PersonalAssessmentService } from './personal-assessment.service';
 import { RubricScoringService } from '../../ai/rubric-scoring.service';
 import { GuidanceReportService } from '../../ai/guidance-report.service';
+import { Lt3GenerationService } from '../../ai/lt3-generation.service';
 import { EmployerPoolProfileService } from './employer-pool-profile.service';
 import { GeneratedQuestion, GuidanceReport, ScoredTextAnswer, TextAnswerInput } from '../../ai/ai.types';
 import { QuestionGenerationService } from '../../ai/question-generation.service';
@@ -47,12 +50,18 @@ import {
   FlagIntegrityEventDto,
   IntegrityEventType,
   SubmitAdvancedAssessmentDto,
+  SubmitLt2Dto,
 } from './dto/advanced-assessment.dto';
 import {
   metadataDifficulty,
   resolveCompetencyHint,
   resolveIndustryContext,
 } from './assessment-utils';
+import {
+  competenciesForTrack,
+  normaliseCompetency,
+  sanitiseCompetencyList,
+} from './competency-taxonomy';
 
 const ADVANCED_ASSESSMENT_DURATION_MINUTES = 90;
 const RETAKE_GATE_DAYS = 14;
@@ -64,7 +73,20 @@ const ADVANCED_SHORT_TEXT_MAX_CHARS = 600;
 const ADVANCED_LONG_TEXT_MIN_CHARS = 150;
 const ADVANCED_LONG_TEXT_MAX_CHARS = 2000;
 
-const BASE_LONG_TEXT_COUNT = ADVANCED_ASSESSMENT_LONG_TEXT_COUNT - 1;
+// Long-text block = 2 situational (LT-1) + 2 work-task (LT-2) + 1 reflection
+// (LT-3). LT-3 is runtime-generated, served via /lt2-submit, not pre-selected
+// here.
+const ADVANCED_LT1_COUNT = 2;
+const ADVANCED_LT2_COUNT = 2;
+
+// Scoring totals:
+//   MCQ × 10 (1 pt each)             =  10
+//   Short text × 10 (max 12 each)    = 120
+//   LT-1 + LT-2 × 4 (max 12 each)    =  48
+//   LT-3 × 1 (max 8)                 =   8
+//   TOTAL                            = 186
+const TEXT_FULL_RUBRIC_MAX = 12;
+const LT3_RUBRIC_MAX = 8;
 
 export interface AdvancedAssessmentSessionResult {
   status: string;
@@ -97,8 +119,19 @@ export interface IntegrityFlagResult {
   status: string;
   message: string;
   tab_switch_count?: number;
+  copy_paste_count?: number;
   session_voided?: boolean;
   action?: 'warn' | 'logout';
+}
+
+export interface SubmitLt2Result {
+  status: string;
+  message: string;
+  session_id: string;
+  question_id: string;
+  question_number: number;
+  question_text: string;
+  max_seconds_remaining: number;
 }
 
 type AdvancedAssessmentSessionPayload = {
@@ -135,6 +168,7 @@ export class AdvancedAssessmentService {
     private readonly advancedAssessmentAiService: AdvancedAssessmentAiService,
     private readonly rubricScoring: RubricScoringService,
     private readonly guidanceReport: GuidanceReportService,
+    private readonly lt3Generation: Lt3GenerationService,
     private readonly employerPoolProfileService: EmployerPoolProfileService,
     private readonly questionGeneration: QuestionGenerationService,
     private readonly usersService: UsersService,
@@ -240,10 +274,20 @@ export class AdvancedAssessmentService {
           selectedQuestions,
         );
 
-        if (aiResult.questions.length !== ADVANCED_ASSESSMENT_TOTAL_QUESTIONS) {
+        if (aiResult.questions.length !== ADVANCED_ASSESSMENT_BASE_QUESTIONS) {
+          this.logger.error(
+            `[BANK_EXHAUSTED] expected=${ADVANCED_ASSESSMENT_BASE_QUESTIONS} ` +
+              `got=${aiResult.questions.length} ` +
+              `track=${profile.track ?? 'unknown'} ` +
+              `verified_level=${profile.validated_level ?? 'unknown'}`,
+          );
           throw new ServiceUnavailableException({
             error: 'BANK_EXHAUSTED',
             message: ErrorMessages.ADVANCED_ASSESSMENT.BANK_EXHAUSTED,
+            track: profile.track ?? null,
+            verified_level: profile.validated_level ?? null,
+            expected_questions: ADVANCED_ASSESSMENT_BASE_QUESTIONS,
+            got_questions: aiResult.questions.length,
           });
         }
 
@@ -377,16 +421,30 @@ export class AdvancedAssessmentService {
       );
     }
 
-    const answerMap = new Map(dto.answers.map((answer) => [answer.question_id, answer]));
-    const longTextQuestions = sessionQuestions.filter(
-      (question) => question.block === 'long_text',
+    // LT-3 must be present in the session payload before final submission.
+    // It only gets there via POST /lt2-submit. If the client tried to skip
+    // it, refuse — partial scoring would silently count LT-3 as 0/8 and
+    // contaminate the tier.
+    const hasReflectionSlot = sessionQuestions.some(
+      (question) => question.slot_type === SlotType.REFLECTION,
     );
-    const lt3QuestionId =
-      longTextQuestions[longTextQuestions.length - 1]?.question_id ?? null;
+    if (!hasReflectionSlot) {
+      throw new UnprocessableEntityException({
+        error: 'LT2_NOT_SUBMITTED',
+        message: ErrorMessages.ADVANCED_ASSESSMENT.LT2_NOT_SUBMITTED,
+      });
+    }
+
+    const answerMap = new Map(
+      dto.answers.map((answer) => [answer.question_id, answer]),
+    );
 
     let mcqRawScore = 0;
     const textInputs: TextAnswerInput[] = [];
     const responsesToSave: Partial<AssessmentResponse>[] = [];
+    // Map keyed by question_id so each text answer scored by the AI rubric
+    // can be associated back to its question for assessment_scores writes.
+    const abnormalTimingByQuestion = new Map<string, boolean>();
     let hasAbnormalTiming = false;
 
     for (const question of sessionQuestions) {
@@ -413,20 +471,23 @@ export class AdvancedAssessmentService {
       const answer = submitted ? String(submitted.answer) : '';
       this.assertTextLength(question, answer);
 
-      if (
-        question.block === 'long_text' &&
+      const isLongText = question.block === 'long_text';
+      const abnormal =
+        isLongText &&
         submitted?.time_spent_seconds !== undefined &&
         submitted.time_spent_seconds < ABNORMAL_LONG_TEXT_SECONDS &&
-        answer.length > 0
-      ) {
+        answer.length > 0;
+      if (abnormal) {
         hasAbnormalTiming = true;
+        abnormalTimingByQuestion.set(question.question_id, true);
       }
 
       textInputs.push({
         question_id: question.question_id,
         question_text: question.question_text,
         answer,
-        is_lt3: question.question_id === lt3QuestionId,
+        // LT-3 alone uses the 2-dim 0–4 rubric (max 8).
+        is_lt3: question.slot_type === SlotType.REFLECTION,
       });
       responsesToSave.push({
         attempt_id: attempt.id,
@@ -443,9 +504,11 @@ export class AdvancedAssessmentService {
 
     let textRawScore = 0;
     let textMaxScore = 0;
+    const scoredByQuestion = new Map<string, ScoredTextAnswer>();
     for (const scored of scoredTextAnswers) {
       textRawScore += scored.raw_score;
       textMaxScore += scored.max_score;
+      scoredByQuestion.set(scored.question_id, scored);
 
       const response = responsesToSave.find(
         (entry) => entry.question_id === scored.question_id,
@@ -456,6 +519,8 @@ export class AdvancedAssessmentService {
     }
 
     const totalRawScore = mcqRawScore + textRawScore;
+    // MCQ contributes 1 pt per question (10 max); text contributes the
+    // rubric's max_score per question (12 for short/LT-1/LT-2, 8 for LT-3).
     const maxScore = Math.round(ADVANCED_ASSESSMENT_MCQ_COUNT + textMaxScore);
     const percentage =
       maxScore > 0 ? Math.round((totalRawScore / maxScore) * 100) : 0;
@@ -463,7 +528,23 @@ export class AdvancedAssessmentService {
     const tier = this.resolveTier(percentage);
     const integrityConfidence = this.resolveIntegrityConfidence(
       attempt.tab_switch_count,
+      attempt.copy_paste_count ?? 0,
       hasAbnormalTiming,
+    );
+
+    // Pull real competency labels from the question metadata before they
+    // flow into the guidance prompt and the employer pool profile.
+    const strongCompetencies = this.extractCompetencies(
+      sessionQuestions,
+      scoredTextAnswers,
+      profile.track,
+      'strong',
+    );
+    const weakCompetencies = this.extractCompetencies(
+      sessionQuestions,
+      scoredTextAnswers,
+      profile.track,
+      'weak',
     );
 
     let guidanceReport: GuidanceReport | null = null;
@@ -474,9 +555,8 @@ export class AdvancedAssessmentService {
           claimed_level: profile.claimed_level ?? VerifiedLevel.ENTRY,
           validated_level: profile.validated_level ?? VerifiedLevel.ENTRY,
           percentage,
-          strong_competencies:
-            this.extractStrongCompetencies(scoredTextAnswers),
-          weak_competencies: this.extractWeakCompetencies(scoredTextAnswers),
+          strong_competencies: strongCompetencies,
+          weak_competencies: weakCompetencies,
         });
       } catch (error) {
         this.logger.warn(`Guidance report generation failed: ${String(error)}`);
@@ -490,6 +570,20 @@ export class AdvancedAssessmentService {
 
     await this.talentProfileRepo.manager.transaction(async (manager) => {
       await manager.save(AssessmentResponse, responsesToSave);
+
+      // Write one assessment_scores row per session question.
+      const scoreRows = this.buildAssessmentScoreRows({
+        attempt,
+        talentProfileId: profile.id,
+        sessionQuestions,
+        scoredByQuestion,
+        abnormalTimingByQuestion,
+        integrityConfidence,
+        answerMap,
+      });
+      if (scoreRows.length > 0) {
+        await manager.save(AssessmentScore, scoreRows);
+      }
 
       attempt.completed_at = new Date();
       await manager.save(AssessmentAttempt, attempt);
@@ -524,6 +618,16 @@ export class AdvancedAssessmentService {
 
     if (tier === AssessmentTier.JOB_READY && personalContext) {
       try {
+        const competencyByQuestion = new Map<string, string | null>();
+        for (const question of sessionQuestions) {
+          const metadata = (question.metadata ?? {}) as Record<string, unknown>;
+          const competency =
+            typeof metadata.competency === 'string'
+              ? metadata.competency.toLowerCase()
+              : null;
+          competencyByQuestion.set(question.question_id, competency);
+        }
+
         await this.employerPoolProfileService.upsert({
           profile,
           userId,
@@ -531,6 +635,7 @@ export class AdvancedAssessmentService {
           tier,
           percentage,
           scoredTextAnswers,
+          competencyByQuestion,
           integrityClean: integrityConfidence === 'high',
           personalContext,
         });
@@ -563,6 +668,215 @@ export class AdvancedAssessmentService {
       integrity_confidence: integrityConfidence,
       ...(guidanceReport && { guidance_report: guidanceReport }),
       ...(isExpired && { auto_submitted: true }),
+    };
+  }
+
+  /**
+   * Generate LT-3 from the candidate's LT-2 answer and append it to the
+   * session payload. Idempotent: a repeated call returns the LT-3 that was
+   * generated on the first call without invoking the LLM again.
+   */
+  async submitLt2(
+    userId: string,
+    sessionId: string,
+    dto: SubmitLt2Dto,
+  ): Promise<SubmitLt2Result> {
+    const profile = await this.talentProfileRepo.findOne({
+      where: { user_id: userId },
+    });
+    if (!profile) {
+      throw new NotFoundException(
+        ErrorMessages.ADVANCED_ASSESSMENT.PROFILE_NOT_FOUND,
+      );
+    }
+
+    const attempt = await this.attemptRepo.findOne({
+      where: {
+        id: sessionId,
+        talent_profile_id: profile.id,
+        assessment_type: AssessmentType.ADVANCED,
+      },
+    });
+    if (!attempt) {
+      throw new NotFoundException(
+        ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_NOT_FOUND,
+      );
+    }
+    if (attempt.completed_at) {
+      throw new BadRequestException(
+        ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_ALREADY_SUBMITTED,
+      );
+    }
+    if (attempt.force_submitted) {
+      throw new BadRequestException(
+        ErrorMessages.ADVANCED_ASSESSMENT.SESSION_VOIDED,
+      );
+    }
+    if (attempt.expires_at && attempt.expires_at <= new Date()) {
+      throw new UnprocessableEntityException(
+        ErrorMessages.ADVANCED_ASSESSMENT.SESSION_EXPIRED,
+      );
+    }
+
+    const sessionQuestions = this.readSessionQuestions(attempt);
+    if (sessionQuestions.length === 0) {
+      throw new BadRequestException(
+        ErrorMessages.ADVANCED_ASSESSMENT.SESSION_CORRUPT,
+      );
+    }
+
+    // Locate the LT-2 (last WORK_TASK long-text) and confirm the client posted
+    // an answer for the right question_id.
+    const workTaskQuestions = sessionQuestions.filter(
+      (question) =>
+        question.block === 'long_text' &&
+        question.slot_type === SlotType.WORK_TASK,
+    );
+    const lt2Question = workTaskQuestions[workTaskQuestions.length - 1];
+    if (!lt2Question) {
+      throw new BadRequestException(
+        ErrorMessages.ADVANCED_ASSESSMENT.SESSION_CORRUPT,
+      );
+    }
+    if (lt2Question.question_id !== dto.question_id) {
+      throw new UnprocessableEntityException({
+        error: 'LT2_QUESTION_MISMATCH',
+        message: ErrorMessages.ADVANCED_ASSESSMENT.LT2_QUESTION_MISMATCH,
+      });
+    }
+
+    // Idempotency: if LT-3 has already been generated for this attempt,
+    // return it as-is. Prevents flaky-connection retries from spawning
+    // a different reflection question.
+    const existingLt3 = sessionQuestions.find(
+      (question) => question.slot_type === SlotType.REFLECTION,
+    );
+    if (existingLt3) {
+      this.logger.log(
+        `LT-3 already generated for attempt=${attempt.id}; returning existing.`,
+      );
+      return {
+        status: 'success',
+        message: SuccessMessages.ADVANCED_ASSESSMENT.LT2_SUBMITTED,
+        session_id: attempt.id,
+        question_id: existingLt3.question_id,
+        question_number: existingLt3.question_number,
+        question_text: existingLt3.question_text,
+        max_seconds_remaining: this.remainingSeconds(attempt),
+      };
+    }
+
+    const verifiedLevel = profile.validated_level ?? VerifiedLevel.ENTRY;
+    const track = profile.track ?? 'general';
+
+    let generatedLt3Text: string;
+    try {
+      const generated = await this.lt3Generation.generate({
+        track,
+        verified_level: verifiedLevel,
+        lt2_question_text: lt2Question.question_text,
+        lt2_answer: dto.answer,
+      });
+      generatedLt3Text = generated.question_text;
+    } catch (error) {
+      this.logger.error(
+        `LT-3 generation failed for attempt=${attempt.id}: ${String(error)}`,
+      );
+      throw new ServiceUnavailableException({
+        error: 'LT3_GENERATION_FAILED',
+        message: ErrorMessages.ADVANCED_ASSESSMENT.LT3_GENERATION_FAILED,
+      });
+    }
+
+    const nextQuestionNumber = sessionQuestions.length + 1;
+    const result = await this.talentProfileRepo.manager.transaction(
+      async (manager) => {
+        // Persist a stable AssessmentQuestion row for the runtime LT-3 so it
+        // has a UUID we can use in responses + score rows + history.
+        const lt3Question = await manager.save(
+          AssessmentQuestion,
+          manager.create(AssessmentQuestion, {
+            assessment_type: AssessmentType.ADVANCED,
+            question_type: QuestionType.OPTIONAL_TEXT,
+            question_text: generatedLt3Text,
+            question_number: nextQuestionNumber,
+            options: null,
+            correct_answer: null,
+            track: null,
+            verified_level: null,
+            competency: null,
+            slot_type: SlotType.REFLECTION,
+            metadata: {
+              generated: true,
+              lt3_runtime: true,
+              lt2_question_id: lt2Question.question_id,
+              answer_block: 'long_text',
+              track,
+              verified_level: verifiedLevel,
+            },
+            is_live: false,
+          }),
+        );
+
+        // Block this specific LT-3 question from ever being re-served.
+        await manager.save(
+          TalentQuestionHistory,
+          manager.create(TalentQuestionHistory, {
+            talent_profile_id: profile.id,
+            question_id: lt3Question.id,
+            attempt_id: attempt.id,
+            user_answer: { lt3_runtime: true },
+            is_correct: null,
+            raw_score: null,
+            max_score: null,
+            answered_at: new Date(),
+          }),
+        );
+
+        // Append LT-3 to the session jsonb so subsequent /session/:id reads
+        // and the final /advanced/submit see all 25 questions.
+        const updatedQuestions: AdvancedAssessmentGeneratedQuestion[] = [
+          ...sessionQuestions,
+          {
+            question_id: lt3Question.id,
+            question_number: nextQuestionNumber,
+            block: 'long_text',
+            question_type: QuestionType.OPTIONAL_TEXT,
+            question_text: generatedLt3Text,
+            options: null,
+            slot_type: SlotType.REFLECTION,
+            metadata: {
+              generated: true,
+              lt3_runtime: true,
+              answer_block: 'long_text',
+            },
+            correct_answer: null,
+          },
+        ];
+
+        const payload = this.readSessionPayload(attempt);
+        attempt.generated_questions_json = {
+          ...payload,
+          questions: updatedQuestions,
+        };
+        await manager.save(AssessmentAttempt, attempt);
+
+        return lt3Question;
+      },
+    );
+
+    this.logger.log(
+      `LT-3 generated: attempt=${attempt.id} user=${userId} lt3=${result.id}`,
+    );
+
+    return {
+      status: 'success',
+      message: SuccessMessages.ADVANCED_ASSESSMENT.LT2_SUBMITTED,
+      session_id: attempt.id,
+      question_id: result.id,
+      question_number: nextQuestionNumber,
+      question_text: generatedLt3Text,
+      max_seconds_remaining: this.remainingSeconds(attempt),
     };
   }
 
@@ -642,13 +956,19 @@ export class AdvancedAssessmentService {
       };
     }
 
+    // COPY_PASTE: increment + persist so submit() can roll it into
+    // integrity_confidence.
+    attempt.copy_paste_count = (attempt.copy_paste_count ?? 0) + 1;
+    await this.attemptRepo.save(attempt);
+
     this.logger.warn(
-      `Copy-paste detected: attempt=${attempt.id} user=${userId}`,
+      `Copy-paste #${attempt.copy_paste_count}: attempt=${attempt.id} user=${userId}`,
     );
 
     return {
       status: 'flagged',
       message: SuccessMessages.ADVANCED_ASSESSMENT.INTEGRITY_FLAGGED,
+      copy_paste_count: attempt.copy_paste_count,
       session_voided: false,
     };
   }
@@ -732,25 +1052,151 @@ export class AdvancedAssessmentService {
     }
   }
 
+  /**
+   * Integrity confidence:
+   *   abnormal long-text timing -> low
+   *   any tab switch OR any copy-paste -> medium
+   *   otherwise -> high
+   */
   private resolveIntegrityConfidence(
     tabSwitchCount: number,
+    copyPasteCount: number,
     hasAbnormalTiming: boolean,
-  ): string {
+  ): IntegrityConfidenceLevel {
     if (hasAbnormalTiming) return 'low';
-    if (tabSwitchCount >= 1) return 'medium';
+    if (tabSwitchCount >= 1 || copyPasteCount >= 1) return 'medium';
     return 'high';
   }
 
-  private extractStrongCompetencies(scored: ScoredTextAnswer[]): string[] {
-    return scored
-      .filter((score) => score.max_score > 0 && score.raw_score / score.max_score >= 0.7)
-      .map((score) => score.question_id);
+  /**
+   * Pulls competency labels from the question metadata (track taxonomy)
+   * for use in the guidance report. Strong = >=70% on the rubric, weak =
+   * <50%. Dedupes + filters against the taxonomy for the candidate's track.
+   */
+  private extractCompetencies(
+    sessionQuestions: AdvancedAssessmentGeneratedQuestion[],
+    scored: ScoredTextAnswer[],
+    track: string | null,
+    band: 'strong' | 'weak',
+  ): string[] {
+    const competencyByQuestion = new Map<string, string | null>();
+    for (const question of sessionQuestions) {
+      const metadata = (question.metadata ?? {}) as Record<string, unknown>;
+      const competency =
+        typeof metadata.competency === 'string' ? metadata.competency : null;
+      competencyByQuestion.set(question.question_id, competency);
+    }
+
+    const minRatio = band === 'strong' ? 0.7 : 0;
+    const maxRatio = band === 'strong' ? 1.01 : 0.5;
+
+    const raw: string[] = [];
+    for (const score of scored) {
+      if (score.max_score <= 0) continue;
+      const ratio = score.raw_score / score.max_score;
+      if (ratio < minRatio || ratio >= maxRatio) continue;
+      const competency = competencyByQuestion.get(score.question_id);
+      if (competency) raw.push(competency);
+    }
+
+    return sanitiseCompetencyList(track, raw);
   }
 
-  private extractWeakCompetencies(scored: ScoredTextAnswer[]): string[] {
-    return scored
-      .filter((score) => score.max_score > 0 && score.raw_score / score.max_score < 0.5)
-      .map((score) => score.question_id);
+  /**
+   * Builds one assessment_scores row per session question.
+   * - MCQ rows: raw_score = 1 if correct else 0, max_score = 1, no rubric.
+   * - Text rows: raw_score/max_score come from the rubric output.
+   * - integrity_flag = true on a per-question basis when abnormal timing
+   *   was detected on that specific text answer.
+   * - integrity_confidence = the attempt-level confidence.
+   */
+  private buildAssessmentScoreRows(input: {
+    attempt: AssessmentAttempt;
+    talentProfileId: string;
+    sessionQuestions: AdvancedAssessmentGeneratedQuestion[];
+    scoredByQuestion: Map<string, ScoredTextAnswer>;
+    abnormalTimingByQuestion: Map<string, boolean>;
+    integrityConfidence: IntegrityConfidenceLevel;
+    answerMap: Map<string, { answer: string | string[] }>;
+  }): Partial<AssessmentScore>[] {
+    const rows: Partial<AssessmentScore>[] = [];
+    const {
+      attempt,
+      talentProfileId,
+      sessionQuestions,
+      scoredByQuestion,
+      abnormalTimingByQuestion,
+      integrityConfidence,
+      answerMap,
+    } = input;
+
+    for (const question of sessionQuestions) {
+      const metadata = (question.metadata ?? {}) as Record<string, unknown>;
+      const competency =
+        typeof metadata.competency === 'string' ? metadata.competency : null;
+      const isMcq =
+        question.question_type === QuestionType.SINGLE_PICK ||
+        question.question_type === QuestionType.MULTI_PICK;
+
+      if (isMcq) {
+        const correct = this.scoreMcq(
+          question,
+          answerMap.get(question.question_id)?.answer ?? null,
+        );
+        rows.push({
+          attempt_id: attempt.id,
+          talent_profile_id: talentProfileId,
+          question_id: question.question_id,
+          question_type: AssessmentScoreQuestionType.MCQ,
+          raw_score: correct ? 1 : 0,
+          max_score: 1,
+          pct_score: correct ? 100 : 0,
+          competency,
+          integrity_flag: false,
+          integrity_confidence: integrityConfidence,
+          ai_evaluation_json: null,
+        });
+        continue;
+      }
+
+      const scored = scoredByQuestion.get(question.question_id);
+      const rawScore = scored?.raw_score ?? 0;
+      const maxScore =
+        scored?.max_score ??
+        (question.slot_type === SlotType.REFLECTION
+          ? LT3_RUBRIC_MAX
+          : TEXT_FULL_RUBRIC_MAX);
+      const pctScore = maxScore > 0 ? (rawScore / maxScore) * 100 : 0;
+      const integrityFlag =
+        abnormalTimingByQuestion.get(question.question_id) === true;
+
+      rows.push({
+        attempt_id: attempt.id,
+        talent_profile_id: talentProfileId,
+        question_id: question.question_id,
+        question_type:
+          question.block === 'long_text'
+            ? AssessmentScoreQuestionType.LONG_TEXT
+            : AssessmentScoreQuestionType.SHORT_TEXT,
+        raw_score: rawScore,
+        max_score: maxScore,
+        pct_score: Math.round(pctScore * 100) / 100,
+        competency,
+        integrity_flag: integrityFlag,
+        integrity_confidence: integrityConfidence,
+        ai_evaluation_json: scored?.rubric ? { ...scored.rubric } : null,
+      });
+    }
+
+    return rows;
+  }
+
+  private remainingSeconds(attempt: AssessmentAttempt): number {
+    if (!attempt.expires_at) return 0;
+    return Math.max(
+      0,
+      Math.floor((attempt.expires_at.getTime() - Date.now()) / 1000),
+    );
   }
 
   private assertTextLength(
@@ -838,15 +1284,28 @@ export class AdvancedAssessmentService {
     const bankShort = bankText.filter(
       (question) => this.textBlock(question) === 'short_text',
     );
-    const bankLong = bankText.filter(
-      (question) => this.textBlock(question) === 'long_text',
+    // Long-text base = 2 SITUATIONAL (LT-1) + 2 WORK_TASK (LT-2). LT-3
+    // (REFLECTION) is runtime-generated by submitLt2() and never seeded
+    // from the bank.
+    const bankLongSituational = bankText.filter(
+      (question) =>
+        this.textBlock(question) === 'long_text' &&
+        question.slot_type === SlotType.SITUATIONAL,
+    );
+    const bankLongWorkTask = bankText.filter(
+      (question) =>
+        this.textBlock(question) === 'long_text' &&
+        question.slot_type === SlotType.WORK_TASK,
     );
 
     const mcq = [...bankMcq.slice(0, ADVANCED_ASSESSMENT_MCQ_COUNT)];
     const shortText = [...bankShort.slice(0, ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT)];
-    const longText = [...bankLong.slice(0, BASE_LONG_TEXT_COUNT)];
+    const longSituational = [...bankLongSituational.slice(0, ADVANCED_LT1_COUNT)];
+    const longWorkTask = [...bankLongWorkTask.slice(0, ADVANCED_LT2_COUNT)];
 
-    const generatedQuestions: Array<GeneratedQuestion & { block: 'mcq' | 'short_text' | 'long_text' }> = [];
+    const generatedQuestions: Array<
+      GeneratedQuestion & { block: 'mcq' | 'short_text' | 'long_text' }
+    > = [];
     const industryContext = resolveIndustryContext(personalContext);
     const competencyHint = resolveCompetencyHint(personalContext);
     const verifiedLevel = profile.validated_level ?? VerifiedLevel.ENTRY;
@@ -889,8 +1348,35 @@ export class AdvancedAssessmentService {
       );
     }
 
-    const longDeficit = BASE_LONG_TEXT_COUNT - longText.length;
-    if (longDeficit > 0) {
+    const situationalDeficit = ADVANCED_LT1_COUNT - longSituational.length;
+    if (situationalDeficit > 0) {
+      this.logger.warn(
+        `[BANK_LOW] LT-1 (SITUATIONAL) deficit=${situationalDeficit} track=${track} level=${verifiedLevel}`,
+      );
+      const generated = await this.questionGeneration.generateQuestions({
+        track,
+        verified_level: verifiedLevel,
+        assessment_type: 'advanced',
+        question_type: QuestionType.OPTIONAL_TEXT,
+        slot_type: SlotType.SITUATIONAL,
+        competency: competencyHint,
+        industry_context: industryContext,
+        count: situationalDeficit,
+      });
+      generatedQuestions.push(
+        ...generated.map((question) => ({
+          ...question,
+          slot_type: SlotType.SITUATIONAL,
+          block: 'long_text' as const,
+        })),
+      );
+    }
+
+    const workTaskDeficit = ADVANCED_LT2_COUNT - longWorkTask.length;
+    if (workTaskDeficit > 0) {
+      this.logger.warn(
+        `[BANK_LOW] LT-2 (WORK_TASK) deficit=${workTaskDeficit} track=${track} level=${verifiedLevel}`,
+      );
       const generated = await this.questionGeneration.generateQuestions({
         track,
         verified_level: verifiedLevel,
@@ -899,27 +1385,16 @@ export class AdvancedAssessmentService {
         slot_type: SlotType.WORK_TASK,
         competency: competencyHint,
         industry_context: industryContext,
-        count: longDeficit,
+        count: workTaskDeficit,
       });
       generatedQuestions.push(
-        ...generated.map((question) => ({ ...question, block: 'long_text' as const })),
+        ...generated.map((question) => ({
+          ...question,
+          slot_type: SlotType.WORK_TASK,
+          block: 'long_text' as const,
+        })),
       );
     }
-
-    const reflectionQuestion = await this.questionGeneration.generateQuestions({
-      track,
-      verified_level: verifiedLevel,
-      assessment_type: 'advanced',
-      question_type: QuestionType.OPTIONAL_TEXT,
-      slot_type: SlotType.REFLECTION,
-      competency: competencyHint,
-      industry_context: industryContext,
-      count: 1,
-    });
-    generatedQuestions.push({
-      ...reflectionQuestion[0],
-      block: 'long_text',
-    });
 
     const persistedGenerated = await this.persistGeneratedQuestions(
       manager,
@@ -932,11 +1407,31 @@ export class AdvancedAssessmentService {
       this.isMcq(question),
     );
     const generatedShort = persistedGenerated.filter(
-      (question) => !this.isMcq(question) && this.textBlock(question) === 'short_text',
+      (question) =>
+        !this.isMcq(question) && this.textBlock(question) === 'short_text',
     );
-    const generatedLong = persistedGenerated.filter(
-      (question) => !this.isMcq(question) && this.textBlock(question) === 'long_text',
+    const generatedSituational = persistedGenerated.filter(
+      (question) =>
+        !this.isMcq(question) &&
+        this.textBlock(question) === 'long_text' &&
+        question.slot_type === SlotType.SITUATIONAL,
     );
+    const generatedWorkTask = persistedGenerated.filter(
+      (question) =>
+        !this.isMcq(question) &&
+        this.textBlock(question) === 'long_text' &&
+        question.slot_type === SlotType.WORK_TASK,
+    );
+
+    // Long text is ordered LT-1, LT-1, LT-2, LT-2.
+    const longText: AssessmentQuestion[] = [
+      ...longSituational,
+      ...generatedSituational,
+    ]
+      .slice(0, ADVANCED_LT1_COUNT)
+      .concat(
+        [...longWorkTask, ...generatedWorkTask].slice(0, ADVANCED_LT2_COUNT),
+      );
 
     return {
       mcq: [...mcq, ...generatedMcq].slice(0, ADVANCED_ASSESSMENT_MCQ_COUNT),
@@ -944,10 +1439,7 @@ export class AdvancedAssessmentService {
         0,
         ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT,
       ),
-      longText: [...longText, ...generatedLong].slice(
-        0,
-        ADVANCED_ASSESSMENT_LONG_TEXT_COUNT,
-      ),
+      longText,
     };
   }
 
@@ -962,8 +1454,20 @@ export class AdvancedAssessmentService {
     }
 
     const nextQuestionNumber = await this.nextAdvancedQuestionNumber(manager);
-    const questions = generated.map((question, index) =>
-      manager.create(AssessmentQuestion, {
+    const trackHasTaxonomy = competenciesForTrack(track).length > 0;
+
+    const questions = generated.map((question, index) => {
+      // Validate AI-generated competency against the track taxonomy. If
+      // the model returned junk (or the track is unknown), fall back to
+      // the first valid competency for the track.
+      const normalisedCompetency = trackHasTaxonomy
+        ? normaliseCompetency(track, question.competency)
+        : (question.competency ?? null);
+      const slotType =
+        question.slot_type ??
+        (question.block === 'long_text' ? SlotType.WORK_TASK : SlotType.SITUATIONAL);
+
+      return manager.create(AssessmentQuestion, {
         assessment_type: AssessmentType.ADVANCED,
         question_type: question.question_type,
         question_text: question.question_text,
@@ -972,24 +1476,20 @@ export class AdvancedAssessmentService {
         correct_answer: question.correct_answer,
         track: null,
         verified_level: null,
-        competency: null,
-        slot_type:
-          question.slot_type ??
-          (question.block === 'long_text' ? SlotType.WORK_TASK : SlotType.SITUATIONAL),
+        competency: normalisedCompetency,
+        slot_type: slotType,
         metadata: this.buildGeneratedQuestionMetadata({
           track,
           verifiedLevel,
           questionType: question.question_type,
-          competency: question.competency,
-          slotType:
-            question.slot_type ??
-            (question.block === 'long_text' ? SlotType.WORK_TASK : SlotType.SITUATIONAL),
+          competency: normalisedCompetency,
+          slotType,
           block: question.block,
           industryContext: question.industry_context,
         }),
         is_live: false,
-      }),
-    );
+      });
+    });
 
     return manager.save(AssessmentQuestion, questions);
   }
