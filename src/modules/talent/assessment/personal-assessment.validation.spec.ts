@@ -2,6 +2,7 @@ import { UnprocessableEntityException } from '@nestjs/common';
 import {
   assertAssessmentReadyForComplete,
   assertOnboardingFieldsForComplete,
+  validateGeneratedPersonalAssessmentAnswers,
   validateSectionAnswers,
 } from './personal-assessment.validation';
 import {
@@ -10,6 +11,7 @@ import {
   makeTalentUser,
   section1Answers,
 } from './personal-assessment.test-fixtures';
+import { getAllPersonalAssessmentQuestions } from './personal-assessment.schema';
 
 function getExceptionBody(error: unknown): Record<string, unknown> {
   expect(error).toBeInstanceOf(UnprocessableEntityException);
@@ -103,6 +105,42 @@ describe('validateSectionAnswers', () => {
       const body = getExceptionBody(error);
       expect(body.field).toBe('specialization');
       expect(body.message).toContain('onboarding/track');
+    }
+  });
+});
+
+describe('validateGeneratedPersonalAssessmentAnswers', () => {
+  const profile = makeTalentProfile();
+  const questions = getAllPersonalAssessmentQuestions();
+
+  it('accepts sparse generated answers when claimed_level is present', () => {
+    const result = validateGeneratedPersonalAssessmentAnswers(
+      questions,
+      {
+        claimed_level: 'mid',
+        job_title: 'Software Engineer',
+      },
+      profile,
+    );
+
+    expect(result).toEqual({
+      claimed_level: 'mid',
+      job_title: 'Software Engineer',
+    });
+  });
+
+  it('rejects generated answers without claimed_level', () => {
+    try {
+      validateGeneratedPersonalAssessmentAnswers(
+        questions,
+        { job_title: 'Software Engineer' },
+        profile,
+      );
+      fail('expected UnprocessableEntityException');
+    } catch (error: unknown) {
+      const body = getExceptionBody(error);
+      expect(body.field).toBe('claimed_level');
+      expect(body.message).toContain('claimed_level is required');
     }
   });
 });

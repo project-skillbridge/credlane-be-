@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { ErrorMessages, SuccessMessages } from '../../../shared';
 import { personalAssessmentGenerationSchema } from '../../ai/ai.schemas';
 import { OpenRouterService } from '../../ai/openrouter.service';
@@ -32,11 +32,9 @@ import {
 } from './personal-assessment-ai-prompt-context';
 import {
   getPersonalAssessmentProgress,
-  readCompletedSections,
   type PersonalAssessmentResumeProgress,
 } from './personal-assessment.progress';
 import {
-  assertAssessmentReadyForComplete,
   assertOnboardingFieldsForComplete,
   validateGeneratedPersonalAssessmentAnswers,
   validateSectionAnswers,
@@ -127,6 +125,50 @@ export class PersonalAssessmentService {
   private withoutMeta(store: PersonalAssessmentStore): Record<string, unknown> {
     const { _meta: _ignored, ...answers } = store;
     return answers;
+  }
+
+  private resolveGeneratedAnswers(
+    answers: Record<string, unknown>,
+    profile: TalentProfile,
+  ): Record<string, unknown> {
+    const claimedLevel = answers.claimed_level ?? profile.claimed_level;
+
+    if (claimedLevel === undefined || claimedLevel === null) {
+      return answers;
+    }
+
+    return {
+      ...answers,
+      claimed_level: claimedLevel,
+    };
+  }
+
+  private async persistGeneratedAssessmentCompletion(
+    manager: EntityManager,
+    profile: TalentProfile,
+    store: PersonalAssessmentStore,
+    validated: Record<string, unknown>,
+  ): Promise<Date> {
+    const completedAt = new Date();
+
+    profile.personal_assessment_answers = {
+      ...this.withoutMeta(store),
+      ...validated,
+      _meta: {
+        ...store._meta,
+        completedSections: COMPLETED_PERSONAL_ASSESSMENT_SECTIONS,
+      },
+    };
+
+    if (typeof validated.claimed_level === 'string') {
+      profile.claimed_level =
+        validated.claimed_level as TalentProfile['claimed_level'];
+    }
+
+    profile.personal_assessment_completed_at = completedAt;
+    await manager.save(TalentProfile, profile);
+
+    return completedAt;
   }
 
   private withSectionSaved(
@@ -253,27 +295,22 @@ export class PersonalAssessmentService {
               key === 'claimed_level',
           ),
         );
-        const validated = validateGeneratedPersonalAssessmentAnswers(
-          sourceQuestions,
+        const submissionAnswers = this.resolveGeneratedAnswers(
           filtered,
           profile,
         );
+        const validated = validateGeneratedPersonalAssessmentAnswers(
+          sourceQuestions,
+          submissionAnswers,
+          profile,
+        );
 
-        const completedAt = new Date();
-        profile.personal_assessment_answers = {
-          ...this.withoutMeta(store),
-          ...validated,
-          _meta: {
-            ...store._meta,
-            completedSections: COMPLETED_PERSONAL_ASSESSMENT_SECTIONS,
-          },
-        };
-        if (typeof validated.claimed_level === 'string') {
-          profile.claimed_level =
-            validated.claimed_level as TalentProfile['claimed_level'];
-        }
-        profile.personal_assessment_completed_at = completedAt;
-        await manager.save(TalentProfile, profile);
+        const completedAt = await this.persistGeneratedAssessmentCompletion(
+          manager,
+          profile,
+          store,
+          validated,
+        );
 
         return completedAt;
       },
@@ -672,8 +709,6 @@ export class PersonalAssessmentService {
   async complete(
     userId: string,
   ): Promise<{ status: string; message: string; completedAt: string }> {
-    const user = await this.usersService.findOne(userId);
-
     const completedAt = await this.talentProfileRepository.manager.transaction(
       async (manager) => {
         let profile = await manager.findOne(TalentProfile, {
@@ -695,22 +730,31 @@ export class PersonalAssessmentService {
 
         assertOnboardingFieldsForComplete(profile);
         const store = this.readStore(profile);
-        const stored = this.withoutMeta(store);
-        const completedSections = readCompletedSections(store._meta);
-        assertAssessmentReadyForComplete(
-          stored,
-          completedSections,
+        const session = store._meta?.generatedSession;
+        if (!session) {
+          throw new UnprocessableEntityException({
+            message:
+              'Generate a personal assessment session before submitting answers',
+          });
+        }
+
+        const sourceQuestions = this.resolveGeneratedSourceQuestions(session);
+        const completionAnswers = this.resolveGeneratedAnswers(
+          this.withoutMeta(store),
           profile,
-          user,
+        );
+        const validated = validateGeneratedPersonalAssessmentAnswers(
+          sourceQuestions,
+          completionAnswers,
+          profile,
         );
 
-        const completedAt = new Date();
-        if (typeof stored.claimed_level === 'string') {
-          profile.claimed_level =
-            stored.claimed_level as TalentProfile['claimed_level'];
-        }
-        profile.personal_assessment_completed_at = completedAt;
-        await manager.save(TalentProfile, profile);
+        const completedAt = await this.persistGeneratedAssessmentCompletion(
+          manager,
+          profile,
+          store,
+          validated,
+        );
 
         return completedAt;
       },
