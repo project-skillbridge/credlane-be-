@@ -65,26 +65,35 @@ export class UsersService {
       throw new ConflictError(ErrorMessages.USER.EMAIL_ALREADY_REGISTERED);
     }
 
+    const normalizedEmail = dto.email.toLowerCase().trim();
     const passwordHash = await argon2.hash(dto.password);
     const signupReason =
       dto.signup_reason == null || dto.signup_reason.trim() === ''
         ? null
         : dto.signup_reason.trim();
-    return this.userModelAction.create({
-      ...NO_TRANSACTION,
-      createPayload: {
-        email: dto.email,
-        password: passwordHash,
-        first_name: dto.first_name,
-        last_name: dto.last_name,
-        country: dto.country,
-        avatar_url: dto.profile_pic_url ?? null,
-        is_verified: false,
-        onboarding_complete: false,
-        role: dto.role ?? UserRole.TALENT,
-        signup_reason: signupReason,
-      },
-    });
+
+    try {
+      return await this.userModelAction.create({
+        ...NO_TRANSACTION,
+        createPayload: {
+          email: normalizedEmail,
+          password: passwordHash,
+          first_name: dto.first_name,
+          last_name: dto.last_name,
+          country: dto.country,
+          avatar_url: dto.profile_pic_url ?? null,
+          is_verified: false,
+          onboarding_complete: false,
+          role: dto.role ?? UserRole.TALENT,
+          signup_reason: signupReason,
+        },
+      });
+    } catch (err) {
+      if (isPostgresUniqueViolation(err)) {
+        throw new ConflictError(ErrorMessages.USER.EMAIL_ALREADY_REGISTERED);
+      }
+      throw err;
+    }
   }
 
   findAll(pagination: PaginationDto) {
@@ -299,12 +308,14 @@ export class UsersService {
       return this.findOne(byEmail.id);
     }
 
+    const normalizedEmail = profile.email.toLowerCase().trim();
+
     try {
       if (!signupRole) {
         throw new OAuthSignupRoleRequiredException();
       }
       return await this.createVerifiedUserWithOauthLink({
-        email: profile.email,
+        email: normalizedEmail,
         first_name: profile.firstName,
         last_name: profile.lastName,
         country: OAUTH_DEFAULT_COUNTRY,

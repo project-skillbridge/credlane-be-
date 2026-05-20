@@ -57,7 +57,7 @@ export class AssessmentAttempt {
 
   @ApiProperty({
     default: 0,
-    description: 'Number of copy-paste events detected during assessment',
+    description: 'Number of copy-paste attempts during assessment',
   })
   @Column({ type: 'integer', default: 0 })
   copy_paste_count: number;
