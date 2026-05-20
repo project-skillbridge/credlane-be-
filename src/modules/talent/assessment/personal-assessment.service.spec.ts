@@ -1,6 +1,6 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, ConflictException, UnprocessableEntityException } from '@nestjs/common';
 import { Repository } from 'typeorm';
-import { SuccessMessages } from '../../../shared';
+import { ErrorMessages, SuccessMessages } from '../../../shared';
 import { UserRole } from '../../users/entities/user.entity';
 import { TalentProfile } from '../entities/talent-profile.entity';
 import { UsersService } from '../../users/users.service';
@@ -126,6 +126,36 @@ describe('PersonalAssessmentService', () => {
     await expect(service.saveSection(userId, 8, {})).rejects.toBeInstanceOf(
       BadRequestException,
     );
+  });
+
+  it('saveSection returns 409 when all sections are already complete', async () => {
+    profileStore.personal_assessment_answers = {
+      ...section1Answers(),
+      _meta: { completedSections: [1, 2, 3, 4, 5, 6, 7] },
+    };
+
+    await expect(
+      service.saveSection(userId, 1, section1Answers()),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(
+      service.saveSection(userId, 1, section1Answers()),
+    ).rejects.toMatchObject({
+      message: ErrorMessages.ASSESSMENT.ALREADY_COMPLETED,
+    });
+  });
+
+  it('saveSection returns 409 when personal assessment is already finalized', async () => {
+    profileStore.personal_assessment_completed_at = new Date(
+      '2026-05-01T00:00:00.000Z',
+    );
+    profileStore.personal_assessment_answers = {
+      ...section1Answers(),
+      _meta: { completedSections: [1, 2, 3, 4, 5, 6, 7] },
+    };
+
+    await expect(
+      service.saveSection(userId, 2, section1Answers()),
+    ).rejects.toBeInstanceOf(UnprocessableEntityException);
   });
 
   it('submitGenerated saves sparse generated answers and completes the assessment', async () => {
