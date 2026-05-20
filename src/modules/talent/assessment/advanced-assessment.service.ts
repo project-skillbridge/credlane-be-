@@ -46,6 +46,11 @@ import {
   IntegrityEventType,
   SubmitAdvancedAssessmentDto,
 } from './dto/advanced-assessment.dto';
+import {
+  metadataDifficulty,
+  resolveCompetencyHint,
+  resolveIndustryContext,
+} from './assessment-utils';
 
 const ADVANCED_ASSESSMENT_DURATION_MINUTES = 90;
 const RETAKE_GATE_DAYS = 14;
@@ -787,8 +792,8 @@ export class AdvancedAssessmentService {
     const longText = [...bankLong.slice(0, BASE_LONG_TEXT_COUNT)];
 
     const generatedQuestions: Array<GeneratedQuestion & { block: 'mcq' | 'short_text' | 'long_text' }> = [];
-    const industryContext = this.resolveIndustryContext(personalContext);
-    const competencyHint = this.resolveCompetencyHint(personalContext);
+    const industryContext = resolveIndustryContext(personalContext);
+    const competencyHint = resolveCompetencyHint(personalContext);
     const verifiedLevel = profile.validated_level ?? VerifiedLevel.ENTRY;
     const track = profile.track ?? 'general';
 
@@ -948,7 +953,7 @@ export class AdvancedAssessmentService {
       input.questionType === QuestionType.OPTIONAL_TEXT;
 
     return {
-      difficulty: this.metadataDifficulty(input.verifiedLevel),
+      difficulty: metadataDifficulty(input.verifiedLevel),
       estimated_time_seconds: isTextQuestion ? 600 : 90,
       tags: [
         'generated',
@@ -961,23 +966,12 @@ export class AdvancedAssessmentService {
       ].filter((tag): tag is string => Boolean(tag)),
       generated: true,
       answer_block: input.block,
-      lt3_reflection:
-        input.slotType === SlotType.REFLECTION || input.block === 'long_text',
+      lt3_reflection: input.slotType === SlotType.REFLECTION,
       industry_context: input.industryContext,
       track: input.track,
       verified_level: input.verifiedLevel,
       competency: input.competency,
     };
-  }
-
-  private metadataDifficulty(level: VerifiedLevel): 'easy' | 'medium' | 'hard' {
-    if (level === VerifiedLevel.ENTRY || level === VerifiedLevel.JUNIOR) {
-      return 'easy';
-    }
-    if (level === VerifiedLevel.MID) {
-      return 'medium';
-    }
-    return 'hard';
   }
 
   private async nextAdvancedQuestionNumber(
@@ -992,34 +986,6 @@ export class AdvancedAssessmentService {
       .getRawOne<{ max: string | null }>();
 
     return Number(row?.max ?? 0) + 1;
-  }
-
-  private resolveIndustryContext(
-    context: Record<string, unknown>,
-  ): string | undefined {
-    const industries = context['industries'];
-    if (Array.isArray(industries) && industries.length > 0) {
-      return industries.map(String).join(', ');
-    }
-
-    const jobTitle = context['job_title'];
-    return typeof jobTitle === 'string' && jobTitle.trim().length > 0
-      ? jobTitle.trim()
-      : undefined;
-  }
-
-  private resolveCompetencyHint(
-    context: Record<string, unknown>,
-  ): string | undefined {
-    const specialization = context['specialization'];
-    if (typeof specialization === 'string' && specialization.trim().length > 0) {
-      return specialization.trim();
-    }
-
-    const primaryToolDuration = context['primary_tool_duration'];
-    return typeof primaryToolDuration === 'string'
-      ? primaryToolDuration
-      : undefined;
   }
 
   private isMcq(question: AssessmentQuestion): boolean {

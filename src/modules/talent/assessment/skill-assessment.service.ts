@@ -31,6 +31,11 @@ import { GuidanceReportService } from '../../ai/guidance-report.service';
 import { QuestionGenerationService } from '../../ai/question-generation.service';
 import { GuidanceReport, ScoredTextAnswer } from '../../ai/ai.types';
 import { PersonalAssessmentService } from './personal-assessment.service';
+import {
+  metadataDifficulty,
+  resolveCompetencyHint,
+  resolveIndustryContext,
+} from './assessment-utils';
 
 const SKILL_ASSESSMENT_MCQ_COUNT = 6;
 const SKILL_ASSESSMENT_TEXT_COUNT = 4;
@@ -160,8 +165,8 @@ export class SkillAssessmentService {
     const verifiedLevel = profile.claimed_level;
     const personalContext =
       await this.personalAssessmentService.getAiContext(userId);
-    const industryContext = this.resolveIndustryContext(personalContext);
-    const competencyHint = this.resolveCompetencyHint(personalContext);
+    const industryContext = resolveIndustryContext(personalContext);
+    const competencyHint = resolveCompetencyHint(personalContext);
 
     const [generatedMcqs, generatedTexts] = await Promise.all([
       this.questionGeneration.generateQuestions({
@@ -504,7 +509,7 @@ export class SkillAssessmentService {
       input.questionType === QuestionType.OPTIONAL_TEXT;
 
     return {
-      difficulty: this.metadataDifficulty(input.verifiedLevel),
+      difficulty: metadataDifficulty(input.verifiedLevel),
       estimated_time_seconds: isTextQuestion ? 300 : 90,
       tags: [
         'generated',
@@ -520,16 +525,6 @@ export class SkillAssessmentService {
     };
   }
 
-  private metadataDifficulty(level: VerifiedLevel): 'easy' | 'medium' | 'hard' {
-    if (level === VerifiedLevel.ENTRY || level === VerifiedLevel.JUNIOR) {
-      return 'easy';
-    }
-    if (level === VerifiedLevel.MID) {
-      return 'medium';
-    }
-    return 'hard';
-  }
-
   private async nextSkillQuestionNumber(): Promise<number> {
     const row = await this.questionRepo
       .createQueryBuilder('question')
@@ -540,34 +535,6 @@ export class SkillAssessmentService {
       .getRawOne<{ max: string | null }>();
 
     return Number(row?.max ?? 0) + 1;
-  }
-
-  private resolveIndustryContext(
-    context: Record<string, unknown>,
-  ): string | undefined {
-    const industries = context['industries'];
-    if (Array.isArray(industries) && industries.length > 0) {
-      return industries.map(String).join(', ');
-    }
-
-    const jobTitle = context['job_title'];
-    return typeof jobTitle === 'string' && jobTitle.trim().length > 0
-      ? jobTitle.trim()
-      : undefined;
-  }
-
-  private resolveCompetencyHint(
-    context: Record<string, unknown>,
-  ): string | undefined {
-    const specialization = context['specialization'];
-    if (typeof specialization === 'string' && specialization.trim().length > 0) {
-      return specialization.trim();
-    }
-
-    const primaryToolDuration = context['primary_tool_duration'];
-    return typeof primaryToolDuration === 'string'
-      ? primaryToolDuration
-      : undefined;
   }
 
   private readSessionPayload(
