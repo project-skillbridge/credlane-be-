@@ -474,17 +474,60 @@ export class SkillAssessmentService {
         correct_answer: question.correct_answer,
         track,
         verified_level: verifiedLevel,
-        competency: question.competency,
-        slot_type: question.slot_type,
-        metadata: {
-          generated: true,
-          industry_context: question.industry_context,
-        },
+        competency: question.competency ?? 'general',
+        slot_type: null,
+        metadata: this.buildGeneratedQuestionMetadata({
+          track,
+          verifiedLevel,
+          questionType: question.question_type,
+          competency: question.competency ?? 'general',
+          slotType: question.slot_type,
+          industryContext: question.industry_context,
+        }),
         is_live: false,
       }),
     );
 
     return this.questionRepo.save(questions);
+  }
+
+  private buildGeneratedQuestionMetadata(input: {
+    track: string;
+    verifiedLevel: VerifiedLevel;
+    questionType: QuestionType;
+    competency: string | null;
+    slotType: SlotType | null;
+    industryContext: string | null;
+  }): Record<string, unknown> {
+    const isTextQuestion =
+      input.questionType === QuestionType.REQUIRED_TEXT ||
+      input.questionType === QuestionType.OPTIONAL_TEXT;
+
+    return {
+      difficulty: this.metadataDifficulty(input.verifiedLevel),
+      estimated_time_seconds: isTextQuestion ? 300 : 90,
+      tags: [
+        'generated',
+        'skill',
+        input.track,
+        input.verifiedLevel,
+        input.competency,
+        input.slotType,
+      ].filter((tag): tag is string => Boolean(tag)),
+      generated: true,
+      industry_context: input.industryContext,
+      slot_type: input.slotType,
+    };
+  }
+
+  private metadataDifficulty(level: VerifiedLevel): 'easy' | 'medium' | 'hard' {
+    if (level === VerifiedLevel.ENTRY || level === VerifiedLevel.JUNIOR) {
+      return 'easy';
+    }
+    if (level === VerifiedLevel.MID) {
+      return 'medium';
+    }
+    return 'hard';
   }
 
   private async nextSkillQuestionNumber(): Promise<number> {

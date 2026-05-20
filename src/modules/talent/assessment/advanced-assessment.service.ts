@@ -910,23 +910,74 @@ export class AdvancedAssessmentService {
         question_number: nextQuestionNumber + index,
         options: question.options,
         correct_answer: question.correct_answer,
-        track,
-        verified_level: verifiedLevel,
-        competency: question.competency,
+        track: null,
+        verified_level: null,
+        competency: null,
         slot_type:
           question.slot_type ??
           (question.block === 'long_text' ? SlotType.WORK_TASK : SlotType.SITUATIONAL),
-        metadata: {
-          generated: true,
-          answer_block: question.block,
-          lt3_reflection:
-            question.slot_type === SlotType.REFLECTION || question.block === 'long_text',
-        },
+        metadata: this.buildGeneratedQuestionMetadata({
+          track,
+          verifiedLevel,
+          questionType: question.question_type,
+          competency: question.competency,
+          slotType:
+            question.slot_type ??
+            (question.block === 'long_text' ? SlotType.WORK_TASK : SlotType.SITUATIONAL),
+          block: question.block,
+          industryContext: question.industry_context,
+        }),
         is_live: false,
       }),
     );
 
     return manager.save(AssessmentQuestion, questions);
+  }
+
+  private buildGeneratedQuestionMetadata(input: {
+    track: string;
+    verifiedLevel: VerifiedLevel;
+    questionType: QuestionType;
+    competency: string | null;
+    slotType: SlotType;
+    block: 'mcq' | 'short_text' | 'long_text';
+    industryContext: string | null;
+  }): Record<string, unknown> {
+    const isTextQuestion =
+      input.questionType === QuestionType.REQUIRED_TEXT ||
+      input.questionType === QuestionType.OPTIONAL_TEXT;
+
+    return {
+      difficulty: this.metadataDifficulty(input.verifiedLevel),
+      estimated_time_seconds: isTextQuestion ? 600 : 90,
+      tags: [
+        'generated',
+        'advanced',
+        input.track,
+        input.verifiedLevel,
+        input.competency,
+        input.slotType,
+        input.block,
+      ].filter((tag): tag is string => Boolean(tag)),
+      generated: true,
+      answer_block: input.block,
+      lt3_reflection:
+        input.slotType === SlotType.REFLECTION || input.block === 'long_text',
+      industry_context: input.industryContext,
+      track: input.track,
+      verified_level: input.verifiedLevel,
+      competency: input.competency,
+    };
+  }
+
+  private metadataDifficulty(level: VerifiedLevel): 'easy' | 'medium' | 'hard' {
+    if (level === VerifiedLevel.ENTRY || level === VerifiedLevel.JUNIOR) {
+      return 'easy';
+    }
+    if (level === VerifiedLevel.MID) {
+      return 'medium';
+    }
+    return 'hard';
   }
 
   private async nextAdvancedQuestionNumber(
