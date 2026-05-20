@@ -80,6 +80,11 @@ export const ErrorMessages = {
     TRACK_REQUIRED_FOR_PERSONALISE: 'Track is required to generate assessments',
     PERSONALISATION_FAILED: 'Personalisation failed, please try again',
   },
+  VERIFIED_PROFILE: {
+    NOT_AVAILABLE:
+      'Verified profile is only available for job-ready talents who have completed the advanced assessment',
+    NOT_FOUND: 'Verified profile not found',
+  },
   COMMON: {
     INSUFFICIENT_PERMISSIONS: 'Insufficient permissions',
     INTERNAL_SERVER_ERROR: 'Internal server error',
