@@ -5,7 +5,12 @@ import {
   Injectable,
   ValidationPipe,
 } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, Reflector } from '@nestjs/core';
+import {
+  APP_FILTER,
+  APP_GUARD,
+  APP_INTERCEPTOR,
+  Reflector,
+} from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import request from 'supertest';
@@ -16,7 +21,6 @@ import { TransformInterceptor } from '../src/common/interceptors/transform.inter
 import { PersonalAssessmentController } from '../src/modules/talent/assessment/personal-assessment.controller';
 import { PersonalAssessmentService } from '../src/modules/talent/assessment/personal-assessment.service';
 import {
-  buildFullPersonalAssessmentAnswers,
   makeTalentProfile,
   makeTalentUser,
   section1Answers,
@@ -24,7 +28,6 @@ import {
 import { TalentProfile } from '../src/modules/talent/entities/talent-profile.entity';
 import { UserRole } from '../src/modules/users/entities/user.entity';
 import { UsersService } from '../src/modules/users/users.service';
-import { OAUTH_DEFAULT_COUNTRY } from '../src/modules/users/users.service';
 
 type AuthUser = {
   sub: string;
@@ -81,7 +84,9 @@ describe('Personal assessment (e2e)', () => {
         {
           provide: getRepositoryToken(TalentProfile),
           useValue: (() => {
-            const resolveProfile = (options?: { where?: { user_id: string } }) =>
+            const resolveProfile = (options?: {
+              where?: { user_id: string };
+            }) =>
               options?.where?.user_id === talentUser.id ? profileStore : null;
 
             const persistProfile = (profile: TalentProfile) => {
@@ -90,47 +95,60 @@ describe('Personal assessment (e2e)', () => {
             };
 
             const entityManager = {
-              findOne: jest.fn().mockImplementation(
-                (
-                  entityOrOptions: { where?: { user_id: string } },
-                  maybeOptions?: { where?: { user_id: string } },
-                ) =>
-                  Promise.resolve(resolveProfile(maybeOptions ?? entityOrOptions)),
-              ),
-              create: jest.fn().mockImplementation(
-                (_entity: unknown, data: Partial<TalentProfile>) => {
-                  profileStore = makeTalentProfile({
-                    ...data,
-                    user_id: talentUser.id,
-                  });
-                  return profileStore;
-                },
-              ),
-              save: jest.fn().mockImplementation(
-                (_entity: unknown, profile: TalentProfile) =>
-                  persistProfile(profile),
-              ),
+              findOne: jest
+                .fn()
+                .mockImplementation(
+                  (
+                    entityOrOptions: { where?: { user_id: string } },
+                    maybeOptions?: { where?: { user_id: string } },
+                  ) =>
+                    Promise.resolve(
+                      resolveProfile(maybeOptions ?? entityOrOptions),
+                    ),
+                ),
+              create: jest
+                .fn()
+                .mockImplementation(
+                  (_entity: unknown, data: Partial<TalentProfile>) => {
+                    profileStore = makeTalentProfile({
+                      ...data,
+                      user_id: talentUser.id,
+                    });
+                    return profileStore;
+                  },
+                ),
+              save: jest
+                .fn()
+                .mockImplementation(
+                  (_entity: unknown, profile: TalentProfile) =>
+                    persistProfile(profile),
+                ),
             };
 
             return {
               findOne: entityManager.findOne,
-              create: jest.fn().mockImplementation(
-                (data: Partial<TalentProfile>) => {
+              create: jest
+                .fn()
+                .mockImplementation((data: Partial<TalentProfile>) => {
                   profileStore = makeTalentProfile({
                     ...data,
                     user_id: talentUser.id,
                   });
                   return profileStore;
-                },
-              ),
-              save: jest.fn().mockImplementation((profile: TalentProfile) =>
-                persistProfile(profile),
-              ),
-              manager: {
-                transaction: jest.fn().mockImplementation(
-                  (work: (manager: typeof entityManager) => Promise<unknown>) =>
-                    work(entityManager),
+                }),
+              save: jest
+                .fn()
+                .mockImplementation((profile: TalentProfile) =>
+                  persistProfile(profile),
                 ),
+              manager: {
+                transaction: jest
+                  .fn()
+                  .mockImplementation(
+                    (
+                      work: (manager: typeof entityManager) => Promise<unknown>,
+                    ) => work(entityManager),
+                  ),
               },
             };
           })(),
@@ -185,6 +203,31 @@ describe('Personal assessment (e2e)', () => {
           sectionsCompleted: 1,
           isComplete: false,
         });
+      });
+  });
+
+  it('POST /api/v1/talent/assessment/personal/submit saves and completes generated answers', async () => {
+    MockJwtAuthGuard.nextUser = {
+      sub: talentUser.id,
+      email: talentUser.email,
+      role: UserRole.TALENT,
+      onboardingComplete: true,
+    };
+
+    const startResponse = await request(app.getHttpServer())
+      .post('/api/v1/talent/assessment/personal/start')
+      .expect(201);
+
+    expect(startResponse.body.data.session).toBeDefined();
+
+    await request(app.getHttpServer())
+      .post('/api/v1/talent/assessment/personal/submit')
+      .send({ answers: { job_title: 'Software Engineer' } })
+      .expect(200)
+      .expect((res) => {
+        expect(res.body.status_code).toBe(200);
+        expect(res.body.status).toBe('success');
+        expect(res.body.completedAt).toBeDefined();
       });
   });
 
@@ -260,16 +303,25 @@ describe('Personal assessment (e2e)', () => {
       });
   });
 
-  it('POST /api/v1/talent/assessment/personal/complete succeeds with full answers', async () => {
-    profileStore.personal_assessment_answers = {
-      ...buildFullPersonalAssessmentAnswers(),
-      _meta: { completedSections: [1, 2, 3, 4, 5, 6, 7] },
-    };
+  it('POST /api/v1/talent/assessment/personal/complete succeeds with stored generated answers', async () => {
     MockJwtAuthGuard.nextUser = {
       sub: talentUser.id,
       email: talentUser.email,
       role: UserRole.TALENT,
       onboardingComplete: true,
+    };
+
+    const startResponse = await request(app.getHttpServer())
+      .post('/api/v1/talent/assessment/personal/start')
+      .expect(201);
+
+    const generatedSession =
+      startResponse.body.data?.session ?? startResponse.body.session;
+
+    profileStore.personal_assessment_answers = {
+      ...section1Answers(),
+      claimed_level: 'mid',
+      _meta: { generatedSession },
     };
 
     await request(app.getHttpServer())
@@ -281,10 +333,9 @@ describe('Personal assessment (e2e)', () => {
       });
   });
 
-  it('POST /api/v1/talent/assessment/personal/complete rejects unsaved sections', async () => {
+  it('POST /api/v1/talent/assessment/personal/complete rejects when the generated session is missing', async () => {
     profileStore.personal_assessment_answers = {
-      ...buildFullPersonalAssessmentAnswers(),
-      _meta: { completedSections: [1, 2] },
+      claimed_level: 'mid',
     };
     MockJwtAuthGuard.nextUser = {
       sub: talentUser.id,
@@ -297,26 +348,14 @@ describe('Personal assessment (e2e)', () => {
       .post('/api/v1/talent/assessment/personal/complete')
       .expect(422)
       .expect((res) => {
-        expect(res.body.message).toBe('Personal assessment is incomplete');
-        expect(res.body.incompleteSections).toEqual(
-          expect.arrayContaining([3, 4, 5, 6, 7]),
+        expect(res.body.message).toBe(
+          'Generate a personal assessment session before submitting answers',
         );
       });
   });
 
-  it('POST /api/v1/talent/assessment/personal/complete rejects Unknown country', async () => {
-    profileStore.personal_assessment_answers = {
-      ...buildFullPersonalAssessmentAnswers(),
-      _meta: { completedSections: [1, 2, 3, 4, 5, 6, 7] },
-    };
-    const usersWithUnknown = makeTalentUser({
-      id: talentUser.id,
-      country: OAUTH_DEFAULT_COUNTRY,
-    });
-
-    const moduleRef = app.get(UsersService);
-    (moduleRef.findOne as jest.Mock).mockResolvedValue(usersWithUnknown);
-
+  it('POST /api/v1/talent/assessment/personal/complete rejects when onboarding fields are missing', async () => {
+    profileStore.region = null;
     MockJwtAuthGuard.nextUser = {
       sub: talentUser.id,
       email: talentUser.email,
@@ -329,7 +368,7 @@ describe('Personal assessment (e2e)', () => {
       .expect(422)
       .expect((res) => {
         expect(res.body.missingOnboardingFields).toEqual(
-          expect.arrayContaining(['country']),
+          expect.arrayContaining(['region']),
         );
       });
   });

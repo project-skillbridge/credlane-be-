@@ -41,11 +41,18 @@ import { GuidanceReportService } from '../../ai/guidance-report.service';
 import { EmployerPoolProfileService } from './employer-pool-profile.service';
 import { GeneratedQuestion, GuidanceReport, ScoredTextAnswer, TextAnswerInput } from '../../ai/ai.types';
 import { QuestionGenerationService } from '../../ai/question-generation.service';
+import { MailService } from '../../mail/mail.service';
+import { UsersService } from '../../users/users.service';
 import {
   FlagIntegrityEventDto,
   IntegrityEventType,
   SubmitAdvancedAssessmentDto,
 } from './dto/advanced-assessment.dto';
+import {
+  metadataDifficulty,
+  resolveCompetencyHint,
+  resolveIndustryContext,
+} from './assessment-utils';
 
 const ADVANCED_ASSESSMENT_DURATION_MINUTES = 90;
 const RETAKE_GATE_DAYS = 14;
@@ -130,6 +137,8 @@ export class AdvancedAssessmentService {
     private readonly guidanceReport: GuidanceReportService,
     private readonly employerPoolProfileService: EmployerPoolProfileService,
     private readonly questionGeneration: QuestionGenerationService,
+    private readonly usersService: UsersService,
+    private readonly mailService: MailService,
   ) {}
 
   async start(userId: string): Promise<AdvancedAssessmentSessionResult> {
@@ -536,6 +545,13 @@ export class AdvancedAssessmentService {
       `Advanced assessment submitted: attempt=${attempt.id} user=${userId} score=${totalRawScore}/${maxScore} (${percentage}%) tier=${tier} expired=${isExpired}`,
     );
 
+    await this.notifyAssessmentPerformanceEmail(userId, {
+      score: Math.round(totalRawScore),
+      maxScore: maxScore,
+      percentage,
+      tier,
+    });
+
     return {
       status: 'success',
       message: SuccessMessages.ADVANCED_ASSESSMENT.SUBMITTED,
@@ -653,6 +669,50 @@ export class AdvancedAssessmentService {
       .trim();
 
     return userAnswer === correctAnswer;
+  }
+
+  private async notifyAssessmentPerformanceEmail(
+    userId: string,
+    result: {
+      score: number;
+      maxScore: number;
+      percentage: number;
+      tier: AssessmentTier;
+    },
+  ): Promise<void> {
+    try {
+      const user = await this.usersService.findOne(userId);
+      if (!user) {
+        this.logger.warn(
+          `Assessment performance email skipped: user not found user=${userId}`,
+        );
+        return;
+      }
+
+      await this.mailService.sendAssessmentPerformance({
+        to: user.email,
+        recipientFirstName: user.first_name,
+        score: result.score,
+        maxScore: result.maxScore,
+        percentage: result.percentage,
+        tierLabel: this.formatTierLabel(result.tier),
+      });
+    } catch (error) {
+      this.logger.error(
+        `Assessment performance email failed for user=${userId}: ${String(error)}`,
+      );
+    }
+  }
+
+  private formatTierLabel(tier: AssessmentTier): string {
+    switch (tier) {
+      case AssessmentTier.JOB_READY:
+        return 'Job Ready';
+      case AssessmentTier.EMERGING:
+        return 'Emerging';
+      default:
+        return 'Not Ready';
+    }
   }
 
   private resolveTier(percentage: number): AssessmentTier {
@@ -787,8 +847,8 @@ export class AdvancedAssessmentService {
     const longText = [...bankLong.slice(0, BASE_LONG_TEXT_COUNT)];
 
     const generatedQuestions: Array<GeneratedQuestion & { block: 'mcq' | 'short_text' | 'long_text' }> = [];
-    const industryContext = this.resolveIndustryContext(personalContext);
-    const competencyHint = this.resolveCompetencyHint(personalContext);
+    const industryContext = resolveIndustryContext(personalContext);
+    const competencyHint = resolveCompetencyHint(personalContext);
     const verifiedLevel = profile.validated_level ?? VerifiedLevel.ENTRY;
     const track = profile.track ?? 'general';
 
@@ -910,23 +970,63 @@ export class AdvancedAssessmentService {
         question_number: nextQuestionNumber + index,
         options: question.options,
         correct_answer: question.correct_answer,
-        track,
-        verified_level: verifiedLevel,
-        competency: question.competency,
+        track: null,
+        verified_level: null,
+        competency: null,
         slot_type:
           question.slot_type ??
           (question.block === 'long_text' ? SlotType.WORK_TASK : SlotType.SITUATIONAL),
-        metadata: {
-          generated: true,
-          answer_block: question.block,
-          lt3_reflection:
-            question.slot_type === SlotType.REFLECTION || question.block === 'long_text',
-        },
+        metadata: this.buildGeneratedQuestionMetadata({
+          track,
+          verifiedLevel,
+          questionType: question.question_type,
+          competency: question.competency,
+          slotType:
+            question.slot_type ??
+            (question.block === 'long_text' ? SlotType.WORK_TASK : SlotType.SITUATIONAL),
+          block: question.block,
+          industryContext: question.industry_context,
+        }),
         is_live: false,
       }),
     );
 
     return manager.save(AssessmentQuestion, questions);
+  }
+
+  private buildGeneratedQuestionMetadata(input: {
+    track: string;
+    verifiedLevel: VerifiedLevel;
+    questionType: QuestionType;
+    competency: string | null;
+    slotType: SlotType;
+    block: 'mcq' | 'short_text' | 'long_text';
+    industryContext: string | null;
+  }): Record<string, unknown> {
+    const isTextQuestion =
+      input.questionType === QuestionType.REQUIRED_TEXT ||
+      input.questionType === QuestionType.OPTIONAL_TEXT;
+
+    return {
+      difficulty: metadataDifficulty(input.verifiedLevel),
+      estimated_time_seconds: isTextQuestion ? 600 : 90,
+      tags: [
+        'generated',
+        'advanced',
+        input.track,
+        input.verifiedLevel,
+        input.competency,
+        input.slotType,
+        input.block,
+      ].filter((tag): tag is string => Boolean(tag)),
+      generated: true,
+      answer_block: input.block,
+      lt3_reflection: input.slotType === SlotType.REFLECTION,
+      industry_context: input.industryContext,
+      track: input.track,
+      verified_level: input.verifiedLevel,
+      competency: input.competency,
+    };
   }
 
   private async nextAdvancedQuestionNumber(
@@ -941,34 +1041,6 @@ export class AdvancedAssessmentService {
       .getRawOne<{ max: string | null }>();
 
     return Number(row?.max ?? 0) + 1;
-  }
-
-  private resolveIndustryContext(
-    context: Record<string, unknown>,
-  ): string | undefined {
-    const industries = context['industries'];
-    if (Array.isArray(industries) && industries.length > 0) {
-      return industries.map(String).join(', ');
-    }
-
-    const jobTitle = context['job_title'];
-    return typeof jobTitle === 'string' && jobTitle.trim().length > 0
-      ? jobTitle.trim()
-      : undefined;
-  }
-
-  private resolveCompetencyHint(
-    context: Record<string, unknown>,
-  ): string | undefined {
-    const specialization = context['specialization'];
-    if (typeof specialization === 'string' && specialization.trim().length > 0) {
-      return specialization.trim();
-    }
-
-    const primaryToolDuration = context['primary_tool_duration'];
-    return typeof primaryToolDuration === 'string'
-      ? primaryToolDuration
-      : undefined;
   }
 
   private isMcq(question: AssessmentQuestion): boolean {

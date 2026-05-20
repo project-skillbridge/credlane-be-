@@ -139,6 +139,8 @@ describe('AdvancedAssessmentService', () => {
   let guidanceReport: { generate: jest.Mock };
   let employerPoolProfileService: { upsert: jest.Mock };
   let questionGeneration: {};
+  let usersService: { findOne: jest.Mock };
+  let mailService: { sendAssessmentPerformance: jest.Mock };
 
   const userId = 'talent-user-1';
   let profileStore = makeTalentProfile({
@@ -226,6 +228,19 @@ describe('AdvancedAssessmentService', () => {
       upsert: jest.fn().mockResolvedValue({}),
     };
 
+    usersService = {
+      findOne: jest.fn().mockResolvedValue({
+        id: userId,
+        email: 'talent@example.com',
+        first_name: 'Jane',
+        last_name: 'Doe',
+      }),
+    };
+
+    mailService = {
+      sendAssessmentPerformance: jest.fn().mockResolvedValue({ id: 'email-1' }),
+    };
+
     service = new AdvancedAssessmentService(
       talentProfileRepo as never,
       questionRepo as never,
@@ -237,6 +252,8 @@ describe('AdvancedAssessmentService', () => {
       guidanceReport as never,
       employerPoolProfileService as never,
       questionGeneration as never,
+      usersService as never,
+      mailService as never,
     );
   });
 
@@ -251,6 +268,38 @@ describe('AdvancedAssessmentService', () => {
       expect(result.max_score).toBe(110);
       expect(result.percentage).toBeGreaterThanOrEqual(0);
       expect(Object.values(AssessmentTier)).toContain(result.tier);
+    });
+
+    it('sends a performance email after scoring completes', async () => {
+      await service.submit(userId, makeSubmitDto() as never);
+
+      expect(usersService.findOne).toHaveBeenCalledWith(userId);
+      expect(mailService.sendAssessmentPerformance).toHaveBeenCalledWith(
+        expect.objectContaining({
+          to: 'talent@example.com',
+          recipientFirstName: 'Jane',
+          maxScore: 110,
+        }),
+      );
+    });
+
+    it('still returns success when the performance email fails', async () => {
+      mailService.sendAssessmentPerformance.mockRejectedValue(
+        new Error('Resend unavailable'),
+      );
+
+      const result = await service.submit(userId, makeSubmitDto() as never);
+
+      expect(result.status).toBe('success');
+    });
+
+    it('skips performance email when findOne returns no user', async () => {
+      usersService.findOne.mockResolvedValue(null);
+
+      const result = await service.submit(userId, makeSubmitDto() as never);
+
+      expect(result.status).toBe('success');
+      expect(mailService.sendAssessmentPerformance).not.toHaveBeenCalled();
     });
 
     it('sets tier job_ready when percentage ≥ 75 and calls employer pool upsert', async () => {
