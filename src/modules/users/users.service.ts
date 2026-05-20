@@ -60,7 +60,8 @@ export class UsersService {
   ) {}
 
   async create(dto: CreateUserDto): Promise<User> {
-    const existing = await this.userModelAction.findByEmail(dto.email);
+    const normalizedEmail = dto.email.toLowerCase().trim();
+    const existing = await this.userModelAction.findByEmail(normalizedEmail);
     if (existing) {
       throw new ConflictError(ErrorMessages.USER.EMAIL_ALREADY_REGISTERED);
     }
@@ -70,21 +71,29 @@ export class UsersService {
       dto.signup_reason == null || dto.signup_reason.trim() === ''
         ? null
         : dto.signup_reason.trim();
-    return this.userModelAction.create({
-      ...NO_TRANSACTION,
-      createPayload: {
-        email: dto.email,
-        password: passwordHash,
-        first_name: dto.first_name,
-        last_name: dto.last_name,
-        country: dto.country,
-        avatar_url: dto.profile_pic_url ?? null,
-        is_verified: false,
-        onboarding_complete: false,
-        role: dto.role ?? UserRole.TALENT,
-        signup_reason: signupReason,
-      },
-    });
+
+    try {
+      return await this.userModelAction.create({
+        ...NO_TRANSACTION,
+        createPayload: {
+          email: normalizedEmail,
+          password: passwordHash,
+          first_name: dto.first_name,
+          last_name: dto.last_name,
+          country: dto.country,
+          avatar_url: dto.profile_pic_url ?? null,
+          is_verified: false,
+          onboarding_complete: false,
+          role: dto.role ?? UserRole.TALENT,
+          signup_reason: signupReason,
+        },
+      });
+    } catch (err) {
+      if (isPostgresUniqueViolation(err)) {
+        throw new ConflictError(ErrorMessages.USER.EMAIL_ALREADY_REGISTERED);
+      }
+      throw err;
+    }
   }
 
   findAll(pagination: PaginationDto) {
@@ -278,6 +287,8 @@ export class UsersService {
     profile: OAuthProviderProfileInput,
     signupRole?: OAuthSignupRole,
   ): Promise<User> {
+    const normalizedEmail = profile.email.toLowerCase().trim();
+
     const linked = await this.findOauthAccountWithUser(
       provider,
       profile.providerId,
@@ -286,7 +297,7 @@ export class UsersService {
       return linked.user;
     }
 
-    const byEmail = await this.findByEmail(profile.email);
+    const byEmail = await this.findByEmail(normalizedEmail);
     if (byEmail) {
       if (!byEmail.is_verified) {
         await this.markVerified(byEmail.id);
@@ -304,7 +315,7 @@ export class UsersService {
         throw new OAuthSignupRoleRequiredException();
       }
       return await this.createVerifiedUserWithOauthLink({
-        email: profile.email,
+        email: normalizedEmail,
         first_name: profile.firstName,
         last_name: profile.lastName,
         country: OAUTH_DEFAULT_COUNTRY,
@@ -317,7 +328,7 @@ export class UsersService {
       if (!isPostgresUniqueViolation(err)) {
         throw err;
       }
-      const raced = await this.findByEmail(profile.email);
+      const raced = await this.findByEmail(normalizedEmail);
       if (!raced) {
         throw err;
       }

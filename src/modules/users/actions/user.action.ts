@@ -31,7 +31,10 @@ export class UserModelAction extends AbstractModelAction<User> {
   }
 
   async findByEmail(email: string): Promise<User | null> {
-    return this.get({ identifierOptions: { email } });
+    const normalizedEmail = email.toLowerCase().trim();
+    return this.repository.findOne({
+      where: { email: normalizedEmail },
+    });
   }
 
   /**
