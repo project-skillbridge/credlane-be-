@@ -10,6 +10,7 @@ import {
   AssessmentQuestion,
   AssessmentResponse,
   AssessmentResult,
+  AssessmentScore,
   TalentQuestionHistory,
 } from '../assessments/entities';
 import { PersonalAssessmentController } from './assessment/personal-assessment.controller';
@@ -32,6 +33,7 @@ import { TalentService } from './talent.service';
       AssessmentAttempt,
       AssessmentResponse,
       AssessmentResult,
+      AssessmentScore,
       TalentQuestionHistory,
     ]),
     UsersModule,

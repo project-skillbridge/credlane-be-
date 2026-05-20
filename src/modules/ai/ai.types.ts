@@ -3,22 +3,24 @@ import { QuestionType, SlotType, VerifiedLevel } from '../assessments/entities/a
 // ── Rubric scoring ────────────────────────────────────────────────────────────
 
 export interface RubricDimensions {
-  relevance: number;    // 0–3
-  reasoning: number;    // 0–3
-  specificity: number;  // 0–3
-  completeness: number; // 0–3
+  relevance: number;    // 0–3 (0–4 for LT-3)
+  reasoning: number;    // 0–3 (0–4 for LT-3)
+  specificity: number;  // 0–3, always 0 for LT-3
+  completeness: number; // 0–3, always 0 for LT-3
 }
 
 export interface RubricScore extends RubricDimensions {
-  total: number;        // sum of dimensions (max 12, or max 6 for LT-3)
+  total: number;        // sum of dimensions (max 12, or max 8 for LT-3)
   feedback: string;     // one-sentence rationale
+  pending?: boolean;    // true when AI failed and a backfill should re-score this answer
 }
 
 export interface TextAnswerInput {
   question_id: string;
   question_text: string;
   answer: string;
-  is_lt3?: boolean; // LT-3 scored on Relevance + Reasoning only (max 6)
+  // LT-3 (reflection) is scored on Relevance + Reasoning only, 0–4 each, max 8.
+  is_lt3?: boolean;
 }
 
 export interface ScoredTextAnswer {
