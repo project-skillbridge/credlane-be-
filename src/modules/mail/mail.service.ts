@@ -2,7 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { Resend } from 'resend';
 import { env } from '../../config/env';
 import { loadMailTemplateFile, substituteMailTemplate } from './mail-templates';
-import type { PasswordResetEmailPayload, SendMailOptions } from './mail.types';
+import type {
+  AssessmentPerformanceEmailPayload,
+  PasswordResetEmailPayload,
+  SendMailOptions,
+} from './mail.types';
 import { OutboundEmailQueueService } from './outbound-email-queue.service';
 
 @Injectable()
@@ -87,6 +91,42 @@ export class MailService {
     return this.send({
       to: params.to,
       subject: 'Verify your SkillBridge email',
+      text,
+      html,
+    });
+  }
+
+  async sendAssessmentPerformance(params: AssessmentPerformanceEmailPayload) {
+    const base = env.FRONTEND_URL.replace(/\/$/, '');
+    const logoUrl =
+      env.EMAIL_LOGO_URL ??
+      'https://placehold.co/140x40/1f5f6b/ffffff/png?text=SkillBridge';
+    const dashboardUrl = `${base}/dashboard`;
+    const name = params.recipientFirstName.trim() || 'there';
+
+    const vars: Record<string, string> = {
+      name,
+      score: String(params.score),
+      maxScore: String(params.maxScore),
+      percentage: String(params.percentage),
+      tierLabel: params.tierLabel,
+      dashboardUrl,
+      logoUrl,
+      supportEmail: env.SUPPORT_EMAIL,
+      unsubscribeUrl: `${base}/email-preferences`,
+      year: String(new Date().getFullYear()),
+    };
+
+    const rawHtml = loadMailTemplateFile('assessment-performance.html');
+    const html = substituteMailTemplate(rawHtml, vars);
+    const text =
+      `Hi ${name},\n\n` +
+      `Your advanced assessment is complete. You scored ${vars.score}/${vars.maxScore} (${vars.percentage}%) — tier: ${vars.tierLabel}.\n\n` +
+      `View your full results on your dashboard: ${dashboardUrl}\n`;
+
+    return this.send({
+      to: params.to,
+      subject: 'Your SkillBridge assessment results are ready',
       text,
       html,
     });
