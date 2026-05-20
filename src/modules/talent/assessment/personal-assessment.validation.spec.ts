@@ -58,6 +58,7 @@ describe('validateSectionAnswers', () => {
       2,
       {
         specialization: 'frontend',
+        claimed_level: 'mid',
         primary_tool_duration: '1_2_years',
         mentoring_experience: 'yes_informally',
         shipped_deliverable: 'yes_multiple',
@@ -67,6 +68,27 @@ describe('validateSectionAnswers', () => {
     );
 
     expect(result.tools).toEqual([]);
+    expect(result.claimed_level).toBe('mid');
+  });
+
+  it('requires claimed_level in personal assessment section 2', () => {
+    try {
+      validateSectionAnswers(
+        2,
+        {
+          specialization: 'frontend',
+          primary_tool_duration: '1_2_years',
+          mentoring_experience: 'yes_informally',
+          shipped_deliverable: 'yes_multiple',
+        },
+        profile,
+      );
+      fail('expected UnprocessableEntityException');
+    } catch (error: unknown) {
+      const body = getExceptionBody(error);
+      expect(body.field).toBe('claimed_level');
+      expect(body.message).toBe('claimed_level is required');
+    }
   });
 
   it('requires onboarding track before validating specialization', () => {

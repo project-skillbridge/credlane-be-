@@ -101,19 +101,20 @@ export class TalentService {
   ): Promise<{ status: string; message: string }> {
     const profile = await this.findOrCreateProfile(userId);
     profile.track = dto.track;
-    profile.claimed_level = dto.claimed_level;
     if (profile.onboarding_step < 2) profile.onboarding_step = 2;
     await this.talentProfileRepository.save(profile);
     return { status: 'success', message: SuccessMessages.ONBOARDING.TRACK_SAVED };
   }
 
-  /** BE-ONB-TAL-003 — save profile (photo required, optional fields optional). */
+  /** BE-ONB-TAL-003 — save profile (photo optional, optional fields optional). */
   async saveTalentProfile(
     userId: string,
-    photo: Express.Multer.File,
+    photo: Express.Multer.File | undefined,
     dto: SaveTalentProfileDto,
   ): Promise<{ status: string; message: string }> {
-    const avatarUrl = await this.uploadService.uploadAvatar(photo);
+    const avatarUrl = photo
+      ? await this.uploadService.uploadAvatar(photo)
+      : null;
 
     await this.talentProfileRepository.manager.transaction(async (manager) => {
       let user: User;
@@ -126,7 +127,9 @@ export class TalentService {
         throw error;
       }
 
-      await manager.update(User, { id: userId }, { avatar_url: avatarUrl });
+      if (avatarUrl) {
+        await manager.update(User, { id: userId }, { avatar_url: avatarUrl });
+      }
 
       let profile = await manager.findOne(TalentProfile, { where: { user_id: userId } });
       if (!profile) {

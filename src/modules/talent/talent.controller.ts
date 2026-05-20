@@ -159,10 +159,10 @@ export class TalentController {
     return this.talentService.saveTrackStep(userId, dto);
   }
 
-  /** BE-ONB-TAL-003 — save profile; photo required, optional fields optional. */
+  /** BE-ONB-TAL-003 — save profile; photo optional, optional fields optional. */
   @Post('profile')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Step 3 — save talent profile with photo upload (BE-ONB-TAL-003)' })
+  @ApiOperation({ summary: 'Step 3 — save talent profile with optional photo upload (BE-ONB-TAL-003)' })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(
     FileInterceptor('photo', {
@@ -186,9 +186,6 @@ export class TalentController {
     @UploadedFile() photo: Express.Multer.File | undefined,
     @Body() dto: SaveTalentProfileDto,
   ) {
-    if (!photo) {
-      throw new UnprocessableEntityException(ErrorMessages.ONBOARDING.PHOTO_REQUIRED);
-    }
     return this.talentService.saveTalentProfile(userId, photo, dto);
   }
 

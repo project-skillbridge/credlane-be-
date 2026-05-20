@@ -85,7 +85,7 @@ export class PersonalAssessmentController {
   @ApiOperation({
     summary: 'Deprecated: Save personal assessment answers for one section (1–7)',
     description:
-      'Legacy compatibility route for the old staged flow. Prefer POST /submit for the generated assessment experience.',
+      'Legacy compatibility route for the old staged flow. Prefer POST /submit for the generated assessment experience. Ignores track, educationLevel, region, and linkedinProfile - those come from onboarding on the talent profile. claimedLevel/claimed_level is collected during personal assessment and saved to the talent profile.',
     deprecated: true,
   })
   @ApiUnprocessableEntityResponse({
@@ -115,7 +115,7 @@ export class PersonalAssessmentController {
   @ApiOperation({
     summary: 'Finalize submitted personal assessment answers',
     description:
-      'Finalizes the generated assessment using the stored answers and session metadata. Use POST /submit for the primary flow.',
+    'Finalizes the generated assessment using the stored answers and session metadata. Use POST /submit for the primary flow.',
   })
   @ApiUnprocessableEntityResponse({
     description: 'Missing onboarding fields, missing generated session, or already completed',

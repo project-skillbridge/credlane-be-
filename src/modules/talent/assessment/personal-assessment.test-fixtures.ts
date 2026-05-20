@@ -70,6 +70,7 @@ export function buildFullPersonalAssessmentAnswers(): Record<string, unknown> {
     student_status: 'no',
     primary_language: 'english',
     specialization: 'frontend',
+    claimed_level: VerifiedLevel.MID,
     primary_tool_duration: '1_2_years',
     mentoring_experience: 'yes_informally',
     shipped_deliverable: 'yes_multiple',

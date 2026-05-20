@@ -189,6 +189,19 @@ export class PersonalAssessmentService {
     };
   }
 
+  private normalizeAnswerAliases(
+    rawAnswers: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const normalized = { ...rawAnswers };
+    if (
+      normalized.claimed_level === undefined &&
+      normalized.claimedLevel !== undefined
+    ) {
+      normalized.claimed_level = normalized.claimedLevel;
+    }
+    return normalized;
+  }
+
   async startGenerated(userId: string): Promise<{
     status: string;
     message: string;
@@ -274,8 +287,9 @@ export class PersonalAssessmentService {
         }
 
         const sourceQuestions = this.resolveGeneratedSourceQuestions(session);
+        const normalizedAnswers = this.normalizeAnswerAliases(rawAnswers);
         const filtered = Object.fromEntries(
-          Object.entries(rawAnswers).filter(
+          Object.entries(normalizedAnswers).filter(
             ([key]) =>
               !SKIPPED_ONBOARDING_ANSWER_KEYS.has(key) ||
               key === 'claimed_level',
@@ -649,8 +663,9 @@ export class PersonalAssessmentService {
       throw new BadRequestException(ErrorMessages.ASSESSMENT.INVALID_SECTION);
     }
 
+    const normalizedAnswers = this.normalizeAnswerAliases(rawAnswers);
     const filtered = Object.fromEntries(
-      Object.entries(rawAnswers).filter(
+      Object.entries(normalizedAnswers).filter(
         ([key]) => !SKIPPED_ONBOARDING_ANSWER_KEYS.has(key),
       ),
     );
@@ -668,6 +683,10 @@ export class PersonalAssessmentService {
       }
 
       const validated = validateSectionAnswers(section, filtered, profile);
+      if (typeof validated.claimed_level === 'string') {
+        profile.claimed_level =
+          validated.claimed_level as TalentProfile['claimed_level'];
+      }
       profile.personal_assessment_answers = this.withSectionSaved(
         this.readStore(profile),
         section,
