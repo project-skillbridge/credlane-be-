@@ -101,7 +101,6 @@ export class TalentService {
   ): Promise<{ status: string; message: string }> {
     const profile = await this.findOrCreateProfile(userId);
     profile.track = dto.track;
-    profile.claimed_level = dto.claimed_level;
     if (profile.onboarding_step < 2) profile.onboarding_step = 2;
     await this.talentProfileRepository.save(profile);
     return { status: 'success', message: SuccessMessages.ONBOARDING.TRACK_SAVED };

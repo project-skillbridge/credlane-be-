@@ -44,8 +44,6 @@ export const SKIPPED_ONBOARDING_ANSWER_KEYS = new Set([
   'region',
   'skill_track',
   'track',
-  'claimed_level',
-  'claimedLevel',
   'portfolio_url',
   'linkedinProfile',
   'linkedin_url',
@@ -470,8 +468,6 @@ export const PERSONAL_ASSESSMENT_SECTIONS: Record<
       questionNumber: 13,
       inputType: 'single',
       required: true,
-      skipStorage: true,
-      profileField: 'claimed_level',
     },
     {
       key: 'tools',
