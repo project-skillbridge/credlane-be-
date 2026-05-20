@@ -1,8 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export enum DashboardJourneyStatus {
-  COMPLETE = 'complete',
-  ACTIVE = 'active',
+  AVAILABLE = 'available',
+  COMPLETED = 'completed',
   LOCKED = 'locked',
 }
 
@@ -15,7 +15,7 @@ export class JourneyOverviewItemDto {
 
   @ApiProperty({
     enum: DashboardJourneyStatus,
-    example: DashboardJourneyStatus.COMPLETE,
+    example: DashboardJourneyStatus.COMPLETED,
   })
   status: DashboardJourneyStatus;
 }
