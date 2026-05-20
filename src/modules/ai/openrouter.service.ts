@@ -1,4 +1,8 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { APICallError, generateText, Output, zodSchema } from 'ai';
 import { z } from 'zod';
@@ -10,7 +14,6 @@ export class OpenRouterService {
   private readonly provider: ReturnType<typeof createOpenRouter>;
   private readonly model: string;
   private readonly maxRetries = 4;
-  private readonly timeoutMs = 45_000;
 
   constructor() {
     if (!env.OPENROUTER_API_KEY) {
@@ -51,17 +54,16 @@ export class OpenRouterService {
         output: Output.object({ schema: zodSchema(schema) }),
         temperature,
         maxRetries: this.maxRetries,
-        timeout: this.timeoutMs,
-        messages: [
-          { role: 'system', content: systemPrompt },
-          { role: 'user', content: userPrompt },
-        ],
+        system: systemPrompt,
+        prompt: userPrompt,
       });
 
       return result.output;
     } catch (error: unknown) {
       this.logger.error(this.formatError(error));
-      throw new ServiceUnavailableException('AI service temporarily unavailable');
+      throw new ServiceUnavailableException(
+        'AI service temporarily unavailable',
+      );
     }
   }
 
