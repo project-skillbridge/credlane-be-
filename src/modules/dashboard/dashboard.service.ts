@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Not, Repository } from 'typeorm';
 import { ErrorMessages, ForbiddenError } from '../../shared';
 import {
   TalentProfile,
@@ -24,6 +24,7 @@ import {
   AssessmentType,
 } from '../assessments/entities';
 import { VerifiedLevel } from '../assessments/entities/assessment-question.entity';
+import { SKILL_ASSESSMENT_MAX_ATTEMPTS } from '../talent/talent.constants';
 
 const SKILL_PASS_PERCENTAGE = 75;
 
@@ -35,6 +36,8 @@ export class DashboardService {
     private readonly usersService: UsersService,
     @InjectRepository(AssessmentResult)
     private readonly assessmentResultRepository: Repository<AssessmentResult>,
+    @InjectRepository(AssessmentAttempt)
+    private readonly assessmentAttemptRepository: Repository<AssessmentAttempt>,
   ) {}
 
   async getHome(userId: string): Promise<DashboardHomeResponse> {
@@ -235,6 +238,16 @@ export class DashboardService {
     ];
   }
 
+  private countCompletedSkillAttempts(talentProfileId: string): Promise<number> {
+    return this.assessmentAttemptRepository.count({
+      where: {
+        talent_profile_id: talentProfileId,
+        assessment_type: AssessmentType.SKILL,
+        completed_at: Not(IsNull()),
+      },
+    });
+  }
+
   private async getLatestResult(
     talentProfileId: string,
     assessmentType: AssessmentType,
@@ -273,7 +286,14 @@ export class DashboardService {
         : DashboardJourneyStatus.LOCKED;
 
     let skillStatus: DashboardJourneyStatus;
-    if (profile.skill_assessment_completed_at) {
+    const skillAttemptsExhausted =
+      !profile.advanced_assessment_completed_at &&
+      (await this.countCompletedSkillAttempts(profile.id)) >=
+        SKILL_ASSESSMENT_MAX_ATTEMPTS;
+
+    if (skillAttemptsExhausted) {
+      skillStatus = DashboardJourneyStatus.LOCKED;
+    } else if (profile.skill_assessment_completed_at) {
       skillStatus = DashboardJourneyStatus.COMPLETED;
     } else if (!this.canStartSkillAssessment(profile)) {
       skillStatus = DashboardJourneyStatus.LOCKED;

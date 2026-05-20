@@ -44,6 +44,9 @@ export const ErrorMessages = {
       'Assessment attempt has no questions; please start a new session',
     PASS_REQUIRED:
       'You need a score of 75% or higher in the skill assessment before starting the advanced assessment',
+    MAX_ATTEMPTS_REACHED:
+      'You have used all three skill assessment attempts. Complete the advanced assessment to unlock further skill retakes.',
+    ACTIVE_SESSION_EXISTS: 'Active skill assessment session already exists',
   },
   ADVANCED_ASSESSMENT: {
     PROFILE_NOT_FOUND: 'Talent profile not found',
@@ -83,6 +86,14 @@ export const ErrorMessages = {
     PHOTO_TOO_LARGE: 'File size too large, please upload a smaller image',
     TRACK_REQUIRED_FOR_PERSONALISE: 'Track is required to generate assessments',
     PERSONALISATION_FAILED: 'Personalisation failed, please try again',
+  },
+  VERIFIED_PROFILE: {
+    NOT_AVAILABLE:
+      'Verified profile is only available for job-ready talents who have completed the advanced assessment',
+    NOT_FOUND: 'Verified profile not found',
+    INVALID_TOKEN: 'Invalid share link token',
+    TIMESTAMP_UNAVAILABLE:
+      'Verified profile verification timestamp is not available',
   },
   COMMON: {
     INSUFFICIENT_PERMISSIONS: 'Insufficient permissions',

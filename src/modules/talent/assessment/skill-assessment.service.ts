@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -7,7 +8,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { EntityManager, In, IsNull, Not, Repository } from 'typeorm';
 import {
   AssessmentAttempt,
   AssessmentQuestion,
@@ -25,7 +26,10 @@ import {
 } from '../entities/talent-profile.entity';
 import { SubmitSkillAssessmentDto } from './dto/skill-assessment.dto';
 import { ErrorMessages, SuccessMessages } from '../../../shared';
-import { SKILL_ASSESSMENT_LEVEL_THRESHOLDS } from '../talent.constants';
+import {
+  SKILL_ASSESSMENT_LEVEL_THRESHOLDS,
+  SKILL_ASSESSMENT_MAX_ATTEMPTS,
+} from '../talent.constants';
 import { RubricScoringService } from '../../ai/rubric-scoring.service';
 import { GuidanceReportService } from '../../ai/guidance-report.service';
 import { QuestionGenerationService } from '../../ai/question-generation.service';
@@ -125,6 +129,65 @@ export class SkillAssessmentService {
     private readonly personalAssessmentService: PersonalAssessmentService,
   ) {}
 
+  private countCompletedSkillAttempts(
+    talentProfileId: string,
+    manager?: EntityManager,
+  ): Promise<number> {
+    const attemptRepository = manager
+      ? manager.getRepository(AssessmentAttempt)
+      : this.attemptRepo;
+
+    return attemptRepository.count({
+      where: {
+        talent_profile_id: talentProfileId,
+        assessment_type: AssessmentType.SKILL,
+        completed_at: Not(IsNull()),
+      },
+    });
+  }
+
+  private async assertSkillAssessmentAttemptsRemaining(
+    profile: TalentProfile,
+    manager?: EntityManager,
+  ): Promise<void> {
+    if (profile.advanced_assessment_completed_at) {
+      return;
+    }
+
+    const attemptRepository = manager
+      ? manager.getRepository(AssessmentAttempt)
+      : this.attemptRepo;
+
+    const completedAttempts = await this.countCompletedSkillAttempts(
+      profile.id,
+      manager,
+    );
+    if (completedAttempts >= SKILL_ASSESSMENT_MAX_ATTEMPTS) {
+      throw new ForbiddenException(
+        ErrorMessages.SKILL_ASSESSMENT.MAX_ATTEMPTS_REACHED,
+      );
+    }
+
+    if (manager) {
+      const activeAttempt = await attemptRepository.findOne({
+        where: {
+          talent_profile_id: profile.id,
+          assessment_type: AssessmentType.SKILL,
+          completed_at: IsNull(),
+          force_submitted: false,
+        },
+      });
+
+      if (activeAttempt) {
+        throw new ConflictException({
+          error: 'CONFLICT',
+          message: ErrorMessages.SKILL_ASSESSMENT.ACTIVE_SESSION_EXISTS,
+          existing_session_id: activeAttempt.id,
+        });
+      }
+    }
+  }
+
   async start(userId: string): Promise<StartSkillAssessmentResult> {
     const profile = await this.talentProfileRepo.findOne({
       where: { user_id: userId },
@@ -161,6 +224,9 @@ export class SkillAssessmentService {
         ),
       );
     }
+
+    // block start if max of 3 is reached
+    await this.assertSkillAssessmentAttemptsRemaining(profile);
 
     const verifiedLevel = profile.claimed_level;
     const personalContext =
@@ -206,18 +272,39 @@ export class SkillAssessmentService {
       correct_answer: question.correct_answer,
     }));
 
-    const attempt = this.attemptRepo.create({
-      talent_profile_id: profile.id,
-      assessment_type: AssessmentType.SKILL,
-      started_at: new Date(),
-      completed_at: null,
-      expires_at: null,
-      generated_questions_json: {
-        context: { verified_level: verifiedLevel },
-        questions: orderedQuestions,
+    const savedAttempt = await this.talentProfileRepo.manager.transaction(
+      async (manager) => {
+        const lockedProfile = await manager.findOne(TalentProfile, {
+          where: { id: profile.id },
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        if (!lockedProfile) {
+          throw new NotFoundException(
+            ErrorMessages.SKILL_ASSESSMENT.PROFILE_NOT_FOUND,
+          );
+        }
+
+        await this.assertSkillAssessmentAttemptsRemaining(
+          lockedProfile,
+          manager,
+        );
+
+        const attempt = manager.create(AssessmentAttempt, {
+          talent_profile_id: lockedProfile.id,
+          assessment_type: AssessmentType.SKILL,
+          started_at: new Date(),
+          completed_at: null,
+          expires_at: null,
+          generated_questions_json: {
+            context: { verified_level: verifiedLevel },
+            questions: orderedQuestions,
+          },
+        });
+
+        return manager.save(AssessmentAttempt, attempt);
       },
-    });
-    const savedAttempt = await this.attemptRepo.save(attempt);
+    );
 
     this.logger.log(
       `Skill assessment started: attempt=${savedAttempt.id} user=${userId} track=${profile.track} level=${verifiedLevel}`,
