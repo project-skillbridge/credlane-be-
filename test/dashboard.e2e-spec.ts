@@ -20,11 +20,16 @@ import { TransformInterceptor } from '../src/common/interceptors/transform.inter
 import { DashboardController } from '../src/modules/dashboard/dashboard.controller';
 import { DashboardService } from '../src/modules/dashboard/dashboard.service';
 import {
+  AssessmentResult,
+  VerifiedLevel,
+} from '../src/modules/assessments/entities';
+import {
   TalentProfile,
   TalentProfileStatus,
 } from '../src/modules/talent/entities/talent-profile.entity';
 import { User, UserRole } from '../src/modules/users/entities/user.entity';
 import { UsersService } from '../src/modules/users/users.service';
+import { DashboardJourneyStatus } from '../src/modules/dashboard/dto/dashboard-home.dto';
 
 type AuthUser = {
   sub: string;
@@ -77,6 +82,11 @@ describe('Dashboard home (e2e)', () => {
     education_level: 'bachelors',
     linkedin_url: 'https://linkedin.com/in/casey',
     bio: 'Frontend developer',
+    claimed_level: VerifiedLevel.MID,
+    personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+    skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
+    advanced_assessment_completed_at: new Date('2026-05-03T00:00:00.000Z'),
+    validated_level: VerifiedLevel.MID,
     status: TalentProfileStatus.JOB_READY,
   });
 
@@ -93,6 +103,12 @@ describe('Dashboard home (e2e)', () => {
               if (id === employerUser.id) return Promise.resolve(employerUser);
               return Promise.reject(new Error(`User ${id} not found`));
             }),
+          },
+        },
+        {
+          provide: getRepositoryToken(AssessmentResult),
+          useValue: {
+            createQueryBuilder: jest.fn(),
           },
         },
         {
@@ -142,10 +158,26 @@ describe('Dashboard home (e2e)', () => {
           firstName: 'Casey',
           profileCompletionPercentage: 100,
           journeyOverview: [
-            { key: 'onboarding', title: 'Onboarding', status: 'complete' },
-            { key: 'assessment_1', title: 'Assessment 1', status: 'active' },
-            { key: 'assessment_2', title: 'Assessment 2', status: 'locked' },
-            { key: 'assessment_3', title: 'Assessment 3', status: 'locked' },
+            {
+              key: 'onboarding',
+              title: 'Onboarding',
+              status: DashboardJourneyStatus.COMPLETED,
+            },
+            {
+              key: 'personal',
+              title: 'Personal Assessment',
+              status: DashboardJourneyStatus.COMPLETED,
+            },
+            {
+              key: 'skill',
+              title: 'Skill Assessment',
+              status: DashboardJourneyStatus.COMPLETED,
+            },
+            {
+              key: 'advanced',
+              title: 'Advanced Assessment',
+              status: DashboardJourneyStatus.COMPLETED,
+            },
           ],
         });
       });
@@ -205,12 +237,19 @@ function makeProfile(overrides: Partial<TalentProfile>): TalentProfile {
     linkedin_url: null,
     track: null,
     profile_verified: false,
+    claimed_level: null,
     onboarding_step: 0,
     status: TalentProfileStatus.NOT_STARTED,
     bio: null,
     profile_share_link: null,
     is_published: false,
     published_at: null,
+    personal_assessment_answers: null,
+    personal_assessment_completed_at: null,
+    skill_assessment_completed_at: null,
+    advanced_assessment_completed_at: null,
+    validated_level: null,
+    assessment_locked_until: null,
     created_at: new Date(),
     updated_at: new Date(),
     ...overrides,
