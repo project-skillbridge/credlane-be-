@@ -176,15 +176,18 @@ describe('VerifiedProfileService', () => {
     );
   });
 
-  it('rejects malformed share tokens without querying the database', async () => {
-    await expect(service.getByShareToken('abc123')).rejects.toBeInstanceOf(
-      BadRequestError,
-    );
-    await expect(service.getByShareToken('abc123')).rejects.toMatchObject({
-      message: ErrorMessages.VERIFIED_PROFILE.INVALID_TOKEN,
-    });
-    expect(employerPoolRepository.findOne).not.toHaveBeenCalled();
-  });
+  it.each(['', 'bad-token', 'abc123'])(
+    'rejects malformed share token %j without querying the database',
+    async (token) => {
+      const promise = service.getByShareToken(token);
+
+      await expect(promise).rejects.toBeInstanceOf(BadRequestError);
+      await expect(promise).rejects.toMatchObject({
+        message: ErrorMessages.VERIFIED_PROFILE.INVALID_TOKEN,
+      });
+      expect(employerPoolRepository.findOne).not.toHaveBeenCalled();
+    },
+  );
 
   it('loads a verified profile by share token', async () => {
     const shareToken = 'ab'.repeat(32);
@@ -221,6 +224,43 @@ describe('VerifiedProfileService', () => {
       about: 'API specialist',
       verifiedAt: '2026-05-04T00:00:00.000Z',
       skillProficiency: { validatedLevel: VerifiedLevel.MID },
+    });
+  });
+
+  it('falls back to profile advanced completion when pool verified_at is missing', async () => {
+    const shareToken = 'cd'.repeat(32);
+
+    const user = makeUser();
+    const profile = makeProfile({
+      status: TalentProfileStatus.JOB_READY,
+      track: 'backend_developer',
+      advanced_assessment_completed_at: new Date('2026-05-03T12:00:00.000Z'),
+    });
+    const pool = Object.assign(new EmployerPoolProfile(), {
+      candidate_id: user.id,
+      talent_profile: profile,
+      shareable_link_token: shareToken,
+      verified_at: null,
+      verified_level: VerifiedLevel.MID,
+    });
+
+    (employerPoolRepository.findOne as jest.Mock).mockResolvedValue(pool);
+    (usersService.findOne as jest.Mock).mockResolvedValue(user);
+    (resultQueryBuilder.getOne as jest.Mock).mockImplementation(() => {
+      if (lastAssessmentType === AssessmentType.ADVANCED) {
+        return Promise.resolve(
+          makeResult({
+            tier: AssessmentTier.JOB_READY,
+            created_at: new Date('2026-05-03T11:00:00.000Z'),
+          }),
+        );
+      }
+      return Promise.resolve(null);
+    });
+
+    await expect(service.getByShareToken(shareToken)).resolves.toMatchObject({
+      verifiedAt: '2026-05-03T12:00:00.000Z',
+      tier: AssessmentTier.JOB_READY,
     });
   });
 });
