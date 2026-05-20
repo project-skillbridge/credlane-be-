@@ -146,9 +146,7 @@ export class AuthService {
   }
 
   async verifyEmail(dto: VerifyEmailDto): Promise<VerifyEmailResult> {
-    const user = await this.usersService.findByEmail(
-      dto.email.toLowerCase().trim(),
-    );
+    const user = await this.usersService.findByEmail(dto.email);
     if (!user) {
       throw new BadRequestError(ErrorMessages.AUTH.INVALID_OR_EXPIRED_OTP);
     }
@@ -177,9 +175,7 @@ export class AuthService {
   async resendVerification(
     dto: ResendVerificationDto,
   ): Promise<{ message: string }> {
-    const user = await this.usersService.findByEmail(
-      dto.email.toLowerCase().trim(),
-    );
+    const user = await this.usersService.findByEmail(dto.email);
     if (!user) {
       throw new BadRequestError(ErrorMessages.AUTH.ACCOUNT_NOT_FOUND);
     }
@@ -215,9 +211,7 @@ export class AuthService {
   }
 
   async login(dto: LoginDto): Promise<AuthResult> {
-    const user = await this.usersService.findByEmail(
-      dto.email.toLowerCase().trim(),
-    );
+    const user = await this.usersService.findByEmail(dto.email);
     if (!user)
       throw new UnauthorizedError(ErrorMessages.AUTH.INVALID_CREDENTIALS);
 
@@ -243,8 +237,7 @@ export class AuthService {
   async forgotPassword(
     dto: ForgotPasswordDto,
   ): Promise<ForgotPasswordResponse> {
-    const email = dto.email.toLowerCase().trim();
-    const user = await this.usersService.findByEmail(email);
+    const user = await this.usersService.findByEmail(dto.email);
 
     if (user) {
       this.passwordResetQueue.enqueue(user.id);
@@ -259,9 +252,7 @@ export class AuthService {
   async verifyPasswordResetOtp(
     dto: VerifyPasswordResetOtpDto,
   ): Promise<VerifyPasswordResetOtpResponse> {
-    const user = await this.usersService.findByEmail(
-      dto.email.toLowerCase().trim(),
-    );
+    const user = await this.usersService.findByEmail(dto.email);
     if (!user) {
       throw new BadRequestError(ErrorMessages.AUTH.INVALID_OR_EXPIRED_OTP);
     }
@@ -278,9 +269,7 @@ export class AuthService {
   }
 
   async resetPassword(dto: ResetPasswordDto): Promise<ResetPasswordResponse> {
-    const user = await this.usersService.findByEmail(
-      dto.email.toLowerCase().trim(),
-    );
+    const user = await this.usersService.findByEmail(dto.email);
     if (!user) {
       throw new BadRequestError(ErrorMessages.AUTH.INVALID_OR_EXPIRED_OTP);
     }

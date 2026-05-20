@@ -60,12 +60,12 @@ export class UsersService {
   ) {}
 
   async create(dto: CreateUserDto): Promise<User> {
-    const normalizedEmail = dto.email.toLowerCase().trim();
-    const existing = await this.userModelAction.findByEmail(normalizedEmail);
+    const existing = await this.userModelAction.findByEmail(dto.email);
     if (existing) {
       throw new ConflictError(ErrorMessages.USER.EMAIL_ALREADY_REGISTERED);
     }
 
+    const normalizedEmail = dto.email.toLowerCase().trim();
     const passwordHash = await argon2.hash(dto.password);
     const signupReason =
       dto.signup_reason == null || dto.signup_reason.trim() === ''
@@ -287,8 +287,6 @@ export class UsersService {
     profile: OAuthProviderProfileInput,
     signupRole?: OAuthSignupRole,
   ): Promise<User> {
-    const normalizedEmail = profile.email.toLowerCase().trim();
-
     const linked = await this.findOauthAccountWithUser(
       provider,
       profile.providerId,
@@ -297,7 +295,7 @@ export class UsersService {
       return linked.user;
     }
 
-    const byEmail = await this.findByEmail(normalizedEmail);
+    const byEmail = await this.findByEmail(profile.email);
     if (byEmail) {
       if (!byEmail.is_verified) {
         await this.markVerified(byEmail.id);
@@ -309,6 +307,8 @@ export class UsersService {
       );
       return this.findOne(byEmail.id);
     }
+
+    const normalizedEmail = profile.email.toLowerCase().trim();
 
     try {
       if (!signupRole) {
@@ -328,7 +328,7 @@ export class UsersService {
       if (!isPostgresUniqueViolation(err)) {
         throw err;
       }
-      const raced = await this.findByEmail(normalizedEmail);
+      const raced = await this.findByEmail(profile.email);
       if (!raced) {
         throw err;
       }
