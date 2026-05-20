@@ -10,15 +10,22 @@ import { User, UserRole } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 import { DASHBOARD_PROFILE_COMPLETENESS_CONFIG } from './dashboard-profile-completeness.config';
 import {
+  DashboardAdvancedPerformance,
   DashboardHomeResponse,
   DashboardJourneyStatus,
+  DashboardPerformance,
+  DashboardSkillPerformance,
   JourneyOverviewItemDto,
 } from './dto/dashboard-home.dto';
 import {
   AssessmentAttempt,
   AssessmentResult,
+  AssessmentTier,
   AssessmentType,
 } from '../assessments/entities';
+import { VerifiedLevel } from '../assessments/entities/assessment-question.entity';
+
+const SKILL_PASS_PERCENTAGE = 75;
 
 @Injectable()
 export class DashboardService {
@@ -43,6 +50,8 @@ export class DashboardService {
 
     const onboardingComplete = this.isOnboardingComplete(user, profile);
     const assessmentStatuses = await this.getAssessmentStatuses(profile);
+    const performance = await this.buildPerformance(profile);
+
     return {
       firstName: user.first_name,
       profileCompletionPercentage: this.calculateProfileCompletion(
@@ -53,7 +62,106 @@ export class DashboardService {
         onboardingComplete,
         assessmentStatuses,
       ),
+      performance,
     };
+  }
+
+  private async buildPerformance(
+    profile: TalentProfile | null,
+  ): Promise<DashboardPerformance> {
+    if (!profile) {
+      return { skill: null, advanced: null };
+    }
+
+    const [skillResult, advancedResult] = await Promise.all([
+      this.getLatestResult(profile.id, AssessmentType.SKILL),
+      this.getLatestResult(profile.id, AssessmentType.ADVANCED),
+    ]);
+
+    return {
+      skill: skillResult
+        ? this.toSkillPerformance(skillResult, profile)
+        : null,
+      advanced: advancedResult
+        ? this.toAdvancedPerformance(advancedResult, profile)
+        : null,
+    };
+  }
+
+  private toSkillPerformance(
+    result: AssessmentResult,
+    profile: TalentProfile,
+  ): DashboardSkillPerformance {
+    const percentage = result.percentage ?? 0;
+    const validatedLevel =
+      result.validated_level ??
+      profile.validated_level ??
+      VerifiedLevel.ENTRY;
+
+    return {
+      score: result.score,
+      maxScore: result.max_score ?? result.score,
+      percentage,
+      validatedLevel,
+      passed: percentage >= SKILL_PASS_PERCENTAGE,
+      completedAt: this.toIsoTimestamp(
+        profile.skill_assessment_completed_at,
+        result.created_at,
+      ),
+      ...(result.guidance_report != null && {
+        guidanceReport: result.guidance_report,
+      }),
+    };
+  }
+
+  private toAdvancedPerformance(
+    result: AssessmentResult,
+    profile: TalentProfile,
+  ): DashboardAdvancedPerformance {
+    const percentage = result.percentage ?? 0;
+    const tier =
+      result.tier ??
+      this.resolveTierFromPercentage(percentage);
+
+    return {
+      score: result.score,
+      maxScore: result.max_score ?? result.score,
+      percentage,
+      tier,
+      tierLabel: this.formatTierLabel(tier),
+      integrityConfidence: result.integrity_confidence ?? 'high',
+      completedAt: this.toIsoTimestamp(
+        profile.advanced_assessment_completed_at,
+        result.created_at,
+      ),
+      ...(result.guidance_report != null && {
+        guidanceReport: result.guidance_report,
+      }),
+    };
+  }
+
+  private resolveTierFromPercentage(percentage: number): AssessmentTier {
+    if (percentage >= 75) return AssessmentTier.JOB_READY;
+    if (percentage >= 50) return AssessmentTier.EMERGING;
+    return AssessmentTier.NOT_READY;
+  }
+
+  private formatTierLabel(tier: AssessmentTier): string {
+    switch (tier) {
+      case AssessmentTier.JOB_READY:
+        return 'Job Ready';
+      case AssessmentTier.EMERGING:
+        return 'Emerging';
+      default:
+        return 'Not Ready';
+    }
+  }
+
+  private toIsoTimestamp(
+    profileCompletedAt: Date | null,
+    resultCreatedAt: Date,
+  ): string {
+    return (profileCompletedAt ?? resultCreatedAt).toISOString();
   }
 
   private isOnboardingComplete(
