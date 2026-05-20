@@ -241,6 +241,15 @@ export class AdvancedAssessmentService {
         );
 
         if (aiResult.questions.length !== ADVANCED_ASSESSMENT_TOTAL_QUESTIONS) {
+          this.logger.warn({
+            event: 'BANK_EXHAUSTED',
+            talentProfileId: profile.id,
+            track: profile.track,
+            verifiedLevel: profile.validated_level,
+            bankFound: eligibleQuestions.length,
+            totalNeeded: ADVANCED_ASSESSMENT_TOTAL_QUESTIONS,
+            message: `Insufficient questions: found ${eligibleQuestions.length} bank + ${aiResult.questions.length} AI generated, need ${ADVANCED_ASSESSMENT_TOTAL_QUESTIONS}`,
+          });
           throw new ServiceUnavailableException({
             error: 'BANK_EXHAUSTED',
             message: ErrorMessages.ADVANCED_ASSESSMENT.BANK_EXHAUSTED,
@@ -642,8 +651,11 @@ export class AdvancedAssessmentService {
       };
     }
 
+    attempt.copy_paste_count += 1;
+    await this.attemptRepo.save(attempt);
+
     this.logger.warn(
-      `Copy-paste detected: attempt=${attempt.id} user=${userId}`,
+      `Copy-paste #${attempt.copy_paste_count}: attempt=${attempt.id} user=${userId}`,
     );
 
     return {
