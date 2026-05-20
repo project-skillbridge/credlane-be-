@@ -1,7 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Not, Repository } from 'typeorm';
-import { ErrorMessages, ForbiddenError, NotFoundError } from '../../shared';
+import {
+  BadRequestError,
+  ErrorMessages,
+  ForbiddenError,
+  NotFoundError,
+} from '../../shared';
 import {
   AssessmentAttempt,
   AssessmentResponse,
@@ -29,6 +34,8 @@ import {
 } from './verified-profile.utils';
 
 type BlockAggregate = { total: number; count: number };
+
+const SHARE_LINK_TOKEN_PATTERN = /^[a-fA-F0-9]{64}$/;
 
 export type VerifiedProfileResponse = VerifiedProfileResponseDto;
 
@@ -67,6 +74,10 @@ export class VerifiedProfileService {
   }
 
   async getByShareToken(token: string): Promise<VerifiedProfileResponse> {
+    if (!SHARE_LINK_TOKEN_PATTERN.test(token)) {
+      throw new BadRequestError(ErrorMessages.VERIFIED_PROFILE.INVALID_TOKEN);
+    }
+
     const poolProfile = await this.employerPoolRepository.findOne({
       where: { shareable_link_token: token },
       relations: ['talent_profile'],
@@ -110,11 +121,11 @@ export class VerifiedProfileService {
           }
         : undefined;
 
-    const verifiedAt =
-      poolProfile?.verified_at ??
-      profile.advanced_assessment_completed_at ??
-      latestAdvancedResult?.created_at ??
-      new Date();
+    const verifiedAt = this.resolveVerifiedAt(
+      poolProfile,
+      profile,
+      latestAdvancedResult,
+    );
 
     const skills = resolveSkills(personalAnswers);
 
@@ -149,6 +160,25 @@ export class VerifiedProfileService {
       profile.status === TalentProfileStatus.JOB_READY ||
       latestAdvancedResult?.tier === AssessmentTier.JOB_READY
     );
+  }
+
+  private resolveVerifiedAt(
+    poolProfile: EmployerPoolProfile | null | undefined,
+    profile: TalentProfile,
+    latestAdvancedResult: AssessmentResult | null,
+  ): Date {
+    const verifiedAt =
+      poolProfile?.verified_at ??
+      profile.advanced_assessment_completed_at ??
+      latestAdvancedResult?.created_at;
+
+    if (!verifiedAt) {
+      throw new NotFoundError(
+        ErrorMessages.VERIFIED_PROFILE.TIMESTAMP_UNAVAILABLE,
+      );
+    }
+
+    return verifiedAt;
   }
 
   private async getLatestAdvancedResult(

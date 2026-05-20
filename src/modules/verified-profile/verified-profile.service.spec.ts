@@ -1,5 +1,10 @@
 import { Repository } from 'typeorm';
-import { ForbiddenError, NotFoundError } from '../../shared';
+import {
+  BadRequestError,
+  ErrorMessages,
+  ForbiddenError,
+  NotFoundError,
+} from '../../shared';
 import {
   AssessmentAttempt,
   AssessmentResponse,
@@ -137,6 +142,22 @@ describe('VerifiedProfileService', () => {
     );
   });
 
+  it('rejects when no persisted verification timestamp exists', async () => {
+    const user = makeUser();
+    const profile = makeProfile({
+      status: TalentProfileStatus.JOB_READY,
+      advanced_assessment_completed_at: null,
+    });
+
+    (usersService.findOne as jest.Mock).mockResolvedValue(user);
+    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+    (resultQueryBuilder.getOne as jest.Mock).mockResolvedValue(null);
+
+    await expect(service.getForTalentUser(user.id)).rejects.toMatchObject({
+      message: ErrorMessages.VERIFIED_PROFILE.TIMESTAMP_UNAVAILABLE,
+    });
+  });
+
   it('rejects talents who are not job-ready', async () => {
     const user = makeUser();
     const profile = makeProfile({
@@ -155,7 +176,19 @@ describe('VerifiedProfileService', () => {
     );
   });
 
+  it('rejects malformed share tokens without querying the database', async () => {
+    await expect(service.getByShareToken('abc123')).rejects.toBeInstanceOf(
+      BadRequestError,
+    );
+    await expect(service.getByShareToken('abc123')).rejects.toMatchObject({
+      message: ErrorMessages.VERIFIED_PROFILE.INVALID_TOKEN,
+    });
+    expect(employerPoolRepository.findOne).not.toHaveBeenCalled();
+  });
+
   it('loads a verified profile by share token', async () => {
+    const shareToken = 'ab'.repeat(32);
+
     const user = makeUser();
     const profile = makeProfile({
       status: TalentProfileStatus.JOB_READY,
@@ -165,7 +198,7 @@ describe('VerifiedProfileService', () => {
     const pool = Object.assign(new EmployerPoolProfile(), {
       candidate_id: user.id,
       talent_profile: profile,
-      shareable_link_token: 'abc123',
+      shareable_link_token: shareToken,
       verified_at: new Date('2026-05-04T00:00:00.000Z'),
       specialization: 'api_engineering',
       verified_level: VerifiedLevel.SENIOR,
@@ -182,7 +215,7 @@ describe('VerifiedProfileService', () => {
       return Promise.resolve(null);
     });
 
-    await expect(service.getByShareToken('abc123')).resolves.toMatchObject({
+    await expect(service.getByShareToken(shareToken)).resolves.toMatchObject({
       fullName: 'Jane Doe',
       role: 'Api Engineering',
       about: 'API specialist',

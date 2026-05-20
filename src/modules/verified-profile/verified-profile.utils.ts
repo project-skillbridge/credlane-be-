@@ -93,10 +93,15 @@ export function rubricScorePercentage(
   evaluation: Record<string, unknown> | null,
   isLt3: boolean,
 ): number | null {
-  if (!evaluation || typeof evaluation.total !== 'number') {
+  if (
+    !evaluation ||
+    typeof evaluation.total !== 'number' ||
+    !Number.isFinite(evaluation.total)
+  ) {
     return null;
   }
 
   const max = isLt3 ? 6 : 12;
-  return Math.round((evaluation.total / max) * 100);
+  const clampedTotal = Math.min(max, Math.max(0, evaluation.total));
+  return Math.round((clampedTotal / max) * 100);
 }

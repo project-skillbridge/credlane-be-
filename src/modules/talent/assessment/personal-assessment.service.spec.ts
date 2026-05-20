@@ -1,4 +1,7 @@
-import { BadRequestException, ConflictException, UnprocessableEntityException } from '@nestjs/common';
+import {
+  BadRequestException,
+  UnprocessableEntityException,
+} from '@nestjs/common';
 import { Repository } from 'typeorm';
 import { ErrorMessages, SuccessMessages } from '../../../shared';
 import { UserRole } from '../../users/entities/user.entity';
@@ -134,12 +137,10 @@ describe('PersonalAssessmentService', () => {
       _meta: { completedSections: [1, 2, 3, 4, 5, 6, 7] },
     };
 
-    await expect(
-      service.saveSection(userId, 1, section1Answers()),
-    ).rejects.toBeInstanceOf(UnprocessableEntityException);
-    await expect(
-      service.saveSection(userId, 1, section1Answers()),
-    ).rejects.toMatchObject({
+    const promise = service.saveSection(userId, 1, section1Answers());
+
+    await expect(promise).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(promise).rejects.toMatchObject({
       message: ErrorMessages.ASSESSMENT.ALREADY_COMPLETED,
     });
   });
@@ -148,14 +149,14 @@ describe('PersonalAssessmentService', () => {
     profileStore.personal_assessment_completed_at = new Date(
       '2026-05-01T00:00:00.000Z',
     );
-    profileStore.personal_assessment_answers = {
-      ...section1Answers(),
-      _meta: { completedSections: [1, 2, 3, 4, 5, 6, 7] },
-    };
+    profileStore.personal_assessment_answers = null;
 
-    await expect(
-      service.saveSection(userId, 2, section1Answers()),
-    ).rejects.toBeInstanceOf(UnprocessableEntityException);
+    const promise = service.saveSection(userId, 2, section1Answers());
+
+    await expect(promise).rejects.toBeInstanceOf(UnprocessableEntityException);
+    await expect(promise).rejects.toMatchObject({
+      message: ErrorMessages.ASSESSMENT.ALREADY_COMPLETED,
+    });
   });
 
   it('submitGenerated saves sparse generated answers and completes the assessment', async () => {

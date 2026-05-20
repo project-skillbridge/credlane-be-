@@ -1,5 +1,9 @@
-import { ForbiddenException } from '@nestjs/common';
-import { AssessmentType } from '../../assessments/entities';
+import { ConflictException, ForbiddenException } from '@nestjs/common';
+import {
+  AssessmentAttempt,
+  AssessmentType,
+} from '../../assessments/entities';
+import { TalentProfile } from '../entities/talent-profile.entity';
 import { ErrorMessages } from '../../../shared';
 import { SKILL_ASSESSMENT_MAX_ATTEMPTS } from '../talent.constants';
 import { SkillAssessmentService } from './skill-assessment.service';
@@ -8,8 +12,16 @@ import { makeTalentProfile } from './personal-assessment.test-fixtures';
 describe('SkillAssessmentService', () => {
   let service: SkillAssessmentService;
 
-  let talentProfileRepo: { findOne: jest.Mock };
-  let attemptRepo: { count: jest.Mock; create: jest.Mock; save: jest.Mock };
+  let talentProfileRepo: {
+    findOne: jest.Mock;
+    manager: { transaction: jest.Mock };
+  };
+  let attemptRepo: {
+    count: jest.Mock;
+    findOne: jest.Mock;
+    create: jest.Mock;
+    save: jest.Mock;
+  };
   let questionRepo: Record<string, jest.Mock>;
   let personalAssessmentService: { getAiContext: jest.Mock };
   let questionGeneration: { generateQuestions: jest.Mock };
@@ -22,6 +34,26 @@ describe('SkillAssessmentService', () => {
     advanced_assessment_completed_at: null,
   });
 
+  function mockTransaction() {
+    talentProfileRepo.manager.transaction.mockImplementation(
+      async (work: (manager: EntityManagerLike) => Promise<unknown>) => {
+        const manager: EntityManagerLike = {
+          findOne: jest.fn().mockResolvedValue(profile),
+          getRepository: jest.fn(() => attemptRepo),
+          create: jest.fn(
+            (_entity: typeof AssessmentAttempt, data: Partial<AssessmentAttempt>) =>
+              attemptRepo.create(data),
+          ),
+          save: jest.fn(
+            (_entity: typeof AssessmentAttempt, data: AssessmentAttempt) =>
+              attemptRepo.save(data),
+          ),
+        };
+        return work(manager);
+      },
+    );
+  }
+
   beforeEach(() => {
     profile = makeTalentProfile({
       personal_assessment_completed_at: new Date(),
@@ -32,18 +64,33 @@ describe('SkillAssessmentService', () => {
 
     attemptRepo = {
       count: jest.fn().mockResolvedValue(0),
-      create: jest.fn(),
-      save: jest.fn(),
+      findOne: jest.fn().mockResolvedValue(null),
+      create: jest.fn((data) => Object.assign(new AssessmentAttempt(), data)),
+      save: jest.fn(async (data) =>
+        Object.assign(new AssessmentAttempt(), data, { id: 'attempt-1' }),
+      ),
     };
 
-    questionRepo = {};
+    questionRepo = {
+      create: jest.fn((data) => data),
+      save: jest.fn(async (data) => data),
+      createQueryBuilder: jest.fn(() => ({
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        getRawOne: jest.fn().mockResolvedValue({ max: '0' }),
+      })),
+    };
+
     questionGeneration = {
       generateQuestions: jest.fn().mockResolvedValue([]),
     };
 
     talentProfileRepo = {
       findOne: jest.fn().mockResolvedValue(profile),
+      manager: { transaction: jest.fn() },
     };
+
+    mockTransaction();
 
     personalAssessmentService = {
       getAiContext: jest.fn().mockResolvedValue({ track: 'frontend_developer' }),
@@ -72,13 +119,20 @@ describe('SkillAssessmentService', () => {
     await expect(service.start(userId)).rejects.toMatchObject({
       message: ErrorMessages.SKILL_ASSESSMENT.MAX_ATTEMPTS_REACHED,
     });
-    expect(attemptRepo.count).toHaveBeenCalledWith({
-      where: {
-        talent_profile_id: profile.id,
-        assessment_type: AssessmentType.SKILL,
-        completed_at: expect.anything(),
-      },
-    });
+    expect(talentProfileRepo.manager.transaction).not.toHaveBeenCalled();
+    expect(attemptRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('blocks start when an active skill session already exists under lock', async () => {
+    attemptRepo.count.mockResolvedValue(2);
+    attemptRepo.findOne.mockResolvedValue(
+      Object.assign(new AssessmentAttempt(), { id: 'active-attempt' }),
+    );
+
+    await expect(service.start(userId)).rejects.toBeInstanceOf(
+      ConflictException,
+    );
+    await expect(attemptRepo.save).not.toHaveBeenCalled();
   });
 
   it('does not enforce attempt limit after advanced assessment is complete', async () => {
@@ -89,7 +143,7 @@ describe('SkillAssessmentService', () => {
       (
         service as unknown as {
           assertSkillAssessmentAttemptsRemaining: (
-            p: typeof profile,
+            p: TalentProfile,
           ) => Promise<void>;
         }
       ).assertSkillAssessmentAttemptsRemaining(profile),
@@ -98,3 +152,10 @@ describe('SkillAssessmentService', () => {
     expect(attemptRepo.count).not.toHaveBeenCalled();
   });
 });
+
+type EntityManagerLike = {
+  findOne: jest.Mock;
+  getRepository: jest.Mock;
+  create: jest.Mock;
+  save: jest.Mock;
+};

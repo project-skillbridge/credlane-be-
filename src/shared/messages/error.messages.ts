@@ -46,6 +46,7 @@ export const ErrorMessages = {
       'You need a score of 75% or higher in the skill assessment before starting the advanced assessment',
     MAX_ATTEMPTS_REACHED:
       'You have used all three skill assessment attempts. Complete the advanced assessment to unlock further skill retakes.',
+    ACTIVE_SESSION_EXISTS: 'Active skill assessment session already exists',
   },
   ADVANCED_ASSESSMENT: {
     PROFILE_NOT_FOUND: 'Talent profile not found',
@@ -90,6 +91,9 @@ export const ErrorMessages = {
     NOT_AVAILABLE:
       'Verified profile is only available for job-ready talents who have completed the advanced assessment',
     NOT_FOUND: 'Verified profile not found',
+    INVALID_TOKEN: 'Invalid share link token',
+    TIMESTAMP_UNAVAILABLE:
+      'Verified profile verification timestamp is not available',
   },
   COMMON: {
     INSUFFICIENT_PERMISSIONS: 'Insufficient permissions',
