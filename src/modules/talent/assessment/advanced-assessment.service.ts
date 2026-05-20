@@ -806,13 +806,21 @@ export class AdvancedAssessmentService {
             verified_level: null,
             competency: null,
             slot_type: SlotType.REFLECTION,
+            // CHK_assessment_questions_metadata_valid requires difficulty,
+            // estimated_time_seconds, and a tags array. We extend the base
+            // generated-question metadata with the LT-2 linkage for audit.
             metadata: {
-              generated: true,
+              ...this.buildGeneratedQuestionMetadata({
+                track,
+                verifiedLevel,
+                questionType: QuestionType.OPTIONAL_TEXT,
+                competency: null,
+                slotType: SlotType.REFLECTION,
+                block: 'long_text',
+                industryContext: null,
+              }),
               lt3_runtime: true,
               lt2_question_id: lt2Question.question_id,
-              answer_block: 'long_text',
-              track,
-              verified_level: verifiedLevel,
             },
             is_live: false,
           }),
@@ -834,7 +842,9 @@ export class AdvancedAssessmentService {
         );
 
         // Append LT-3 to the session jsonb so subsequent /session/:id reads
-        // and the final /advanced/submit see all 25 questions.
+        // and the final /advanced/submit see all 25 questions. Mirror the
+        // exact metadata we just persisted so the session view and the DB
+        // row stay in sync.
         const updatedQuestions: AdvancedAssessmentGeneratedQuestion[] = [
           ...sessionQuestions,
           {
@@ -845,11 +855,7 @@ export class AdvancedAssessmentService {
             question_text: generatedLt3Text,
             options: null,
             slot_type: SlotType.REFLECTION,
-            metadata: {
-              generated: true,
-              lt3_runtime: true,
-              answer_block: 'long_text',
-            },
+            metadata: lt3Question.metadata as Record<string, unknown>,
             correct_answer: null,
           },
         ];
@@ -1467,6 +1473,11 @@ export class AdvancedAssessmentService {
         question.slot_type ??
         (question.block === 'long_text' ? SlotType.WORK_TASK : SlotType.SITUATIONAL);
 
+      // CHK_assessment_questions_type_fields: advanced rows must have
+      // track/verified_level/competency = NULL on the row itself. The
+      // normalised competency lives in metadata.competency so the rest of
+      // the engine (extractCompetencies, employer pool, assessment_scores)
+      // can still read it from the session jsonb.
       return manager.create(AssessmentQuestion, {
         assessment_type: AssessmentType.ADVANCED,
         question_type: question.question_type,
@@ -1476,7 +1487,7 @@ export class AdvancedAssessmentService {
         correct_answer: question.correct_answer,
         track: null,
         verified_level: null,
-        competency: normalisedCompetency,
+        competency: null,
         slot_type: slotType,
         metadata: this.buildGeneratedQuestionMetadata({
           track,
