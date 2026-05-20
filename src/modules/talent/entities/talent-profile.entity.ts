@@ -92,7 +92,7 @@ export class TalentProfile {
     nullable: true,
     enum: VerifiedLevel,
     description:
-      'Self-reported skill level for the selected track (onboarding step 2); same enum as validated_level',
+      'Self-reported skill level collected during personal assessment; same enum as validated_level',
   })
   @Column({
     type: 'enum',

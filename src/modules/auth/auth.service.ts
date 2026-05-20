@@ -6,11 +6,14 @@ import {
   Logger,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { InjectRepository } from '@nestjs/typeorm';
 import * as argon2 from 'argon2';
 import { randomUUID } from 'crypto';
 import type { StringValue } from 'ms';
+import { Repository } from 'typeorm';
 import { env } from '../../config/env';
 import { MailService } from '../mail/mail.service';
+import { TalentProfile } from '../talent/entities/talent-profile.entity';
 import { User, UserRole } from '../users/entities/user.entity';
 import { OAUTH_DEFAULT_COUNTRY, UsersService } from '../users/users.service';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
@@ -46,6 +49,7 @@ export interface AuthUser {
   avatar_url: string | null;
   country: string;
   role: UserRole;
+  track?: string | null;
   is_verified: boolean;
   onboardingComplete: boolean;
 }
@@ -110,6 +114,8 @@ export class AuthService {
     private readonly passwordResetOtpService: PasswordResetOtpService,
     private readonly mailService: MailService,
     private readonly passwordResetQueue: PasswordResetQueueService,
+    @InjectRepository(TalentProfile)
+    private readonly talentProfileRepository: Repository<TalentProfile>,
   ) {}
 
   async register(dto: RegisterDto): Promise<{ message: string }> {
@@ -436,7 +442,18 @@ export class AuthService {
 
   async getProfile(userId: string): Promise<AuthUser> {
     const user = await this.usersService.findOne(userId);
-    return this.toAuthUser(user);
+    const profile =
+      user.role === UserRole.TALENT
+        ? await this.talentProfileRepository.findOne({
+            where: { user_id: userId },
+            select: { track: true },
+          })
+        : null;
+
+    return {
+      ...this.toAuthUser(user),
+      track: profile?.track ?? null,
+    };
   }
 
   async issueSessionForUser(

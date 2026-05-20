@@ -85,7 +85,7 @@ export class PersonalAssessmentController {
   @ApiOperation({
     summary: 'Save personal assessment answers for one section (1–7)',
     description:
-      'Ignores track, educationLevel, region, linkedinProfile, and claimedLevel — those come from onboarding on the talent profile.',
+      'Ignores track, educationLevel, region, and linkedinProfile — those come from onboarding on the talent profile. claimedLevel/claimed_level is collected during personal assessment and saved to the talent profile.',
   })
   @ApiUnprocessableEntityResponse({ description: 'Section validation failed' })
   @UsePipes(
@@ -112,7 +112,7 @@ export class PersonalAssessmentController {
   @ApiOperation({
     summary: 'Mark personal assessment complete',
     description:
-      'Requires all sections saved and onboarding fields present (track, educationLevel, region).',
+      'Requires all sections saved, claimed_level answered, and onboarding fields present (track, educationLevel, region).',
   })
   @ApiUnprocessableEntityResponse({
     description: 'Incomplete sections or missing onboarding fields',
