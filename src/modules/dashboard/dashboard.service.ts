@@ -301,7 +301,8 @@ export class DashboardService {
         profile.id,
         AssessmentType.SKILL,
       );
-      const skillPass = (latestSkillResult?.percentage ?? 0) >= 75;
+      const skillPass =
+        (latestSkillResult?.percentage ?? 0) >= SKILL_PASS_PERCENTAGE;
       advancedStatus = skillPass
         ? DashboardJourneyStatus.AVAILABLE
         : DashboardJourneyStatus.LOCKED;

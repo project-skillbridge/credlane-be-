@@ -107,33 +107,35 @@ describe('Dashboard home (e2e)', () => {
     integrity_confidence: 'high',
   });
 
-  let lastAssessmentType: AssessmentType | undefined;
+  function createAssessmentResultQueryBuilder() {
+    let assessmentType: AssessmentType | undefined;
 
-  const assessmentQueryBuilder = {
-    innerJoin: jest.fn().mockReturnThis(),
-    where: jest.fn().mockReturnThis(),
-    andWhere: jest.fn().mockImplementation((_clause, params) => {
-      if (params?.assessmentType) {
-        lastAssessmentType = params.assessmentType;
-      }
-      return assessmentQueryBuilder;
-    }),
-    orderBy: jest.fn().mockReturnThis(),
-    addOrderBy: jest.fn().mockReturnThis(),
-    getOne: jest.fn().mockImplementation(() => {
-      if (lastAssessmentType === AssessmentType.SKILL) {
-        return Promise.resolve(skillAssessmentResult);
-      }
-      if (lastAssessmentType === AssessmentType.ADVANCED) {
-        return Promise.resolve(advancedAssessmentResult);
-      }
-      return Promise.resolve(null);
-    }),
-  };
+    const builder = {
+      innerJoin: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockImplementation((_clause, params) => {
+        if (params?.assessmentType) {
+          assessmentType = params.assessmentType;
+        }
+        return builder;
+      }),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockImplementation(() => {
+        if (assessmentType === AssessmentType.SKILL) {
+          return Promise.resolve(skillAssessmentResult);
+        }
+        if (assessmentType === AssessmentType.ADVANCED) {
+          return Promise.resolve(advancedAssessmentResult);
+        }
+        return Promise.resolve(null);
+      }),
+    };
+
+    return builder;
+  }
 
   beforeEach(async () => {
-    lastAssessmentType = undefined;
-
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [DashboardController],
       providers: [
@@ -151,7 +153,9 @@ describe('Dashboard home (e2e)', () => {
         {
           provide: getRepositoryToken(AssessmentResult),
           useValue: {
-            createQueryBuilder: jest.fn(() => assessmentQueryBuilder),
+            createQueryBuilder: jest.fn(() =>
+              createAssessmentResultQueryBuilder(),
+            ),
           },
         },
         {

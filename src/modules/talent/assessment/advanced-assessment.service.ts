@@ -677,6 +677,13 @@ export class AdvancedAssessmentService {
   ): Promise<void> {
     try {
       const user = await this.usersService.findOne(userId);
+      if (!user) {
+        this.logger.warn(
+          `Assessment performance email skipped: user not found user=${userId}`,
+        );
+        return;
+      }
+
       await this.mailService.sendAssessmentPerformance({
         to: user.email,
         recipientFirstName: user.first_name,

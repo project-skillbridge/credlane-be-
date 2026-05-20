@@ -293,6 +293,15 @@ describe('AdvancedAssessmentService', () => {
       expect(result.status).toBe('success');
     });
 
+    it('skips performance email when findOne returns no user', async () => {
+      usersService.findOne.mockResolvedValue(null);
+
+      const result = await service.submit(userId, makeSubmitDto() as never);
+
+      expect(result.status).toBe('success');
+      expect(mailService.sendAssessmentPerformance).not.toHaveBeenCalled();
+    });
+
     it('sets tier job_ready when percentage ≥ 75 and calls employer pool upsert', async () => {
       rubricScoring.scoreAnswers.mockResolvedValue(
         Array.from({ length: 15 }, (_, i) => ({
