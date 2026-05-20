@@ -6,6 +6,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import type { StringValue } from 'ms';
 import { env } from '../../config/env';
 import { MailModule } from '../mail/mail.module';
+import { TalentProfile } from '../talent/entities/talent-profile.entity';
 import { UsersModule } from '../users/users.module';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
@@ -21,7 +22,7 @@ import { PasswordResetQueueService } from './password-reset-queue.service';
 @Module({
   imports: [
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 5 }]),
-    TypeOrmModule.forFeature([VerificationOtp, PasswordResetOtp]),
+    TypeOrmModule.forFeature([VerificationOtp, PasswordResetOtp, TalentProfile]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret: env.JWT_ACCESS_SECRET,
