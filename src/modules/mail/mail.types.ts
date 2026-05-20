@@ -14,3 +14,13 @@ export type PasswordResetEmailPayload = {
   /** May be a string when job data is deserialized from Redis (BullMQ). */
   expiresAt: Date | string | number;
 };
+
+/** Payload for advanced assessment performance notification email. */
+export type AssessmentPerformanceEmailPayload = {
+  to: string;
+  recipientFirstName: string;
+  score: number;
+  maxScore: number;
+  percentage: number;
+  tierLabel: string;
+};

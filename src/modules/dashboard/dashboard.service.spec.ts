@@ -1,6 +1,11 @@
 import { Repository } from 'typeorm';
 import { ForbiddenError } from '../../shared';
-import { AssessmentResult, VerifiedLevel } from '../assessments/entities';
+import {
+  AssessmentResult,
+  AssessmentTier,
+  AssessmentType,
+  VerifiedLevel,
+} from '../assessments/entities';
 import {
   TalentProfile,
   TalentProfileStatus,
@@ -26,6 +31,7 @@ describe('DashboardService', () => {
     addOrderBy: jest.Mock;
     getOne: jest.Mock;
   };
+  let lastAssessmentType: AssessmentType | undefined;
 
   beforeEach(() => {
     usersService = {
@@ -36,10 +42,16 @@ describe('DashboardService', () => {
       findOne: jest.fn(),
     };
 
+    lastAssessmentType = undefined;
     queryBuilder = {
       innerJoin: jest.fn().mockReturnThis(),
       where: jest.fn().mockReturnThis(),
-      andWhere: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockImplementation((_clause, params) => {
+        if (params?.assessmentType) {
+          lastAssessmentType = params.assessmentType;
+        }
+        return queryBuilder;
+      }),
       orderBy: jest.fn().mockReturnThis(),
       addOrderBy: jest.fn().mockReturnThis(),
       getOne: jest.fn().mockResolvedValue(null),
@@ -92,6 +104,7 @@ describe('DashboardService', () => {
           status: DashboardJourneyStatus.LOCKED,
         },
       ],
+      performance: { skill: null, advanced: null },
     });
   });
 
@@ -140,6 +153,7 @@ describe('DashboardService', () => {
           status: DashboardJourneyStatus.LOCKED,
         },
       ],
+      performance: { skill: null, advanced: null },
     });
   });
 
@@ -189,6 +203,7 @@ describe('DashboardService', () => {
           status: DashboardJourneyStatus.LOCKED,
         },
       ],
+      performance: { skill: null, advanced: null },
     });
   });
 
@@ -217,9 +232,17 @@ describe('DashboardService', () => {
 
     (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
     (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
-    (queryBuilder.getOne as jest.Mock).mockResolvedValue(
-      makeAssessmentResult({ percentage: 80 }),
-    );
+    (queryBuilder.getOne as jest.Mock).mockImplementation(() => {
+      if (lastAssessmentType === AssessmentType.SKILL) {
+        return Promise.resolve(
+          makeAssessmentResult({
+            percentage: 80,
+            validated_level: VerifiedLevel.MID,
+          }),
+        );
+      }
+      return Promise.resolve(null);
+    });
 
     await expect(service.getHome(talentUser.id)).resolves.toEqual({
       firstName: 'Jane',
@@ -246,7 +269,91 @@ describe('DashboardService', () => {
           status: DashboardJourneyStatus.AVAILABLE,
         },
       ],
+      performance: {
+        skill: {
+          score: 8,
+          maxScore: 10,
+          percentage: 80,
+          validatedLevel: VerifiedLevel.MID,
+          passed: true,
+          completedAt: '2026-05-02T00:00:00.000Z',
+        },
+        advanced: null,
+      },
     });
+  });
+
+  it('returns skill and advanced performance from the latest assessment results', async () => {
+    const talentUser = makeUser({
+      first_name: 'Jane',
+      role: UserRole.TALENT,
+      onboarding_complete: true,
+    });
+
+    const profile = makeProfile({
+      onboarding_step: 3,
+      track: 'frontend_developer',
+      region: 'Lagos',
+      education_level: 'bachelors',
+      claimed_level: VerifiedLevel.MID,
+      personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+      skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
+      advanced_assessment_completed_at: new Date('2026-05-03T00:00:00.000Z'),
+      validated_level: VerifiedLevel.MID,
+      status: TalentProfileStatus.JOB_READY,
+    });
+
+    (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
+    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+    (queryBuilder.getOne as jest.Mock).mockImplementation(() => {
+      if (lastAssessmentType === AssessmentType.SKILL) {
+        return Promise.resolve(
+          makeAssessmentResult({
+            score: 8,
+            max_score: 10,
+            percentage: 80,
+            validated_level: VerifiedLevel.MID,
+          }),
+        );
+      }
+      if (lastAssessmentType === AssessmentType.ADVANCED) {
+        return Promise.resolve(
+          makeAssessmentResult({
+            score: 88,
+            max_score: 110,
+            percentage: 80,
+            tier: AssessmentTier.JOB_READY,
+            integrity_confidence: 'high',
+          }),
+        );
+      }
+      return Promise.resolve(null);
+    });
+
+    await expect(service.getHome(talentUser.id)).resolves.toMatchObject({
+      firstName: 'Jane',
+      profileCompletionPercentage: 84,
+      performance: {
+        skill: {
+          score: 8,
+          maxScore: 10,
+          percentage: 80,
+          validatedLevel: VerifiedLevel.MID,
+          passed: true,
+          completedAt: '2026-05-02T00:00:00.000Z',
+        },
+        advanced: {
+          score: 88,
+          maxScore: 110,
+          percentage: 80,
+          tier: AssessmentTier.JOB_READY,
+          tierLabel: 'Job Ready',
+          integrityConfidence: 'high',
+          completedAt: '2026-05-03T00:00:00.000Z',
+        },
+      },
+    });
+    expect(queryBuilder.getOne).toHaveBeenCalled();
   });
 
   it('rejects non-talent users', async () => {

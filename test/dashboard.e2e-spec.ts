@@ -21,6 +21,8 @@ import { DashboardController } from '../src/modules/dashboard/dashboard.controll
 import { DashboardService } from '../src/modules/dashboard/dashboard.service';
 import {
   AssessmentResult,
+  AssessmentTier,
+  AssessmentType,
   VerifiedLevel,
 } from '../src/modules/assessments/entities';
 import {
@@ -90,6 +92,49 @@ describe('Dashboard home (e2e)', () => {
     status: TalentProfileStatus.JOB_READY,
   });
 
+  const skillAssessmentResult = makeAssessmentResult({
+    score: 8,
+    max_score: 10,
+    percentage: 80,
+    validated_level: VerifiedLevel.MID,
+  });
+
+  const advancedAssessmentResult = makeAssessmentResult({
+    score: 88,
+    max_score: 110,
+    percentage: 80,
+    tier: AssessmentTier.JOB_READY,
+    integrity_confidence: 'high',
+  });
+
+  function createAssessmentResultQueryBuilder() {
+    let assessmentType: AssessmentType | undefined;
+
+    const builder = {
+      innerJoin: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockImplementation((_clause, params) => {
+        if (params?.assessmentType) {
+          assessmentType = params.assessmentType;
+        }
+        return builder;
+      }),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockImplementation(() => {
+        if (assessmentType === AssessmentType.SKILL) {
+          return Promise.resolve(skillAssessmentResult);
+        }
+        if (assessmentType === AssessmentType.ADVANCED) {
+          return Promise.resolve(advancedAssessmentResult);
+        }
+        return Promise.resolve(null);
+      }),
+    };
+
+    return builder;
+  }
+
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [DashboardController],
@@ -108,7 +153,9 @@ describe('Dashboard home (e2e)', () => {
         {
           provide: getRepositoryToken(AssessmentResult),
           useValue: {
-            createQueryBuilder: jest.fn(),
+            createQueryBuilder: jest.fn(() =>
+              createAssessmentResultQueryBuilder(),
+            ),
           },
         },
         {
@@ -179,6 +226,25 @@ describe('Dashboard home (e2e)', () => {
               status: DashboardJourneyStatus.COMPLETED,
             },
           ],
+          performance: {
+            skill: {
+              score: 8,
+              maxScore: 10,
+              percentage: 80,
+              validatedLevel: VerifiedLevel.MID,
+              passed: true,
+              completedAt: '2026-05-02T00:00:00.000Z',
+            },
+            advanced: {
+              score: 88,
+              maxScore: 110,
+              percentage: 80,
+              tier: AssessmentTier.JOB_READY,
+              tierLabel: 'Job Ready',
+              integrityConfidence: 'high',
+              completedAt: '2026-05-03T00:00:00.000Z',
+            },
+          },
         });
       });
   });
@@ -221,6 +287,24 @@ function makeUser(overrides: Partial<User>): User {
     createdAt: new Date(),
     updatedAt: new Date(),
     deletedAt: null,
+    ...overrides,
+  });
+}
+
+function makeAssessmentResult(
+  overrides: Partial<AssessmentResult>,
+): AssessmentResult {
+  return Object.assign(new AssessmentResult(), {
+    id: 'result-1',
+    attempt_id: 'attempt-1',
+    score: 8,
+    max_score: 10,
+    percentage: 80,
+    tier: null,
+    validated_level: null,
+    guidance_report: null,
+    integrity_confidence: null,
+    created_at: new Date(),
     ...overrides,
   });
 }
