@@ -347,6 +347,7 @@ describe('Onboarding (e2e)', () => {
   let app: INestApplication<App>;
   let usersService: InMemoryUsersService;
   let jwtService: JwtService;
+  let uploadService: { uploadAvatar: jest.Mock };
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -427,6 +428,7 @@ describe('Onboarding (e2e)', () => {
 
     usersService = moduleFixture.get(UsersService);
     jwtService = moduleFixture.get(JwtService);
+    uploadService = moduleFixture.get(UploadService);
   });
 
   afterEach(async () => {
@@ -494,6 +496,30 @@ describe('Onboarding (e2e)', () => {
           message: 'Onboarding already completed',
         });
       });
+  });
+
+  it('POST /talent/profile completes profile onboarding without a photo', async () => {
+    const user = (await usersService.findOne('talent-user')) as TalentUser;
+    const cookieHeader = await accessCookieHeaderFor(jwtService, user);
+
+    const response = await request(app.getHttpServer())
+      .post('/talent/profile')
+      .set('Cookie', cookieHeader)
+      .field('region', 'Nigeria')
+      .field('educationLevel', 'bachelor')
+      .field('linkedinProfile', 'https://www.linkedin.com/in/caseytalent')
+      .expect(201);
+
+    expect(uploadService.uploadAvatar).not.toHaveBeenCalled();
+    expect(response.body).toMatchObject({
+      status_code: 201,
+      status: 'success',
+      message: 'Profile saved',
+    });
+
+    const updatedUser = await usersService.findOne(user.id);
+    expect(updatedUser.avatar_url).toBeNull();
+    expect(updatedUser.onboarding_complete).toBe(true);
   });
 
   it('POST /employer/onboarding completes employer onboarding', async () => {
