@@ -23,6 +23,7 @@ describe('DashboardService', () => {
     Repository<AssessmentResult>,
     'createQueryBuilder'
   >;
+  let assessmentAttemptRepository: Pick<Repository<AssessmentResult>, 'count'>;
   let queryBuilder: {
     innerJoin: jest.Mock;
     where: jest.Mock;
@@ -61,10 +62,15 @@ describe('DashboardService', () => {
       createQueryBuilder: jest.fn(() => queryBuilder as any),
     };
 
+    assessmentAttemptRepository = {
+      count: jest.fn().mockResolvedValue(0),
+    };
+
     service = new DashboardService(
       talentProfileRepository as Repository<TalentProfile>,
       usersService as UsersService,
       assessmentResultRepository as Repository<AssessmentResult>,
+      assessmentAttemptRepository as never,
     );
   });
 

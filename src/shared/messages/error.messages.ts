@@ -44,6 +44,8 @@ export const ErrorMessages = {
       'Assessment attempt has no questions; please start a new session',
     PASS_REQUIRED:
       'You need a score of 75% or higher in the skill assessment before starting the advanced assessment',
+    MAX_ATTEMPTS_REACHED:
+      'You have used all three skill assessment attempts. Complete the advanced assessment to unlock further skill retakes.',
   },
   ADVANCED_ASSESSMENT: {
     PROFILE_NOT_FOUND: 'Talent profile not found',
