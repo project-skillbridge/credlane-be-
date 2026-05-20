@@ -12,6 +12,7 @@ import { ErrorMessages, SuccessMessages } from '../../../shared';
 import { personalAssessmentGenerationSchema } from '../../ai/ai.schemas';
 import { OpenRouterService } from '../../ai/openrouter.service';
 import { UsersService } from '../../users/users.service';
+import { TALENT_CLAIMED_LEVELS } from '../talent.constants';
 import { TalentProfile } from '../entities/talent-profile.entity';
 import {
   ONBOARDING_TRACK_TO_ASSESSMENT_TRACK,
@@ -43,6 +44,7 @@ import {
 
 const GENERATED_PERSONAL_ASSESSMENT_MIN_QUESTIONS = 15;
 const GENERATED_PERSONAL_ASSESSMENT_MAX_QUESTIONS = 20;
+const GENERATED_PERSONAL_ASSESSMENT_REQUIRED_KEYS = ['claimed_level'];
 const COMPLETED_PERSONAL_ASSESSMENT_SECTIONS = Array.from(
   { length: PERSONAL_ASSESSMENT_SECTION_COUNT },
   (_ignored, index) => index + 1,
@@ -145,6 +147,19 @@ export class PersonalAssessmentService {
     };
   }
 
+  private normalizeAnswerAliases(
+    rawAnswers: Record<string, unknown>,
+  ): Record<string, unknown> {
+    const normalized = { ...rawAnswers };
+    if (
+      normalized.claimed_level === undefined &&
+      normalized.claimedLevel !== undefined
+    ) {
+      normalized.claimed_level = normalized.claimedLevel;
+    }
+    return normalized;
+  }
+
   async startGenerated(userId: string): Promise<{
     status: string;
     message: string;
@@ -230,9 +245,12 @@ export class PersonalAssessmentService {
         }
 
         const sourceQuestions = this.resolveGeneratedSourceQuestions(session);
+        const normalizedAnswers = this.normalizeAnswerAliases(rawAnswers);
         const filtered = Object.fromEntries(
-          Object.entries(rawAnswers).filter(
-            ([key]) => !SKIPPED_ONBOARDING_ANSWER_KEYS.has(key),
+          Object.entries(normalizedAnswers).filter(
+            ([key]) =>
+              !SKIPPED_ONBOARDING_ANSWER_KEYS.has(key) ||
+              key === 'claimed_level',
           ),
         );
         const validated = validateGeneratedPersonalAssessmentAnswers(
@@ -250,6 +268,10 @@ export class PersonalAssessmentService {
             completedSections: COMPLETED_PERSONAL_ASSESSMENT_SECTIONS,
           },
         };
+        if (typeof validated.claimed_level === 'string') {
+          profile.claimed_level =
+            validated.claimed_level as TalentProfile['claimed_level'];
+        }
         profile.personal_assessment_completed_at = completedAt;
         await manager.save(TalentProfile, profile);
 
@@ -290,6 +312,19 @@ export class PersonalAssessmentService {
         question: source,
         prompt: generated.prompt,
         helperText: generated.helper_text,
+      });
+    }
+
+    for (const requiredKey of GENERATED_PERSONAL_ASSESSMENT_REQUIRED_KEYS) {
+      const requiredQuestion = questionMap.get(requiredKey);
+      if (!requiredQuestion || seen.has(requiredQuestion.key)) {
+        continue;
+      }
+      seen.add(requiredQuestion.key);
+      selected.push({
+        question: requiredQuestion,
+        prompt: this.defaultQuestionPrompt(requiredQuestion),
+        helperText: null,
       });
     }
 
@@ -396,6 +431,7 @@ export class PersonalAssessmentService {
       rules: {
         min_questions: GENERATED_PERSONAL_ASSESSMENT_MIN_QUESTIONS,
         max_questions: GENERATED_PERSONAL_ASSESSMENT_MAX_QUESTIONS,
+        required_source_keys: GENERATED_PERSONAL_ASSESSMENT_REQUIRED_KEYS,
         use_question_bank_as_context_payload: true,
         preserve_source_keys: true,
         include_written_answers: true,
@@ -422,7 +458,7 @@ export class PersonalAssessmentService {
     profile: TalentProfile,
   ): PersonalAssessmentQuestion[] {
     return getAllPersonalAssessmentQuestions().filter((question) => {
-      if (question.skipStorage) {
+      if (question.skipStorage && question.key !== 'claimed_level') {
         return false;
       }
 
@@ -446,6 +482,7 @@ export class PersonalAssessmentService {
       'job_title',
       'years_experience',
       'industries',
+      'claimed_level',
       'specialization',
       'tools',
       'primary_tool_duration',
@@ -537,6 +574,9 @@ export class PersonalAssessmentService {
         : null;
       return track ? TOOLS_BY_TRACK[track] : undefined;
     }
+    if (question.key === 'claimed_level') {
+      return TALENT_CLAIMED_LEVELS;
+    }
     return question.options;
   }
 
@@ -586,8 +626,9 @@ export class PersonalAssessmentService {
       throw new BadRequestException(ErrorMessages.ASSESSMENT.INVALID_SECTION);
     }
 
+    const normalizedAnswers = this.normalizeAnswerAliases(rawAnswers);
     const filtered = Object.fromEntries(
-      Object.entries(rawAnswers).filter(
+      Object.entries(normalizedAnswers).filter(
         ([key]) => !SKIPPED_ONBOARDING_ANSWER_KEYS.has(key),
       ),
     );
@@ -605,6 +646,10 @@ export class PersonalAssessmentService {
       }
 
       const validated = validateSectionAnswers(section, filtered, profile);
+      if (typeof validated.claimed_level === 'string') {
+        profile.claimed_level =
+          validated.claimed_level as TalentProfile['claimed_level'];
+      }
       profile.personal_assessment_answers = this.withSectionSaved(
         this.readStore(profile),
         section,
@@ -660,6 +705,10 @@ export class PersonalAssessmentService {
         );
 
         const completedAt = new Date();
+        if (typeof stored.claimed_level === 'string') {
+          profile.claimed_level =
+            stored.claimed_level as TalentProfile['claimed_level'];
+        }
         profile.personal_assessment_completed_at = completedAt;
         await manager.save(TalentProfile, profile);
 

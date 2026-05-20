@@ -20,11 +20,18 @@ import { TransformInterceptor } from '../src/common/interceptors/transform.inter
 import { DashboardController } from '../src/modules/dashboard/dashboard.controller';
 import { DashboardService } from '../src/modules/dashboard/dashboard.service';
 import {
+  AssessmentResult,
+  AssessmentTier,
+  AssessmentType,
+  VerifiedLevel,
+} from '../src/modules/assessments/entities';
+import {
   TalentProfile,
   TalentProfileStatus,
 } from '../src/modules/talent/entities/talent-profile.entity';
 import { User, UserRole } from '../src/modules/users/entities/user.entity';
 import { UsersService } from '../src/modules/users/users.service';
+import { DashboardJourneyStatus } from '../src/modules/dashboard/dto/dashboard-home.dto';
 
 type AuthUser = {
   sub: string;
@@ -77,8 +84,56 @@ describe('Dashboard home (e2e)', () => {
     education_level: 'bachelors',
     linkedin_url: 'https://linkedin.com/in/casey',
     bio: 'Frontend developer',
+    claimed_level: VerifiedLevel.MID,
+    personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+    skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
+    advanced_assessment_completed_at: new Date('2026-05-03T00:00:00.000Z'),
+    validated_level: VerifiedLevel.MID,
     status: TalentProfileStatus.JOB_READY,
   });
+
+  const skillAssessmentResult = makeAssessmentResult({
+    score: 8,
+    max_score: 10,
+    percentage: 80,
+    validated_level: VerifiedLevel.MID,
+  });
+
+  const advancedAssessmentResult = makeAssessmentResult({
+    score: 88,
+    max_score: 110,
+    percentage: 80,
+    tier: AssessmentTier.JOB_READY,
+    integrity_confidence: 'high',
+  });
+
+  function createAssessmentResultQueryBuilder() {
+    let assessmentType: AssessmentType | undefined;
+
+    const builder = {
+      innerJoin: jest.fn().mockReturnThis(),
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockImplementation((_clause, params) => {
+        if (params?.assessmentType) {
+          assessmentType = params.assessmentType;
+        }
+        return builder;
+      }),
+      orderBy: jest.fn().mockReturnThis(),
+      addOrderBy: jest.fn().mockReturnThis(),
+      getOne: jest.fn().mockImplementation(() => {
+        if (assessmentType === AssessmentType.SKILL) {
+          return Promise.resolve(skillAssessmentResult);
+        }
+        if (assessmentType === AssessmentType.ADVANCED) {
+          return Promise.resolve(advancedAssessmentResult);
+        }
+        return Promise.resolve(null);
+      }),
+    };
+
+    return builder;
+  }
 
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -93,6 +148,14 @@ describe('Dashboard home (e2e)', () => {
               if (id === employerUser.id) return Promise.resolve(employerUser);
               return Promise.reject(new Error(`User ${id} not found`));
             }),
+          },
+        },
+        {
+          provide: getRepositoryToken(AssessmentResult),
+          useValue: {
+            createQueryBuilder: jest.fn(() =>
+              createAssessmentResultQueryBuilder(),
+            ),
           },
         },
         {
@@ -142,11 +205,46 @@ describe('Dashboard home (e2e)', () => {
           firstName: 'Casey',
           profileCompletionPercentage: 100,
           journeyOverview: [
-            { key: 'onboarding', title: 'Onboarding', status: 'complete' },
-            { key: 'assessment_1', title: 'Assessment 1', status: 'active' },
-            { key: 'assessment_2', title: 'Assessment 2', status: 'locked' },
-            { key: 'assessment_3', title: 'Assessment 3', status: 'locked' },
+            {
+              key: 'onboarding',
+              title: 'Onboarding',
+              status: DashboardJourneyStatus.COMPLETED,
+            },
+            {
+              key: 'personal',
+              title: 'Personal Assessment',
+              status: DashboardJourneyStatus.COMPLETED,
+            },
+            {
+              key: 'skill',
+              title: 'Skill Assessment',
+              status: DashboardJourneyStatus.COMPLETED,
+            },
+            {
+              key: 'advanced',
+              title: 'Advanced Assessment',
+              status: DashboardJourneyStatus.COMPLETED,
+            },
           ],
+          performance: {
+            skill: {
+              score: 8,
+              maxScore: 10,
+              percentage: 80,
+              validatedLevel: VerifiedLevel.MID,
+              passed: true,
+              completedAt: '2026-05-02T00:00:00.000Z',
+            },
+            advanced: {
+              score: 88,
+              maxScore: 110,
+              percentage: 80,
+              tier: AssessmentTier.JOB_READY,
+              tierLabel: 'Job Ready',
+              integrityConfidence: 'high',
+              completedAt: '2026-05-03T00:00:00.000Z',
+            },
+          },
         });
       });
   });
@@ -193,6 +291,24 @@ function makeUser(overrides: Partial<User>): User {
   });
 }
 
+function makeAssessmentResult(
+  overrides: Partial<AssessmentResult>,
+): AssessmentResult {
+  return Object.assign(new AssessmentResult(), {
+    id: 'result-1',
+    attempt_id: 'attempt-1',
+    score: 8,
+    max_score: 10,
+    percentage: 80,
+    tier: null,
+    validated_level: null,
+    guidance_report: null,
+    integrity_confidence: null,
+    created_at: new Date(),
+    ...overrides,
+  });
+}
+
 function makeProfile(overrides: Partial<TalentProfile>): TalentProfile {
   return Object.assign(new TalentProfile(), {
     id: 'profile-1',
@@ -205,12 +321,19 @@ function makeProfile(overrides: Partial<TalentProfile>): TalentProfile {
     linkedin_url: null,
     track: null,
     profile_verified: false,
+    claimed_level: null,
     onboarding_step: 0,
     status: TalentProfileStatus.NOT_STARTED,
     bio: null,
     profile_share_link: null,
     is_published: false,
     published_at: null,
+    personal_assessment_answers: null,
+    personal_assessment_completed_at: null,
+    skill_assessment_completed_at: null,
+    advanced_assessment_completed_at: null,
+    validated_level: null,
+    assessment_locked_until: null,
     created_at: new Date(),
     updated_at: new Date(),
     ...overrides,

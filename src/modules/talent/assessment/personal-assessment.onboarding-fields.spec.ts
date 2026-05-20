@@ -13,7 +13,6 @@ const ONBOARDING_PROFILE_FIELDS = [
   'education_level',
   'region',
   'linkedin_url',
-  'claimed_level',
   'country',
 ] as const;
 
@@ -26,7 +25,6 @@ const ONBOARDING_ONLY_FIELD_KEYS = new Set<string>([
   'track',
   'educationLevel',
   'linkedinProfile',
-  'claimedLevel',
   'linkedin_url',
 ]);
 
@@ -53,7 +51,6 @@ describe('personal assessment onboarding overlap', () => {
       'country',
       'region',
       'skill_track',
-      'claimed_level',
       'portfolio_url',
     ]);
 
@@ -70,7 +67,8 @@ describe('personal assessment onboarding overlap', () => {
     expect(SKIPPED_ONBOARDING_ANSWER_KEYS.has('track')).toBe(true);
     expect(SKIPPED_ONBOARDING_ANSWER_KEYS.has('educationLevel')).toBe(true);
     expect(SKIPPED_ONBOARDING_ANSWER_KEYS.has('linkedinProfile')).toBe(true);
-    expect(SKIPPED_ONBOARDING_ANSWER_KEYS.has('claimedLevel')).toBe(true);
+    expect(SKIPPED_ONBOARDING_ANSWER_KEYS.has('claimed_level')).toBe(false);
+    expect(SKIPPED_ONBOARDING_ANSWER_KEYS.has('claimedLevel')).toBe(false);
   });
 
   it('does not include goal as an assessment question', () => {
@@ -99,8 +97,6 @@ describe('personal assessment onboarding overlap', () => {
         region: 'Elsewhere',
         track: 'backend_developer',
         skill_track: 'backend_developer',
-        claimed_level: 'expert',
-        claimedLevel: 'expert',
         portfolio_url: 'https://github.com/other',
         linkedin_url: 'https://linkedin.com/in/other',
         linkedinProfile: 'https://linkedin.com/in/other',
@@ -113,7 +109,6 @@ describe('personal assessment onboarding overlap', () => {
     expect(result.region).toBeUndefined();
     expect(result.track).toBeUndefined();
     expect(result.skill_track).toBeUndefined();
-    expect(result.claimed_level).toBeUndefined();
     expect(result.portfolio_url).toBeUndefined();
     expect(result.linkedin_url).toBeUndefined();
     expect(result.job_title).toBe('Software Engineer');

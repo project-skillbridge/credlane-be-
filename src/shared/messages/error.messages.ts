@@ -32,7 +32,7 @@ export const ErrorMessages = {
     PERSONAL_ASSESSMENT_INCOMPLETE:
       'Complete your personal assessment before starting a skill assessment',
     CLAIMED_LEVEL_MISSING:
-      'claimed_level is required to start a skill assessment; please complete onboarding track step first',
+      'claimed_level is required to start a skill assessment; please complete personal assessment first',
     TRACK_MISSING:
       'track is required to start a skill assessment; please complete onboarding track step first',
     NO_QUESTIONS_AVAILABLE:
