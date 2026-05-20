@@ -7,6 +7,7 @@ import { TalentProfile } from '../entities/talent-profile.entity';
 import { AssessmentTier } from '../../assessments/entities/assessment-result.entity';
 import { ScoredTextAnswer } from '../../ai/ai.types';
 import { TalentPersonalAssessmentContext } from './personal-assessment.service';
+import { sanitiseCompetencyList } from './competency-taxonomy';
 
 export interface EmployerPoolProfileInput {
   profile: TalentProfile;
@@ -15,6 +16,13 @@ export interface EmployerPoolProfileInput {
   tier: AssessmentTier;
   percentage: number;
   scoredTextAnswers: ScoredTextAnswer[];
+  /**
+   * Optional map from question_id -> competency tag (track taxonomy),
+   * looked up from the session jsonb at submit time. When present, the
+   * employer-facing competency_scores are aggregated by competency instead
+   * of by question_id.
+   */
+  competencyByQuestion?: Map<string, string | null>;
   integrityClean: boolean;
   personalContext: TalentPersonalAssessmentContext;
 }
@@ -39,8 +47,11 @@ export class EmployerPoolProfileService {
       personalContext,
     } = input;
 
-    const { strongCompetencies, competencyScores } =
-      this.deriveCompetencies(scoredTextAnswers);
+    const { strongCompetencies, competencyScores } = this.deriveCompetencies(
+      scoredTextAnswers,
+      profile.track ?? null,
+      input.competencyByQuestion,
+    );
 
     const token = randomBytes(32).toString('hex');
 
@@ -80,25 +91,45 @@ export class EmployerPoolProfileService {
     return saved;
   }
 
-  private deriveCompetencies(scored: ScoredTextAnswer[]): {
+  private deriveCompetencies(
+    scored: ScoredTextAnswer[],
+    track: string | null,
+    competencyByQuestion: Map<string, string | null> | undefined,
+  ): {
     strongCompetencies: string[];
     competencyScores: Record<string, number>;
   } {
-    const competencyScores: Record<string, number> = {};
-    const strongCompetencies: string[] = [];
+    // Aggregate by competency tag, not by question_id. When no competency
+    // lookup is provided (or a question has no tag), fall back to the
+    // question_id so we never silently drop a data point.
+    const buckets = new Map<string, { sum: number; count: number }>();
 
     for (const answer of scored) {
       const pct =
         answer.max_score > 0
-          ? Math.round((answer.raw_score / answer.max_score) * 100)
+          ? (answer.raw_score / answer.max_score) * 100
           : 0;
-      competencyScores[answer.question_id] = pct;
-      if (pct >= 70) {
-        strongCompetencies.push(answer.question_id);
-      }
+      const competency =
+        competencyByQuestion?.get(answer.question_id) ?? answer.question_id;
+      const key = competency.toLowerCase();
+      const existing = buckets.get(key) ?? { sum: 0, count: 0 };
+      existing.sum += pct;
+      existing.count += 1;
+      buckets.set(key, existing);
     }
 
-    return { strongCompetencies, competencyScores };
+    const competencyScores: Record<string, number> = {};
+    const strongRaw: string[] = [];
+    for (const [competency, { sum, count }] of buckets.entries()) {
+      const avg = Math.round(sum / Math.max(count, 1));
+      competencyScores[competency] = avg;
+      if (avg >= 70) strongRaw.push(competency);
+    }
+
+    return {
+      strongCompetencies: sanitiseCompetencyList(track, strongRaw),
+      competencyScores,
+    };
   }
 
   private resolveSpecialization(

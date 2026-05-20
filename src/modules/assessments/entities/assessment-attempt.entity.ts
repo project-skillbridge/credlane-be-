@@ -56,6 +56,13 @@ export class AssessmentAttempt {
   tab_switch_count: number;
 
   @ApiProperty({
+    default: 0,
+    description: 'Number of copy-paste attempts during assessment',
+  })
+  @Column({ type: 'integer', default: 0 })
+  copy_paste_count: number;
+
+  @ApiProperty({
     default: false,
     description: 'Whether assessment was auto-submitted due to violations',
   })

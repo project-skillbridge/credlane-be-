@@ -64,6 +64,12 @@ export const ErrorMessages = {
     RETAKE_LOCKED: (unlocksAt: string) =>
       `Advanced assessment is locked until ${unlocksAt}. Retakes are available after a 14-day gate.`,
     SESSION_VOIDED: 'Assessment session has been voided due to integrity violations. A 14-day retake gate has started.',
+    LT2_NOT_SUBMITTED:
+      'Complete the previous question to continue.',
+    LT2_QUESTION_MISMATCH:
+      'The question_id provided does not match the LT-2 (work task) question for this session.',
+    LT3_GENERATION_FAILED:
+      'We could not generate your reflection question. Please retry in a moment.',
   },
   ONBOARDING: {
     INVALID_USER: 'Invalid user',

@@ -8,7 +8,9 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  MaxLength,
   Min,
+  MinLength,
   ValidateNested,
 } from 'class-validator';
 import { Type } from 'class-transformer';
@@ -79,4 +81,29 @@ export class SubmitAdvancedAssessmentDto {
   @ValidateNested({ each: true })
   @Type(() => AdvancedAnswerDto)
   answers: AdvancedAnswerDto[];
+}
+
+/**
+ * LT-3 (reflection) is generated at runtime from the candidate's LT-2
+ * answer and served immediately after LT-2 submission. Client posts the
+ * LT-2 answer here; server returns the generated LT-3.
+ */
+export class SubmitLt2Dto {
+  @ApiProperty({
+    format: 'uuid',
+    description: 'The LT-2 (WORK_TASK) question_id from the session payload',
+  })
+  @IsUUID()
+  @IsNotEmpty()
+  question_id: string;
+
+  @ApiProperty({
+    description: 'Candidate\u2019s LT-2 answer text (150\u20132000 chars)',
+    minLength: 150,
+    maxLength: 2000,
+  })
+  @IsString()
+  @MinLength(150)
+  @MaxLength(2000)
+  answer: string;
 }

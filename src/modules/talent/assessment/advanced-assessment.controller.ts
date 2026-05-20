@@ -30,6 +30,7 @@ import {
   FlagIntegrityEventDto,
   StartAdvancedAssessmentDto,
   SubmitAdvancedAssessmentDto,
+  SubmitLt2Dto,
 } from './dto/advanced-assessment.dto';
 
 @ApiTags('talent-assessment')
@@ -97,13 +98,55 @@ export class AdvancedAssessmentController {
     return this.advancedAssessmentService.getSession(userId, sessionId);
   }
 
+  @Post('session/:id/lt2-submit')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Submit LT-2 answer and receive runtime-generated LT-3',
+    description:
+      'LT-3 (reflection) is generated at runtime from the candidate\u2019s LT-2 answer. ' +
+      'POST this endpoint immediately after the candidate ' +
+      'submits LT-2; the response contains the LT-3 question to render next. ' +
+      'Idempotent: a second call returns the LT-3 that was generated on the first call ' +
+      'without invoking the LLM again. Returns 503 LT3_GENERATION_FAILED if the LLM ' +
+      'fails (client should retry).',
+  })
+  @ApiParam({ name: 'id', format: 'uuid', description: 'Session ID' })
+  @ApiOkResponse({ description: 'LT-3 generated and appended to session' })
+  @ApiNotFoundResponse({ description: 'Session not found' })
+  @ApiForbiddenResponse({ description: 'Not a talent user' })
+  @ApiServiceUnavailableResponse({
+    description: 'LT3_GENERATION_FAILED when the LLM call fails',
+  })
+  @ApiUnprocessableEntityResponse({
+    description:
+      'question_id does not match the LT-2 slot, or session has expired / completed / been voided',
+  })
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+    }),
+  )
+  submitLt2(
+    @CurrentUser('sub') userId: string,
+    @Param('id') sessionId: string,
+    @Body() dto: SubmitLt2Dto,
+  ) {
+    return this.advancedAssessmentService.submitLt2(userId, sessionId, dto);
+  }
+
   @Post('advanced/submit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Submit advanced assessment answers',
     description:
-      'Scores MCQs immediately (1/0). Passes text answers to the AI rubric layer (short-text: 4 dims, final long-text reflection: 2 dims). Computes percentage against the dynamic session max. ' +
-      '≥75% → Job Ready + employer pool profile. 50–74% → Emerging + guidance report + 14-day gate. <50% → Not Ready + guidance report + 14-day gate. ' +
+      'Scores MCQs immediately (1/0). Passes text answers to the AI rubric layer ' +
+      '(short text + LT-1 + LT-2: 4 dims 0\u20133, max 12; LT-3: 2 dims 0\u20134, max 8). ' +
+      'Computes percentage against the fixed session max (186 = 10 + 120 + 48 + 8). ' +
+      '\u226575% \u2192 Job Ready + employer pool profile. 50\u201374% \u2192 Emerging + guidance + 14-day gate. ' +
+      '<50% \u2192 Not Ready + guidance + 14-day gate. Writes one assessment_scores row per question. ' +
+      'Returns 422 LT2_NOT_SUBMITTED if /lt2-submit was never called for this session. ' +
       'Accepts submissions on expired sessions (auto_submitted=true, unanswered questions scored 0).',
   })
   @ApiOkResponse({ description: 'Assessment scored and tier written' })
