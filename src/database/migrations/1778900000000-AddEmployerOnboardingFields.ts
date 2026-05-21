@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddEmployerOnboardingFields1778900000000
-  implements MigrationInterface
-{
+export class AddEmployerOnboardingFields1778900000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(
       `ALTER TABLE "employer_profiles" ALTER COLUMN "company_name" DROP NOT NULL`,

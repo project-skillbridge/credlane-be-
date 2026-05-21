@@ -405,7 +405,11 @@ describe('Onboarding (e2e)', () => {
         {
           provide: UploadService,
           useValue: {
-            uploadAvatar: jest.fn().mockResolvedValue('https://bucket.s3.region.amazonaws.com/avatars/test.jpg'),
+            uploadAvatar: jest
+              .fn()
+              .mockResolvedValue(
+                'https://bucket.s3.region.amazonaws.com/avatars/test.jpg',
+              ),
           },
         },
         { provide: APP_GUARD, useClass: JwtAuthGuard },

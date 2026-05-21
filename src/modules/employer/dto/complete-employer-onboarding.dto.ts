@@ -52,7 +52,8 @@ export class CompleteEmployerOnboardingDto {
   @ApiProperty({
     example: '6_10',
     enum: EMPLOYER_HIRING_RANGES,
-    description: 'Approximate number of talents to hire: 1_5 | 6_10 | 11_25 | 26_50 | 51_plus',
+    description:
+      'Approximate number of talents to hire: 1_5 | 6_10 | 11_25 | 26_50 | 51_plus',
   })
   @IsIn(EMPLOYER_HIRING_RANGES, {
     message: `hiringCountRange must be one of: ${EMPLOYER_HIRING_RANGES.join(', ')}`,

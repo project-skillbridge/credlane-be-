@@ -43,7 +43,9 @@ export class SkillAssessmentController {
       'Requires completed personal assessment plus onboarding track and claimed level. ' +
       'Generates a personalised AI question set, creates a session, and returns the ordered questions.',
   })
-  @ApiCreatedResponse({ description: 'Assessment session created with questions' })
+  @ApiCreatedResponse({
+    description: 'Assessment session created with questions',
+  })
   @ApiNotFoundResponse({ description: 'Talent profile not found' })
   @ApiUnprocessableEntityResponse({
     description:
@@ -67,7 +69,6 @@ export class SkillAssessmentController {
     return this.skillAssessmentService.start(userId);
   }
 
-
   @Post('submit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
@@ -76,7 +77,9 @@ export class SkillAssessmentController {
       'Scores MCQs immediately, sends text answers to the AI rubric layer, writes validated_level to the talent profile, ' +
       'and enforces the 75% pass gate for advanced access. Failed attempts return guidance plus a 14-day retry date.',
   })
-  @ApiOkResponse({ description: 'Assessment scored and validated_level written' })
+  @ApiOkResponse({
+    description: 'Assessment scored and validated_level written',
+  })
   @ApiNotFoundResponse({ description: 'Profile or attempt not found' })
   @ApiForbiddenResponse({ description: 'Not a talent user' })
   @UsePipes(

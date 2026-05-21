@@ -112,7 +112,9 @@ export class PersonalAssessmentService {
       profile.personal_assessment_completed_at ||
       getPersonalAssessmentProgress(store._meta).isComplete
     ) {
-      throw new UnprocessableEntityException(ErrorMessages.ASSESSMENT.ALREADY_COMPLETED);
+      throw new UnprocessableEntityException(
+        ErrorMessages.ASSESSMENT.ALREADY_COMPLETED,
+      );
     }
   }
 

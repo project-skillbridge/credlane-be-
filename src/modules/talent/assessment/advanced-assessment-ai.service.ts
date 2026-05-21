@@ -88,7 +88,7 @@ export class AdvancedAssessmentAiService {
       options: question.options,
       slot_type: question.slot_type,
       metadata: question.metadata,
-      correct_answer: question.correct_answer
+      correct_answer: question.correct_answer,
     }));
   }
 }

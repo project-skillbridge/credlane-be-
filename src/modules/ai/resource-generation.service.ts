@@ -14,14 +14,20 @@ Return ONLY valid JSON matching the schema — do not wrap in markdown unless re
 export class ResourceGenerationService {
   constructor(private readonly openRouter: OpenRouterService) {}
 
-  async generate(track: string, thresholdGroup: string): Promise<AiResourcesPayload> {
+  async generate(
+    track: string,
+    thresholdGroup: string,
+  ): Promise<AiResourcesPayload> {
     let focusGuide: string;
     if (thresholdGroup === 'below_50') {
-      focusGuide = 'The candidate scored below 50%. Focus heavily on foundational, beginner-friendly topics, basic setup guides, tutorials, and fundamental concepts to help them build a strong base.';
+      focusGuide =
+        'The candidate scored below 50%. Focus heavily on foundational, beginner-friendly topics, basic setup guides, tutorials, and fundamental concepts to help them build a strong base.';
     } else if (thresholdGroup === 'between_50_75') {
-      focusGuide = 'The candidate scored between 50% and 75%. Focus on intermediate topics, best practices, common architectures, debugging, and practical project-building tutorials.';
+      focusGuide =
+        'The candidate scored between 50% and 75%. Focus on intermediate topics, best practices, common architectures, debugging, and practical project-building tutorials.';
     } else if (thresholdGroup === 'above_75') {
-      focusGuide = 'The candidate scored above 75%. Focus on advanced/expert topics, system design, performance optimization, advanced patterns, and deep-dive technical resources.';
+      focusGuide =
+        'The candidate scored above 75%. Focus on advanced/expert topics, system design, performance optimization, advanced patterns, and deep-dive technical resources.';
     } else {
       throw new Error(`Unknown threshold group: ${thresholdGroup}`);
     }
@@ -70,7 +76,7 @@ Rules:
       userPrompt,
       aiResourcesPayloadSchema,
       0.6,
-      true, 
+      true,
     );
   }
 }

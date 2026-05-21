@@ -58,7 +58,8 @@ export class SaveEmployerProfileDto {
     example: ['Nigeria', 'Remote Worldwide'],
     enum: EMPLOYER_HIRING_LOCATIONS,
     isArray: true,
-    description: 'Nigeria | Africa | Remote Worldwide | UK | Europe | North America',
+    description:
+      'Nigeria | Africa | Remote Worldwide | UK | Europe | North America',
   })
   @IsArray()
   @ArrayMinSize(1, { message: 'Please select at least one location' })

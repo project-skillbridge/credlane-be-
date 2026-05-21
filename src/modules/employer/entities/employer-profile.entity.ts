@@ -31,11 +31,19 @@ export class EmployerProfile {
   @Column({ type: 'varchar', length: 50, nullable: true })
   employer_type: string | null;
 
-  @ApiProperty({ example: ['Engineering', 'Design'], nullable: true, type: [String] })
+  @ApiProperty({
+    example: ['Engineering', 'Design'],
+    nullable: true,
+    type: [String],
+  })
   @Column({ type: 'text', array: true, nullable: true })
   hiring_roles: string[] | null;
 
-  @ApiProperty({ example: ['Nigeria', 'Remote Worldwide'], nullable: true, type: [String] })
+  @ApiProperty({
+    example: ['Nigeria', 'Remote Worldwide'],
+    nullable: true,
+    type: [String],
+  })
   @Column({ type: 'text', array: true, nullable: true })
   hiring_locations: string[] | null;
 

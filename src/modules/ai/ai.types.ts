@@ -139,4 +139,3 @@ export interface AiResourcesPayload {
   resources: GeneratedArticleItem[];
   videos: GeneratedVideoItem[];
 }
-

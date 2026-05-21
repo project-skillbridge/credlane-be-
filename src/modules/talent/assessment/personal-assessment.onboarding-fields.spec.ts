@@ -6,7 +6,10 @@ import {
   getSectionQuestions,
 } from './personal-assessment.schema';
 import { validateSectionAnswers } from './personal-assessment.validation';
-import { makeTalentProfile, section1Answers } from './personal-assessment.test-fixtures';
+import {
+  makeTalentProfile,
+  section1Answers,
+} from './personal-assessment.test-fixtures';
 
 const ONBOARDING_PROFILE_FIELDS = [
   'track',
@@ -35,12 +38,18 @@ describe('personal assessment onboarding overlap', () => {
   it('defines exactly 48 questions across 7 sections', () => {
     expect(allQuestions).toHaveLength(48);
     expect(
-      allQuestions.map((question) => question.questionNumber).sort((a, b) => a - b),
+      allQuestions
+        .map((question) => question.questionNumber)
+        .sort((a, b) => a - b),
     ).toEqual([...Array(48)].map((_, index) => index + 1));
   });
 
   it('has at least one question per section', () => {
-    for (let section = 1; section <= PERSONAL_ASSESSMENT_SECTION_COUNT; section++) {
+    for (
+      let section = 1;
+      section <= PERSONAL_ASSESSMENT_SECTION_COUNT;
+      section++
+    ) {
       expect(getSectionQuestions(section).length).toBeGreaterThan(0);
     }
   });

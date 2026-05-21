@@ -54,7 +54,9 @@ export class TalentController {
   ) {}
 
   @Get('onboarding')
-  @ApiOperation({ summary: 'Get current onboarding state (for pre-filling forms)' })
+  @ApiOperation({
+    summary: 'Get current onboarding state (for pre-filling forms)',
+  })
   @ApiOkResponse({ description: 'Returns user info and current profile' })
   async getOnboardingState(@CurrentUser('sub') userId: string) {
     return this.talentService.getOnboardingState(userId);
@@ -64,10 +66,7 @@ export class TalentController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Step 1 — save career goal' })
   @ApiForbiddenResponse({ description: 'Onboarding already completed' })
-  async saveGoal(
-    @CurrentUser('sub') userId: string,
-    @Body() dto: SetGoalDto,
-  ) {
+  async saveGoal(@CurrentUser('sub') userId: string, @Body() dto: SetGoalDto) {
     return this.talentService.saveGoal(userId, dto);
   }
 
@@ -84,7 +83,9 @@ export class TalentController {
 
   @Post('onboarding/avatar')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Upload avatar to S3; returns avatarUrl for use in profile step' })
+  @ApiOperation({
+    summary: 'Upload avatar to S3; returns avatarUrl for use in profile step',
+  })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(
     FileInterceptor('file', {
@@ -119,7 +120,9 @@ export class TalentController {
 
   @Patch('onboarding/profile')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Step 3 — save profile details and complete onboarding' })
+  @ApiOperation({
+    summary: 'Step 3 — save profile details and complete onboarding',
+  })
   @ApiForbiddenResponse({ description: 'Onboarding already completed' })
   async saveProfile(
     @CurrentUser('sub') userId: string,
@@ -139,7 +142,13 @@ export class TalentController {
   @Post('onboarding/goal')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Step 1 — save career goal (BE-ONB-TAL-001)' })
-  @UsePipes(new ValidationPipe({ whitelist: true, transform: true, errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }))
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+    }),
+  )
   async saveGoalStep(
     @CurrentUser('sub') userId: string,
     @Body() dto: SaveGoalDto,
@@ -151,7 +160,13 @@ export class TalentController {
   @Post('onboarding/track')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Step 2 — save track (BE-ONB-TAL-002)' })
-  @UsePipes(new ValidationPipe({ whitelist: true, transform: true, errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }))
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+    }),
+  )
   async saveTrackStep(
     @CurrentUser('sub') userId: string,
     @Body() dto: SaveTrackDto,
@@ -162,7 +177,10 @@ export class TalentController {
   /** BE-ONB-TAL-003 — save profile; photo optional, optional fields optional. */
   @Post('profile')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Step 3 — save talent profile with optional photo upload (BE-ONB-TAL-003)' })
+  @ApiOperation({
+    summary:
+      'Step 3 — save talent profile with optional photo upload (BE-ONB-TAL-003)',
+  })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(
     FileInterceptor('photo', {
@@ -173,14 +191,22 @@ export class TalentController {
           cb(null, true);
         } else {
           cb(
-            new UnprocessableEntityException(ErrorMessages.ONBOARDING.INVALID_PHOTO_TYPE),
+            new UnprocessableEntityException(
+              ErrorMessages.ONBOARDING.INVALID_PHOTO_TYPE,
+            ),
             false,
           );
         }
       },
     }),
   )
-  @UsePipes(new ValidationPipe({ whitelist: true, transform: true, errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY }))
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+    }),
+  )
   async saveTalentProfile(
     @CurrentUser('sub') userId: string,
     @UploadedFile() photo: Express.Multer.File | undefined,
@@ -192,7 +218,10 @@ export class TalentController {
   /** BE-ONB-TAL-004 — trigger personalisation; no body needed. */
   @Post('onboarding/personalise')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Step 4 — personalise dashboard from saved onboarding data (BE-ONB-TAL-004)' })
+  @ApiOperation({
+    summary:
+      'Step 4 — personalise dashboard from saved onboarding data (BE-ONB-TAL-004)',
+  })
   async personalise(@CurrentUser('sub') userId: string) {
     return this.talentService.personalise(userId);
   }

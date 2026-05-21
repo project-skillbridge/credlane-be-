@@ -60,13 +60,14 @@ export const ErrorMessages = {
     SESSION_NOT_FOUND: 'Advanced assessment session not found',
     SESSION_CORRUPT: 'Advanced assessment session has no questions',
     ATTEMPT_NOT_FOUND: 'Assessment session not found',
-    ATTEMPT_ALREADY_SUBMITTED: 'This assessment session has already been submitted',
+    ATTEMPT_ALREADY_SUBMITTED:
+      'This assessment session has already been submitted',
     SESSION_EXPIRED: 'Assessment session has expired',
     RETAKE_LOCKED: (unlocksAt: string) =>
       `Advanced assessment is locked until ${unlocksAt}. Retakes are available after a 14-day gate.`,
-    SESSION_VOIDED: 'Assessment session has been voided due to integrity violations. A 14-day retake gate has started.',
-    LT2_NOT_SUBMITTED:
-      'Complete the previous question to continue.',
+    SESSION_VOIDED:
+      'Assessment session has been voided due to integrity violations. A 14-day retake gate has started.',
+    LT2_NOT_SUBMITTED: 'Complete the previous question to continue.',
     LT2_QUESTION_MISMATCH:
       'The question_id provided does not match the LT-2 (work task) question for this session.',
     LT3_GENERATION_FAILED:
@@ -100,7 +101,8 @@ export const ErrorMessages = {
     INTERNAL_SERVER_ERROR: 'Internal server error',
   },
   AI_RESOURCES: {
-    NO_ASSESSMENT_SCORES: 'Please complete at least one assessment to view personalized resources.',
+    NO_ASSESSMENT_SCORES:
+      'Please complete at least one assessment to view personalized resources.',
     PROFILE_NOT_FOUND: 'Talent profile not found',
   },
 } as const;

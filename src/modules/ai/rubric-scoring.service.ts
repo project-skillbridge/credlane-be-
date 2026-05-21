@@ -7,8 +7,8 @@ const SYSTEM_PROMPT = `You are an expert technical assessor scoring candidate an
 
 Score each answer on the dimensions provided. Return ONLY valid JSON — no markdown, no explanation outside the JSON object.`;
 
-const MAX_SCORE_FULL = 12;   // Relevance + Reasoning + Specificity + Completeness (0–3 each)
-const MAX_SCORE_LT3  = 8;    // Relevance + Reasoning only (0–4 each)
+const MAX_SCORE_FULL = 12; // Relevance + Reasoning + Specificity + Completeness (0–3 each)
+const MAX_SCORE_LT3 = 8; // Relevance + Reasoning only (0–4 each)
 
 @Injectable()
 export class RubricScoringService {
@@ -34,7 +34,12 @@ export class RubricScoringService {
 
     const dimensions = isLt3
       ? ['relevance (0-4)', 'reasoning (0-4)']
-      : ['relevance (0-3)', 'reasoning (0-3)', 'specificity (0-3)', 'completeness (0-3)'];
+      : [
+          'relevance (0-3)',
+          'reasoning (0-3)',
+          'specificity (0-3)',
+          'completeness (0-3)',
+        ];
 
     const dimensionRule = isLt3
       ? '- Each dimension: integer 0, 1, 2, 3, or 4 only'
@@ -63,7 +68,12 @@ ${dimensionRule}
 
     try {
       if (isLt3) {
-        const raw = await this.openRouter.chat(SYSTEM_PROMPT, userPrompt, rubricLt3Schema, 0.1);
+        const raw = await this.openRouter.chat(
+          SYSTEM_PROMPT,
+          userPrompt,
+          rubricLt3Schema,
+          0.1,
+        );
         return {
           question_id: input.question_id,
           rubric: { ...raw, specificity: 0, completeness: 0 },
@@ -72,7 +82,12 @@ ${dimensionRule}
         };
       }
 
-      const raw = await this.openRouter.chat(SYSTEM_PROMPT, userPrompt, rubricFullSchema, 0.1);
+      const raw = await this.openRouter.chat(
+        SYSTEM_PROMPT,
+        userPrompt,
+        rubricFullSchema,
+        0.1,
+      );
       return {
         question_id: input.question_id,
         rubric: raw,
