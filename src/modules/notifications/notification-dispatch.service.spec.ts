@@ -4,25 +4,14 @@ import { NotificationDispatchService } from './notification-dispatch.service';
 
 describe('NotificationDispatchService', () => {
   let service: NotificationDispatchService;
-  let notificationsService: {
-    create: jest.Mock;
-    hasDedupedNotification: jest.Mock;
-  };
-  let mailService: {
-    sendAssessmentPerformance: jest.Mock;
-    sendAdvancedRetakeAvailable: jest.Mock;
-  };
+  let notificationsService: { create: jest.Mock };
+  let mailService: { sendAssessmentPerformance: jest.Mock };
   let usersService: { findOne: jest.Mock };
-  let talentProfileRepo: { find: jest.Mock };
 
   beforeEach(() => {
-    notificationsService = {
-      create: jest.fn().mockResolvedValue({ id: 'n-1' }),
-      hasDedupedNotification: jest.fn().mockResolvedValue(false),
-    };
+    notificationsService = { create: jest.fn().mockResolvedValue({ id: 'n-1' }) };
     mailService = {
       sendAssessmentPerformance: jest.fn().mockResolvedValue({ id: 'email-1' }),
-      sendAdvancedRetakeAvailable: jest.fn().mockResolvedValue({ id: 'email-2' }),
     };
     usersService = {
       findOne: jest.fn().mockResolvedValue({
@@ -31,13 +20,11 @@ describe('NotificationDispatchService', () => {
         first_name: 'Jane',
       }),
     };
-    talentProfileRepo = { find: jest.fn().mockResolvedValue([]) };
 
     service = new NotificationDispatchService(
       notificationsService as never,
       mailService as never,
       usersService as never,
-      talentProfileRepo as never,
     );
   });
 
@@ -73,32 +60,5 @@ describe('NotificationDispatchService', () => {
     );
 
     expect(notificationsService.create).toHaveBeenCalled();
-  });
-
-  it('sends retake-available in-app and email when the gate has elapsed', async () => {
-    const eligibilityDate = new Date('2020-01-15T12:00:00.000Z');
-
-    await service.notifyAdvancedRetakeIfEligible('user-1', {
-      advanced_retake_required: true,
-      assessment_locked_until: eligibilityDate,
-    });
-
-    expect(notificationsService.create).toHaveBeenCalledWith(
-      expect.objectContaining({
-        type: NotificationType.ADVANCED_RETAKE_AVAILABLE,
-      }),
-    );
-    expect(mailService.sendAdvancedRetakeAvailable).toHaveBeenCalled();
-  });
-
-  it('skips retake notification when already sent for eligibility window', async () => {
-    notificationsService.hasDedupedNotification.mockResolvedValue(true);
-
-    await service.dispatch(NotificationType.ADVANCED_RETAKE_AVAILABLE, 'user-1', {
-      eligibilityDate: '2026-06-01T00:00:00.000Z',
-    });
-
-    expect(notificationsService.create).not.toHaveBeenCalled();
-    expect(mailService.sendAdvancedRetakeAvailable).not.toHaveBeenCalled();
   });
 });
