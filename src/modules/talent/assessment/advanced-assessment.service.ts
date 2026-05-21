@@ -43,6 +43,7 @@ import { GuidanceReportService } from '../../ai/guidance-report.service';
 import { Lt3GenerationService } from '../../ai/lt3-generation.service';
 import { EmployerPoolProfileService } from './employer-pool-profile.service';
 import {
+  GenerateQuestionsInput,
   GeneratedQuestion,
   GuidanceReport,
   ScoredTextAnswer,
@@ -283,6 +284,7 @@ export class AdvancedAssessmentService {
           this.logger.error(
             `[BANK_EXHAUSTED] expected=${ADVANCED_ASSESSMENT_BASE_QUESTIONS} ` +
               `got=${aiResult.questions.length} ` +
+              `talentProfileId=${profile.id} ` +
               `track=${profile.track ?? 'unknown'} ` +
               `verified_level=${profile.validated_level ?? 'unknown'}`,
           );
@@ -924,16 +926,29 @@ export class AdvancedAssessmentService {
     }
 
     if (dto.event_type === IntegrityEventType.TAB_SWITCH) {
-      attempt.tab_switch_count += 1;
+      await this.attemptRepo.increment(
+        {
+          id: attempt.id,
+          talent_profile_id: profile.id,
+          assessment_type: AssessmentType.ADVANCED,
+        },
+        'tab_switch_count',
+        1,
+      );
 
-      if (attempt.tab_switch_count >= TAB_SWITCH_VOID_THRESHOLD) {
-        attempt.force_submitted = true;
-        attempt.completed_at = new Date();
+      const updatedAttempt = await this.attemptRepo.findOne({
+        where: { id: attempt.id },
+      });
+      const newTabCount = updatedAttempt?.tab_switch_count ?? 0;
 
+      if (newTabCount >= TAB_SWITCH_VOID_THRESHOLD) {
         const unlocksAt = new Date();
         unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
 
-        await this.attemptRepo.save(attempt);
+        await this.attemptRepo.update(
+          { id: attempt.id },
+          { force_submitted: true, completed_at: new Date() },
+        );
         await this.talentProfileRepo.update(
           { id: profile.id },
           { assessment_locked_until: unlocksAt },
@@ -946,40 +961,45 @@ export class AdvancedAssessmentService {
         return {
           status: 'voided',
           message: ErrorMessages.ADVANCED_ASSESSMENT.SESSION_VOIDED,
-          tab_switch_count: attempt.tab_switch_count,
+          tab_switch_count: newTabCount,
           session_voided: true,
           action: 'logout',
         };
       }
 
-      await this.attemptRepo.save(attempt);
-
       this.logger.log(
-        `Tab switch #${attempt.tab_switch_count}: attempt=${attempt.id} user=${userId}`,
+        `Tab switch #${newTabCount}: attempt=${attempt.id} user=${userId}`,
       );
 
       return {
         status: 'warning',
         message: SuccessMessages.ADVANCED_ASSESSMENT.INTEGRITY_WARNED,
-        tab_switch_count: attempt.tab_switch_count,
+        tab_switch_count: newTabCount,
         session_voided: false,
         action: 'warn',
       };
     }
 
-    // COPY_PASTE: increment + persist so submit() can roll it into
+    // COPY_PASTE: atomic increment + persist so submit() can roll it into
     // integrity_confidence.
-    attempt.copy_paste_count = (attempt.copy_paste_count ?? 0) + 1;
-    await this.attemptRepo.save(attempt);
+    await this.attemptRepo.increment(
+      {
+        id: attempt.id,
+        talent_profile_id: profile.id,
+        assessment_type: AssessmentType.ADVANCED,
+      },
+      'copy_paste_count',
+      1,
+    );
 
     this.logger.warn(
-      `Copy-paste #${attempt.copy_paste_count}: attempt=${attempt.id} user=${userId}`,
+      `Copy-paste #${attempt.copy_paste_count + 1}: attempt=${attempt.id} user=${userId}`,
     );
 
     return {
       status: 'flagged',
       message: SuccessMessages.ADVANCED_ASSESSMENT.INTEGRITY_FLAGGED,
-      copy_paste_count: attempt.copy_paste_count,
+      copy_paste_count: attempt.copy_paste_count + 1,
       session_voided: false,
     };
   }
@@ -1326,7 +1346,7 @@ export class AdvancedAssessmentService {
 
     const mcqDeficit = ADVANCED_ASSESSMENT_MCQ_COUNT - mcq.length;
     if (mcqDeficit > 0) {
-      const generated = await this.questionGeneration.generateQuestions({
+      const generated = await this.safeGenerateQuestions({
         track,
         verified_level: verifiedLevel,
         assessment_type: 'advanced',
@@ -1347,7 +1367,7 @@ export class AdvancedAssessmentService {
     const shortDeficit =
       ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT - shortText.length;
     if (shortDeficit > 0) {
-      const generated = await this.questionGeneration.generateQuestions({
+      const generated = await this.safeGenerateQuestions({
         track,
         verified_level: verifiedLevel,
         assessment_type: 'advanced',
@@ -1370,7 +1390,7 @@ export class AdvancedAssessmentService {
       this.logger.warn(
         `[BANK_LOW] LT-1 (SITUATIONAL) deficit=${situationalDeficit} track=${track} level=${verifiedLevel}`,
       );
-      const generated = await this.questionGeneration.generateQuestions({
+      const generated = await this.safeGenerateQuestions({
         track,
         verified_level: verifiedLevel,
         assessment_type: 'advanced',
@@ -1394,7 +1414,7 @@ export class AdvancedAssessmentService {
       this.logger.warn(
         `[BANK_LOW] LT-2 (WORK_TASK) deficit=${workTaskDeficit} track=${track} level=${verifiedLevel}`,
       );
-      const generated = await this.questionGeneration.generateQuestions({
+      const generated = await this.safeGenerateQuestions({
         track,
         verified_level: verifiedLevel,
         assessment_type: 'advanced',
@@ -1458,6 +1478,19 @@ export class AdvancedAssessmentService {
       ),
       longText,
     };
+  }
+
+  private async safeGenerateQuestions(
+    input: GenerateQuestionsInput,
+  ): Promise<GeneratedQuestion[]> {
+    try {
+      return await this.questionGeneration.generateQuestions(input);
+    } catch (error) {
+      this.logger.error(
+        `[BANK_LOW] AI generation failed for count=${input.count} question_type=${input.question_type} slot_type=${input.slot_type}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return [];
+    }
   }
 
   private async persistGeneratedQuestions(
