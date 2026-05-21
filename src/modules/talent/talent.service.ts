@@ -226,9 +226,7 @@ export class TalentService {
     }
   }
 
-  async getOnboardingState(
-    userId: string,
-  ): Promise<{
+  async getOnboardingState(userId: string): Promise<{
     profile: TalentProfile | null;
     user: {
       id: string;

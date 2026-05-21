@@ -26,6 +26,7 @@ describe('DashboardService', () => {
     'createQueryBuilder'
   >;
   let assessmentAttemptRepository: Pick<Repository<AssessmentAttempt>, 'count'>;
+  let notificationDispatch: { notifyAdvancedRetakeIfEligible: jest.Mock };
   let queryBuilder: {
     innerJoin: jest.Mock;
     where: jest.Mock;
@@ -68,11 +69,16 @@ describe('DashboardService', () => {
       count: jest.fn().mockResolvedValue(0),
     };
 
+    notificationDispatch = {
+      notifyAdvancedRetakeIfEligible: jest.fn().mockResolvedValue(undefined),
+    };
+
     service = new DashboardService(
       talentProfileRepository as Repository<TalentProfile>,
       usersService as UsersService,
       assessmentResultRepository as Repository<AssessmentResult>,
       assessmentAttemptRepository as Repository<AssessmentAttempt>,
+      notificationDispatch as never,
     );
   });
 

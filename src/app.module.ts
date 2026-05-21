@@ -25,6 +25,7 @@ import { UsersModule } from './modules/users/users.module';
 import { ProbeController } from './probe.controller';
 import { WelcomeController } from './welcome.controller';
 import { AiResourcesModule } from './modules/ai-resources/ai-resources.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
 
 @Module({
   imports: [
@@ -48,6 +49,7 @@ import { AiResourcesModule } from './modules/ai-resources/ai-resources.module';
     EmployerModule,
     MailModule,
     AiResourcesModule,
+    NotificationsModule,
   ],
   providers: [
     {

@@ -18,6 +18,7 @@ async function bootstrap() {
     bufferLogs: true,
   });
 
+  app.set('etag', false);
   app.use(helmet());
   app.use(compression());
   app.enableCors({

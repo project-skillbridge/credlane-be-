@@ -218,7 +218,7 @@ describe('AdvancedAssessmentService', () => {
   let employerPoolProfileService: { upsert: jest.Mock };
   let questionGeneration: { generateQuestions?: jest.Mock };
   let usersService: { findOne: jest.Mock };
-  let mailService: { sendAssessmentPerformance: jest.Mock };
+  let notificationDispatch: { dispatch: jest.Mock };
 
   // Cross-test captures
   let entityManagerSaveCalls: Array<{ entity: unknown; data: unknown }>;
@@ -392,8 +392,8 @@ describe('AdvancedAssessmentService', () => {
       }),
     };
 
-    mailService = {
-      sendAssessmentPerformance: jest.fn().mockResolvedValue({ id: 'email-1' }),
+    notificationDispatch = {
+      dispatch: jest.fn().mockResolvedValue(undefined),
     };
 
     service = new AdvancedAssessmentService(
@@ -409,7 +409,7 @@ describe('AdvancedAssessmentService', () => {
       employerPoolProfileService as never,
       questionGeneration as never,
       usersService as never,
-      mailService as never,
+      notificationDispatch as never,
     );
   });
 
