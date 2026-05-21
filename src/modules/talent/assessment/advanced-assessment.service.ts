@@ -72,7 +72,6 @@ import {
 
 const ADVANCED_ASSESSMENT_DURATION_MINUTES = 90;
 const RETAKE_GATE_DAYS = 14;
-const SKILL_PASS_PERCENTAGE = 75;
 const ABNORMAL_LONG_TEXT_SECONDS = 5;
 const TAB_SWITCH_VOID_THRESHOLD = 3;
 const ADVANCED_SHORT_TEXT_MIN_CHARS = 60;
@@ -216,10 +215,7 @@ export class AdvancedAssessmentService {
           manager,
           profile.id,
         );
-        if (
-          !latestSkillResult ||
-          (latestSkillResult.percentage ?? 0) < SKILL_PASS_PERCENTAGE
-        ) {
+        if (!latestSkillResult) {
           throw new UnprocessableEntityException(
             ErrorMessages.ADVANCED_ASSESSMENT.SKILL_GATE_REQUIRED,
           );
