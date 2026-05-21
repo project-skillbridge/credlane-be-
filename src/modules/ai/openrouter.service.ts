@@ -41,6 +41,7 @@ export class OpenRouterService {
     userPrompt: string,
     schema: z.ZodType<T>,
     temperature = 0.2,
+    useWebSearch = false,
   ): Promise<T> {
     if (!env.OPENROUTER_API_KEY) {
       throw new ServiceUnavailableException('AI service is not configured');
@@ -50,7 +51,9 @@ export class OpenRouterService {
       const result = await generateObject({
         model: this.provider(this.model, {
           structuredOutputs: { strict: false },
-          plugins: [{ id: 'response-healing' }],
+          plugins: useWebSearch
+            ? [{ id: 'web', max_results: 5 }, { id: 'response-healing' }]
+            : [{ id: 'response-healing' }],
         }),
         schema: zodSchema(schema),
         temperature,

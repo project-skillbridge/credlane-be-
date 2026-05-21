@@ -4,8 +4,9 @@ import { aiResourcesPayloadSchema } from './ai.schemas';
 import { AiResourcesPayload } from './ai.types';
 
 const SYSTEM_PROMPT = `You are a professional career advisor, mentor, and learning curator.
-Your task is to recommend high-quality, practical learning resources (articles, documentations, courses, and videos) to help candidates level up their skills.
-Be specific to the candidate's track. Recommend REAL and highly recognizable learning platforms and websites (e.g., MDN Web Docs, freeCodeCamp, official docs, YouTube tutorials, Coursera, etc.) rather than dummy links.
+Your task is to perform deep web research to recommend high-quality, practical learning resources (articles, documentations, courses, and videos) to help candidates level up their skills.
+CRITICAL: You MUST use your web search capabilities to find REAL, ACTIVE, and highly recognizable learning platforms (e.g., MDN Web Docs, freeCodeCamp, official docs, YouTube tutorials, Coursera, etc.).
+NEVER generate dummy, placeholder, or hallucinated URLs. Every URL must be a real, accessible link discovered through your web search.
 Return ONLY valid JSON matching the schema — do not wrap in markdown unless requested by the model driver, and output no conversational text.`;
 
 @Injectable()
@@ -64,6 +65,7 @@ Rules:
       userPrompt,
       aiResourcesPayloadSchema,
       0.6,
+      true, // Enable web search / deep research
     );
   }
 }
