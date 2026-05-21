@@ -46,8 +46,16 @@ export const lt3Schema = z.object({
   question_text: z.string(),
 });
 
-export const guidanceReportSchema = z.object({
-  report_type: z.enum(['emerging', 'job_ready']),
+const guidanceResourceSchema = z.object({
+  title: z.string(),
+  provider: z.string(),
+  url: z.string().url(),
+  tier: z.enum(['free', 'paid']),
+  competency: z.string(),
+  reason: z.string(),
+});
+
+const guidanceReportBaseSchema = z.object({
   ai_summary: z.string(),
   growth_insight: z.string(),
   summary: z.string(),
@@ -58,7 +66,6 @@ export const guidanceReportSchema = z.object({
         rating: z.number().int().min(1).max(3),
       }),
     )
-    .min(2)
     .max(5),
   weak_area_ratings: z
     .array(
@@ -67,18 +74,25 @@ export const guidanceReportSchema = z.object({
         rating: z.number().int().min(1).max(3),
       }),
     )
-    .min(2)
     .max(5),
-  recommended_resources: z.array(
-    z.object({
-      title: z.string(),
-      provider: z.string(),
-      url: z.string(),
-      tier: z.enum(['free', 'paid']),
-      competency: z.string(),
-      reason: z.string(),
-    }),
-  ),
-  retake_advice: z.string().optional(),
-  resource_page_url: z.string(),
+  recommended_resources: z.array(guidanceResourceSchema),
+  resource_page_url: z.literal('/resources'),
 });
+
+const emergingGuidanceReportSchema = guidanceReportBaseSchema
+  .extend({
+    report_type: z.literal('emerging'),
+    retake_advice: z.string(),
+  })
+  .strict();
+
+const jobReadyGuidanceReportSchema = guidanceReportBaseSchema
+  .extend({
+    report_type: z.literal('job_ready'),
+  })
+  .strict();
+
+export const guidanceReportSchema = z.discriminatedUnion('report_type', [
+  emergingGuidanceReportSchema,
+  jobReadyGuidanceReportSchema,
+]);

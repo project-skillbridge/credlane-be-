@@ -47,7 +47,11 @@ export class DashboardSkillPerformanceDto {
   })
   completedAt: string;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'AI guidance report. Emerging reports include retake_advice; Job Ready reports are strengths-focused and omit retake_advice.',
+  })
   guidanceReport?: Record<string, unknown> | null;
 }
 
@@ -59,7 +63,8 @@ export class DashboardRetakeDto {
   eligibilityDate: string;
 
   @ApiProperty({
-    description: 'Whether the advanced retake CTA can be enabled',
+    description:
+      'Whether the advanced assessment retake CTA can be enabled. False while the 14-day gate is active.',
   })
   ctaEnabled: boolean;
 
@@ -104,10 +109,19 @@ export class DashboardAdvancedPerformanceDto {
   })
   completedAt: string;
 
-  @ApiPropertyOptional({ nullable: true })
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'AI guidance report generated asynchronously after advanced submit. Emerging reports include retake_advice; Job Ready reports omit it.',
+  })
   guidanceReport?: Record<string, unknown> | null;
 
-  @ApiPropertyOptional({ type: () => DashboardRetakeDto, nullable: true })
+  @ApiPropertyOptional({
+    type: () => DashboardRetakeDto,
+    nullable: true,
+    description:
+      'Nested advanced retake metadata when an advanced retake gate exists for this completed result.',
+  })
   retake?: DashboardRetakeDto | null;
 }
 
@@ -138,7 +152,12 @@ export class DashboardHomeResponseDto {
   @ApiProperty({ type: DashboardPerformanceDto })
   performance: DashboardPerformanceDto;
 
-  @ApiPropertyOptional({ type: () => DashboardRetakeDto, nullable: true })
+  @ApiPropertyOptional({
+    type: () => DashboardRetakeDto,
+    nullable: true,
+    description:
+      'Top-level advanced retake metadata. Present only when assessment_locked_until is marked as an advanced retake gate.',
+  })
   advancedRetake?: DashboardRetakeDto | null;
 }
 

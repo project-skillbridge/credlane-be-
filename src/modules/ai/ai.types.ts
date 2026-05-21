@@ -96,14 +96,24 @@ export interface RatedReportItem {
   rating: number;
 }
 
-export interface GuidanceReport {
-  report_type: 'emerging' | 'job_ready';
+export interface GuidanceReportBase {
   ai_summary: string;
   growth_insight: string;
   summary: string;
   strength_ratings: RatedReportItem[];
   weak_area_ratings: RatedReportItem[];
   recommended_resources: GuidanceResource[];
-  retake_advice?: string;
-  resource_page_url: string;
+  resource_page_url: '/resources';
 }
+
+export interface EmergingGuidanceReport extends GuidanceReportBase {
+  report_type: 'emerging';
+  retake_advice: string;
+}
+
+export interface JobReadyGuidanceReport extends GuidanceReportBase {
+  report_type: 'job_ready';
+  retake_advice?: never;
+}
+
+export type GuidanceReport = EmergingGuidanceReport | JobReadyGuidanceReport;

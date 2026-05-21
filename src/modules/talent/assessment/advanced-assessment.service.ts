@@ -225,6 +225,7 @@ export class AdvancedAssessmentService {
         }
 
         if (
+          profile.advanced_retake_required &&
           profile.assessment_locked_until &&
           profile.assessment_locked_until > new Date()
         ) {
@@ -467,7 +468,7 @@ export class AdvancedAssessmentService {
           attempt_id: attempt.id,
           question_id: question.question_id,
           question_text: question.question_text,
-          user_answer: submitted?.answer ?? null,
+          user_answer: submitted?.answer ?? '',
           is_correct: correct,
           ai_evaluation_json: null,
           answered_at: new Date(),
@@ -500,7 +501,7 @@ export class AdvancedAssessmentService {
         attempt_id: attempt.id,
         question_id: question.question_id,
         question_text: question.question_text,
-        user_answer: submitted?.answer ?? null,
+        user_answer: answer,
         is_correct: null,
         ai_evaluation_json: null,
         answered_at: new Date(),
@@ -554,26 +555,22 @@ export class AdvancedAssessmentService {
       'weak',
     );
 
-    let guidanceReport: GuidanceReport | null = null;
-    try {
-      guidanceReport = await this.guidanceReport.generate({
-        report_type:
-          tier === AssessmentTier.JOB_READY ? 'job_ready' : 'emerging',
-        track: profile.track ?? 'general',
-        claimed_level: profile.claimed_level ?? VerifiedLevel.ENTRY,
-        validated_level: profile.validated_level ?? VerifiedLevel.ENTRY,
-        percentage,
-        strong_competencies: strongCompetencies,
-        weak_competencies: weakCompetencies,
-      });
-    } catch (error) {
-      this.logger.warn(`Guidance report generation failed: ${String(error)}`);
-    }
+    const guidanceInput = {
+      report_type: tier === AssessmentTier.JOB_READY ? 'job_ready' : 'emerging',
+      track: profile.track ?? 'general',
+      claimed_level: profile.claimed_level ?? VerifiedLevel.ENTRY,
+      validated_level: profile.validated_level ?? VerifiedLevel.ENTRY,
+      percentage,
+      strong_competencies: strongCompetencies,
+      weak_competencies: weakCompetencies,
+    } satisfies Parameters<GuidanceReportService['generate']>[0];
 
     const personalContext =
       tier === AssessmentTier.JOB_READY
         ? await this.personalAssessmentService.getAiContext(userId)
         : null;
+
+    let resultLookup: { id: string } | { attempt_id: string } | null = null;
 
     await this.talentProfileRepo.manager.transaction(async (manager) => {
       await manager.save(AssessmentResponse, responsesToSave);
@@ -602,10 +599,13 @@ export class AdvancedAssessmentService {
         percentage,
         tier,
         validated_level: null,
-        guidance_report: guidanceReport ? { ...guidanceReport } : null,
+        guidance_report: null,
         integrity_confidence: integrityConfidence,
       });
-      await manager.save(AssessmentResult, result);
+      const savedResult = await manager.save(AssessmentResult, result);
+      resultLookup = savedResult.id
+        ? { id: savedResult.id }
+        : { attempt_id: attempt.id };
 
       const profilePatch: Partial<TalentProfile> = {
         advanced_assessment_completed_at: new Date(),
@@ -616,12 +616,18 @@ export class AdvancedAssessmentService {
         const unlocksAt = new Date();
         unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
         profilePatch.assessment_locked_until = unlocksAt;
+        profilePatch.advanced_retake_required = true;
       } else {
         profilePatch.assessment_locked_until = null;
+        profilePatch.advanced_retake_required = false;
       }
 
       await manager.update(TalentProfile, { id: profile.id }, profilePatch);
     });
+
+    if (resultLookup) {
+      this.generateGuidanceReportAsync(resultLookup, guidanceInput);
+    }
 
     if (tier === AssessmentTier.JOB_READY && personalContext) {
       try {
@@ -673,9 +679,24 @@ export class AdvancedAssessmentService {
       percentage,
       tier,
       integrity_confidence: integrityConfidence,
-      ...(guidanceReport && { guidance_report: guidanceReport }),
       ...(isExpired && { auto_submitted: true }),
     };
+  }
+
+  private generateGuidanceReportAsync(
+    resultLookup: { id: string } | { attempt_id: string },
+    input: Parameters<GuidanceReportService['generate']>[0],
+  ): void {
+    void this.guidanceReport
+      .generate(input)
+      .then((guidanceReport) =>
+        this.resultRepo.update(resultLookup, {
+          guidance_report: { ...guidanceReport },
+        }),
+      )
+      .catch((error) => {
+        this.logger.warn(`Guidance report generation failed: ${String(error)}`);
+      });
   }
 
   /**
@@ -951,7 +972,10 @@ export class AdvancedAssessmentService {
         );
         await this.talentProfileRepo.update(
           { id: profile.id },
-          { assessment_locked_until: unlocksAt },
+          {
+            assessment_locked_until: unlocksAt,
+            advanced_retake_required: true,
+          },
         );
 
         this.logger.warn(

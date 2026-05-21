@@ -157,7 +157,10 @@ export class DashboardService {
   private buildAdvancedRetake(
     profile: TalentProfile | null,
   ): DashboardRetake | null {
-    if (!profile?.assessment_locked_until) {
+    if (
+      !profile?.advanced_retake_required ||
+      !profile.assessment_locked_until
+    ) {
       return null;
     }
 
@@ -340,15 +343,15 @@ export class DashboardService {
     }
 
     let advancedStatus: DashboardJourneyStatus;
-    if (profile.advanced_assessment_completed_at) {
+    const advancedRetake = this.buildAdvancedRetake(profile);
+    if (!this.canStartAdvancedAssessment(profile)) {
+      advancedStatus = DashboardJourneyStatus.LOCKED;
+    } else if (advancedRetake) {
+      advancedStatus = advancedRetake.ctaEnabled
+        ? DashboardJourneyStatus.AVAILABLE
+        : DashboardJourneyStatus.LOCKED;
+    } else if (profile.advanced_assessment_completed_at) {
       advancedStatus = DashboardJourneyStatus.COMPLETED;
-    } else if (!this.canStartAdvancedAssessment(profile)) {
-      advancedStatus = DashboardJourneyStatus.LOCKED;
-    } else if (
-      profile.assessment_locked_until &&
-      profile.assessment_locked_until > new Date()
-    ) {
-      advancedStatus = DashboardJourneyStatus.LOCKED;
     } else {
       const latestSkillResult = await this.getLatestResult(
         profile.id,

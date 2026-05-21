@@ -300,8 +300,9 @@ describe('DashboardService', () => {
       education_level: 'bachelors',
       claimed_level: VerifiedLevel.MID,
       personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
-      skill_assessment_completed_at: null,
-      advanced_assessment_completed_at: null,
+      skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
+      advanced_assessment_completed_at: new Date(),
+      advanced_retake_required: true,
       assessment_locked_until: eligibilityDate,
       status: TalentProfileStatus.EMERGING,
     });
@@ -317,7 +318,7 @@ describe('DashboardService', () => {
       (item) => item.key === 'advanced',
     );
 
-    expect(skillJourney?.status).toBe(DashboardJourneyStatus.AVAILABLE);
+    expect(skillJourney?.status).toBe(DashboardJourneyStatus.COMPLETED);
     expect(advancedJourney?.status).toBe(DashboardJourneyStatus.LOCKED);
     expect(home.advancedRetake).toMatchObject({
       eligibilityDate: eligibilityDate.toISOString(),
@@ -536,6 +537,7 @@ function makeProfile(overrides: Partial<TalentProfile>): TalentProfile {
     advanced_assessment_completed_at: null,
     validated_level: null,
     assessment_locked_until: null,
+    advanced_retake_required: false,
     created_at: new Date(),
     updated_at: new Date(),
     ...overrides,

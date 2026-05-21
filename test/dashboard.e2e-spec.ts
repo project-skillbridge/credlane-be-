@@ -90,8 +90,10 @@ describe('Dashboard home (e2e)', () => {
     skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
     advanced_assessment_completed_at: new Date('2026-05-03T00:00:00.000Z'),
     validated_level: VerifiedLevel.MID,
+    advanced_retake_required: false,
     status: TalentProfileStatus.JOB_READY,
   });
+  let currentTalentProfile: TalentProfile;
 
   const skillAssessmentResult = makeAssessmentResult({
     score: 8,
@@ -137,6 +139,8 @@ describe('Dashboard home (e2e)', () => {
   }
 
   beforeEach(async () => {
+    currentTalentProfile = talentProfile;
+
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [DashboardController],
       providers: [
@@ -163,6 +167,7 @@ describe('Dashboard home (e2e)', () => {
           provide: getRepositoryToken(AssessmentAttempt),
           useValue: {
             count: jest.fn().mockResolvedValue(0),
+            findOne: jest.fn().mockResolvedValue(null),
           },
         },
         {
@@ -173,7 +178,7 @@ describe('Dashboard home (e2e)', () => {
               .mockImplementation(
                 ({ where }: { where: { user_id: string } }) => {
                   if (where.user_id === talentUser.id)
-                    return Promise.resolve(talentProfile);
+                    return Promise.resolve(currentTalentProfile);
                   return Promise.resolve(null);
                 },
               ),
@@ -273,6 +278,53 @@ describe('Dashboard home (e2e)', () => {
       });
   });
 
+  it('GET /api/v1/dashboard/home includes locked advanced retake metadata', async () => {
+    const now = new Date('2026-05-21T00:00:00.000Z');
+    const eligibilityDate = new Date('2026-05-24T00:00:00.000Z');
+    const dateNowSpy = jest.spyOn(Date, 'now').mockReturnValue(now.getTime());
+
+    currentTalentProfile = makeProfile({
+      user_id: talentUser.id,
+      onboarding_step: 3,
+      profile_verified: true,
+      goal: 'land_first_role',
+      track: 'frontend_developer',
+      region: 'Lagos',
+      education_level: 'bachelors',
+      claimed_level: VerifiedLevel.MID,
+      personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+      skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
+      advanced_assessment_completed_at: new Date('2026-05-20T00:00:00.000Z'),
+      validated_level: VerifiedLevel.MID,
+      assessment_locked_until: eligibilityDate,
+      advanced_retake_required: true,
+      status: TalentProfileStatus.EMERGING,
+    });
+
+    MockJwtAuthGuard.nextUser = {
+      sub: talentUser.id,
+      email: talentUser.email,
+      role: UserRole.TALENT,
+      onboardingComplete: true,
+    };
+
+    try {
+      await request(app.getHttpServer())
+        .get('/api/v1/dashboard/home')
+        .expect(200)
+        .expect((res) => {
+          expect(res.body.data.advancedRetake).toEqual({
+            eligibilityDate: eligibilityDate.toISOString(),
+            countdownSeconds: 3 * 24 * 60 * 60,
+            daysRemaining: 3,
+            ctaEnabled: false,
+          });
+        });
+    } finally {
+      dateNowSpy.mockRestore();
+    }
+  });
+
   afterEach(async () => {
     if (app) await app.close();
   });
@@ -341,6 +393,7 @@ function makeProfile(overrides: Partial<TalentProfile>): TalentProfile {
     advanced_assessment_completed_at: null,
     validated_level: null,
     assessment_locked_until: null,
+    advanced_retake_required: false,
     created_at: new Date(),
     updated_at: new Date(),
     ...overrides,

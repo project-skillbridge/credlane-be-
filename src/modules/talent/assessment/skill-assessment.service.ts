@@ -459,9 +459,14 @@ export class SkillAssessmentService {
           claimed_level: claimed,
           validated_level: validatedLevel,
           percentage,
-          strong_competencies:
-            this.extractStrongCompetencies(scoredTextAnswers),
-          weak_competencies: this.extractWeakCompetencies(scoredTextAnswers),
+          strong_competencies: this.extractStrongCompetencies(
+            scoredTextAnswers,
+            entityMap,
+          ),
+          weak_competencies: this.extractWeakCompetencies(
+            scoredTextAnswers,
+            entityMap,
+          ),
         });
       } catch (error) {
         this.logger.warn(
@@ -674,21 +679,49 @@ export class SkillAssessmentService {
     return tier;
   }
 
-  private extractStrongCompetencies(scored: ScoredTextAnswer[]): string[] {
-    return scored
-      .filter(
+  private extractStrongCompetencies(
+    scored: ScoredTextAnswer[],
+    questionById: Map<string, AssessmentQuestion>,
+  ): string[] {
+    return this.resolveScoredCompetencies(
+      scored.filter(
         (score) =>
           score.max_score > 0 && score.raw_score / score.max_score >= 0.7,
-      )
-      .map((score) => score.question_id);
+      ),
+      questionById,
+    );
   }
 
-  private extractWeakCompetencies(scored: ScoredTextAnswer[]): string[] {
-    return scored
-      .filter(
+  private extractWeakCompetencies(
+    scored: ScoredTextAnswer[],
+    questionById: Map<string, AssessmentQuestion>,
+  ): string[] {
+    return this.resolveScoredCompetencies(
+      scored.filter(
         (score) =>
           score.max_score > 0 && score.raw_score / score.max_score < 0.5,
-      )
-      .map((score) => score.question_id);
+      ),
+      questionById,
+    );
+  }
+
+  private resolveScoredCompetencies(
+    scored: ScoredTextAnswer[],
+    questionById: Map<string, AssessmentQuestion>,
+  ): string[] {
+    const competencies = new Set<string>();
+    for (const score of scored) {
+      const question = questionById.get(score.question_id);
+      const metadata = (question?.metadata ?? {}) as Record<string, unknown>;
+      const competency =
+        question?.competency ??
+        (typeof metadata.competency === 'string' ? metadata.competency : null);
+
+      if (competency?.trim()) {
+        competencies.add(competency.trim());
+      }
+    }
+
+    return [...competencies];
   }
 }

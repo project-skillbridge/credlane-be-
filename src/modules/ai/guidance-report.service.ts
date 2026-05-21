@@ -13,6 +13,8 @@ export class GuidanceReportService {
 
   async generate(input: GuidanceReportInput): Promise<GuidanceReport> {
     const isJobReady = input.report_type === 'job_ready';
+    const hasStrongCompetencies = input.strong_competencies.length > 0;
+    const hasWeakCompetencies = input.weak_competencies.length > 0;
     const reportFocus = isJobReady
       ? 'Create a strengths-focused Job Ready report. Keep the tone encouraging, growth-oriented, and lighter than a remediation plan.'
       : 'Create a targeted improvement plan for an Emerging or Not Ready candidate. Focus on weak areas from the advanced assessment and concrete preparation for a retake.';
@@ -34,16 +36,22 @@ Generate a personalised guidance report. Return JSON in this exact shape:
   "ai_summary": "2 sentences like: You demonstrate strong visual thinking, interface structuring, and product intuition. Your growth opportunities currently lie in communication confidence, systems thinking, and decision-making under ambiguity.",
   "growth_insight": "2 sentences like: Your recent assessments show steady improvement in design thinking, interface structure, and adaptability. Focusing more on communication confidence and systems thinking could significantly improve your overall professional readiness.",
   "summary": "2-3 sentence overview of their performance",
-  "strength_ratings": [
+  "strength_ratings": ${
+    hasStrongCompetencies
+      ? `[
     { "item": "Strong hierarchy, spacing, and interface.", "rating": 3 },
-    { "item": "Clear structure and practical reasoning.", "rating": 2 },
-    { "item": "Good product intuition.", "rating": 2 }
-  ],
-  "weak_area_ratings": [
+    { "item": "Clear structure and practical reasoning.", "rating": 2 }
+  ]`
+      : '[]'
+  },
+  "weak_area_ratings": ${
+    hasWeakCompetencies
+      ? `[
     { "item": "Needs clearer tradeoff communication.", "rating": 2 },
-    { "item": "Improve systems-level reasoning.", "rating": 1 },
-    { "item": "Build confidence under ambiguity.", "rating": 1 }
-  ],
+    { "item": "Improve systems-level reasoning.", "rating": 1 }
+  ]`
+      : '[]'
+  },
   "recommended_resources": [
     {
       "title": "resource title",
@@ -65,7 +73,10 @@ Rules:
 - recommended_resources must match the track and one of the listed competencies where possible
 - recommended_resources must include a mix of free and paid options when possible
 - Every resource must have tier exactly "free" or "paid"
-- strength_ratings and weak_area_ratings must each contain 2 to 5 items
+- Do not fabricate strengths or weak areas when the corresponding competency list is empty
+- If Strong competencies is "none identified", strength_ratings must be []
+- If Areas needing improvement is "none identified", weak_area_ratings must be []
+- When source competencies are present, the corresponding ratings array must contain 2 to 5 items
 - strength_ratings and weak_area_ratings ratings must be integers from 1 to 3
 - strength_ratings should usually use ratings 2 or 3
 - weak_area_ratings should usually use ratings 1 or 2

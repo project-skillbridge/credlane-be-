@@ -209,7 +209,7 @@ describe('AdvancedAssessmentService', () => {
     increment: jest.Mock;
     update: jest.Mock;
   };
-  let resultRepo: {};
+  let resultRepo: { update: jest.Mock };
   let personalAssessmentService: { getAiContext: jest.Mock };
   let advancedAssessmentAiService: { generateQuestions: jest.Mock };
   let rubricScoring: { scoreAnswers: jest.Mock };
@@ -242,7 +242,7 @@ describe('AdvancedAssessmentService', () => {
     attemptStore = makeAttempt();
     attemptData = { current: attemptStore };
     questionRepo = {};
-    resultRepo = {};
+    resultRepo = { update: jest.fn().mockResolvedValue({ affected: 1 }) };
     questionGeneration = {};
     entityManagerSaveCalls = [];
     entityManagerUpdate = jest.fn().mockResolvedValue(undefined);
@@ -251,7 +251,9 @@ describe('AdvancedAssessmentService', () => {
       findOne: jest
         .fn()
         .mockImplementation(() =>
-          Promise.resolve(Object.assign(new AssessmentAttempt(), attemptData.current)),
+          Promise.resolve(
+            Object.assign(new AssessmentAttempt(), attemptData.current),
+          ),
         ),
       save: jest.fn().mockImplementation((attempt: AssessmentAttempt) => {
         attemptData.current = attempt;
@@ -471,21 +473,19 @@ describe('AdvancedAssessmentService', () => {
       expect(guidanceReport.generate).toHaveBeenCalledWith(
         expect.objectContaining({ report_type: 'job_ready' }),
       );
-      expect(result.guidance_report).toMatchObject({
-        report_type: 'job_ready',
-        ai_summary: expect.any(String),
-        growth_insight: expect.any(String),
-        resource_page_url: '/resources',
-      });
-      expect(result.guidance_report?.strength_ratings).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            item: expect.any(String),
-            rating: expect.any(Number),
+      expect(result.guidance_report).toBeUndefined();
+      await Promise.resolve();
+      expect(resultRepo.update).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          guidance_report: expect.objectContaining({
+            report_type: 'job_ready',
+            ai_summary: expect.any(String),
+            growth_insight: expect.any(String),
+            resource_page_url: '/resources',
           }),
-        ]),
+        }),
       );
-      expect(result.guidance_report?.strength_ratings).toHaveLength(3);
       expect(employerPoolProfileService.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           competencyByQuestion: expect.any(Map),
@@ -515,20 +515,18 @@ describe('AdvancedAssessmentService', () => {
       expect(guidanceReport.generate).toHaveBeenCalledWith(
         expect.objectContaining({ report_type: 'emerging' }),
       );
-      expect(result.guidance_report).toMatchObject({
-        report_type: 'emerging',
-        ai_summary: expect.any(String),
-        growth_insight: expect.any(String),
-      });
-      expect(result.guidance_report?.weak_area_ratings).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            item: expect.any(String),
-            rating: expect.any(Number),
+      expect(result.guidance_report).toBeUndefined();
+      await Promise.resolve();
+      expect(resultRepo.update).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          guidance_report: expect.objectContaining({
+            report_type: 'emerging',
+            ai_summary: expect.any(String),
+            growth_insight: expect.any(String),
           }),
-        ]),
+        }),
       );
-      expect(result.guidance_report?.weak_area_ratings).toHaveLength(3);
     });
 
     it('writes one assessment_scores row per session question (25)', async () => {
@@ -568,7 +566,10 @@ describe('AdvancedAssessmentService', () => {
       expect(entityManagerUpdate).toHaveBeenCalledWith(
         TalentProfile,
         { id: profileStore.id },
-        expect.objectContaining({ assessment_locked_until: expect.any(Date) }),
+        expect.objectContaining({
+          assessment_locked_until: expect.any(Date),
+          advanced_retake_required: true,
+        }),
       );
       const [, , patch] = entityManagerUpdate.mock.calls.find(
         (call) => call[0] === TalentProfile,
@@ -828,7 +829,10 @@ describe('AdvancedAssessmentService', () => {
       );
       expect(talentProfileRepo.update).toHaveBeenCalledWith(
         { id: profileStore.id },
-        expect.objectContaining({ assessment_locked_until: expect.any(Date) }),
+        expect.objectContaining({
+          assessment_locked_until: expect.any(Date),
+          advanced_retake_required: true,
+        }),
       );
     });
 
@@ -904,6 +908,7 @@ describe('AdvancedAssessmentService', () => {
       const lockedProfile = makeTalentProfile({
         validated_level: VerifiedLevel.MID,
         personal_assessment_completed_at: new Date(),
+        advanced_retake_required: true,
         assessment_locked_until: new Date(
           Date.now() + 10 * 24 * 60 * 60 * 1000,
         ),

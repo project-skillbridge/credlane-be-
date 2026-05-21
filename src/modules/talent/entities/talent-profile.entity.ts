@@ -82,7 +82,6 @@ export class TalentProfile {
     description:
       'True when all profile fields including optional ones are complete',
   })
-
   @Column({ type: 'boolean', default: false })
   profile_verified: boolean;
 
@@ -179,6 +178,14 @@ export class TalentProfile {
   })
   @Column({ type: 'timestamp with time zone', nullable: true })
   assessment_locked_until: Date | null;
+
+  @ApiProperty({
+    default: false,
+    description:
+      'Whether assessment_locked_until currently represents an advanced assessment retake gate',
+  })
+  @Column({ type: 'boolean', default: false })
+  advanced_retake_required: boolean;
 
   @ApiProperty()
   @CreateDateColumn({ name: 'created_at', type: 'timestamp with time zone' })
