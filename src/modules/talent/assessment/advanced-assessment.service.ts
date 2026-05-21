@@ -50,7 +50,10 @@ import {
   TextAnswerInput,
 } from '../../ai/ai.types';
 import { QuestionGenerationService } from '../../ai/question-generation.service';
-import { MailService } from '../../mail/mail.service';
+import {
+  NotificationDispatchService,
+} from '../../notifications/notification-dispatch.service';
+import { NotificationType } from '../../notifications/entities/user-notification.entity';
 import { UsersService } from '../../users/users.service';
 import {
   FlagIntegrityEventDto,
@@ -178,7 +181,7 @@ export class AdvancedAssessmentService {
     private readonly employerPoolProfileService: EmployerPoolProfileService,
     private readonly questionGeneration: QuestionGenerationService,
     private readonly usersService: UsersService,
-    private readonly mailService: MailService,
+    private readonly notificationDispatch: NotificationDispatchService,
   ) {}
 
   async start(userId: string): Promise<AdvancedAssessmentSessionResult> {
@@ -663,12 +666,16 @@ export class AdvancedAssessmentService {
       `Advanced assessment submitted: attempt=${attempt.id} user=${userId} score=${totalRawScore}/${maxScore} (${percentage}%) tier=${tier} expired=${isExpired}`,
     );
 
-    await this.notifyAssessmentPerformanceEmail(userId, {
-      score: Math.round(totalRawScore),
-      maxScore: maxScore,
-      percentage,
-      tier,
-    });
+    void this.notificationDispatch.dispatch(
+      NotificationType.ADVANCED_ASSESSMENT_SCORE_READY,
+      userId,
+      {
+        score: Math.round(totalRawScore),
+        maxScore,
+        percentage,
+        tier,
+      },
+    );
 
     return {
       status: 'success',
@@ -1042,50 +1049,6 @@ export class AdvancedAssessmentService {
     const correctAnswer = String(question.correct_answer).toLowerCase().trim();
 
     return userAnswer === correctAnswer;
-  }
-
-  private async notifyAssessmentPerformanceEmail(
-    userId: string,
-    result: {
-      score: number;
-      maxScore: number;
-      percentage: number;
-      tier: AssessmentTier;
-    },
-  ): Promise<void> {
-    try {
-      const user = await this.usersService.findOne(userId);
-      if (!user) {
-        this.logger.warn(
-          `Assessment performance email skipped: user not found user=${userId}`,
-        );
-        return;
-      }
-
-      await this.mailService.sendAssessmentPerformance({
-        to: user.email,
-        recipientFirstName: user.first_name,
-        score: result.score,
-        maxScore: result.maxScore,
-        percentage: result.percentage,
-        tierLabel: this.formatTierLabel(result.tier),
-      });
-    } catch (error) {
-      this.logger.error(
-        `Assessment performance email failed for user=${userId}: ${String(error)}`,
-      );
-    }
-  }
-
-  private formatTierLabel(tier: AssessmentTier): string {
-    switch (tier) {
-      case AssessmentTier.JOB_READY:
-        return 'Job Ready';
-      case AssessmentTier.EMERGING:
-        return 'Emerging';
-      default:
-        return 'Not Ready';
-    }
   }
 
   private resolveTier(percentage: number): AssessmentTier {
