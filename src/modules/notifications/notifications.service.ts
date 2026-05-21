@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Repository } from 'typeorm';
+import { IsNull, QueryFailedError, Repository } from 'typeorm';
 import type {
   NewNotificationPayload,
   NotificationListItem,
@@ -17,29 +17,22 @@ export type CreateNotificationInput = {
   data?: Record<string, unknown>;
 };
 
+export function isNotificationDuplicateError(err: unknown): boolean {
+  if (!(err instanceof QueryFailedError)) {
+    return false;
+  }
+  const code =
+    (err as QueryFailedError & { code?: string }).code ??
+    (err.driverError as { code?: string } | undefined)?.code;
+  return code === '23505';
+}
+
 @Injectable()
 export class NotificationsService {
   constructor(
     @InjectRepository(UserNotification)
     private readonly notificationRepo: Repository<UserNotification>,
   ) {}
-
-  async hasDedupedNotification(
-    userId: string,
-    type: NotificationType,
-    eligibilityDate: string,
-  ): Promise<boolean> {
-    const count = await this.notificationRepo
-      .createQueryBuilder('notification')
-      .where('notification.user_id = :userId', { userId })
-      .andWhere('notification.type = :type', { type })
-      .andWhere("notification.data->>'eligibilityDate' = :eligibilityDate", {
-        eligibilityDate,
-      })
-      .getCount();
-
-    return count > 0;
-  }
 
   async create(input: CreateNotificationInput): Promise<NotificationRow> {
     const payload: NewNotificationPayload = {
@@ -65,11 +58,7 @@ export class NotificationsService {
       take: limit,
     });
 
-    const items: NotificationListItem[] = [];
-    for (const row of rows) {
-      items.push(this.toDto(this.asRow(row)));
-    }
-    return items;
+    return rows.map((row) => this.toDto(this.asRow(row)));
   }
 
   async countUnread(userId: string): Promise<number> {

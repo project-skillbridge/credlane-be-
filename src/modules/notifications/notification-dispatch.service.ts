@@ -11,7 +11,10 @@ import { MailService } from '../mail/mail.service';
 import { TalentProfile } from '../talent/entities/talent-profile.entity';
 import { UsersService } from '../users/users.service';
 import { NotificationType } from './notification-type.enum';
-import { NotificationsService } from './notifications.service';
+import {
+  isNotificationDuplicateError,
+  NotificationsService,
+} from './notifications.service';
 
 export type AdvancedScoreReadyPayload = {
   score: number;
@@ -205,15 +208,6 @@ export class NotificationDispatchService
     userId: string,
     payload: AdvancedRetakeAvailablePayload,
   ): Promise<void> {
-    const alreadySent = await this.notificationsService.hasDedupedNotification(
-      userId,
-      NotificationType.ADVANCED_RETAKE_AVAILABLE,
-      payload.eligibilityDate,
-    );
-    if (alreadySent) {
-      return;
-    }
-
     const user = await this.usersService.findOne(userId);
     if (!user) {
       this.logger.warn(
@@ -222,13 +216,20 @@ export class NotificationDispatchService
       return;
     }
 
-    await this.notificationsService.create({
-      userId,
-      type: NotificationType.ADVANCED_RETAKE_AVAILABLE,
-      title: 'Advanced assessment retake is available',
-      body: 'Your 14-day waiting period has ended. You can retake the advanced assessment now.',
-      data: { eligibilityDate: payload.eligibilityDate },
-    });
+    try {
+      await this.notificationsService.create({
+        userId,
+        type: NotificationType.ADVANCED_RETAKE_AVAILABLE,
+        title: 'Advanced assessment retake is available',
+        body: 'Your 14-day waiting period has ended. You can retake the advanced assessment now.',
+        data: { eligibilityDate: payload.eligibilityDate },
+      });
+    } catch (error) {
+      if (isNotificationDuplicateError(error)) {
+        return;
+      }
+      throw error;
+    }
 
     try {
       await this.mailService.sendAdvancedRetakeAvailable({

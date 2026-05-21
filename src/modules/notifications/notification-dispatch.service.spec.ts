@@ -1,3 +1,4 @@
+import { QueryFailedError } from 'typeorm';
 import { AssessmentTier } from '../assessments/entities/assessment-result.entity';
 import { NotificationType } from './notification-type.enum';
 import { NotificationDispatchService } from './notification-dispatch.service';
@@ -6,7 +7,6 @@ describe('NotificationDispatchService', () => {
   let service: NotificationDispatchService;
   let notificationsService: {
     create: jest.Mock;
-    hasDedupedNotification: jest.Mock;
   };
   let mailService: {
     sendAssessmentPerformance: jest.Mock;
@@ -18,7 +18,6 @@ describe('NotificationDispatchService', () => {
   beforeEach(() => {
     notificationsService = {
       create: jest.fn().mockResolvedValue({ id: 'n-1' }),
-      hasDedupedNotification: jest.fn().mockResolvedValue(false),
     };
     mailService = {
       sendAssessmentPerformance: jest.fn().mockResolvedValue({ id: 'email-1' }),
@@ -91,14 +90,20 @@ describe('NotificationDispatchService', () => {
     expect(mailService.sendAdvancedRetakeAvailable).toHaveBeenCalled();
   });
 
-  it('skips retake notification when already sent for eligibility window', async () => {
-    notificationsService.hasDedupedNotification.mockResolvedValue(true);
+  it('skips retake notification when insert hits dedupe constraint', async () => {
+    notificationsService.create.mockRejectedValue(
+      new QueryFailedError(
+        'INSERT',
+        [],
+        Object.assign(new Error('duplicate'), { code: '23505' }),
+      ),
+    );
 
     await service.dispatch(NotificationType.ADVANCED_RETAKE_AVAILABLE, 'user-1', {
       eligibilityDate: '2026-06-01T00:00:00.000Z',
     });
 
-    expect(notificationsService.create).not.toHaveBeenCalled();
+    expect(notificationsService.create).toHaveBeenCalled();
     expect(mailService.sendAdvancedRetakeAvailable).not.toHaveBeenCalled();
   });
 });

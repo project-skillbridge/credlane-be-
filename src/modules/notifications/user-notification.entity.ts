@@ -8,12 +8,12 @@ import {
 import { NotificationType } from './notification-type.enum';
 
 @Entity('user_notifications')
+@Index('IDX_user_notifications_user_created', ['user_id', 'created_at'])
+@Index('IDX_user_notifications_user_unread', ['user_id', 'read_at'])
 export class UserNotification {
   @PrimaryGeneratedColumn('uuid')
   id: string;
 
-  @Index('IDX_user_notifications_user_created')
-  @Index('IDX_user_notifications_user_unread')
   @Column({ type: 'uuid' })
   user_id: string;
 
