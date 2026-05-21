@@ -20,6 +20,7 @@ export const SuccessMessages = {
   },
   SKILL_ASSESSMENT: {
     STARTED: 'Skill assessment session created',
+    SESSION_RESUMED: 'Skill assessment session returned',
     SUBMITTED: 'Skill assessment submitted successfully',
     DOWNGRADE_NOTICE:
       'Your assessment has been personalised to your verified level.',

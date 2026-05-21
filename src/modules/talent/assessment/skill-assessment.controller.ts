@@ -1,8 +1,10 @@
 import {
   Body,
   Controller,
+  Get,
   HttpCode,
   HttpStatus,
+  Param,
   Post,
   UsePipes,
   ValidationPipe,
@@ -14,6 +16,7 @@ import {
   ApiNotFoundResponse,
   ApiOkResponse,
   ApiOperation,
+  ApiParam,
   ApiTags,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
@@ -67,6 +70,25 @@ export class SkillAssessmentController {
     @Body() _dto: StartSkillAssessmentDto,
   ) {
     return this.skillAssessmentService.start(userId);
+  }
+
+  @Get('session/:id')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Resume a skill assessment session',
+    description:
+      'Returns the stored skill assessment session payload without creating or changing attempts. ' +
+      'Use the existing_session_id from a 409 start response to resume an open session.',
+  })
+  @ApiParam({ name: 'id', format: 'uuid' })
+  @ApiOkResponse({ description: 'Skill assessment session returned' })
+  @ApiNotFoundResponse({ description: 'Session not found' })
+  @ApiForbiddenResponse({ description: 'Not a talent user' })
+  getSession(
+    @CurrentUser('sub') userId: string,
+    @Param('id') sessionId: string,
+  ) {
+    return this.skillAssessmentService.getSession(userId, sessionId);
   }
 
   @Post('submit')

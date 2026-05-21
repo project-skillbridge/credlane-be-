@@ -1,5 +1,15 @@
-import { ConflictException, ForbiddenException } from '@nestjs/common';
-import { AssessmentAttempt, AssessmentType } from '../../assessments/entities';
+import {
+  BadRequestException,
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
+import {
+  AssessmentAttempt,
+  AssessmentType,
+  QuestionType,
+  VerifiedLevel,
+} from '../../assessments/entities';
 import { TalentProfile } from '../entities/talent-profile.entity';
 import { ErrorMessages } from '../../../shared';
 import { SKILL_ASSESSMENT_MAX_ATTEMPTS } from '../talent.constants';
@@ -133,7 +143,84 @@ describe('SkillAssessmentService', () => {
     await expect(service.start(userId)).rejects.toBeInstanceOf(
       ConflictException,
     );
+    await expect(service.start(userId)).rejects.toMatchObject({
+      response: expect.objectContaining({
+        existing_session_id: 'active-attempt',
+      }),
+    });
     await expect(attemptRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('returns a stored skill session without exposing correct answers or side effects', async () => {
+    const attempt = Object.assign(new AssessmentAttempt(), {
+      id: 'attempt-1',
+      talent_profile_id: profile.id,
+      assessment_type: AssessmentType.SKILL,
+      started_at: new Date('2026-05-21T10:00:00.000Z'),
+      completed_at: null,
+      generated_questions_json: {
+        context: { verified_level: VerifiedLevel.MID },
+        questions: [
+          {
+            question_id: 'question-1',
+            question_number: 1,
+            question_type: QuestionType.SINGLE_PICK,
+            question_text: 'Which metric best indicates activation?',
+            options: ['Signups', 'First key action', 'Page views'],
+            correct_answer: 'First key action',
+          },
+        ],
+      },
+    });
+    attemptRepo.findOne.mockResolvedValue(attempt);
+
+    const first = await service.getSession(userId, attempt.id);
+    const second = await service.getSession(userId, attempt.id);
+
+    expect(first).toEqual(second);
+    expect(first).toEqual({
+      status: 'success',
+      message: 'Skill assessment session returned',
+      attempt_id: 'attempt-1',
+      session_id: 'attempt-1',
+      started_at: '2026-05-21T10:00:00.000Z',
+      verified_level: VerifiedLevel.MID,
+      questions: [
+        {
+          question_id: 'question-1',
+          question_number: 1,
+          question_type: QuestionType.SINGLE_PICK,
+          question_text: 'Which metric best indicates activation?',
+          options: ['Signups', 'First key action', 'Page views'],
+        },
+      ],
+    });
+    expect(first.questions[0]).not.toHaveProperty('correct_answer');
+    expect(attemptRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('throws 404 when skill session does not exist for the talent', async () => {
+    attemptRepo.findOne.mockResolvedValue(null);
+
+    await expect(service.getSession(userId, 'missing-attempt')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
+  });
+
+  it('throws 400 when stored skill session has no questions', async () => {
+    attemptRepo.findOne.mockResolvedValue(
+      Object.assign(new AssessmentAttempt(), {
+        id: 'attempt-1',
+        talent_profile_id: profile.id,
+        assessment_type: AssessmentType.SKILL,
+        started_at: new Date('2026-05-21T10:00:00.000Z'),
+        generated_questions_json: { context: { verified_level: VerifiedLevel.MID }, questions: [] },
+      }),
+    );
+
+    await expect(service.getSession(userId, 'attempt-1')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('does not enforce attempt limit after advanced assessment is complete', async () => {
