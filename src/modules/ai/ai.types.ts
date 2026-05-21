@@ -1,18 +1,22 @@
-import { QuestionType, SlotType, VerifiedLevel } from '../assessments/entities/assessment-question.entity';
+import {
+  QuestionType,
+  SlotType,
+  VerifiedLevel,
+} from '../assessments/entities/assessment-question.entity';
 
 // ── Rubric scoring ────────────────────────────────────────────────────────────
 
 export interface RubricDimensions {
-  relevance: number;    // 0–3 (0–4 for LT-3)
-  reasoning: number;    // 0–3 (0–4 for LT-3)
-  specificity: number;  // 0–3, always 0 for LT-3
+  relevance: number; // 0–3 (0–4 for LT-3)
+  reasoning: number; // 0–3 (0–4 for LT-3)
+  specificity: number; // 0–3, always 0 for LT-3
   completeness: number; // 0–3, always 0 for LT-3
 }
 
 export interface RubricScore extends RubricDimensions {
-  total: number;        // sum of dimensions (max 12, or max 8 for LT-3)
-  feedback: string;     // one-sentence rationale
-  pending?: boolean;    // true when AI failed and a backfill should re-score this answer
+  total: number; // sum of dimensions (max 12, or max 8 for LT-3)
+  feedback: string; // one-sentence rationale
+  pending?: boolean; // true when AI failed and a backfill should re-score this answer
 }
 
 export interface TextAnswerInput {
@@ -47,8 +51,8 @@ export interface GeneratedQuestion {
   question_text: string;
   question_type: QuestionType;
   slot_type: SlotType | null;
-  options: string[] | null;       // MCQ only
-  correct_answer: string | null;  // MCQ only
+  options: string[] | null; // MCQ only
+  correct_answer: string | null; // MCQ only
   competency: string | null;
   industry_context: string | null;
 }
@@ -69,6 +73,7 @@ export interface GeneratedLt3Question {
 // ── Guidance report ───────────────────────────────────────────────────────────
 
 export interface GuidanceReportInput {
+  report_type: 'emerging' | 'job_ready';
   track: string;
   claimed_level: VerifiedLevel;
   validated_level: VerifiedLevel;
@@ -77,10 +82,38 @@ export interface GuidanceReportInput {
   weak_competencies: string[];
 }
 
-export interface GuidanceReport {
+export interface GuidanceResource {
+  title: string;
+  provider: string;
+  url: string;
+  tier: 'free' | 'paid';
+  competency: string;
+  reason: string;
+}
+
+export interface RatedReportItem {
+  item: string;
+  rating: number;
+}
+
+export interface GuidanceReportBase {
+  ai_summary: string;
+  growth_insight: string;
   summary: string;
-  strengths: string[];
-  improvement_areas: string[];
-  recommended_resources: string[];
+  strength_ratings: RatedReportItem[];
+  weak_area_ratings: RatedReportItem[];
+  recommended_resources: GuidanceResource[];
+  resource_page_url: '/resources';
+}
+
+export interface EmergingGuidanceReport extends GuidanceReportBase {
+  report_type: 'emerging';
   retake_advice: string;
 }
+
+export interface JobReadyGuidanceReport extends GuidanceReportBase {
+  report_type: 'job_ready';
+  retake_advice?: never;
+}
+
+export type GuidanceReport = EmergingGuidanceReport | JobReadyGuidanceReport;

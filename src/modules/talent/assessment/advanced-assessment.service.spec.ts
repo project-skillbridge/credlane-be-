@@ -18,6 +18,7 @@ import { AssessmentResult } from '../../assessments/entities/assessment-result.e
 import { VerifiedLevel } from '../../assessments/entities/assessment-question.entity';
 import { AdvancedAssessmentService } from './advanced-assessment.service';
 import { IntegrityEventType } from './dto/advanced-assessment.dto';
+import { TalentProfile } from '../entities/talent-profile.entity';
 import { makeTalentProfile } from './personal-assessment.test-fixtures';
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -83,9 +84,9 @@ function makeSessionJson() {
   const longTextSlots = [
     SlotType.SITUATIONAL, // LT-1 (a)
     SlotType.SITUATIONAL, // LT-1 (b)
-    SlotType.WORK_TASK,   // LT-2 (a)
-    SlotType.WORK_TASK,   // LT-2 (b)
-    SlotType.REFLECTION,  // LT-3 (runtime-generated)
+    SlotType.WORK_TASK, // LT-2 (a)
+    SlotType.WORK_TASK, // LT-2 (b)
+    SlotType.REFLECTION, // LT-3 (runtime-generated)
   ];
   const longTextQuestions = longTextSlots.map((slot_type, i) => ({
     question_id: `long-${i + 1}`,
@@ -208,7 +209,7 @@ describe('AdvancedAssessmentService', () => {
     increment: jest.Mock;
     update: jest.Mock;
   };
-  let resultRepo: {};
+  let resultRepo: { update: jest.Mock };
   let personalAssessmentService: { getAiContext: jest.Mock };
   let advancedAssessmentAiService: { generateQuestions: jest.Mock };
   let rubricScoring: { scoreAnswers: jest.Mock };
@@ -221,6 +222,7 @@ describe('AdvancedAssessmentService', () => {
 
   // Cross-test captures
   let entityManagerSaveCalls: Array<{ entity: unknown; data: unknown }>;
+  let entityManagerUpdate: jest.Mock;
 
   const userId = 'talent-user-1';
   let profileStore = makeTalentProfile({
@@ -240,15 +242,18 @@ describe('AdvancedAssessmentService', () => {
     attemptStore = makeAttempt();
     attemptData = { current: attemptStore };
     questionRepo = {};
-    resultRepo = {};
+    resultRepo = { update: jest.fn().mockResolvedValue({ affected: 1 }) };
     questionGeneration = {};
     entityManagerSaveCalls = [];
+    entityManagerUpdate = jest.fn().mockResolvedValue(undefined);
 
     attemptRepo = {
       findOne: jest
         .fn()
         .mockImplementation(() =>
-          Promise.resolve(Object.assign(new AssessmentAttempt(), attemptData.current)),
+          Promise.resolve(
+            Object.assign(new AssessmentAttempt(), attemptData.current),
+          ),
         ),
       save: jest.fn().mockImplementation((attempt: AssessmentAttempt) => {
         attemptData.current = attempt;
@@ -285,16 +290,14 @@ describe('AdvancedAssessmentService', () => {
     };
 
     const entityManager = {
-      save: jest
-        .fn()
-        .mockImplementation((entity: unknown, data: unknown) => {
-          entityManagerSaveCalls.push({ entity, data });
-          return Promise.resolve(data);
-        }),
+      save: jest.fn().mockImplementation((entity: unknown, data: unknown) => {
+        entityManagerSaveCalls.push({ entity, data });
+        return Promise.resolve(data);
+      }),
       create: jest
         .fn()
         .mockImplementation((_entity: unknown, data: unknown) => data),
-      update: jest.fn().mockResolvedValue(undefined),
+      update: entityManagerUpdate,
     };
 
     talentProfileRepo = {
@@ -330,13 +333,43 @@ describe('AdvancedAssessmentService', () => {
     };
 
     guidanceReport = {
-      generate: jest.fn().mockResolvedValue({
-        summary: 'Keep improving.',
-        strengths: ['Problem solving'],
-        improvement_areas: ['Communication'],
-        recommended_resources: ['MDN Docs'],
-        retake_advice: 'Review fundamentals before the 14-day retake.',
-      }),
+      generate: jest.fn().mockImplementation((input) =>
+        Promise.resolve({
+          report_type: input.report_type,
+          ai_summary:
+            'You demonstrate practical problem solving and clear product intuition. Your growth opportunities currently lie in communication and systems thinking.',
+          growth_insight:
+            'Your recent assessments show steady progress in structured thinking. Focusing on communication and systems thinking could improve your professional readiness.',
+          summary:
+            input.report_type === 'job_ready'
+              ? 'You showed job-ready strengths.'
+              : 'Keep improving.',
+          strength_ratings: [
+            { item: 'Clear practical problem solving.', rating: 3 },
+            { item: 'Good product intuition.', rating: 2 },
+            { item: 'Structured answer flow.', rating: 2 },
+          ],
+          weak_area_ratings: [
+            { item: 'Needs clearer communication.', rating: 2 },
+            { item: 'Improve systems-level reasoning.', rating: 1 },
+            { item: 'Build confidence under ambiguity.', rating: 1 },
+          ],
+          recommended_resources: [
+            {
+              title: 'MDN Docs',
+              provider: 'MDN',
+              url: 'https://developer.mozilla.org/',
+              tier: 'free',
+              competency: 'Communication',
+              reason: 'Strengthens practical fundamentals.',
+            },
+          ],
+          ...(input.report_type === 'emerging' && {
+            retake_advice: 'Review fundamentals before the 14-day retake.',
+          }),
+          resource_page_url: '/resources',
+        }),
+      ),
     };
 
     lt3Generation = {
@@ -437,6 +470,22 @@ describe('AdvancedAssessmentService', () => {
       expect(result.percentage).toBeGreaterThanOrEqual(75);
       expect(result.tier).toBe(AssessmentTier.JOB_READY);
       expect(result.integrity_confidence).toBe('high');
+      expect(guidanceReport.generate).toHaveBeenCalledWith(
+        expect.objectContaining({ report_type: 'job_ready' }),
+      );
+      expect(result.guidance_report).toBeUndefined();
+      await Promise.resolve();
+      expect(resultRepo.update).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          guidance_report: expect.objectContaining({
+            report_type: 'job_ready',
+            ai_summary: expect.any(String),
+            growth_insight: expect.any(String),
+            resource_page_url: '/resources',
+          }),
+        }),
+      );
       expect(employerPoolProfileService.upsert).toHaveBeenCalledWith(
         expect.objectContaining({
           competencyByQuestion: expect.any(Map),
@@ -463,8 +512,21 @@ describe('AdvancedAssessmentService', () => {
 
       expect(result.percentage).toBeLessThan(50);
       expect(result.tier).toBe(AssessmentTier.NOT_READY);
-      expect(guidanceReport.generate).toHaveBeenCalled();
-      expect(result.guidance_report).toBeDefined();
+      expect(guidanceReport.generate).toHaveBeenCalledWith(
+        expect.objectContaining({ report_type: 'emerging' }),
+      );
+      expect(result.guidance_report).toBeUndefined();
+      await Promise.resolve();
+      expect(resultRepo.update).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          guidance_report: expect.objectContaining({
+            report_type: 'emerging',
+            ai_summary: expect.any(String),
+            growth_insight: expect.any(String),
+          }),
+        }),
+      );
     });
 
     it('writes one assessment_scores row per session question (25)', async () => {
@@ -501,7 +563,22 @@ describe('AdvancedAssessmentService', () => {
       rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(0, 176));
 
       await service.submit(userId, makeSubmitDto() as never);
-      expect(talentProfileRepo.manager.transaction).toHaveBeenCalled();
+      expect(entityManagerUpdate).toHaveBeenCalledWith(
+        TalentProfile,
+        { id: profileStore.id },
+        expect.objectContaining({
+          assessment_locked_until: expect.any(Date),
+          advanced_retake_required: true,
+        }),
+      );
+      const [, , patch] = entityManagerUpdate.mock.calls.find(
+        (call) => call[0] === TalentProfile,
+      ) as [unknown, unknown, { assessment_locked_until: Date }];
+      const diffDays = Math.round(
+        (patch.assessment_locked_until.getTime() - Date.now()) /
+          (1000 * 60 * 60 * 24),
+      );
+      expect(diffDays).toBe(14);
     });
 
     it('still scores when session is expired (auto_submitted=true)', async () => {
@@ -594,7 +671,9 @@ describe('AdvancedAssessmentService', () => {
     describe('tier boundary cases', () => {
       it('49% → Not Ready', async () => {
         // 91/186 = 48.9%
-        rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(85, 176));
+        rubricScoring.scoreAnswers.mockResolvedValue(
+          makeScoredAnswers(85, 176),
+        );
         const result = await service.submit(userId, {
           session_id: 'attempt-1',
           answers: [], // 0 MCQ correct → text contributes ~85 + 0 mcq
@@ -604,7 +683,9 @@ describe('AdvancedAssessmentService', () => {
       });
 
       it('75% → Job Ready', async () => {
-        rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
+        rubricScoring.scoreAnswers.mockResolvedValue(
+          makePerfectScoredAnswers(),
+        );
         const result = await service.submit(userId, makeSubmitDto() as never);
         expect(result.percentage).toBeGreaterThanOrEqual(75);
         expect(result.tier).toBe(AssessmentTier.JOB_READY);
@@ -748,7 +829,10 @@ describe('AdvancedAssessmentService', () => {
       );
       expect(talentProfileRepo.update).toHaveBeenCalledWith(
         { id: profileStore.id },
-        expect.objectContaining({ assessment_locked_until: expect.any(Date) }),
+        expect.objectContaining({
+          assessment_locked_until: expect.any(Date),
+          advanced_retake_required: true,
+        }),
       );
     });
 
@@ -824,6 +908,7 @@ describe('AdvancedAssessmentService', () => {
       const lockedProfile = makeTalentProfile({
         validated_level: VerifiedLevel.MID,
         personal_assessment_completed_at: new Date(),
+        advanced_retake_required: true,
         assessment_locked_until: new Date(
           Date.now() + 10 * 24 * 60 * 60 * 1000,
         ),

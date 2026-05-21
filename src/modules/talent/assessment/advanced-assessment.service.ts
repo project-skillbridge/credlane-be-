@@ -42,7 +42,13 @@ import { RubricScoringService } from '../../ai/rubric-scoring.service';
 import { GuidanceReportService } from '../../ai/guidance-report.service';
 import { Lt3GenerationService } from '../../ai/lt3-generation.service';
 import { EmployerPoolProfileService } from './employer-pool-profile.service';
-import { GenerateQuestionsInput, GeneratedQuestion, GuidanceReport, ScoredTextAnswer, TextAnswerInput } from '../../ai/ai.types';
+import {
+  GenerateQuestionsInput,
+  GeneratedQuestion,
+  GuidanceReport,
+  ScoredTextAnswer,
+  TextAnswerInput,
+} from '../../ai/ai.types';
 import { QuestionGenerationService } from '../../ai/question-generation.service';
 import { MailService } from '../../mail/mail.service';
 import { UsersService } from '../../users/users.service';
@@ -219,6 +225,7 @@ export class AdvancedAssessmentService {
         }
 
         if (
+          profile.advanced_retake_required &&
           profile.assessment_locked_until &&
           profile.assessment_locked_until > new Date()
         ) {
@@ -461,7 +468,7 @@ export class AdvancedAssessmentService {
           attempt_id: attempt.id,
           question_id: question.question_id,
           question_text: question.question_text,
-          user_answer: submitted?.answer ?? null,
+          user_answer: submitted?.answer ?? '',
           is_correct: correct,
           ai_evaluation_json: null,
           answered_at: new Date(),
@@ -494,7 +501,7 @@ export class AdvancedAssessmentService {
         attempt_id: attempt.id,
         question_id: question.question_id,
         question_text: question.question_text,
-        user_answer: submitted?.answer ?? null,
+        user_answer: answer,
         is_correct: null,
         ai_evaluation_json: null,
         answered_at: new Date(),
@@ -548,26 +555,22 @@ export class AdvancedAssessmentService {
       'weak',
     );
 
-    let guidanceReport: GuidanceReport | null = null;
-    if (tier !== AssessmentTier.JOB_READY) {
-      try {
-        guidanceReport = await this.guidanceReport.generate({
-          track: profile.track ?? 'general',
-          claimed_level: profile.claimed_level ?? VerifiedLevel.ENTRY,
-          validated_level: profile.validated_level ?? VerifiedLevel.ENTRY,
-          percentage,
-          strong_competencies: strongCompetencies,
-          weak_competencies: weakCompetencies,
-        });
-      } catch (error) {
-        this.logger.warn(`Guidance report generation failed: ${String(error)}`);
-      }
-    }
+    const guidanceInput = {
+      report_type: tier === AssessmentTier.JOB_READY ? 'job_ready' : 'emerging',
+      track: profile.track ?? 'general',
+      claimed_level: profile.claimed_level ?? VerifiedLevel.ENTRY,
+      validated_level: profile.validated_level ?? VerifiedLevel.ENTRY,
+      percentage,
+      strong_competencies: strongCompetencies,
+      weak_competencies: weakCompetencies,
+    } satisfies Parameters<GuidanceReportService['generate']>[0];
 
     const personalContext =
       tier === AssessmentTier.JOB_READY
         ? await this.personalAssessmentService.getAiContext(userId)
         : null;
+
+    let resultLookup: { id: string } | { attempt_id: string } | null = null;
 
     await this.talentProfileRepo.manager.transaction(async (manager) => {
       await manager.save(AssessmentResponse, responsesToSave);
@@ -596,10 +599,13 @@ export class AdvancedAssessmentService {
         percentage,
         tier,
         validated_level: null,
-        guidance_report: guidanceReport ? { ...guidanceReport } : null,
+        guidance_report: null,
         integrity_confidence: integrityConfidence,
       });
-      await manager.save(AssessmentResult, result);
+      const savedResult = await manager.save(AssessmentResult, result);
+      resultLookup = savedResult.id
+        ? { id: savedResult.id }
+        : { attempt_id: attempt.id };
 
       const profilePatch: Partial<TalentProfile> = {
         advanced_assessment_completed_at: new Date(),
@@ -610,12 +616,18 @@ export class AdvancedAssessmentService {
         const unlocksAt = new Date();
         unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
         profilePatch.assessment_locked_until = unlocksAt;
+        profilePatch.advanced_retake_required = true;
       } else {
         profilePatch.assessment_locked_until = null;
+        profilePatch.advanced_retake_required = false;
       }
 
       await manager.update(TalentProfile, { id: profile.id }, profilePatch);
     });
+
+    if (resultLookup) {
+      this.generateGuidanceReportAsync(resultLookup, guidanceInput);
+    }
 
     if (tier === AssessmentTier.JOB_READY && personalContext) {
       try {
@@ -667,9 +679,24 @@ export class AdvancedAssessmentService {
       percentage,
       tier,
       integrity_confidence: integrityConfidence,
-      ...(guidanceReport && { guidance_report: guidanceReport }),
       ...(isExpired && { auto_submitted: true }),
     };
+  }
+
+  private generateGuidanceReportAsync(
+    resultLookup: { id: string } | { attempt_id: string },
+    input: Parameters<GuidanceReportService['generate']>[0],
+  ): void {
+    void this.guidanceReport
+      .generate(input)
+      .then((guidanceReport) =>
+        this.resultRepo.update(resultLookup, {
+          guidance_report: { ...guidanceReport },
+        }),
+      )
+      .catch((error) => {
+        this.logger.warn(`Guidance report generation failed: ${String(error)}`);
+      });
   }
 
   /**
@@ -945,7 +972,10 @@ export class AdvancedAssessmentService {
         );
         await this.talentProfileRepo.update(
           { id: profile.id },
-          { assessment_locked_until: unlocksAt },
+          {
+            assessment_locked_until: unlocksAt,
+            advanced_retake_required: true,
+          },
         );
 
         this.logger.warn(
@@ -1009,9 +1039,7 @@ export class AdvancedAssessmentService {
     const userAnswer = Array.isArray(answer)
       ? answer.join(',').toLowerCase().trim()
       : String(answer).toLowerCase().trim();
-    const correctAnswer = String(question.correct_answer)
-      .toLowerCase()
-      .trim();
+    const correctAnswer = String(question.correct_answer).toLowerCase().trim();
 
     return userAnswer === correctAnswer;
   }
@@ -1324,8 +1352,12 @@ export class AdvancedAssessmentService {
     );
 
     const mcq = [...bankMcq.slice(0, ADVANCED_ASSESSMENT_MCQ_COUNT)];
-    const shortText = [...bankShort.slice(0, ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT)];
-    const longSituational = [...bankLongSituational.slice(0, ADVANCED_LT1_COUNT)];
+    const shortText = [
+      ...bankShort.slice(0, ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT),
+    ];
+    const longSituational = [
+      ...bankLongSituational.slice(0, ADVANCED_LT1_COUNT),
+    ];
     const longWorkTask = [...bankLongWorkTask.slice(0, ADVANCED_LT2_COUNT)];
 
     const generatedQuestions: Array<
@@ -1349,11 +1381,15 @@ export class AdvancedAssessmentService {
         count: mcqDeficit,
       });
       generatedQuestions.push(
-        ...generated.map((question) => ({ ...question, block: 'mcq' as const })),
+        ...generated.map((question) => ({
+          ...question,
+          block: 'mcq' as const,
+        })),
       );
     }
 
-    const shortDeficit = ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT - shortText.length;
+    const shortDeficit =
+      ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT - shortText.length;
     if (shortDeficit > 0) {
       const generated = await this.safeGenerateQuestions({
         track,
@@ -1485,7 +1521,9 @@ export class AdvancedAssessmentService {
     manager: EntityManager,
     track: string,
     verifiedLevel: VerifiedLevel,
-    generated: Array<GeneratedQuestion & { block: 'mcq' | 'short_text' | 'long_text' }>,
+    generated: Array<
+      GeneratedQuestion & { block: 'mcq' | 'short_text' | 'long_text' }
+    >,
   ): Promise<AssessmentQuestion[]> {
     if (generated.length === 0) {
       return [];
@@ -1503,7 +1541,9 @@ export class AdvancedAssessmentService {
         : (question.competency ?? null);
       const slotType =
         question.slot_type ??
-        (question.block === 'long_text' ? SlotType.WORK_TASK : SlotType.SITUATIONAL);
+        (question.block === 'long_text'
+          ? SlotType.WORK_TASK
+          : SlotType.SITUATIONAL);
 
       // CHK_assessment_questions_type_fields: advanced rows must have
       // track/verified_level/competency = NULL on the row itself. The

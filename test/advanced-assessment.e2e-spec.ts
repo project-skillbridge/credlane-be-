@@ -5,7 +5,12 @@ import {
   Injectable,
   ValidationPipe,
 } from '@nestjs/common';
-import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, Reflector } from '@nestjs/core';
+import {
+  APP_FILTER,
+  APP_GUARD,
+  APP_INTERCEPTOR,
+  Reflector,
+} from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import request from 'supertest';
@@ -26,16 +31,24 @@ import {
 } from '../src/modules/talent/assessment/personal-assessment.test-fixtures';
 import {
   AssessmentAttempt,
+  AssessmentQuestion,
   AssessmentResponse,
   AssessmentResult,
   AssessmentType,
   QuestionType,
+  SlotType,
   TalentQuestionHistory,
 } from '../src/modules/assessments/entities';
-import { TalentProfile, TalentProfileStatus } from '../src/modules/talent/entities/talent-profile.entity';
+import {
+  TalentProfile,
+  TalentProfileStatus,
+} from '../src/modules/talent/entities/talent-profile.entity';
 import { EmployerPoolProfile } from '../src/modules/talent/entities/employer-pool-profile.entity';
 import { VerifiedLevel } from '../src/modules/assessments/entities/assessment-question.entity';
 import { AssessmentTier } from '../src/modules/assessments/entities/assessment-result.entity';
+import { Lt3GenerationService } from '../src/modules/ai/lt3-generation.service';
+import { QuestionGenerationService } from '../src/modules/ai/question-generation.service';
+import { MailService } from '../src/modules/mail/mail.service';
 import { UserRole } from '../src/modules/users/entities/user.entity';
 import { UsersService } from '../src/modules/users/users.service';
 
@@ -67,15 +80,22 @@ class MockJwtAuthGuard implements CanActivate {
 // ── Session fixture ───────────────────────────────────────────────────────────
 
 // Deterministic UUIDs for test questions
-const MCQ_IDS = Array.from({ length: 15 }, (_, i) =>
-  `c${String(i + 1).padStart(7, '0')}-0000-4000-a000-000000000001`,
+const MCQ_IDS = Array.from(
+  { length: 15 },
+  (_, i) => `c${String(i + 1).padStart(7, '0')}-0000-4000-a000-000000000001`,
 );
-const SHORT_IDS = Array.from({ length: 5 }, (_, i) =>
-  `d${String(i + 1).padStart(7, '0')}-0000-4000-a000-000000000002`,
+const SHORT_IDS = Array.from(
+  { length: 5 },
+  (_, i) => `d${String(i + 1).padStart(7, '0')}-0000-4000-a000-000000000002`,
 );
-const LONG_IDS = Array.from({ length: 5 }, (_, i) =>
-  `e${String(i + 1).padStart(7, '0')}-0000-4000-a000-000000000003`,
+const LONG_IDS = Array.from(
+  { length: 5 },
+  (_, i) => `e${String(i + 1).padStart(7, '0')}-0000-4000-a000-000000000003`,
 );
+const SHORT_ANSWER =
+  'I would clarify the goal, compare options with evidence, and communicate the tradeoffs before choosing a practical next step.';
+const LONG_ANSWER =
+  'I would start by confirming the business goal, user need, and operational constraints so the team solves the right problem. Then I would compare options, identify the highest-risk assumptions, and explain the tradeoffs clearly to stakeholders before deciding on a path. After execution, I would review the outcome against the original goal and document what I would change next time.';
 
 function makeSessionJson() {
   const mcq = MCQ_IDS.map((id, i) => ({
@@ -87,7 +107,7 @@ function makeSessionJson() {
     options: ['Option A', 'Option B', 'Option C', 'Option D'],
     slot_type: null,
     metadata: null,
-    correct_answer: i < 10 ? 'Option A' : 'Option B'
+    correct_answer: i < 10 ? 'Option A' : 'Option B',
   }));
 
   const shortText = SHORT_IDS.map((id, i) => ({
@@ -108,17 +128,27 @@ function makeSessionJson() {
     question_type: QuestionType.REQUIRED_TEXT,
     question_text: `Long text ${i + 1}`,
     options: null,
-    slot_type: null,
+    slot_type:
+      i === 4
+        ? SlotType.REFLECTION
+        : i < 2
+          ? SlotType.SITUATIONAL
+          : SlotType.WORK_TASK,
     metadata: null,
   }));
 
-  return { context: { verified_level: VerifiedLevel.MID }, questions: [...mcq, ...shortText, ...longText] };
+  return {
+    context: { verified_level: VerifiedLevel.MID },
+    questions: [...mcq, ...shortText, ...longText],
+  };
 }
 
 const ATTEMPT_ID = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
 const PROFILE_ID = 'b2c3d4e5-f6a7-8901-bcde-f12345678901';
 
-function makeActiveAttempt(overrides: Partial<AssessmentAttempt> = {}): AssessmentAttempt {
+function makeActiveAttempt(
+  overrides: Partial<AssessmentAttempt> = {},
+): AssessmentAttempt {
   return Object.assign(new AssessmentAttempt(), {
     id: ATTEMPT_ID,
     talent_profile_id: PROFILE_ID,
@@ -141,7 +171,12 @@ function submitBody() {
     session_id: ATTEMPT_ID,
     answers: session.questions.map((q) => ({
       question_id: q.question_id,
-      answer: q.block === 'mcq' ? 'Option A' : 'This is a detailed answer about the topic.',
+      answer:
+        q.block === 'mcq'
+          ? 'Option A'
+          : q.block === 'short_text'
+            ? SHORT_ANSWER
+            : LONG_ANSWER,
       time_spent_seconds: 20,
     })),
   };
@@ -153,7 +188,10 @@ describe('Advanced assessment (e2e)', () => {
   let app: INestApplication<App>;
 
   const talentUser = makeTalentUser();
-  const employerUser = makeTalentUser({ id: 'employer-1', role: UserRole.EMPLOYER });
+  const employerUser = makeTalentUser({
+    id: 'employer-1',
+    role: UserRole.EMPLOYER,
+  });
 
   let profileStore: TalentProfile;
   let attemptStore: AssessmentAttempt;
@@ -175,7 +213,9 @@ describe('Advanced assessment (e2e)', () => {
     };
 
     const entityManager = {
-      save: jest.fn().mockImplementation((_e: unknown, d: unknown) => Promise.resolve(d)),
+      save: jest
+        .fn()
+        .mockImplementation((_e: unknown, d: unknown) => Promise.resolve(d)),
       create: jest.fn().mockImplementation((_e: unknown, d: unknown) => d),
       update: jest.fn().mockResolvedValue(undefined),
     };
@@ -184,14 +224,19 @@ describe('Advanced assessment (e2e)', () => {
       findOne: jest.fn().mockResolvedValue(profileStore),
       update: jest.fn().mockResolvedValue(undefined),
       manager: {
-        transaction: jest.fn().mockImplementation(
-          (work: (em: typeof entityManager) => Promise<unknown>) => work(entityManager),
-        ),
+        transaction: jest
+          .fn()
+          .mockImplementation(
+            (work: (em: typeof entityManager) => Promise<unknown>) =>
+              work(entityManager),
+          ),
       },
     };
 
     const attemptRepoMock = {
-      findOne: jest.fn().mockImplementation(() => Promise.resolve(attemptStore)),
+      findOne: jest
+        .fn()
+        .mockImplementation(() => Promise.resolve(attemptStore)),
       save: jest.fn().mockImplementation((a: AssessmentAttempt) => {
         attemptStore = a;
         return Promise.resolve(a);
@@ -206,6 +251,10 @@ describe('Advanced assessment (e2e)', () => {
         {
           provide: getRepositoryToken(TalentProfile),
           useValue: talentProfileRepoMock,
+        },
+        {
+          provide: getRepositoryToken(AssessmentQuestion),
+          useValue: { find: jest.fn(), findBy: jest.fn(), save: jest.fn() },
         },
         {
           provide: getRepositoryToken(AssessmentAttempt),
@@ -225,7 +274,12 @@ describe('Advanced assessment (e2e)', () => {
         },
         {
           provide: getRepositoryToken(EmployerPoolProfile),
-          useValue: { findOne: jest.fn().mockResolvedValue(null), save: jest.fn(), create: jest.fn(), merge: jest.fn() },
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            save: jest.fn(),
+            create: jest.fn(),
+            merge: jest.fn(),
+          },
         },
         {
           provide: UsersService,
@@ -251,7 +305,14 @@ describe('Advanced assessment (e2e)', () => {
             scoreAnswers: jest.fn().mockResolvedValue(
               Array.from({ length: 10 }, (_, i) => ({
                 question_id: i < 5 ? SHORT_IDS[i] : LONG_IDS[i - 5],
-                rubric: { relevance: 2, reasoning: 2, specificity: 2, completeness: 2, total: 8, feedback: 'Good.' },
+                rubric: {
+                  relevance: 2,
+                  reasoning: 2,
+                  specificity: 2,
+                  completeness: 2,
+                  total: 8,
+                  feedback: 'Good.',
+                },
                 raw_score: 8,
                 max_score: 12,
               })),
@@ -261,18 +322,58 @@ describe('Advanced assessment (e2e)', () => {
         {
           provide: GuidanceReportService,
           useValue: {
-            generate: jest.fn().mockResolvedValue({
-              summary: 'Keep going.',
-              strengths: ['Problem solving'],
-              improvement_areas: ['Testing'],
-              recommended_resources: ['docs.nestjs.com'],
-              retake_advice: 'Review core concepts before the 14-day retake.',
-            }),
+            generate: jest.fn().mockImplementation((input) =>
+              Promise.resolve({
+                report_type: input.report_type,
+                ai_summary:
+                  'You demonstrate practical problem solving and clear product intuition. Your growth opportunities currently lie in testing and communication.',
+                growth_insight:
+                  'Your recent assessments show steady progress in structured thinking. Focusing on testing and communication could improve your professional readiness.',
+                summary: 'Keep going.',
+                strength_ratings: [
+                  { item: 'Clear practical problem solving.', rating: 3 },
+                  { item: 'Good product intuition.', rating: 2 },
+                  { item: 'Structured answer flow.', rating: 2 },
+                ],
+                weak_area_ratings: [
+                  { item: 'Needs stronger testing habits.', rating: 2 },
+                  { item: 'Improve technical communication.', rating: 1 },
+                  { item: 'Build confidence under ambiguity.', rating: 1 },
+                ],
+                recommended_resources: [
+                  {
+                    title: 'NestJS Docs',
+                    provider: 'NestJS',
+                    url: 'https://docs.nestjs.com',
+                    tier: 'free',
+                    competency: 'Testing',
+                    reason: 'Track-aligned practice material.',
+                  },
+                ],
+                ...(input.report_type === 'emerging' && {
+                  retake_advice:
+                    'Review core concepts before the 14-day retake.',
+                }),
+                resource_page_url: '/resources',
+              }),
+            ),
           },
         },
         {
           provide: EmployerPoolProfileService,
           useValue: { upsert: jest.fn().mockResolvedValue({}) },
+        },
+        {
+          provide: Lt3GenerationService,
+          useValue: { generate: jest.fn() },
+        },
+        {
+          provide: QuestionGenerationService,
+          useValue: { generateQuestions: jest.fn() },
+        },
+        {
+          provide: MailService,
+          useValue: { sendAssessmentPerformance: jest.fn() },
         },
         { provide: APP_GUARD, useClass: MockJwtAuthGuard },
         { provide: APP_GUARD, useClass: RolesGuard },
@@ -312,10 +413,12 @@ describe('Advanced assessment (e2e)', () => {
         .expect((res) => {
           expect(res.body.status).toBe('success');
           expect(res.body.session_id).toBe(ATTEMPT_ID);
-          expect(res.body.max_score).toBe(198);
+          expect(res.body.max_score).toBe(130);
           expect(typeof res.body.percentage).toBe('number');
           expect(Object.values(AssessmentTier)).toContain(res.body.tier);
-          expect(['high', 'medium', 'low']).toContain(res.body.integrity_confidence);
+          expect(['high', 'medium', 'low']).toContain(
+            res.body.integrity_confidence,
+          );
         });
     });
 
@@ -328,7 +431,12 @@ describe('Advanced assessment (e2e)', () => {
           if (res.body.tier !== AssessmentTier.JOB_READY) {
             expect(res.body.guidance_report).toBeDefined();
             expect(res.body.guidance_report.summary).toBeDefined();
-            expect(Array.isArray(res.body.guidance_report.strengths)).toBe(true);
+            expect(
+              Array.isArray(res.body.guidance_report.strength_ratings),
+            ).toBe(true);
+            expect(
+              Array.isArray(res.body.guidance_report.weak_area_ratings),
+            ).toBe(true);
           }
         });
     });
@@ -372,6 +480,8 @@ describe('Advanced assessment (e2e)', () => {
           session_id: ATTEMPT_ID,
           answers: [
             { question_id: MCQ_IDS[0], answer: 'Option A' },
+            { question_id: SHORT_IDS[0], answer: SHORT_ANSWER },
+            { question_id: LONG_IDS[0], answer: LONG_ANSWER },
           ],
         })
         .expect(200)
