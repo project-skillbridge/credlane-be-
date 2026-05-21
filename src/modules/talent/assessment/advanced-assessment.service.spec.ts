@@ -202,7 +202,12 @@ describe('AdvancedAssessmentService', () => {
     manager: { transaction: jest.Mock };
   };
   let questionRepo: {};
-  let attemptRepo: { findOne: jest.Mock; save: jest.Mock };
+  let attemptRepo: {
+    findOne: jest.Mock;
+    save: jest.Mock;
+    increment: jest.Mock;
+    update: jest.Mock;
+  };
   let resultRepo: {};
   let personalAssessmentService: { getAiContext: jest.Mock };
   let advancedAssessmentAiService: { generateQuestions: jest.Mock };
@@ -210,7 +215,7 @@ describe('AdvancedAssessmentService', () => {
   let guidanceReport: { generate: jest.Mock };
   let lt3Generation: { generate: jest.Mock };
   let employerPoolProfileService: { upsert: jest.Mock };
-  let questionGeneration: {};
+  let questionGeneration: { generateQuestions?: jest.Mock };
   let usersService: { findOne: jest.Mock };
   let mailService: { sendAssessmentPerformance: jest.Mock };
 
@@ -223,6 +228,7 @@ describe('AdvancedAssessmentService', () => {
     assessment_locked_until: null,
   });
   let attemptStore: AssessmentAttempt;
+  let attemptData: { current: AssessmentAttempt };
 
   beforeEach(() => {
     profileStore = makeTalentProfile({
@@ -232,17 +238,50 @@ describe('AdvancedAssessmentService', () => {
       track: 'software_eng',
     });
     attemptStore = makeAttempt();
+    attemptData = { current: attemptStore };
     questionRepo = {};
     resultRepo = {};
     questionGeneration = {};
     entityManagerSaveCalls = [];
 
     attemptRepo = {
-      findOne: jest.fn().mockResolvedValue(attemptStore),
+      findOne: jest
+        .fn()
+        .mockImplementation(() =>
+          Promise.resolve(Object.assign(new AssessmentAttempt(), attemptData.current)),
+        ),
       save: jest.fn().mockImplementation((attempt: AssessmentAttempt) => {
-        attemptStore = attempt;
+        attemptData.current = attempt;
         return Promise.resolve(attempt);
       }),
+      increment: jest
+        .fn()
+        .mockImplementation(
+          (
+            _criteria: Record<string, unknown>,
+            field: string,
+            value: number,
+          ) => {
+            const current = attemptData.current;
+            if (field === 'tab_switch_count') {
+              current.tab_switch_count += value;
+            } else if (field === 'copy_paste_count') {
+              current.copy_paste_count += value;
+            }
+            return Promise.resolve({ affected: 1 });
+          },
+        ),
+      update: jest
+        .fn()
+        .mockImplementation(
+          (
+            _criteria: Record<string, unknown>,
+            patch: Partial<AssessmentAttempt>,
+          ) => {
+            Object.assign(attemptData.current, patch);
+            return Promise.resolve({ affected: 1 });
+          },
+        ),
     };
 
     const entityManager = {
@@ -676,15 +715,15 @@ describe('AdvancedAssessmentService', () => {
       expect(result.action).toBe('warn');
       expect(result.session_voided).toBe(false);
       expect(result.tab_switch_count).toBe(1);
-      expect(attemptRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ tab_switch_count: 1 }),
+      expect(attemptRepo.increment).toHaveBeenCalledWith(
+        expect.anything(),
+        'tab_switch_count',
+        1,
       );
     });
 
     it('returns warn action on second tab switch', async () => {
-      attemptRepo.findOne.mockResolvedValue(
-        makeAttempt({ tab_switch_count: 1 }),
-      );
+      attemptData.current = makeAttempt({ tab_switch_count: 1 });
 
       const result = await service.flag(userId, 'attempt-1', {
         event_type: IntegrityEventType.TAB_SWITCH,
@@ -695,9 +734,7 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('voids session and returns logout action on third tab switch', async () => {
-      attemptRepo.findOne.mockResolvedValue(
-        makeAttempt({ tab_switch_count: 2 }),
-      );
+      attemptData.current = makeAttempt({ tab_switch_count: 2 });
 
       const result = await service.flag(userId, 'attempt-1', {
         event_type: IntegrityEventType.TAB_SWITCH,
@@ -705,7 +742,8 @@ describe('AdvancedAssessmentService', () => {
 
       expect(result.action).toBe('logout');
       expect(result.session_voided).toBe(true);
-      expect(attemptRepo.save).toHaveBeenCalledWith(
+      expect(attemptRepo.update).toHaveBeenCalledWith(
+        expect.anything(),
         expect.objectContaining({ force_submitted: true }),
       );
       expect(talentProfileRepo.update).toHaveBeenCalledWith(
@@ -715,9 +753,7 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('sets 14-day retake gate when session is voided', async () => {
-      attemptRepo.findOne.mockResolvedValue(
-        makeAttempt({ tab_switch_count: 2 }),
-      );
+      attemptData.current = makeAttempt({ tab_switch_count: 2 });
 
       await service.flag(userId, 'attempt-1', {
         event_type: IntegrityEventType.TAB_SWITCH,
@@ -741,8 +777,10 @@ describe('AdvancedAssessmentService', () => {
       expect(result.status).toBe('flagged');
       expect(result.session_voided).toBe(false);
       expect(result.copy_paste_count).toBe(1);
-      expect(attemptRepo.save).toHaveBeenCalledWith(
-        expect.objectContaining({ copy_paste_count: 1 }),
+      expect(attemptRepo.increment).toHaveBeenCalledWith(
+        expect.anything(),
+        'copy_paste_count',
+        1,
       );
     });
 
@@ -834,6 +872,74 @@ describe('AdvancedAssessmentService', () => {
       await expect(service.start(userId)).rejects.toMatchObject({
         response: expect.objectContaining({ error: 'LEVEL_NOT_VERIFIED' }),
       });
+    });
+
+    it('throws 503 BANK_EXHAUSTED when fewer than 25 questions can be assembled', async () => {
+      const profile = makeTalentProfile({
+        validated_level: VerifiedLevel.MID,
+        personal_assessment_completed_at: new Date(),
+        assessment_locked_until: null,
+      });
+
+      const makeQuery = (overrides: Record<string, jest.Mock> = {}) => {
+        const query: Record<string, jest.Mock> = {
+          select: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          innerJoin: jest.fn().mockReturnThis(),
+          orderBy: jest.fn().mockReturnThis(),
+          addOrderBy: jest.fn().mockReturnThis(),
+          ...overrides,
+        };
+        for (const key of Object.keys(query)) {
+          if (!overrides[key]) {
+            query[key].mockReturnValue(query);
+          }
+        }
+        return query;
+      };
+
+      const entityManager = {
+        findOne: jest.fn().mockResolvedValue(profile),
+        create: jest
+          .fn()
+          .mockImplementation((_entity: unknown, data: unknown) => data),
+        save: jest.fn().mockResolvedValue([]),
+        createQueryBuilder: jest.fn(),
+      };
+
+      const skillQuery = makeQuery({
+        getOne: jest.fn().mockResolvedValue({
+          percentage: 80,
+        }),
+      });
+      const activeAttemptQuery = makeQuery({
+        getOne: jest.fn().mockResolvedValue(null),
+      });
+      const questionQuery = makeQuery({
+        getMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ max: '30' }),
+      });
+      entityManager.createQueryBuilder.mockImplementation((entity) => {
+        if (entity === AssessmentResult) return skillQuery;
+        if (entity === AssessmentAttempt) return activeAttemptQuery;
+        return questionQuery;
+      });
+
+      questionGeneration.generateQuestions = jest.fn().mockResolvedValue([]);
+      advancedAssessmentAiService.generateQuestions.mockReturnValue({
+        context: { verified_level: VerifiedLevel.MID },
+        questions: makeSessionJson().questions.slice(0, 10),
+      });
+
+      talentProfileRepo.manager.transaction.mockImplementation(
+        (work: (em: typeof entityManager) => Promise<unknown>) =>
+          work(entityManager),
+      );
+
+      await expect(service.start(userId)).rejects.toThrow(
+        ServiceUnavailableException,
+      );
     });
   });
 });
