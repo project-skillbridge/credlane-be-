@@ -6,8 +6,12 @@ import {
 } from '@nestjs/common';
 import {
   AssessmentAttempt,
+  AssessmentQuestion,
+  AssessmentResponse,
+  AssessmentResult,
   AssessmentType,
   QuestionType,
+  TalentQuestionHistory,
   VerifiedLevel,
 } from '../../assessments/entities';
 import { TalentProfile } from '../entities/talent-profile.entity';
@@ -32,6 +36,7 @@ describe('SkillAssessmentService', () => {
   let questionRepo: Record<string, jest.Mock>;
   let personalAssessmentService: { getAiContext: jest.Mock };
   let questionGeneration: { generateQuestions: jest.Mock };
+  let rubricScoring: { scoreAnswers: jest.Mock };
 
   const userId = 'talent-user-1';
   let profile = makeTalentProfile({
@@ -49,14 +54,24 @@ describe('SkillAssessmentService', () => {
           getRepository: jest.fn(() => attemptRepo),
           create: jest.fn(
             (
-              _entity: typeof AssessmentAttempt,
-              data: Partial<AssessmentAttempt>,
+              _entity:
+                | typeof AssessmentAttempt
+                | typeof AssessmentResult,
+              data: Partial<AssessmentAttempt | AssessmentResult>,
             ) => attemptRepo.create(data),
           ),
           save: jest.fn(
-            (_entity: typeof AssessmentAttempt, data: AssessmentAttempt) =>
+            (
+              _entity:
+                | typeof AssessmentAttempt
+                | typeof AssessmentResponse
+                | typeof TalentQuestionHistory
+                | typeof AssessmentResult,
+              data: AssessmentAttempt | unknown[],
+            ) =>
               attemptRepo.save(data),
           ),
+          update: jest.fn(),
         };
         return work(manager);
       },
@@ -83,6 +98,7 @@ describe('SkillAssessmentService', () => {
     questionRepo = {
       create: jest.fn((data) => data),
       save: jest.fn(async (data) => data),
+      findBy: jest.fn().mockResolvedValue([]),
       createQueryBuilder: jest.fn(() => ({
         select: jest.fn().mockReturnThis(),
         where: jest.fn().mockReturnThis(),
@@ -106,6 +122,7 @@ describe('SkillAssessmentService', () => {
         .fn()
         .mockResolvedValue({ track: 'frontend_developer' }),
     };
+    rubricScoring = { scoreAnswers: jest.fn().mockResolvedValue([]) };
 
     service = new SkillAssessmentService(
       talentProfileRepo as never,
@@ -114,7 +131,7 @@ describe('SkillAssessmentService', () => {
       {} as never,
       {} as never,
       {} as never,
-      { scoreAnswers: jest.fn() } as never,
+      rubricScoring as never,
       { generate: jest.fn() } as never,
       questionGeneration as never,
       personalAssessmentService as never,
@@ -149,6 +166,13 @@ describe('SkillAssessmentService', () => {
       }),
     });
     await expect(attemptRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('returns session_id, not attempt_id, when starting a skill assessment', async () => {
+    const result = await service.start(userId);
+
+    expect(result.session_id).toBe('attempt-1');
+    expect(result).not.toHaveProperty('attempt_id');
   });
 
   it('returns a stored skill session without exposing correct answers or side effects', async () => {
@@ -223,6 +247,45 @@ describe('SkillAssessmentService', () => {
     );
   });
 
+  it('returns session_id when submitting a skill assessment', async () => {
+    const attempt = Object.assign(new AssessmentAttempt(), {
+      id: 'attempt-1',
+      talent_profile_id: profile.id,
+      assessment_type: AssessmentType.SKILL,
+      started_at: new Date('2026-05-21T10:00:00.000Z'),
+      completed_at: null,
+      generated_questions_json: {
+        context: { verified_level: VerifiedLevel.MID },
+        questions: [
+          {
+            question_id: 'question-1',
+            question_number: 1,
+            question_type: QuestionType.SINGLE_PICK,
+            question_text: 'Which metric best indicates activation?',
+            options: ['Signups', 'First key action', 'Page views'],
+            correct_answer: 'First key action',
+          },
+        ],
+      },
+    });
+    attemptRepo.findOne.mockResolvedValue(attempt);
+    questionRepo.findBy.mockResolvedValue([
+      Object.assign(new AssessmentQuestion(), {
+        id: 'question-1',
+        competency: 'activation',
+        metadata: {},
+      }),
+    ]);
+
+    const result = await service.submit(userId, {
+      attempt_id: 'attempt-1',
+      answers: [{ question_id: 'question-1', answer: 'First key action' }],
+    });
+
+    expect(result.session_id).toBe('attempt-1');
+    expect(result).not.toHaveProperty('attempt_id');
+  });
+
   it('does not enforce attempt limit after advanced assessment is complete', async () => {
     profile.advanced_assessment_completed_at = new Date();
     attemptRepo.count.mockResolvedValue(SKILL_ASSESSMENT_MAX_ATTEMPTS);
@@ -246,4 +309,5 @@ type EntityManagerLike = {
   getRepository: jest.Mock;
   create: jest.Mock;
   save: jest.Mock;
+  update: jest.Mock;
 };

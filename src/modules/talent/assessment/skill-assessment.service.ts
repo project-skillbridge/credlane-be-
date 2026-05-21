@@ -67,7 +67,6 @@ type SkillAssessmentSessionPayload = {
 export interface StartSkillAssessmentResult {
   status: string;
   message: string;
-  attempt_id: string;
   session_id: string;
   verified_level: VerifiedLevel;
   questions: SkillAssessmentQuestion[];
@@ -86,6 +85,7 @@ export interface SkillAssessmentSessionResult {
 export interface SubmitSkillAssessmentResult {
   status: string;
   message: string;
+  session_id: string;
   score: number;
   total: number;
   percentage: number;
@@ -311,7 +311,6 @@ export class SkillAssessmentService {
     return {
       status: 'success',
       message: SuccessMessages.SKILL_ASSESSMENT.STARTED,
-      attempt_id: savedAttempt.id,
       session_id: savedAttempt.id,
       verified_level: verifiedLevel,
       questions: this.toPublicSessionQuestions(orderedQuestions),
@@ -571,6 +570,7 @@ export class SkillAssessmentService {
     return {
       status: 'success',
       message: SuccessMessages.SKILL_ASSESSMENT.SUBMITTED,
+      session_id: attempt.id,
       score: Math.round(totalScore),
       total: totalMaxScore,
       percentage,
