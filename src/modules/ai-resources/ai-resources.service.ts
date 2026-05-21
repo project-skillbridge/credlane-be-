@@ -118,7 +118,7 @@ export class AiResourcesService {
         `Cache miss but generation in-flight for: track=${trackKey} threshold=${thresholdGroup}. Awaiting existing promise...`,
       );
       const generatedRecord = await this.generationLocks.get(cacheKey)!;
-      const clone = { ...generatedRecord } as AiLearningResource;
+      const clone = { ...generatedRecord };
       clone.resources = this.getRandomSubset(clone.resources, AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT);
       clone.videos = this.getRandomSubset(clone.videos, AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT);
       return clone;
@@ -133,7 +133,7 @@ export class AiResourcesService {
 
     try {
       const savedRecord = await generationPromise;
-      const clone = { ...savedRecord } as AiLearningResource;
+      const clone = { ...savedRecord };
       clone.resources = this.getRandomSubset(clone.resources, AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT);
       clone.videos = this.getRandomSubset(clone.videos, AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT);
       return clone;
