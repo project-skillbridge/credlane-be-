@@ -117,3 +117,26 @@ export interface JobReadyGuidanceReport extends GuidanceReportBase {
 }
 
 export type GuidanceReport = EmergingGuidanceReport | JobReadyGuidanceReport;
+
+export interface GeneratedResourceBase {
+  title: string;
+  description: string;
+  url: string;
+  duration: string;
+}
+
+export interface GeneratedArticleItem extends GeneratedResourceBase {
+  type: 'article' | 'course';
+}
+
+export interface GeneratedVideoItem extends GeneratedResourceBase {
+  type: 'video';
+}
+
+export interface AiResourcesPayload {
+  banner_title: string;
+  banner_description: string;
+  resources: GeneratedArticleItem[];
+  videos: GeneratedVideoItem[];
+}
+

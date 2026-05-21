@@ -96,3 +96,26 @@ export const guidanceReportSchema = z.discriminatedUnion('report_type', [
   emergingGuidanceReportSchema,
   jobReadyGuidanceReportSchema,
 ]);
+
+const generatedResourceBaseSchema = z.object({
+  title: z.string(),
+  description: z.string(),
+  url: z.string().url(),
+  duration: z.string(),
+});
+
+export const generatedArticleItemSchema = generatedResourceBaseSchema.extend({
+  type: z.enum(['article', 'course']),
+});
+
+export const generatedVideoItemSchema = generatedResourceBaseSchema.extend({
+  type: z.literal('video'),
+});
+
+export const aiResourcesPayloadSchema = z.object({
+  banner_title: z.string(),
+  banner_description: z.string(),
+  resources: z.array(generatedArticleItemSchema).min(3).max(20),
+  videos: z.array(generatedVideoItemSchema).min(3).max(20),
+});
+

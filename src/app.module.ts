@@ -24,6 +24,7 @@ import { MailModule } from './modules/mail/mail.module';
 import { UsersModule } from './modules/users/users.module';
 import { ProbeController } from './probe.controller';
 import { WelcomeController } from './welcome.controller';
+import { AiResourcesModule } from './modules/ai-resources/ai-resources.module';
 
 @Module({
   imports: [
@@ -46,6 +47,7 @@ import { WelcomeController } from './welcome.controller';
     TalentModule,
     EmployerModule,
     MailModule,
+    AiResourcesModule,
   ],
   providers: [
     {

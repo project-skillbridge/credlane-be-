@@ -99,4 +99,8 @@ export const ErrorMessages = {
     INSUFFICIENT_PERMISSIONS: 'Insufficient permissions',
     INTERNAL_SERVER_ERROR: 'Internal server error',
   },
+  AI_RESOURCES: {
+    NO_ASSESSMENT_SCORES: 'Please complete at least one assessment to view personalized resources.',
+    PROFILE_NOT_FOUND: 'Talent profile not found',
+  },
 } as const;
