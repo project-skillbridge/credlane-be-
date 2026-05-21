@@ -53,7 +53,7 @@ export const ErrorMessages = {
     PERSONAL_ASSESSMENT_INCOMPLETE:
       'Complete your personal assessment before starting the advanced assessment',
     SKILL_GATE_REQUIRED:
-      'Complete and pass the skill assessment before starting the advanced assessment',
+      'Complete the skill assessment before starting the advanced assessment',
     LEVEL_NOT_VERIFIED: 'LEVEL_NOT_VERIFIED',
     BANK_EXHAUSTED: 'BANK_EXHAUSTED',
     ACTIVE_SESSION_EXISTS: 'Active advanced assessment session already exists',

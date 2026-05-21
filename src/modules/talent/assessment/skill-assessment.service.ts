@@ -504,11 +504,11 @@ export class SkillAssessmentService {
     );
     const claimed = profile.claimed_level ?? VerifiedLevel.ENTRY;
     const downgraded = levelIsLower(validatedLevel, claimed);
-    const passed = percentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE;
+    const passed = true; // Advanced assessment is unlocked for anyone who completes skill assessment
     const tier = this.resolveSkillTier(percentage);
 
     let guidanceReport: GuidanceReport | null = null;
-    if (!passed) {
+    if (percentage < SKILL_ASSESSMENT_PASS_PERCENTAGE) {
       try {
         guidanceReport = await this.guidanceReport.generate({
           report_type: 'emerging',
