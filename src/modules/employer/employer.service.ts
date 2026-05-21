@@ -34,39 +34,47 @@ export class EmployerService {
     userId: string,
     dto: SaveEmployerProfileDto,
   ): Promise<{ status: string; message: string }> {
-    await this.employerProfileRepository.manager.transaction(async (manager) => {
-      let user: User;
-      try {
-        user = await this.usersService.getUserForOnboarding(manager, userId);
-      } catch (error: unknown) {
-        if (error instanceof NotFoundException) {
-          throw new ForbiddenError(ErrorMessages.ONBOARDING.INVALID_USER);
+    await this.employerProfileRepository.manager.transaction(
+      async (manager) => {
+        let user: User;
+        try {
+          user = await this.usersService.getUserForOnboarding(manager, userId);
+        } catch (error: unknown) {
+          if (error instanceof NotFoundException) {
+            throw new ForbiddenError(ErrorMessages.ONBOARDING.INVALID_USER);
+          }
+          throw error;
         }
-        throw error;
-      }
-      if (user.onboarding_complete) {
-        throw new ForbiddenError(ErrorMessages.ONBOARDING.ALREADY_COMPLETED);
-      }
+        if (user.onboarding_complete) {
+          throw new ForbiddenError(ErrorMessages.ONBOARDING.ALREADY_COMPLETED);
+        }
 
-      let profile = await manager.findOne(EmployerProfile, {
-        where: { user_id: userId },
-      });
-      if (!profile) {
-        profile = manager.create(EmployerProfile, { user_id: userId });
-      }
+        let profile = await manager.findOne(EmployerProfile, {
+          where: { user_id: userId },
+        });
+        if (!profile) {
+          profile = manager.create(EmployerProfile, { user_id: userId });
+        }
 
-      profile.employer_type = dto.employerType;
-      profile.company_name = dto.companyName.trim();
-      profile.company_size = dto.companySize;
-      profile.company_website = dto.companyWebsite?.trim() ?? null;
-      profile.hiring_roles = dto.hiringRoles;
-      profile.hiring_locations = dto.hiringLocations;
+        profile.employer_type = dto.employerType;
+        profile.company_name = dto.companyName.trim();
+        profile.company_size = dto.companySize;
+        profile.company_website = dto.companyWebsite?.trim() ?? null;
+        profile.hiring_roles = dto.hiringRoles;
+        profile.hiring_locations = dto.hiringLocations;
 
-      await manager.save(EmployerProfile, profile);
-      await this.usersService.markOnboardingCompleteWithManager(manager, userId);
-    });
+        await manager.save(EmployerProfile, profile);
+        await this.usersService.markOnboardingCompleteWithManager(
+          manager,
+          userId,
+        );
+      },
+    );
 
-    return { status: 'success', message: SuccessMessages.ONBOARDING.EMPLOYER_PROFILE_SAVED };
+    return {
+      status: 'success',
+      message: SuccessMessages.ONBOARDING.EMPLOYER_PROFILE_SAVED,
+    };
   }
 
   async completeOnboarding(
@@ -92,7 +100,9 @@ export class EmployerService {
           where: { user_id: userId },
         });
         if (existingProfile) {
-          throw new ConflictError(ErrorMessages.ONBOARDING.EMPLOYER_PROFILE_EXISTS);
+          throw new ConflictError(
+            ErrorMessages.ONBOARDING.EMPLOYER_PROFILE_EXISTS,
+          );
         }
 
         const nextProfile = manager.create(EmployerProfile, {

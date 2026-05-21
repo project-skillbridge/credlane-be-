@@ -29,20 +29,54 @@ export class AdvancedAnswerTimingDto {
 }
 
 export class AdvancedAnswerDto {
-  @ApiProperty({ format: 'uuid' })
+  @ApiProperty({
+    format: 'uuid',
+    description: 'The question ID from the session questions array',
+    example: '80967789-af3d-47c9-9e89-819e74719a06',
+  })
   @IsUUID()
   @IsNotEmpty()
   question_id: string;
 
   @ApiProperty({
-    description: 'Answer string or array of strings for MCQ multi-pick',
+    description:
+      'Answer as a plain string. For MCQ: the selected option text (e.g., "201 Created"). For text questions: your written answer. Multi-pick MCQs use string arrays.',
+    examples: {
+      'MCQ Answer': {
+        value: '201 Created',
+        description:
+          'For single-pick MCQ questions, provide the exact option text',
+      },
+      'Text Answer': {
+        value:
+          'I would implement idempotency by using unique request IDs to track processed requests and prevent duplicate operations.',
+        description:
+          'For text questions, provide your answer as a string (60-600 chars for short_text, 150-2000 chars for long_text)',
+      },
+      'Multi-pick MCQ': {
+        value: ['Option A', 'Option C'],
+        description:
+          'For multi-pick MCQ questions, provide an array of selected option texts',
+      },
+    },
+    oneOf: [
+      { type: 'string', description: 'Single answer (MCQ or text question)' },
+      {
+        type: 'array',
+        items: { type: 'string' },
+        description: 'Multiple answers (multi-pick MCQ only)',
+      },
+    ],
   })
   @IsNotEmpty()
   answer: string | string[];
 
   @ApiProperty({
     required: false,
-    description: 'Seconds spent on this question (used for abnormal timing detection)',
+    description:
+      'Seconds spent on this question (used for abnormal timing detection). Long text questions with <60 seconds are flagged.',
+    example: 120,
+    minimum: 0,
   })
   @IsOptional()
   @IsNumber()
@@ -67,14 +101,37 @@ export class FlagIntegrityEventDto {
 }
 
 export class SubmitAdvancedAssessmentDto {
-  @ApiProperty({ format: 'uuid', description: 'The active session ID' })
+  @ApiProperty({
+    format: 'uuid',
+    description: 'The session_id returned from POST /advanced/start',
+    example: '1c47a4f6-d3ea-45fd-802f-a45859274736',
+  })
   @IsUUID()
   @IsNotEmpty()
   session_id: string;
 
   @ApiProperty({
     type: [AdvancedAnswerDto],
-    description: 'One entry per question answered. Unanswered questions are scored 0.',
+    description:
+      'Array of answers for all questions. Include only answered questions - unanswered questions are automatically scored as 0.',
+    example: [
+      {
+        question_id: '80967789-af3d-47c9-9e89-819e74719a06',
+        answer: '201 Created',
+        time_spent_seconds: 45,
+      },
+      {
+        question_id: '0c32fe73-c79a-41ea-8d68-7027a1dd9bd2',
+        answer:
+          'I would implement idempotency by using a unique request ID parameter in the request header or body. The server stores processed request IDs in a cache or database with a TTL. When a request arrives, check if the ID exists - if yes, return the cached response; if no, process the request and store the ID with the response.',
+        time_spent_seconds: 120,
+      },
+      {
+        question_id: 'abc12345-1234-5678-90ab-cdef12345678',
+        answer: ['Option A', 'Option C', 'Option D'],
+        time_spent_seconds: 60,
+      },
+    ],
   })
   @IsArray()
   @ArrayNotEmpty()

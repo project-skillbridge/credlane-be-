@@ -33,7 +33,11 @@ export function getPersonalAssessmentProgress(
   const completedSet = new Set(completedSections);
   let nextSection: number | null = null;
 
-  for (let section = 1; section <= PERSONAL_ASSESSMENT_SECTION_COUNT; section++) {
+  for (
+    let section = 1;
+    section <= PERSONAL_ASSESSMENT_SECTION_COUNT;
+    section++
+  ) {
     if (!completedSet.has(section)) {
       nextSection = section;
       break;

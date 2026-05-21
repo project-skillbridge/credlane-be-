@@ -1,9 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
 /** For databases that already ran 177921 when it added varchar(50). */
-export class ConvertClaimedLevelToVerifiedLevelEnum1779220000000
-  implements MigrationInterface
-{
+export class ConvertClaimedLevelToVerifiedLevelEnum1779220000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
     const table = await queryRunner.getTable('talent_profiles');
     const column = table?.findColumnByName('claimed_level');

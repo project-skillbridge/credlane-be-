@@ -23,7 +23,7 @@ export class AiResourcesController {
   @ApiOperation({
     summary: 'Retrieve personalized learning resources',
     description:
-      'Fetches learning resources (articles, courses, videos) curated specifically to the user\'s track and latest assessment score threshold.',
+      "Fetches learning resources (articles, courses, videos) curated specifically to the user's track and latest assessment score threshold.",
   })
   @ApiOkResponse({
     description: 'Personalized resources successfully retrieved',

@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddCopyPasteCountToAttempts1779310000000
-  implements MigrationInterface
-{
+export class AddCopyPasteCountToAttempts1779310000000 implements MigrationInterface {
   name = 'AddCopyPasteCountToAttempts1779310000000';
 
   async up(queryRunner: QueryRunner): Promise<void> {

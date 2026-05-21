@@ -118,4 +118,3 @@ export const aiResourcesPayloadSchema = z.object({
   resources: z.array(generatedArticleItemSchema).min(3).max(20),
   videos: z.array(generatedVideoItemSchema).min(3).max(20),
 });
-

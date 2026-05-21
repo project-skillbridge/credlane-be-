@@ -8,7 +8,11 @@ import { DashboardService } from './dashboard.service';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([TalentProfile, AssessmentResult, AssessmentAttempt]),
+    TypeOrmModule.forFeature([
+      TalentProfile,
+      AssessmentResult,
+      AssessmentAttempt,
+    ]),
     UsersModule,
   ],
   controllers: [DashboardController],

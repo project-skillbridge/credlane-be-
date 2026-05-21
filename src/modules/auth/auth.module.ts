@@ -22,7 +22,11 @@ import { PasswordResetQueueService } from './password-reset-queue.service';
 @Module({
   imports: [
     ThrottlerModule.forRoot([{ ttl: 60_000, limit: 5 }]),
-    TypeOrmModule.forFeature([VerificationOtp, PasswordResetOtp, TalentProfile]),
+    TypeOrmModule.forFeature([
+      VerificationOtp,
+      PasswordResetOtp,
+      TalentProfile,
+    ]),
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret: env.JWT_ACCESS_SECRET,

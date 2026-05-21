@@ -107,7 +107,9 @@ export const FALLBACK_COMPETENCY = 'general';
  * Returns the list of valid competencies for a track, or an empty list if the
  * track isn't in the taxonomy (unknown / custom tracks).
  */
-export function competenciesForTrack(track: string | null | undefined): readonly string[] {
+export function competenciesForTrack(
+  track: string | null | undefined,
+): readonly string[] {
   if (!track) return [];
   return COMPETENCY_TAXONOMY[track.toLowerCase()] ?? [];
 }
@@ -167,7 +169,10 @@ export function sanitiseCompetencyList(
     const normalised = raw.toLowerCase();
     if (seen.has(normalised)) continue;
     // Unknown tracks: keep the raw label; we have nothing better.
-    if (competenciesForTrack(track).length === 0 || isValidCompetency(track, normalised)) {
+    if (
+      competenciesForTrack(track).length === 0 ||
+      isValidCompetency(track, normalised)
+    ) {
       seen.add(normalised);
       result.push(normalised);
     }

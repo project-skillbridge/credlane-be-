@@ -1,8 +1,5 @@
 import { ConflictException, ForbiddenException } from '@nestjs/common';
-import {
-  AssessmentAttempt,
-  AssessmentType,
-} from '../../assessments/entities';
+import { AssessmentAttempt, AssessmentType } from '../../assessments/entities';
 import { TalentProfile } from '../entities/talent-profile.entity';
 import { ErrorMessages } from '../../../shared';
 import { SKILL_ASSESSMENT_MAX_ATTEMPTS } from '../talent.constants';
@@ -41,8 +38,10 @@ describe('SkillAssessmentService', () => {
           findOne: jest.fn().mockResolvedValue(profile),
           getRepository: jest.fn(() => attemptRepo),
           create: jest.fn(
-            (_entity: typeof AssessmentAttempt, data: Partial<AssessmentAttempt>) =>
-              attemptRepo.create(data),
+            (
+              _entity: typeof AssessmentAttempt,
+              data: Partial<AssessmentAttempt>,
+            ) => attemptRepo.create(data),
           ),
           save: jest.fn(
             (_entity: typeof AssessmentAttempt, data: AssessmentAttempt) =>
@@ -93,7 +92,9 @@ describe('SkillAssessmentService', () => {
     mockTransaction();
 
     personalAssessmentService = {
-      getAiContext: jest.fn().mockResolvedValue({ track: 'frontend_developer' }),
+      getAiContext: jest
+        .fn()
+        .mockResolvedValue({ track: 'frontend_developer' }),
     };
 
     service = new SkillAssessmentService(

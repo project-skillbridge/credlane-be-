@@ -11,7 +11,8 @@ export class VerifyGoogleAuthCodeDto {
   code: string;
 
   @ApiPropertyOptional({
-    description: 'The redirect URI used on the frontend to get the code. Defaults to postmessage.',
+    description:
+      'The redirect URI used on the frontend to get the code. Defaults to postmessage.',
     example: 'postmessage',
   })
   @IsString()

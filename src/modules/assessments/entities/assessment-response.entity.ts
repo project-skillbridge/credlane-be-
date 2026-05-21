@@ -59,7 +59,8 @@ export class AssessmentResponse {
   @ApiProperty({
     required: false,
     nullable: true,
-    description: 'AI rubric evaluation JSON for text answers (advanced assessment)',
+    description:
+      'AI rubric evaluation JSON for text answers (advanced assessment)',
   })
   @Column({ type: 'jsonb', nullable: true })
   ai_evaluation_json: Record<string, unknown> | null;

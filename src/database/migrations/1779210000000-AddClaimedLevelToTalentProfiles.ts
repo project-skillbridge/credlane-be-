@@ -1,8 +1,6 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddClaimedLevelToTalentProfiles1779210000000
-  implements MigrationInterface
-{
+export class AddClaimedLevelToTalentProfiles1779210000000 implements MigrationInterface {
   private readonly claimedLevelToEnumUsing = `
     CASE "claimed_level"::text
       WHEN 'beginner' THEN 'entry'::verified_level_enum

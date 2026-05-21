@@ -33,9 +33,15 @@ export class EmployerController {
 
   @Post('profile')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Save employer profile and complete onboarding (BE-ONB-EMP-001)' })
-  @ApiUnprocessableEntityResponse({ description: 'Validation failed — field-specific error messages' })
-  @ApiForbiddenResponse({ description: 'Onboarding already completed or wrong role' })
+  @ApiOperation({
+    summary: 'Save employer profile and complete onboarding (BE-ONB-EMP-001)',
+  })
+  @ApiUnprocessableEntityResponse({
+    description: 'Validation failed — field-specific error messages',
+  })
+  @ApiForbiddenResponse({
+    description: 'Onboarding already completed or wrong role',
+  })
   @UsePipes(
     new ValidationPipe({
       whitelist: true,

@@ -26,10 +26,7 @@ describe('VerifiedProfileService', () => {
   let service: VerifiedProfileService;
   let usersService: Pick<UsersService, 'findOne'>;
   let talentProfileRepository: Pick<Repository<TalentProfile>, 'findOne'>;
-  let employerPoolRepository: Pick<
-    Repository<EmployerPoolProfile>,
-    'findOne'
-  >;
+  let employerPoolRepository: Pick<Repository<EmployerPoolProfile>, 'findOne'>;
   let assessmentResultRepository: Pick<
     Repository<AssessmentResult>,
     'createQueryBuilder'
@@ -75,7 +72,9 @@ describe('VerifiedProfileService', () => {
     assessmentResultRepository = {
       createQueryBuilder: jest.fn(() => resultQueryBuilder as never),
     };
-    assessmentAttemptRepository = { findOne: jest.fn().mockResolvedValue(null) };
+    assessmentAttemptRepository = {
+      findOne: jest.fn().mockResolvedValue(null),
+    };
     assessmentResponseRepository = { find: jest.fn().mockResolvedValue([]) };
 
     service = new VerifiedProfileService(
@@ -211,9 +210,7 @@ describe('VerifiedProfileService', () => {
     (usersService.findOne as jest.Mock).mockResolvedValue(user);
     (resultQueryBuilder.getOne as jest.Mock).mockImplementation(() => {
       if (lastAssessmentType === AssessmentType.ADVANCED) {
-        return Promise.resolve(
-          makeResult({ tier: AssessmentTier.JOB_READY }),
-        );
+        return Promise.resolve(makeResult({ tier: AssessmentTier.JOB_READY }));
       }
       return Promise.resolve(null);
     });
