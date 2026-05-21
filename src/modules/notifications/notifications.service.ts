@@ -24,6 +24,23 @@ export class NotificationsService {
     private readonly notificationRepo: Repository<UserNotification>,
   ) {}
 
+  async hasDedupedNotification(
+    userId: string,
+    type: NotificationType,
+    eligibilityDate: string,
+  ): Promise<boolean> {
+    const count = await this.notificationRepo
+      .createQueryBuilder('notification')
+      .where('notification.user_id = :userId', { userId })
+      .andWhere('notification.type = :type', { type })
+      .andWhere("notification.data->>'eligibilityDate' = :eligibilityDate", {
+        eligibilityDate,
+      })
+      .getCount();
+
+    return count > 0;
+  }
+
   async create(input: CreateNotificationInput): Promise<NotificationRow> {
     const payload: NewNotificationPayload = {
       user_id: input.userId,

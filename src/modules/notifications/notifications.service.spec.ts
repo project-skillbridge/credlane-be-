@@ -11,9 +11,17 @@ describe('NotificationsService', () => {
     find: jest.Mock;
     count: jest.Mock;
     update: jest.Mock;
+    createQueryBuilder: jest.Mock;
   };
+  let dedupeQuery: { where: jest.Mock; andWhere: jest.Mock; getCount: jest.Mock };
 
   beforeEach(() => {
+    dedupeQuery = {
+      where: jest.fn().mockReturnThis(),
+      andWhere: jest.fn().mockReturnThis(),
+      getCount: jest.fn().mockResolvedValue(0),
+    };
+
     notificationRepo = {
       save: jest.fn(async (row: Partial<UserNotification>) =>
         Object.assign(new UserNotification(), row),
@@ -21,6 +29,7 @@ describe('NotificationsService', () => {
       find: jest.fn().mockResolvedValue([]),
       count: jest.fn().mockResolvedValue(0),
       update: jest.fn().mockResolvedValue({ affected: 1 }),
+      createQueryBuilder: jest.fn().mockReturnValue(dedupeQuery),
     };
 
     service = new NotificationsService(notificationRepo as never);
@@ -63,6 +72,18 @@ describe('NotificationsService', () => {
       { id: 'notification-1', user_id: 'user-1', read_at: IsNull() },
       { read_at: expect.any(Date) },
     );
+  });
+
+  it('detects an existing notification for the same eligibility window', async () => {
+    dedupeQuery.getCount.mockResolvedValue(1);
+
+    await expect(
+      service.hasDedupedNotification(
+        'user-1',
+        NotificationType.ADVANCED_RETAKE_AVAILABLE,
+        '2026-06-01T00:00:00.000Z',
+      ),
+    ).resolves.toBe(true);
   });
 
   it('throws when marking an unknown notification as read', async () => {

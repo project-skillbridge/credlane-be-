@@ -21,6 +21,7 @@ import { AdvancedAssessmentService } from './assessment/advanced-assessment.serv
 import { EmployerPoolProfileService } from './assessment/employer-pool-profile.service';
 import { SkillAssessmentController } from './assessment/skill-assessment.controller';
 import { SkillAssessmentService } from './assessment/skill-assessment.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { TalentController } from './talent.controller';
 import { TalentService } from './talent.service';
 
@@ -39,6 +40,7 @@ import { TalentService } from './talent.service';
     UsersModule,
     AuthModule,
     UploadModule,
+    NotificationsModule,
   ],
   controllers: [
     TalentController,
