@@ -1,9 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { QuestionType } from '../assessments/entities/assessment-question.entity';
-import {
-  GeneratedQuestion,
-  GenerateQuestionsInput,
-} from './ai.types';
+import { GeneratedQuestion, GenerateQuestionsInput } from './ai.types';
 import { questionGenerationSchema } from './ai.schemas';
 import { OpenRouterService } from './openrouter.service';
 
@@ -17,10 +14,17 @@ export class QuestionGenerationService {
 
   constructor(private readonly openRouter: OpenRouterService) {}
 
-  async generateQuestions(input: GenerateQuestionsInput): Promise<GeneratedQuestion[]> {
+  async generateQuestions(
+    input: GenerateQuestionsInput,
+  ): Promise<GeneratedQuestion[]> {
     const userPrompt = this.buildPrompt(input);
 
-    const raw = await this.openRouter.chat(SYSTEM_PROMPT, userPrompt, questionGenerationSchema, 0.7);
+    const raw = await this.openRouter.chat(
+      SYSTEM_PROMPT,
+      userPrompt,
+      questionGenerationSchema,
+      0.7,
+    );
     return raw.questions.map((q) => this.parseQuestion(q, input));
   }
 
@@ -36,7 +40,9 @@ export class QuestionGenerationService {
       `Question type: ${input.question_type}`,
       input.slot_type ? `Slot type: ${input.slot_type}` : null,
       input.competency ? `Competency: ${input.competency}` : null,
-      input.industry_context ? `Industry context: ${input.industry_context}` : null,
+      input.industry_context
+        ? `Industry context: ${input.industry_context}`
+        : null,
       `Count: generate exactly ${input.count} question(s)`,
     ].filter(Boolean);
 
@@ -57,7 +63,13 @@ ${isMcq ? '- options: exactly 4 strings, plausible distractors\n- correct_answer
   }
 
   private parseQuestion(
-    raw: { question_text: string; options: string[] | null; correct_answer: string | null; competency: string | null; industry_context: string | null },
+    raw: {
+      question_text: string;
+      options: string[] | null;
+      correct_answer: string | null;
+      competency: string | null;
+      industry_context: string | null;
+    },
     input: GenerateQuestionsInput,
   ): GeneratedQuestion {
     return {

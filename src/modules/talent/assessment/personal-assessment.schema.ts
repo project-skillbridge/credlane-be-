@@ -90,11 +90,7 @@ export const ORG_TYPES = [
   'self_employed',
 ] as const;
 
-export const STUDENT_STATUS = [
-  'no',
-  'yes_part_time',
-  'yes_full_time',
-] as const;
+export const STUDENT_STATUS = ['no', 'yes_part_time', 'yes_full_time'] as const;
 
 export const PRIMARY_LANGUAGE = [
   'english',
@@ -272,12 +268,7 @@ export const SPECIALIZATIONS_BY_TRACK: Record<string, readonly string[]> = {
     'machine_learning',
     'other',
   ],
-  product_management: [
-    'technical_pm',
-    'growth_pm',
-    'platform_pm',
-    'other',
-  ],
+  product_management: ['technical_pm', 'growth_pm', 'platform_pm', 'other'],
   design_ui_ux: ['ui_design', 'ux_research', 'product_design', 'other'],
   marketing: [
     'digital_marketing',
@@ -293,12 +284,7 @@ export const SPECIALIZATIONS_BY_TRACK: Record<string, readonly string[]> = {
     'operations',
     'other',
   ],
-  finance_accounting: [
-    'accounting',
-    'financial_analysis',
-    'fp_a',
-    'other',
-  ],
+  finance_accounting: ['accounting', 'financial_analysis', 'fp_a', 'other'],
   hr_people_ops: ['recruiting', 'hr_generalist', 'people_ops', 'other'],
   content_copywriting: [
     'copywriting',
@@ -340,13 +326,7 @@ export const TOOLS_BY_TRACK: Record<string, readonly string[]> = {
     'other',
   ],
   design_ui_ux: ['figma', 'sketch', 'adobe_xd', 'miro', 'other'],
-  marketing: [
-    'google_analytics',
-    'hubspot',
-    'mailchimp',
-    'meta_ads',
-    'other',
-  ],
+  marketing: ['google_analytics', 'hubspot', 'mailchimp', 'meta_ads', 'other'],
   sales: ['salesforce', 'hubspot', 'pipedrive', 'linkedin_sales', 'other'],
   customer_support: ['zendesk', 'intercom', 'freshdesk', 'other'],
   finance_accounting: ['excel', 'quickbooks', 'xero', 'sap', 'other'],
@@ -737,7 +717,11 @@ export function getSectionQuestions(
 
 export function getAllPersonalAssessmentQuestions(): PersonalAssessmentQuestion[] {
   const questions: PersonalAssessmentQuestion[] = [];
-  for (let section = 1; section <= PERSONAL_ASSESSMENT_SECTION_COUNT; section++) {
+  for (
+    let section = 1;
+    section <= PERSONAL_ASSESSMENT_SECTION_COUNT;
+    section++
+  ) {
     questions.push(...getSectionQuestions(section));
   }
   return questions;

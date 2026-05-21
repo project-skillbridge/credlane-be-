@@ -106,9 +106,7 @@ export class EmployerPoolProfileService {
 
     for (const answer of scored) {
       const pct =
-        answer.max_score > 0
-          ? (answer.raw_score / answer.max_score) * 100
-          : 0;
+        answer.max_score > 0 ? (answer.raw_score / answer.max_score) * 100 : 0;
       const competency =
         competencyByQuestion?.get(answer.question_id) ?? answer.question_id;
       const key = competency.toLowerCase();
@@ -142,7 +140,12 @@ export class EmployerPoolProfileService {
   private resolveIndustryBackground(
     ctx: TalentPersonalAssessmentContext,
   ): Record<string, unknown> | null {
-    const keys = ['industryExperience', 'yearsOfExperience', 'currentRole', 'previousRole'];
+    const keys = [
+      'industryExperience',
+      'yearsOfExperience',
+      'currentRole',
+      'previousRole',
+    ];
     const result: Record<string, unknown> = {};
     for (const k of keys) {
       if (ctx[k] !== undefined && ctx[k] !== null) result[k] = ctx[k];
@@ -153,7 +156,12 @@ export class EmployerPoolProfileService {
   private resolveWorkPreferences(
     ctx: TalentPersonalAssessmentContext,
   ): Record<string, unknown> | null {
-    const keys = ['workStyle', 'preferredEnvironment', 'remotePreference', 'teamSize'];
+    const keys = [
+      'workStyle',
+      'preferredEnvironment',
+      'remotePreference',
+      'teamSize',
+    ];
     const result: Record<string, unknown> = {};
     for (const k of keys) {
       if (ctx[k] !== undefined && ctx[k] !== null) result[k] = ctx[k];

@@ -88,7 +88,11 @@ export class VerifiedProfileService {
     }
 
     const user = await this.usersService.findOne(poolProfile.candidate_id);
-    return this.buildVerifiedProfile(user, poolProfile.talent_profile, poolProfile);
+    return this.buildVerifiedProfile(
+      user,
+      poolProfile.talent_profile,
+      poolProfile,
+    );
   }
 
   private async buildVerifiedProfile(
@@ -102,7 +106,9 @@ export class VerifiedProfileService {
       throw new NotFoundError(ErrorMessages.VERIFIED_PROFILE.NOT_AVAILABLE);
     }
 
-    const personalAnswers = readPersonalAnswers(profile.personal_assessment_answers);
+    const personalAnswers = readPersonalAnswers(
+      profile.personal_assessment_answers,
+    );
     const latestSkillResult = await this.getLatestSkillResult(profile.id);
     const blockScores = await this.resolveAdvancedBlockScores(profile.id);
 
@@ -187,7 +193,9 @@ export class VerifiedProfileService {
     return this.assessmentResultRepository
       .createQueryBuilder('result')
       .innerJoin('result.attempt', 'attempt')
-      .where('attempt.talent_profile_id = :talentProfileId', { talentProfileId })
+      .where('attempt.talent_profile_id = :talentProfileId', {
+        talentProfileId,
+      })
       .andWhere('attempt.assessment_type = :assessmentType', {
         assessmentType: AssessmentType.ADVANCED,
       })
@@ -203,7 +211,9 @@ export class VerifiedProfileService {
     return this.assessmentResultRepository
       .createQueryBuilder('result')
       .innerJoin('result.attempt', 'attempt')
-      .where('attempt.talent_profile_id = :talentProfileId', { talentProfileId })
+      .where('attempt.talent_profile_id = :talentProfileId', {
+        talentProfileId,
+      })
       .andWhere('attempt.assessment_type = :assessmentType', {
         assessmentType: AssessmentType.SKILL,
       })

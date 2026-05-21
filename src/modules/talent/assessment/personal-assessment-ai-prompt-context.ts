@@ -37,7 +37,11 @@ function collectMergedAnswers(
 ): Record<string, unknown> {
   const answers: Record<string, unknown> = {};
 
-  for (let section = 1; section <= PERSONAL_ASSESSMENT_SECTION_COUNT; section++) {
+  for (
+    let section = 1;
+    section <= PERSONAL_ASSESSMENT_SECTION_COUNT;
+    section++
+  ) {
     for (const question of getSectionQuestions(section)) {
       answers[question.key] = resolveContextAnswer(
         question,

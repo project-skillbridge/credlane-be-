@@ -74,7 +74,11 @@ export class AiResourcesService {
       where: { attempt_id: latestAttempt.id },
     });
 
-    if (!result || result.percentage === null || result.percentage === undefined) {
+    if (
+      !result ||
+      result.percentage === null ||
+      result.percentage === undefined
+    ) {
       throw new UnprocessableEntityException(
         ErrorMessages.AI_RESOURCES.NO_ASSESSMENT_SCORES,
       );
@@ -107,8 +111,14 @@ export class AiResourcesService {
         `Cache hit for resources: track=${trackKey} threshold=${thresholdGroup}`,
       );
       // Return a randomized subset of the massive cached pool
-      cached.resources = this.getRandomSubset(cached.resources, AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT);
-      cached.videos = this.getRandomSubset(cached.videos, AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT);
+      cached.resources = this.getRandomSubset(
+        cached.resources,
+        AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT,
+      );
+      cached.videos = this.getRandomSubset(
+        cached.videos,
+        AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT,
+      );
       return cached;
     }
 
@@ -119,8 +129,14 @@ export class AiResourcesService {
       );
       const generatedRecord = await this.generationLocks.get(cacheKey)!;
       const clone = { ...generatedRecord };
-      clone.resources = this.getRandomSubset(clone.resources, AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT);
-      clone.videos = this.getRandomSubset(clone.videos, AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT);
+      clone.resources = this.getRandomSubset(
+        clone.resources,
+        AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT,
+      );
+      clone.videos = this.getRandomSubset(
+        clone.videos,
+        AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT,
+      );
       return clone;
     }
 
@@ -128,14 +144,23 @@ export class AiResourcesService {
     this.logger.log(
       `Cache miss for resources: track=${trackKey} threshold=${thresholdGroup}. Generating via AI...`,
     );
-    const generationPromise = this.generateAndSaveResources(trackKey, thresholdGroup);
+    const generationPromise = this.generateAndSaveResources(
+      trackKey,
+      thresholdGroup,
+    );
     this.generationLocks.set(cacheKey, generationPromise);
 
     try {
       const savedRecord = await generationPromise;
       const clone = { ...savedRecord };
-      clone.resources = this.getRandomSubset(clone.resources, AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT);
-      clone.videos = this.getRandomSubset(clone.videos, AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT);
+      clone.resources = this.getRandomSubset(
+        clone.resources,
+        AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT,
+      );
+      clone.videos = this.getRandomSubset(
+        clone.videos,
+        AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT,
+      );
       return clone;
     } finally {
       this.generationLocks.delete(cacheKey);

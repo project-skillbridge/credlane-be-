@@ -1,5 +1,13 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsIn, IsOptional, IsString, IsUrl, Matches, MaxLength, MinLength } from 'class-validator';
+import {
+  IsIn,
+  IsOptional,
+  IsString,
+  IsUrl,
+  Matches,
+  MaxLength,
+  MinLength,
+} from 'class-validator';
 import { TALENT_EDUCATION_LEVELS } from '../talent.constants';
 
 const LINKEDIN_REGEX =
@@ -29,7 +37,8 @@ export class SetProfileDto {
   @IsOptional()
   @IsUrl({}, { message: 'linkedinUrl must be a valid URL' })
   @Matches(LINKEDIN_REGEX, {
-    message: 'linkedinUrl must be a valid LinkedIn profile URL (linkedin.com/in/...)',
+    message:
+      'linkedinUrl must be a valid LinkedIn profile URL (linkedin.com/in/...)',
   })
   linkedinUrl?: string;
 

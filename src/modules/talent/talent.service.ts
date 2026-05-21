@@ -91,7 +91,10 @@ export class TalentService {
     profile.goal = dto.goal;
     if (profile.onboarding_step < 1) profile.onboarding_step = 1;
     await this.talentProfileRepository.save(profile);
-    return { status: 'success', message: SuccessMessages.ONBOARDING.GOAL_SAVED };
+    return {
+      status: 'success',
+      message: SuccessMessages.ONBOARDING.GOAL_SAVED,
+    };
   }
 
   /** BE-ONB-TAL-002 — save single track, 422 on invalid. */
@@ -103,7 +106,10 @@ export class TalentService {
     profile.track = dto.track;
     if (profile.onboarding_step < 2) profile.onboarding_step = 2;
     await this.talentProfileRepository.save(profile);
-    return { status: 'success', message: SuccessMessages.ONBOARDING.TRACK_SAVED };
+    return {
+      status: 'success',
+      message: SuccessMessages.ONBOARDING.TRACK_SAVED,
+    };
   }
 
   /** BE-ONB-TAL-003 — save profile (photo optional, optional fields optional). */
@@ -131,7 +137,9 @@ export class TalentService {
         await manager.update(User, { id: userId }, { avatar_url: avatarUrl });
       }
 
-      let profile = await manager.findOne(TalentProfile, { where: { user_id: userId } });
+      let profile = await manager.findOne(TalentProfile, {
+        where: { user_id: userId },
+      });
       if (!profile) {
         profile = manager.create(TalentProfile, {
           user_id: userId,
@@ -150,15 +158,23 @@ export class TalentService {
       await manager.save(TalentProfile, profile);
 
       if (!user.onboarding_complete) {
-        await this.usersService.markOnboardingCompleteWithManager(manager, userId);
+        await this.usersService.markOnboardingCompleteWithManager(
+          manager,
+          userId,
+        );
       }
     });
 
-    return { status: 'success', message: SuccessMessages.ONBOARDING.TALENT_PROFILE_SAVED };
+    return {
+      status: 'success',
+      message: SuccessMessages.ONBOARDING.TALENT_PROFILE_SAVED,
+    };
   }
 
   /** BE-ONB-TAL-004 — trigger personalisation from saved onboarding data. */
-  async personalise(userId: string): Promise<{ status: string; message: string }> {
+  async personalise(
+    userId: string,
+  ): Promise<{ status: string; message: string }> {
     const profile = await this.talentProfileRepository.findOne({
       where: { user_id: userId },
     });
@@ -190,12 +206,19 @@ export class TalentService {
             ? []
             : ['goal', 'region', 'educationLevel'].filter(
                 (f) =>
-                  !profile[f === 'educationLevel' ? 'education_level' : (f as keyof TalentProfile)],
+                  !profile[
+                    f === 'educationLevel'
+                      ? 'education_level'
+                      : (f as keyof TalentProfile)
+                  ],
               ),
         }),
       );
 
-      return { status: 'success', message: SuccessMessages.ONBOARDING.DASHBOARD_PERSONALISED };
+      return {
+        status: 'success',
+        message: SuccessMessages.ONBOARDING.DASHBOARD_PERSONALISED,
+      };
     } catch {
       throw new InternalServerErrorException(
         ErrorMessages.ONBOARDING.PERSONALISATION_FAILED,
@@ -203,7 +226,18 @@ export class TalentService {
     }
   }
 
-  async getOnboardingState(userId: string): Promise<{ profile: TalentProfile | null; user: { id: string; email: string; first_name: string; last_name: string; avatar_url: string | null } }> {
+  async getOnboardingState(
+    userId: string,
+  ): Promise<{
+    profile: TalentProfile | null;
+    user: {
+      id: string;
+      email: string;
+      first_name: string;
+      last_name: string;
+      avatar_url: string | null;
+    };
+  }> {
     const user = await this.usersService.findOne(userId);
     const profile = await this.talentProfileRepository.findOne({
       where: { user_id: userId },
@@ -234,7 +268,10 @@ export class TalentService {
     return { message: SuccessMessages.ONBOARDING.GOAL_SAVED, profile: saved };
   }
 
-  async saveTracks(userId: string, dto: SetTracksDto): Promise<TalentStepResult> {
+  async saveTracks(
+    userId: string,
+    dto: SetTracksDto,
+  ): Promise<TalentStepResult> {
     const user = await this.usersService.findOne(userId);
     if (user.onboarding_complete) {
       throw new ForbiddenError(ErrorMessages.ONBOARDING.ALREADY_COMPLETED);
@@ -284,11 +321,18 @@ export class TalentService {
         talentProfile.onboarding_step = 3;
 
         if (dto.avatarUrl) {
-          await manager.update(User, { id: userId }, { avatar_url: dto.avatarUrl });
+          await manager.update(
+            User,
+            { id: userId },
+            { avatar_url: dto.avatarUrl },
+          );
         }
 
         const savedProfile = await manager.save(TalentProfile, talentProfile);
-        await this.usersService.markOnboardingCompleteWithManager(manager, userId);
+        await this.usersService.markOnboardingCompleteWithManager(
+          manager,
+          userId,
+        );
 
         return savedProfile;
       },
@@ -331,7 +375,9 @@ export class TalentService {
           where: { user_id: userId },
         });
         if (existingProfile) {
-          throw new ConflictError(ErrorMessages.ONBOARDING.TALENT_PROFILE_EXISTS);
+          throw new ConflictError(
+            ErrorMessages.ONBOARDING.TALENT_PROFILE_EXISTS,
+          );
         }
 
         const nextProfile = manager.create(TalentProfile, {

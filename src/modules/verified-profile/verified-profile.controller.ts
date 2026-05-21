@@ -18,7 +18,9 @@ import { VerifiedProfileService } from './verified-profile.service';
 @ApiTags('verified-profile')
 @Controller()
 export class VerifiedProfileController {
-  constructor(private readonly verifiedProfileService: VerifiedProfileService) {}
+  constructor(
+    private readonly verifiedProfileService: VerifiedProfileService,
+  ) {}
 
   @Get('talent/verified-profile')
   @ApiCookieAuth()
@@ -51,7 +53,9 @@ export class VerifiedProfileController {
     description: 'Shareable link token from the employer pool profile',
   })
   @ApiOkResponse({ type: VerifiedProfileResponseDto })
-  @ApiNotFoundResponse({ description: 'Invalid token or profile not job-ready' })
+  @ApiNotFoundResponse({
+    description: 'Invalid token or profile not job-ready',
+  })
   getByShareToken(
     @Param('token') token: string,
   ): Promise<VerifiedProfileResponseDto> {

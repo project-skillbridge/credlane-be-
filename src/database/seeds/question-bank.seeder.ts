@@ -117,7 +117,8 @@ const questionSeeds: QuestionSeed[] = [
     metadata: buildMetadata('easy', 45, ['http', 'headers']),
   },
   {
-    question_text: 'What is the primary benefit of using database transactions?',
+    question_text:
+      'What is the primary benefit of using database transactions?',
     question_type: QuestionType.SINGLE_PICK,
     options: [
       'Faster queries',
@@ -216,12 +217,7 @@ const questionSeeds: QuestionSeed[] = [
     options: null,
     correct_answer: null,
     slot_type: SlotType.REFLECTION,
-    metadata: buildMetadata(
-      'medium',
-      120,
-      ['api', 'versioning'],
-      'short_text',
-    ),
+    metadata: buildMetadata('medium', 120, ['api', 'versioning'], 'short_text'),
   },
   {
     question_text:
