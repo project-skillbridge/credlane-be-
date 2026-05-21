@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { OpenRouterService } from './openrouter.service';
 import { aiResourcesPayloadSchema } from './ai.schemas';
 import { AiResourcesPayload } from './ai.types';
+import { AI_RESOURCE_CONSTANTS } from '../ai-resources/ai-resources.constants';
 
 const SYSTEM_PROMPT = `You are a professional career advisor, mentor, and learning curator.
 Your task is to perform deep web research to recommend high-quality, practical learning resources (articles, documentations, courses, and videos) to help candidates level up their skills.
@@ -19,8 +20,10 @@ export class ResourceGenerationService {
       focusGuide = 'The candidate scored below 50%. Focus heavily on foundational, beginner-friendly topics, basic setup guides, tutorials, and fundamental concepts to help them build a strong base.';
     } else if (thresholdGroup === 'between_50_75') {
       focusGuide = 'The candidate scored between 50% and 75%. Focus on intermediate topics, best practices, common architectures, debugging, and practical project-building tutorials.';
-    } else {
+    } else if (thresholdGroup === 'above_75') {
       focusGuide = 'The candidate scored above 75%. Focus on advanced/expert topics, system design, performance optimization, advanced patterns, and deep-dive technical resources.';
+    } else {
+      throw new Error(`Unknown threshold group: ${thresholdGroup}`);
     }
 
     const userPrompt = `
@@ -30,11 +33,12 @@ Score Threshold: ${thresholdGroup}
 Focus for recommendations:
 ${focusGuide}
 
-Please generate learning resources and return them in this JSON format:
+Please generate a LARGE POOL of learning resources and return them in this JSON format:
 {
   "banner_title": "A short motivational title (e.g., 'Life as a Frontend Developer' or 'Mastering Product Management')",
   "banner_description": "A short summary encouraging the candidate to review these resources to level up in their track.",
   "resources": [
+    // GENERATE AT LEAST ${AI_RESOURCE_CONSTANTS.POOL_GENERATION_COUNT} ITEMS HERE!
     {
       "title": "Clear, concise resource title",
       "description": "Short summary of what this article/course covers.",
@@ -44,6 +48,7 @@ Please generate learning resources and return them in this JSON format:
     }
   ],
   "videos": [
+    // GENERATE AT LEAST ${AI_RESOURCE_CONSTANTS.POOL_GENERATION_COUNT} ITEMS HERE!
     {
       "title": "Clear, concise video title",
       "description": "Short summary of what this video/tutorial covers.",
@@ -55,7 +60,7 @@ Please generate learning resources and return them in this JSON format:
 }
 
 Rules:
-- Generate 3 to 5 items for "resources" and 3 to 5 items for "videos".
+- Generate 8 to 10 items for "resources" and 5 to 8 items for "videos".
 - Make resources directly relevant to the ${track} track and the indicated depth (${thresholdGroup}).
 - Ensure URLs look like real learning resources (e.g., MDN, freeCodeCamp, official docs, dev.to, YouTube).
 `.trim();
@@ -65,7 +70,7 @@ Rules:
       userPrompt,
       aiResourcesPayloadSchema,
       0.6,
-      true, // Enable web search / deep research
+      true, 
     );
   }
 }
