@@ -44,7 +44,6 @@ import {
 const SKILL_ASSESSMENT_MCQ_COUNT = 6;
 const SKILL_ASSESSMENT_TEXT_COUNT = 4;
 const SKILL_ASSESSMENT_PASS_PERCENTAGE = 75;
-const SKILL_ASSESSMENT_RETAKE_DAYS = 14;
 
 export interface SkillAssessmentQuestion {
   question_id: string;
@@ -84,7 +83,6 @@ export interface SubmitSkillAssessmentResult {
   downgraded: boolean;
   passed: boolean;
   guidance_report?: GuidanceReport;
-  retry_available_at?: string;
   personalised_message?: string;
 }
 
@@ -214,17 +212,6 @@ export class SkillAssessmentService {
         ErrorMessages.SKILL_ASSESSMENT.TRACK_MISSING,
       );
     }
-    if (
-      profile.assessment_locked_until &&
-      profile.assessment_locked_until > new Date()
-    ) {
-      throw new ForbiddenException(
-        ErrorMessages.ADVANCED_ASSESSMENT.RETAKE_LOCKED(
-          profile.assessment_locked_until.toISOString(),
-        ),
-      );
-    }
-
     // block start if max of 3 is reached
     await this.assertSkillAssessmentAttemptsRemaining(profile);
 
@@ -315,7 +302,9 @@ export class SkillAssessmentService {
       message: SuccessMessages.SKILL_ASSESSMENT.STARTED,
       attempt_id: savedAttempt.id,
       verified_level: verifiedLevel,
-      questions: orderedQuestions.map(({ correct_answer: _ignored, ...question }) => question),
+      questions: orderedQuestions.map(
+        ({ correct_answer: _ignored, ...question }) => question,
+      ),
     };
   }
 
@@ -360,8 +349,12 @@ export class SkillAssessmentService {
     const questionEntities = await this.questionRepo.findBy({
       id: In(sessionQuestions.map((question) => question.question_id)),
     });
-    const entityMap = new Map(questionEntities.map((question) => [question.id, question]));
-    const answerMap = new Map(dto.answers.map((answer) => [answer.question_id, answer]));
+    const entityMap = new Map(
+      questionEntities.map((question) => [question.id, question]),
+    );
+    const answerMap = new Map(
+      dto.answers.map((answer) => [answer.question_id, answer]),
+    );
 
     let mcqCorrect = 0;
     let mcqTotal = 0;
@@ -446,9 +439,7 @@ export class SkillAssessmentService {
     const totalScore = mcqCorrect + textScore;
     const totalMaxScore = mcqTotal + textMaxScore;
     const percentage =
-      totalMaxScore > 0
-        ? Math.round((totalScore / totalMaxScore) * 100)
-        : 0;
+      totalMaxScore > 0 ? Math.round((totalScore / totalMaxScore) * 100) : 0;
 
     const validatedLevel = this.resolveValidatedLevel(
       percentage,
@@ -463,11 +454,13 @@ export class SkillAssessmentService {
     if (!passed) {
       try {
         guidanceReport = await this.guidanceReport.generate({
+          report_type: 'emerging',
           track: profile.track ?? 'general',
           claimed_level: claimed,
           validated_level: validatedLevel,
           percentage,
-          strong_competencies: this.extractStrongCompetencies(scoredTextAnswers),
+          strong_competencies:
+            this.extractStrongCompetencies(scoredTextAnswers),
           weak_competencies: this.extractWeakCompetencies(scoredTextAnswers),
         });
       } catch (error) {
@@ -475,14 +468,6 @@ export class SkillAssessmentService {
           `Skill guidance report generation failed: ${String(error)}`,
         );
       }
-    }
-
-    let retryAvailableAt: Date | null = null;
-    if (!passed) {
-      retryAvailableAt = new Date();
-      retryAvailableAt.setDate(
-        retryAvailableAt.getDate() + SKILL_ASSESSMENT_RETAKE_DAYS,
-      );
     }
 
     await this.talentProfileRepo.manager.transaction(async (manager) => {
@@ -511,7 +496,6 @@ export class SkillAssessmentService {
         {
           validated_level: validatedLevel,
           skill_assessment_completed_at: new Date(),
-          assessment_locked_until: retryAvailableAt,
           status: this.skillTierToProfileStatus(tier, passed),
         },
       );
@@ -532,9 +516,6 @@ export class SkillAssessmentService {
       downgraded,
       passed,
       ...(guidanceReport && { guidance_report: guidanceReport }),
-      ...(retryAvailableAt && {
-        retry_available_at: retryAvailableAt.toISOString(),
-      }),
       ...(downgraded && {
         personalised_message: SuccessMessages.SKILL_ASSESSMENT.DOWNGRADE_NOTICE,
       }),
@@ -638,9 +619,7 @@ export class SkillAssessmentService {
     attempt: AssessmentAttempt,
   ): SkillAssessmentSessionQuestion[] {
     const questions = this.readSessionPayload(attempt).questions;
-    return Array.isArray(questions)
-      ? (questions)
-      : [];
+    return Array.isArray(questions) ? questions : [];
   }
 
   private scoreGeneratedMcq(
@@ -654,9 +633,7 @@ export class SkillAssessmentService {
     const userAnswer = Array.isArray(answer)
       ? answer.join(',').toLowerCase().trim()
       : String(answer).toLowerCase().trim();
-    const correctAnswer = String(question.correct_answer)
-      .toLowerCase()
-      .trim();
+    const correctAnswer = String(question.correct_answer).toLowerCase().trim();
 
     return userAnswer === correctAnswer;
   }
@@ -699,13 +676,19 @@ export class SkillAssessmentService {
 
   private extractStrongCompetencies(scored: ScoredTextAnswer[]): string[] {
     return scored
-      .filter((score) => score.max_score > 0 && score.raw_score / score.max_score >= 0.7)
+      .filter(
+        (score) =>
+          score.max_score > 0 && score.raw_score / score.max_score >= 0.7,
+      )
       .map((score) => score.question_id);
   }
 
   private extractWeakCompetencies(scored: ScoredTextAnswer[]): string[] {
     return scored
-      .filter((score) => score.max_score > 0 && score.raw_score / score.max_score < 0.5)
+      .filter(
+        (score) =>
+          score.max_score > 0 && score.raw_score / score.max_score < 0.5,
+      )
       .map((score) => score.question_id);
   }
 }

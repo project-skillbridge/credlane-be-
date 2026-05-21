@@ -42,7 +42,12 @@ import { RubricScoringService } from '../../ai/rubric-scoring.service';
 import { GuidanceReportService } from '../../ai/guidance-report.service';
 import { Lt3GenerationService } from '../../ai/lt3-generation.service';
 import { EmployerPoolProfileService } from './employer-pool-profile.service';
-import { GeneratedQuestion, GuidanceReport, ScoredTextAnswer, TextAnswerInput } from '../../ai/ai.types';
+import {
+  GeneratedQuestion,
+  GuidanceReport,
+  ScoredTextAnswer,
+  TextAnswerInput,
+} from '../../ai/ai.types';
 import { QuestionGenerationService } from '../../ai/question-generation.service';
 import { MailService } from '../../mail/mail.service';
 import { UsersService } from '../../users/users.service';
@@ -548,19 +553,19 @@ export class AdvancedAssessmentService {
     );
 
     let guidanceReport: GuidanceReport | null = null;
-    if (tier !== AssessmentTier.JOB_READY) {
-      try {
-        guidanceReport = await this.guidanceReport.generate({
-          track: profile.track ?? 'general',
-          claimed_level: profile.claimed_level ?? VerifiedLevel.ENTRY,
-          validated_level: profile.validated_level ?? VerifiedLevel.ENTRY,
-          percentage,
-          strong_competencies: strongCompetencies,
-          weak_competencies: weakCompetencies,
-        });
-      } catch (error) {
-        this.logger.warn(`Guidance report generation failed: ${String(error)}`);
-      }
+    try {
+      guidanceReport = await this.guidanceReport.generate({
+        report_type:
+          tier === AssessmentTier.JOB_READY ? 'job_ready' : 'emerging',
+        track: profile.track ?? 'general',
+        claimed_level: profile.claimed_level ?? VerifiedLevel.ENTRY,
+        validated_level: profile.validated_level ?? VerifiedLevel.ENTRY,
+        percentage,
+        strong_competencies: strongCompetencies,
+        weak_competencies: weakCompetencies,
+      });
+    } catch (error) {
+      this.logger.warn(`Guidance report generation failed: ${String(error)}`);
     }
 
     const personalContext =
@@ -990,9 +995,7 @@ export class AdvancedAssessmentService {
     const userAnswer = Array.isArray(answer)
       ? answer.join(',').toLowerCase().trim()
       : String(answer).toLowerCase().trim();
-    const correctAnswer = String(question.correct_answer)
-      .toLowerCase()
-      .trim();
+    const correctAnswer = String(question.correct_answer).toLowerCase().trim();
 
     return userAnswer === correctAnswer;
   }
@@ -1305,8 +1308,12 @@ export class AdvancedAssessmentService {
     );
 
     const mcq = [...bankMcq.slice(0, ADVANCED_ASSESSMENT_MCQ_COUNT)];
-    const shortText = [...bankShort.slice(0, ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT)];
-    const longSituational = [...bankLongSituational.slice(0, ADVANCED_LT1_COUNT)];
+    const shortText = [
+      ...bankShort.slice(0, ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT),
+    ];
+    const longSituational = [
+      ...bankLongSituational.slice(0, ADVANCED_LT1_COUNT),
+    ];
     const longWorkTask = [...bankLongWorkTask.slice(0, ADVANCED_LT2_COUNT)];
 
     const generatedQuestions: Array<
@@ -1330,11 +1337,15 @@ export class AdvancedAssessmentService {
         count: mcqDeficit,
       });
       generatedQuestions.push(
-        ...generated.map((question) => ({ ...question, block: 'mcq' as const })),
+        ...generated.map((question) => ({
+          ...question,
+          block: 'mcq' as const,
+        })),
       );
     }
 
-    const shortDeficit = ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT - shortText.length;
+    const shortDeficit =
+      ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT - shortText.length;
     if (shortDeficit > 0) {
       const generated = await this.questionGeneration.generateQuestions({
         track,
@@ -1453,7 +1464,9 @@ export class AdvancedAssessmentService {
     manager: EntityManager,
     track: string,
     verifiedLevel: VerifiedLevel,
-    generated: Array<GeneratedQuestion & { block: 'mcq' | 'short_text' | 'long_text' }>,
+    generated: Array<
+      GeneratedQuestion & { block: 'mcq' | 'short_text' | 'long_text' }
+    >,
   ): Promise<AssessmentQuestion[]> {
     if (generated.length === 0) {
       return [];
@@ -1471,7 +1484,9 @@ export class AdvancedAssessmentService {
         : (question.competency ?? null);
       const slotType =
         question.slot_type ??
-        (question.block === 'long_text' ? SlotType.WORK_TASK : SlotType.SITUATIONAL);
+        (question.block === 'long_text'
+          ? SlotType.WORK_TASK
+          : SlotType.SITUATIONAL);
 
       // CHK_assessment_questions_type_fields: advanced rows must have
       // track/verified_level/competency = NULL on the row itself. The

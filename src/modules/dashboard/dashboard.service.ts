@@ -14,6 +14,7 @@ import {
   DashboardHomeResponse,
   DashboardJourneyStatus,
   DashboardPerformance,
+  DashboardRetake,
   DashboardSkillPerformance,
   JourneyOverviewItemDto,
 } from './dto/dashboard-home.dto';
@@ -66,6 +67,7 @@ export class DashboardService {
         assessmentStatuses,
       ),
       performance,
+      ...this.withAdvancedRetake(profile),
     };
   }
 
@@ -82,9 +84,7 @@ export class DashboardService {
     ]);
 
     return {
-      skill: skillResult
-        ? this.toSkillPerformance(skillResult, profile)
-        : null,
+      skill: skillResult ? this.toSkillPerformance(skillResult, profile) : null,
       advanced: advancedResult
         ? this.toAdvancedPerformance(advancedResult, profile)
         : null,
@@ -97,9 +97,7 @@ export class DashboardService {
   ): DashboardSkillPerformance {
     const percentage = result.percentage ?? 0;
     const validatedLevel =
-      result.validated_level ??
-      profile.validated_level ??
-      VerifiedLevel.ENTRY;
+      result.validated_level ?? profile.validated_level ?? VerifiedLevel.ENTRY;
 
     return {
       score: result.score,
@@ -122,9 +120,7 @@ export class DashboardService {
     profile: TalentProfile,
   ): DashboardAdvancedPerformance {
     const percentage = result.percentage ?? 0;
-    const tier =
-      result.tier ??
-      this.resolveTierFromPercentage(percentage);
+    const tier = result.tier ?? this.resolveTierFromPercentage(percentage);
 
     return {
       score: result.score,
@@ -140,6 +136,46 @@ export class DashboardService {
       ...(result.guidance_report != null && {
         guidanceReport: result.guidance_report,
       }),
+      ...this.withNestedRetake(profile),
+    };
+  }
+
+  private withAdvancedRetake(profile: TalentProfile | null): {
+    advancedRetake?: DashboardRetake;
+  } {
+    const retake = this.buildAdvancedRetake(profile);
+    return retake ? { advancedRetake: retake } : {};
+  }
+
+  private withNestedRetake(profile: TalentProfile): {
+    retake?: DashboardRetake;
+  } {
+    const retake = this.buildAdvancedRetake(profile);
+    return retake ? { retake } : {};
+  }
+
+  private buildAdvancedRetake(
+    profile: TalentProfile | null,
+  ): DashboardRetake | null {
+    if (!profile?.assessment_locked_until) {
+      return null;
+    }
+
+    const now = Date.now();
+    const eligibilityTime = profile.assessment_locked_until.getTime();
+    const countdownSeconds = Math.max(
+      0,
+      Math.ceil((eligibilityTime - now) / 1000),
+    );
+
+    return {
+      eligibilityDate: profile.assessment_locked_until.toISOString(),
+      ctaEnabled: countdownSeconds === 0,
+      countdownSeconds,
+      daysRemaining:
+        countdownSeconds === 0
+          ? 0
+          : Math.ceil(countdownSeconds / (24 * 60 * 60)),
     };
   }
 
@@ -238,7 +274,9 @@ export class DashboardService {
     ];
   }
 
-  private countCompletedSkillAttempts(talentProfileId: string): Promise<number> {
+  private countCompletedSkillAttempts(
+    talentProfileId: string,
+  ): Promise<number> {
     return this.assessmentAttemptRepository.count({
       where: {
         talent_profile_id: talentProfileId,
@@ -296,11 +334,6 @@ export class DashboardService {
     } else if (profile.skill_assessment_completed_at) {
       skillStatus = DashboardJourneyStatus.COMPLETED;
     } else if (!this.canStartSkillAssessment(profile)) {
-      skillStatus = DashboardJourneyStatus.LOCKED;
-    } else if (
-      profile.assessment_locked_until &&
-      profile.assessment_locked_until > new Date()
-    ) {
       skillStatus = DashboardJourneyStatus.LOCKED;
     } else {
       skillStatus = DashboardJourneyStatus.AVAILABLE;

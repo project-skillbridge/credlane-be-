@@ -47,9 +47,38 @@ export const lt3Schema = z.object({
 });
 
 export const guidanceReportSchema = z.object({
+  report_type: z.enum(['emerging', 'job_ready']),
+  ai_summary: z.string(),
+  growth_insight: z.string(),
   summary: z.string(),
-  strengths: z.array(z.string()),
-  improvement_areas: z.array(z.string()),
-  recommended_resources: z.array(z.string()),
-  retake_advice: z.string(),
+  strength_ratings: z
+    .array(
+      z.object({
+        item: z.string().min(1).max(90),
+        rating: z.number().int().min(1).max(3),
+      }),
+    )
+    .min(2)
+    .max(5),
+  weak_area_ratings: z
+    .array(
+      z.object({
+        item: z.string().min(1).max(90),
+        rating: z.number().int().min(1).max(3),
+      }),
+    )
+    .min(2)
+    .max(5),
+  recommended_resources: z.array(
+    z.object({
+      title: z.string(),
+      provider: z.string(),
+      url: z.string(),
+      tier: z.enum(['free', 'paid']),
+      competency: z.string(),
+      reason: z.string(),
+    }),
+  ),
+  retake_advice: z.string().optional(),
+  resource_page_url: z.string(),
 });

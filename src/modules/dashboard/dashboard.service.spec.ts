@@ -242,7 +242,9 @@ describe('DashboardService', () => {
     );
 
     const home = await service.getHome(talentUser.id);
-    const skillJourney = home.journeyOverview.find((item) => item.key === 'skill');
+    const skillJourney = home.journeyOverview.find(
+      (item) => item.key === 'skill',
+    );
 
     expect(skillJourney?.status).toBe(DashboardJourneyStatus.LOCKED);
     expect(assessmentAttemptRepository.count).toHaveBeenCalled();
@@ -275,9 +277,54 @@ describe('DashboardService', () => {
     );
 
     const home = await service.getHome(talentUser.id);
-    const skillJourney = home.journeyOverview.find((item) => item.key === 'skill');
+    const skillJourney = home.journeyOverview.find(
+      (item) => item.key === 'skill',
+    );
 
     expect(skillJourney?.status).toBe(DashboardJourneyStatus.AVAILABLE);
+  });
+
+  it('shows advanced retake countdown without locking skill assessment', async () => {
+    const talentUser = makeUser({
+      first_name: 'Jane',
+      role: UserRole.TALENT,
+      onboarding_complete: true,
+    });
+    const eligibilityDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+
+    const profile = makeProfile({
+      onboarding_step: 3,
+      goal: 'land_first_role',
+      track: 'frontend_developer',
+      region: 'Lagos',
+      education_level: 'bachelors',
+      claimed_level: VerifiedLevel.MID,
+      personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+      skill_assessment_completed_at: null,
+      advanced_assessment_completed_at: null,
+      assessment_locked_until: eligibilityDate,
+      status: TalentProfileStatus.EMERGING,
+    });
+
+    (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
+    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+
+    const home = await service.getHome(talentUser.id);
+    const skillJourney = home.journeyOverview.find(
+      (item) => item.key === 'skill',
+    );
+    const advancedJourney = home.journeyOverview.find(
+      (item) => item.key === 'advanced',
+    );
+
+    expect(skillJourney?.status).toBe(DashboardJourneyStatus.AVAILABLE);
+    expect(advancedJourney?.status).toBe(DashboardJourneyStatus.LOCKED);
+    expect(home.advancedRetake).toMatchObject({
+      eligibilityDate: eligibilityDate.toISOString(),
+      ctaEnabled: false,
+      daysRemaining: 3,
+    });
+    expect(home.advancedRetake?.countdownSeconds).toBeGreaterThan(0);
   });
 
   it('returns completed personal and skill assessments and unlocks advanced when the latest skill score passes', async () => {

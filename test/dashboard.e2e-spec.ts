@@ -20,6 +20,7 @@ import { TransformInterceptor } from '../src/common/interceptors/transform.inter
 import { DashboardController } from '../src/modules/dashboard/dashboard.controller';
 import { DashboardService } from '../src/modules/dashboard/dashboard.service';
 import {
+  AssessmentAttempt,
   AssessmentResult,
   AssessmentTier,
   AssessmentType,
@@ -156,6 +157,12 @@ describe('Dashboard home (e2e)', () => {
             createQueryBuilder: jest.fn(() =>
               createAssessmentResultQueryBuilder(),
             ),
+          },
+        },
+        {
+          provide: getRepositoryToken(AssessmentAttempt),
+          useValue: {
+            count: jest.fn().mockResolvedValue(0),
           },
         },
         {
