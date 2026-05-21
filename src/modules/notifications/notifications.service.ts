@@ -1,11 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Repository } from 'typeorm';
-import {
-  NotificationType,
-  UserNotification,
-} from './entities/user-notification.entity';
-import type { NotificationItemDto } from './dto/notification.dto';
+import type {
+  NewNotificationPayload,
+  NotificationListItem,
+  NotificationRow,
+} from './notification.types';
+import { NotificationType } from './notification-type.enum';
+import { UserNotification } from './user-notification.entity';
 
 export type CreateNotificationInput = {
   userId: string;
@@ -22,30 +24,35 @@ export class NotificationsService {
     private readonly notificationRepo: Repository<UserNotification>,
   ) {}
 
-  async create(input: CreateNotificationInput): Promise<UserNotification> {
-    const notification = this.notificationRepo.create({
+  async create(input: CreateNotificationInput): Promise<NotificationRow> {
+    const payload: NewNotificationPayload = {
       user_id: input.userId,
       type: input.type,
       title: input.title,
       body: input.body,
       data: input.data ?? null,
       read_at: null,
-    });
+    };
 
-    return this.notificationRepo.save(notification);
+    const saved = await this.notificationRepo.save(payload);
+    return this.asRow(saved);
   }
 
   async listForUser(
     userId: string,
     limit = 20,
-  ): Promise<NotificationItemDto[]> {
-    const rows = await this.notificationRepo.find({
+  ): Promise<NotificationListItem[]> {
+    const rows: UserNotification[] = await this.notificationRepo.find({
       where: { user_id: userId },
       order: { created_at: 'DESC' },
       take: limit,
     });
 
-    return rows.map((row) => this.toDto(row));
+    const items: NotificationListItem[] = [];
+    for (const row of rows) {
+      items.push(this.toDto(this.asRow(row)));
+    }
+    return items;
   }
 
   async countUnread(userId: string): Promise<number> {
@@ -72,7 +79,20 @@ export class NotificationsService {
     );
   }
 
-  private toDto(row: UserNotification): NotificationItemDto {
+  private asRow(entity: UserNotification): NotificationRow {
+    return {
+      id: entity.id,
+      user_id: entity.user_id,
+      type: entity.type,
+      title: entity.title,
+      body: entity.body,
+      data: entity.data,
+      read_at: entity.read_at,
+      created_at: entity.created_at,
+    };
+  }
+
+  private toDto(row: NotificationRow): NotificationListItem {
     return {
       id: row.id,
       type: row.type,

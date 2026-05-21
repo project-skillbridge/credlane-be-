@@ -1,15 +1,12 @@
 import { NotFoundException } from '@nestjs/common';
 import { IsNull } from 'typeorm';
-import {
-  NotificationType,
-  UserNotification,
-} from './entities/user-notification.entity';
+import { UserNotification } from './user-notification.entity';
+import { NotificationType } from './notification-type.enum';
 import { NotificationsService } from './notifications.service';
 
 describe('NotificationsService', () => {
   let service: NotificationsService;
   let notificationRepo: {
-    create: jest.Mock;
     save: jest.Mock;
     find: jest.Mock;
     count: jest.Mock;
@@ -18,8 +15,9 @@ describe('NotificationsService', () => {
 
   beforeEach(() => {
     notificationRepo = {
-      create: jest.fn((data) => Object.assign(new UserNotification(), data)),
-      save: jest.fn(async (row) => row),
+      save: jest.fn(async (row: Partial<UserNotification>) =>
+        Object.assign(new UserNotification(), row),
+      ),
       find: jest.fn().mockResolvedValue([]),
       count: jest.fn().mockResolvedValue(0),
       update: jest.fn().mockResolvedValue({ affected: 1 }),
@@ -38,7 +36,15 @@ describe('NotificationsService', () => {
     });
 
     expect(saved.user_id).toBe('user-1');
-    expect(notificationRepo.save).toHaveBeenCalled();
+    expect(notificationRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user_id: 'user-1',
+        type: NotificationType.ADVANCED_ASSESSMENT_SCORE_READY,
+        title: 'Results ready',
+        body: 'You scored 80%.',
+        read_at: null,
+      }),
+    );
   });
 
   it('counts unread notifications', async () => {

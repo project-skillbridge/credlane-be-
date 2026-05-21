@@ -2,7 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { AssessmentTier } from '../assessments/entities/assessment-result.entity';
 import { MailService } from '../mail/mail.service';
 import { UsersService } from '../users/users.service';
-import { NotificationType } from './entities/user-notification.entity';
+import { NotificationType } from './notification-type.enum';
 import { NotificationsService } from './notifications.service';
 
 export type AdvancedScoreReadyPayload = {

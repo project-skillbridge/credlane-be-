@@ -1,5 +1,5 @@
 import { AssessmentTier } from '../assessments/entities/assessment-result.entity';
-import { NotificationType } from './entities/user-notification.entity';
+import { NotificationType } from './notification-type.enum';
 import { NotificationDispatchService } from './notification-dispatch.service';
 
 describe('NotificationDispatchService', () => {

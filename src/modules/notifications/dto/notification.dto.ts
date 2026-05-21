@@ -1,7 +1,10 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
-import { NotificationType } from '../entities/user-notification.entity';
+import {
+  NOTIFICATION_TYPE_VALUES,
+  NotificationType,
+} from '../notification-type.enum';
 
 export class ListNotificationsQueryDto {
   @ApiPropertyOptional({ default: 20, maximum: 50 })
@@ -17,7 +20,7 @@ export class NotificationItemDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
 
-  @ApiProperty({ enum: NotificationType })
+  @ApiProperty({ enum: NOTIFICATION_TYPE_VALUES })
   type: NotificationType;
 
   @ApiProperty()

@@ -50,10 +50,8 @@ import {
   TextAnswerInput,
 } from '../../ai/ai.types';
 import { QuestionGenerationService } from '../../ai/question-generation.service';
-import {
-  NotificationDispatchService,
-} from '../../notifications/notification-dispatch.service';
-import { NotificationType } from '../../notifications/entities/user-notification.entity';
+import { NotificationDispatchService } from '../../notifications/notification-dispatch.service';
+import { NotificationType } from '../../notifications/notification-type.enum';
 import { UsersService } from '../../users/users.service';
 import {
   FlagIntegrityEventDto,
