@@ -28,6 +28,7 @@ export const SuccessMessages = {
     STARTED: 'Advanced assessment session created',
     SESSION_RESUMED: 'Advanced assessment session returned',
     SUBMITTED: 'Advanced assessment submitted and scored',
+    LT2_SUBMITTED: 'Reflection question generated',
     INTEGRITY_WARNED: 'Integrity warning recorded. One more violation will void this session.',
     INTEGRITY_FLAGGED: 'Integrity event recorded',
   },
@@ -47,5 +48,8 @@ export const SuccessMessages = {
   COMMON: {
     SUCCESS: 'success',
     API_PROBE: 'I am the NestJs api responding',
+  },
+  AI_RESOURCES: {
+    RETRIEVED: 'Personalized resources retrieved successfully',
   },
 } as const;

@@ -103,6 +103,19 @@ export class PersonalAssessmentService {
     });
   }
 
+  /** Blocks retaking or rewriting a finished personal assessment (legacy section flow). */
+  private assertPersonalAssessmentNotRetakable(
+    profile: TalentProfile,
+    store: PersonalAssessmentStore,
+  ): void {
+    if (
+      profile.personal_assessment_completed_at ||
+      getPersonalAssessmentProgress(store._meta).isComplete
+    ) {
+      throw new UnprocessableEntityException(ErrorMessages.ASSESSMENT.ALREADY_COMPLETED);
+    }
+  }
+
   private async findOrCreateProfile(userId: string): Promise<TalentProfile> {
     const existing = await this.findProfileByUserId(userId);
     if (existing) {
@@ -681,6 +694,11 @@ export class PersonalAssessmentService {
           manager.create(TalentProfile, { user_id: userId }),
         );
       }
+
+      this.assertPersonalAssessmentNotRetakable(
+        profile,
+        this.readStore(profile),
+      );
 
       const validated = validateSectionAnswers(section, filtered, profile);
       if (typeof validated.claimed_level === 'string') {

@@ -49,6 +49,9 @@ export const TALENT_EDUCATION_LEVELS = [
 export type TalentEducationLevel = (typeof TALENT_EDUCATION_LEVELS)[number];
 
 
+/** Maximum completed skill assessment attempts before advanced assessment is done. */
+export const SKILL_ASSESSMENT_MAX_ATTEMPTS = 3;
+
 export const SKILL_ASSESSMENT_LEVEL_THRESHOLDS: Array<{
   level: VerifiedLevel;
   min: number;

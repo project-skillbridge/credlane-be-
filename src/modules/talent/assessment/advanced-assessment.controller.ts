@@ -30,6 +30,7 @@ import {
   FlagIntegrityEventDto,
   StartAdvancedAssessmentDto,
   SubmitAdvancedAssessmentDto,
+  SubmitLt2Dto,
 } from './dto/advanced-assessment.dto';
 
 @ApiTags('talent-assessment')
@@ -48,7 +49,8 @@ export class AdvancedAssessmentController {
     description:
       'Requires completed personal assessment, a passed skill assessment, and a verified level. ' +
       'Enforces the 14-day retake gate, blocks duplicate active sessions, excludes previously served questions, ' +
-      'and returns 25 ordered questions in 10 MCQ, 10 short-text, and 5 long-text blocks.',
+      'and returns 24 ordered questions: 10 MCQ, 10 short-text, and 4 long-text prompts. ' +
+      'The final LT-3 reflection question is generated later through POST /session/:id/lt2-submit.',
   })
   @ApiCreatedResponse({ description: 'Advanced assessment session created' })
   @ApiConflictResponse({
@@ -97,16 +99,63 @@ export class AdvancedAssessmentController {
     return this.advancedAssessmentService.getSession(userId, sessionId);
   }
 
+  @Post('session/:id/lt2-submit')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Submit LT-2 answer and receive runtime-generated LT-3',
+    description:
+      'LT-3 (reflection) is generated at runtime from the candidate\u2019s LT-2 answer. ' +
+      'POST this endpoint immediately after the candidate ' +
+      'submits LT-2; the response contains the LT-3 question to render next. ' +
+      'Idempotent: a second call returns the LT-3 that was generated on the first call ' +
+      'without invoking the LLM again. Returns 503 LT3_GENERATION_FAILED if the LLM ' +
+      'fails (client should retry).',
+  })
+  @ApiParam({ name: 'id', format: 'uuid', description: 'Session ID' })
+  @ApiOkResponse({ description: 'LT-3 generated and appended to session' })
+  @ApiNotFoundResponse({ description: 'Session not found' })
+  @ApiForbiddenResponse({ description: 'Not a talent user' })
+  @ApiServiceUnavailableResponse({
+    description: 'LT3_GENERATION_FAILED when the LLM call fails',
+  })
+  @ApiUnprocessableEntityResponse({
+    description:
+      'question_id does not match the LT-2 slot, or session has expired / completed / been voided',
+  })
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+    }),
+  )
+  submitLt2(
+    @CurrentUser('sub') userId: string,
+    @Param('id') sessionId: string,
+    @Body() dto: SubmitLt2Dto,
+  ) {
+    return this.advancedAssessmentService.submitLt2(userId, sessionId, dto);
+  }
+
   @Post('advanced/submit')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary: 'Submit advanced assessment answers',
     description:
-      'Scores MCQs immediately (1/0). Passes text answers to the AI rubric layer (short-text: 4 dims, final long-text reflection: 2 dims). Computes percentage against the dynamic session max. ' +
-      '≥75% → Job Ready + employer pool profile. 50–74% → Emerging + guidance report + 14-day gate. <50% → Not Ready + guidance report + 14-day gate. ' +
-      'Accepts submissions on expired sessions (auto_submitted=true, unanswered questions scored 0).',
+      'Scores MCQs immediately (1/0). Passes text answers to the AI rubric layer ' +
+      '(short text + LT-1 + LT-2: 4 dims 0\u20133, max 12; LT-3: 2 dims 0\u20134, max 8). ' +
+      'Computes percentage against the fixed session max (186 = 10 + 120 + 48 + 8). ' +
+      '\u226575% \u2192 Job Ready + employer pool profile. 50\u201374% \u2192 Emerging + 14-day retake gate. ' +
+      '<50% \u2192 Not Ready + 14-day retake gate. Writes one assessment_scores row per question. ' +
+      'Returns 422 LT2_NOT_SUBMITTED if /lt2-submit was never called for this session. ' +
+      'Accepts submissions on expired sessions (auto_submitted=true, unanswered questions scored 0). ' +
+      'Guidance report generation runs asynchronously after the result is persisted; poll GET /dashboard/home ' +
+      'for performance.guidanceReport and advancedRetake metadata.',
   })
-  @ApiOkResponse({ description: 'Assessment scored and tier written' })
+  @ApiOkResponse({
+    description:
+      'Assessment scored and tier written. The immediate response does not include guidance_report; dashboard exposes it after background generation completes.',
+  })
   @ApiNotFoundResponse({ description: 'Profile or session not found' })
   @ApiForbiddenResponse({ description: 'Not a talent user' })
   @UsePipes(
@@ -129,7 +178,7 @@ export class AdvancedAssessmentController {
     summary: 'Report an integrity event',
     description:
       'Accepts tab_switch or copy_paste events. Tab switch 1–2: logs + returns warning (action=warn). ' +
-      'Tab switch 3: voids session + triggers 14-day retake gate + returns action=logout. ' +
+      'Tab switch 3: voids session, marks an advanced retake gate, sets assessment_locked_until, and returns action=logout. ' +
       'Copy-paste: logs + returns toast confirmation.',
   })
   @ApiParam({ name: 'id', format: 'uuid', description: 'Session ID' })

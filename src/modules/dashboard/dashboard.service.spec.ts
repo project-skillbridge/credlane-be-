@@ -1,11 +1,13 @@
 import { Repository } from 'typeorm';
 import { ForbiddenError } from '../../shared';
 import {
+  AssessmentAttempt,
   AssessmentResult,
   AssessmentTier,
   AssessmentType,
   VerifiedLevel,
 } from '../assessments/entities';
+import { SKILL_ASSESSMENT_MAX_ATTEMPTS } from '../talent/talent.constants';
 import {
   TalentProfile,
   TalentProfileStatus,
@@ -23,6 +25,7 @@ describe('DashboardService', () => {
     Repository<AssessmentResult>,
     'createQueryBuilder'
   >;
+  let assessmentAttemptRepository: Pick<Repository<AssessmentAttempt>, 'count'>;
   let queryBuilder: {
     innerJoin: jest.Mock;
     where: jest.Mock;
@@ -61,10 +64,15 @@ describe('DashboardService', () => {
       createQueryBuilder: jest.fn(() => queryBuilder as any),
     };
 
+    assessmentAttemptRepository = {
+      count: jest.fn().mockResolvedValue(0),
+    };
+
     service = new DashboardService(
       talentProfileRepository as Repository<TalentProfile>,
       usersService as UsersService,
       assessmentResultRepository as Repository<AssessmentResult>,
+      assessmentAttemptRepository as Repository<AssessmentAttempt>,
     );
   });
 
@@ -205,6 +213,119 @@ describe('DashboardService', () => {
       ],
       performance: { skill: null, advanced: null },
     });
+  });
+
+  it('locks skill assessment when three attempts are exhausted and advanced is incomplete', async () => {
+    const talentUser = makeUser({
+      first_name: 'Jane',
+      role: UserRole.TALENT,
+      onboarding_complete: true,
+    });
+
+    const profile = makeProfile({
+      onboarding_step: 3,
+      goal: 'land_first_role',
+      track: 'frontend_developer',
+      region: 'Lagos',
+      education_level: 'bachelors',
+      claimed_level: VerifiedLevel.MID,
+      personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+      skill_assessment_completed_at: null,
+      advanced_assessment_completed_at: null,
+      status: TalentProfileStatus.IN_PROGRESS,
+    });
+
+    (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
+    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+    (assessmentAttemptRepository.count as jest.Mock).mockResolvedValue(
+      SKILL_ASSESSMENT_MAX_ATTEMPTS,
+    );
+
+    const home = await service.getHome(talentUser.id);
+    const skillJourney = home.journeyOverview.find(
+      (item) => item.key === 'skill',
+    );
+
+    expect(skillJourney?.status).toBe(DashboardJourneyStatus.LOCKED);
+    expect(assessmentAttemptRepository.count).toHaveBeenCalled();
+  });
+
+  it('keeps skill assessment available when attempts remain before advanced', async () => {
+    const talentUser = makeUser({
+      first_name: 'Jane',
+      role: UserRole.TALENT,
+      onboarding_complete: true,
+    });
+
+    const profile = makeProfile({
+      onboarding_step: 3,
+      goal: 'land_first_role',
+      track: 'frontend_developer',
+      region: 'Lagos',
+      education_level: 'bachelors',
+      claimed_level: VerifiedLevel.MID,
+      personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+      skill_assessment_completed_at: null,
+      advanced_assessment_completed_at: null,
+      status: TalentProfileStatus.IN_PROGRESS,
+    });
+
+    (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
+    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+    (assessmentAttemptRepository.count as jest.Mock).mockResolvedValue(
+      SKILL_ASSESSMENT_MAX_ATTEMPTS - 1,
+    );
+
+    const home = await service.getHome(talentUser.id);
+    const skillJourney = home.journeyOverview.find(
+      (item) => item.key === 'skill',
+    );
+
+    expect(skillJourney?.status).toBe(DashboardJourneyStatus.AVAILABLE);
+  });
+
+  it('shows advanced retake countdown without locking skill assessment', async () => {
+    const talentUser = makeUser({
+      first_name: 'Jane',
+      role: UserRole.TALENT,
+      onboarding_complete: true,
+    });
+    const eligibilityDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+
+    const profile = makeProfile({
+      onboarding_step: 3,
+      goal: 'land_first_role',
+      track: 'frontend_developer',
+      region: 'Lagos',
+      education_level: 'bachelors',
+      claimed_level: VerifiedLevel.MID,
+      personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+      skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
+      advanced_assessment_completed_at: new Date(),
+      advanced_retake_required: true,
+      assessment_locked_until: eligibilityDate,
+      status: TalentProfileStatus.EMERGING,
+    });
+
+    (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
+    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+
+    const home = await service.getHome(talentUser.id);
+    const skillJourney = home.journeyOverview.find(
+      (item) => item.key === 'skill',
+    );
+    const advancedJourney = home.journeyOverview.find(
+      (item) => item.key === 'advanced',
+    );
+
+    expect(skillJourney?.status).toBe(DashboardJourneyStatus.COMPLETED);
+    expect(advancedJourney?.status).toBe(DashboardJourneyStatus.LOCKED);
+    expect(home.advancedRetake).toMatchObject({
+      eligibilityDate: eligibilityDate.toISOString(),
+      ctaEnabled: false,
+      daysRemaining: 3,
+    });
+    expect(home.advancedRetake?.countdownSeconds).toBeGreaterThan(0);
   });
 
   it('returns completed personal and skill assessments and unlocks advanced when the latest skill score passes', async () => {
@@ -416,6 +537,7 @@ function makeProfile(overrides: Partial<TalentProfile>): TalentProfile {
     advanced_assessment_completed_at: null,
     validated_level: null,
     assessment_locked_until: null,
+    advanced_retake_required: false,
     created_at: new Date(),
     updated_at: new Date(),
     ...overrides,

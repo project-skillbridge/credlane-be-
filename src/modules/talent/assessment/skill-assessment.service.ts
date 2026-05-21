@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   ForbiddenException,
   Injectable,
   Logger,
@@ -7,7 +8,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { EntityManager, In, IsNull, Not, Repository } from 'typeorm';
 import {
   AssessmentAttempt,
   AssessmentQuestion,
@@ -25,7 +26,10 @@ import {
 } from '../entities/talent-profile.entity';
 import { SubmitSkillAssessmentDto } from './dto/skill-assessment.dto';
 import { ErrorMessages, SuccessMessages } from '../../../shared';
-import { SKILL_ASSESSMENT_LEVEL_THRESHOLDS } from '../talent.constants';
+import {
+  SKILL_ASSESSMENT_LEVEL_THRESHOLDS,
+  SKILL_ASSESSMENT_MAX_ATTEMPTS,
+} from '../talent.constants';
 import { RubricScoringService } from '../../ai/rubric-scoring.service';
 import { GuidanceReportService } from '../../ai/guidance-report.service';
 import { QuestionGenerationService } from '../../ai/question-generation.service';
@@ -40,7 +44,6 @@ import {
 const SKILL_ASSESSMENT_MCQ_COUNT = 6;
 const SKILL_ASSESSMENT_TEXT_COUNT = 4;
 const SKILL_ASSESSMENT_PASS_PERCENTAGE = 75;
-const SKILL_ASSESSMENT_RETAKE_DAYS = 14;
 
 export interface SkillAssessmentQuestion {
   question_id: string;
@@ -80,7 +83,6 @@ export interface SubmitSkillAssessmentResult {
   downgraded: boolean;
   passed: boolean;
   guidance_report?: GuidanceReport;
-  retry_available_at?: string;
   personalised_message?: string;
 }
 
@@ -125,6 +127,65 @@ export class SkillAssessmentService {
     private readonly personalAssessmentService: PersonalAssessmentService,
   ) {}
 
+  private countCompletedSkillAttempts(
+    talentProfileId: string,
+    manager?: EntityManager,
+  ): Promise<number> {
+    const attemptRepository = manager
+      ? manager.getRepository(AssessmentAttempt)
+      : this.attemptRepo;
+
+    return attemptRepository.count({
+      where: {
+        talent_profile_id: talentProfileId,
+        assessment_type: AssessmentType.SKILL,
+        completed_at: Not(IsNull()),
+      },
+    });
+  }
+
+  private async assertSkillAssessmentAttemptsRemaining(
+    profile: TalentProfile,
+    manager?: EntityManager,
+  ): Promise<void> {
+    if (profile.advanced_assessment_completed_at) {
+      return;
+    }
+
+    const attemptRepository = manager
+      ? manager.getRepository(AssessmentAttempt)
+      : this.attemptRepo;
+
+    const completedAttempts = await this.countCompletedSkillAttempts(
+      profile.id,
+      manager,
+    );
+    if (completedAttempts >= SKILL_ASSESSMENT_MAX_ATTEMPTS) {
+      throw new ForbiddenException(
+        ErrorMessages.SKILL_ASSESSMENT.MAX_ATTEMPTS_REACHED,
+      );
+    }
+
+    if (manager) {
+      const activeAttempt = await attemptRepository.findOne({
+        where: {
+          talent_profile_id: profile.id,
+          assessment_type: AssessmentType.SKILL,
+          completed_at: IsNull(),
+          force_submitted: false,
+        },
+      });
+
+      if (activeAttempt) {
+        throw new ConflictException({
+          error: 'CONFLICT',
+          message: ErrorMessages.SKILL_ASSESSMENT.ACTIVE_SESSION_EXISTS,
+          existing_session_id: activeAttempt.id,
+        });
+      }
+    }
+  }
+
   async start(userId: string): Promise<StartSkillAssessmentResult> {
     const profile = await this.talentProfileRepo.findOne({
       where: { user_id: userId },
@@ -151,16 +212,8 @@ export class SkillAssessmentService {
         ErrorMessages.SKILL_ASSESSMENT.TRACK_MISSING,
       );
     }
-    if (
-      profile.assessment_locked_until &&
-      profile.assessment_locked_until > new Date()
-    ) {
-      throw new ForbiddenException(
-        ErrorMessages.ADVANCED_ASSESSMENT.RETAKE_LOCKED(
-          profile.assessment_locked_until.toISOString(),
-        ),
-      );
-    }
+    // block start if max of 3 is reached
+    await this.assertSkillAssessmentAttemptsRemaining(profile);
 
     const verifiedLevel = profile.claimed_level;
     const personalContext =
@@ -206,18 +259,39 @@ export class SkillAssessmentService {
       correct_answer: question.correct_answer,
     }));
 
-    const attempt = this.attemptRepo.create({
-      talent_profile_id: profile.id,
-      assessment_type: AssessmentType.SKILL,
-      started_at: new Date(),
-      completed_at: null,
-      expires_at: null,
-      generated_questions_json: {
-        context: { verified_level: verifiedLevel },
-        questions: orderedQuestions,
+    const savedAttempt = await this.talentProfileRepo.manager.transaction(
+      async (manager) => {
+        const lockedProfile = await manager.findOne(TalentProfile, {
+          where: { id: profile.id },
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        if (!lockedProfile) {
+          throw new NotFoundException(
+            ErrorMessages.SKILL_ASSESSMENT.PROFILE_NOT_FOUND,
+          );
+        }
+
+        await this.assertSkillAssessmentAttemptsRemaining(
+          lockedProfile,
+          manager,
+        );
+
+        const attempt = manager.create(AssessmentAttempt, {
+          talent_profile_id: lockedProfile.id,
+          assessment_type: AssessmentType.SKILL,
+          started_at: new Date(),
+          completed_at: null,
+          expires_at: null,
+          generated_questions_json: {
+            context: { verified_level: verifiedLevel },
+            questions: orderedQuestions,
+          },
+        });
+
+        return manager.save(AssessmentAttempt, attempt);
       },
-    });
-    const savedAttempt = await this.attemptRepo.save(attempt);
+    );
 
     this.logger.log(
       `Skill assessment started: attempt=${savedAttempt.id} user=${userId} track=${profile.track} level=${verifiedLevel}`,
@@ -228,7 +302,9 @@ export class SkillAssessmentService {
       message: SuccessMessages.SKILL_ASSESSMENT.STARTED,
       attempt_id: savedAttempt.id,
       verified_level: verifiedLevel,
-      questions: orderedQuestions.map(({ correct_answer: _ignored, ...question }) => question),
+      questions: orderedQuestions.map(
+        ({ correct_answer: _ignored, ...question }) => question,
+      ),
     };
   }
 
@@ -273,8 +349,12 @@ export class SkillAssessmentService {
     const questionEntities = await this.questionRepo.findBy({
       id: In(sessionQuestions.map((question) => question.question_id)),
     });
-    const entityMap = new Map(questionEntities.map((question) => [question.id, question]));
-    const answerMap = new Map(dto.answers.map((answer) => [answer.question_id, answer]));
+    const entityMap = new Map(
+      questionEntities.map((question) => [question.id, question]),
+    );
+    const answerMap = new Map(
+      dto.answers.map((answer) => [answer.question_id, answer]),
+    );
 
     let mcqCorrect = 0;
     let mcqTotal = 0;
@@ -359,9 +439,7 @@ export class SkillAssessmentService {
     const totalScore = mcqCorrect + textScore;
     const totalMaxScore = mcqTotal + textMaxScore;
     const percentage =
-      totalMaxScore > 0
-        ? Math.round((totalScore / totalMaxScore) * 100)
-        : 0;
+      totalMaxScore > 0 ? Math.round((totalScore / totalMaxScore) * 100) : 0;
 
     const validatedLevel = this.resolveValidatedLevel(
       percentage,
@@ -376,26 +454,25 @@ export class SkillAssessmentService {
     if (!passed) {
       try {
         guidanceReport = await this.guidanceReport.generate({
+          report_type: 'emerging',
           track: profile.track ?? 'general',
           claimed_level: claimed,
           validated_level: validatedLevel,
           percentage,
-          strong_competencies: this.extractStrongCompetencies(scoredTextAnswers),
-          weak_competencies: this.extractWeakCompetencies(scoredTextAnswers),
+          strong_competencies: this.extractStrongCompetencies(
+            scoredTextAnswers,
+            entityMap,
+          ),
+          weak_competencies: this.extractWeakCompetencies(
+            scoredTextAnswers,
+            entityMap,
+          ),
         });
       } catch (error) {
         this.logger.warn(
           `Skill guidance report generation failed: ${String(error)}`,
         );
       }
-    }
-
-    let retryAvailableAt: Date | null = null;
-    if (!passed) {
-      retryAvailableAt = new Date();
-      retryAvailableAt.setDate(
-        retryAvailableAt.getDate() + SKILL_ASSESSMENT_RETAKE_DAYS,
-      );
     }
 
     await this.talentProfileRepo.manager.transaction(async (manager) => {
@@ -424,7 +501,6 @@ export class SkillAssessmentService {
         {
           validated_level: validatedLevel,
           skill_assessment_completed_at: new Date(),
-          assessment_locked_until: retryAvailableAt,
           status: this.skillTierToProfileStatus(tier, passed),
         },
       );
@@ -445,9 +521,6 @@ export class SkillAssessmentService {
       downgraded,
       passed,
       ...(guidanceReport && { guidance_report: guidanceReport }),
-      ...(retryAvailableAt && {
-        retry_available_at: retryAvailableAt.toISOString(),
-      }),
       ...(downgraded && {
         personalised_message: SuccessMessages.SKILL_ASSESSMENT.DOWNGRADE_NOTICE,
       }),
@@ -551,9 +624,7 @@ export class SkillAssessmentService {
     attempt: AssessmentAttempt,
   ): SkillAssessmentSessionQuestion[] {
     const questions = this.readSessionPayload(attempt).questions;
-    return Array.isArray(questions)
-      ? (questions)
-      : [];
+    return Array.isArray(questions) ? questions : [];
   }
 
   private scoreGeneratedMcq(
@@ -567,9 +638,7 @@ export class SkillAssessmentService {
     const userAnswer = Array.isArray(answer)
       ? answer.join(',').toLowerCase().trim()
       : String(answer).toLowerCase().trim();
-    const correctAnswer = String(question.correct_answer)
-      .toLowerCase()
-      .trim();
+    const correctAnswer = String(question.correct_answer).toLowerCase().trim();
 
     return userAnswer === correctAnswer;
   }
@@ -610,15 +679,49 @@ export class SkillAssessmentService {
     return tier;
   }
 
-  private extractStrongCompetencies(scored: ScoredTextAnswer[]): string[] {
-    return scored
-      .filter((score) => score.max_score > 0 && score.raw_score / score.max_score >= 0.7)
-      .map((score) => score.question_id);
+  private extractStrongCompetencies(
+    scored: ScoredTextAnswer[],
+    questionById: Map<string, AssessmentQuestion>,
+  ): string[] {
+    return this.resolveScoredCompetencies(
+      scored.filter(
+        (score) =>
+          score.max_score > 0 && score.raw_score / score.max_score >= 0.7,
+      ),
+      questionById,
+    );
   }
 
-  private extractWeakCompetencies(scored: ScoredTextAnswer[]): string[] {
-    return scored
-      .filter((score) => score.max_score > 0 && score.raw_score / score.max_score < 0.5)
-      .map((score) => score.question_id);
+  private extractWeakCompetencies(
+    scored: ScoredTextAnswer[],
+    questionById: Map<string, AssessmentQuestion>,
+  ): string[] {
+    return this.resolveScoredCompetencies(
+      scored.filter(
+        (score) =>
+          score.max_score > 0 && score.raw_score / score.max_score < 0.5,
+      ),
+      questionById,
+    );
+  }
+
+  private resolveScoredCompetencies(
+    scored: ScoredTextAnswer[],
+    questionById: Map<string, AssessmentQuestion>,
+  ): string[] {
+    const competencies = new Set<string>();
+    for (const score of scored) {
+      const question = questionById.get(score.question_id);
+      const metadata = (question?.metadata ?? {}) as Record<string, unknown>;
+      const competency =
+        question?.competency ??
+        (typeof metadata.competency === 'string' ? metadata.competency : null);
+
+      if (competency?.trim()) {
+        competencies.add(competency.trim());
+      }
+    }
+
+    return [...competencies];
   }
 }

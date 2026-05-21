@@ -15,6 +15,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './modules/auth/guards/roles.guard';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { VerifiedProfileModule } from './modules/verified-profile/verified-profile.module';
 import { TalentModule } from './modules/talent/talent.module';
 import { EmployerModule } from './modules/employer/employer.module';
 import { HealthModule } from './modules/health/health.module';
@@ -23,6 +24,7 @@ import { MailModule } from './modules/mail/mail.module';
 import { UsersModule } from './modules/users/users.module';
 import { ProbeController } from './probe.controller';
 import { WelcomeController } from './welcome.controller';
+import { AiResourcesModule } from './modules/ai-resources/ai-resources.module';
 
 @Module({
   imports: [
@@ -41,9 +43,11 @@ import { WelcomeController } from './welcome.controller';
     UsersModule,
     AuthModule,
     DashboardModule,
+    VerifiedProfileModule,
     TalentModule,
     EmployerModule,
     MailModule,
+    AiResourcesModule,
   ],
   providers: [
     {

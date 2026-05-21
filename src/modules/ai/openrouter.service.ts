@@ -4,7 +4,7 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
-import { APICallError, generateText, Output, zodSchema } from 'ai';
+import { APICallError, generateObject, zodSchema } from 'ai';
 import { z } from 'zod';
 import { env } from '../../config/env';
 
@@ -41,24 +41,27 @@ export class OpenRouterService {
     userPrompt: string,
     schema: z.ZodType<T>,
     temperature = 0.2,
+    useWebSearch = false,
   ): Promise<T> {
     if (!env.OPENROUTER_API_KEY) {
       throw new ServiceUnavailableException('AI service is not configured');
     }
 
     try {
-      const result = await generateText({
+      const result = await generateObject({
         model: this.provider(this.model, {
           structuredOutputs: { strict: false },
+          plugins: useWebSearch
+            ? [{ id: 'web', max_results: 5 }, { id: 'response-healing' }]
+            : [{ id: 'response-healing' }],
         }),
-        output: Output.object({ schema: zodSchema(schema) }),
+        schema: zodSchema(schema),
         temperature,
         maxRetries: this.maxRetries,
         system: systemPrompt,
         prompt: userPrompt,
       });
-
-      return result.output;
+      return result.object;
     } catch (error: unknown) {
       this.logger.error(this.formatError(error));
       throw new ServiceUnavailableException(

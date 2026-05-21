@@ -49,7 +49,10 @@ export class SkillAssessmentController {
     description:
       'Personal assessment incomplete, or required onboarding fields missing',
   })
-  @ApiForbiddenResponse({ description: 'Not a talent user' })
+  @ApiForbiddenResponse({
+    description:
+      'Retake gate active, max skill attempts used (until advanced is complete), or not a talent user',
+  })
   @UsePipes(
     new ValidationPipe({
       whitelist: true,
