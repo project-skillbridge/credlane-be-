@@ -49,4 +49,7 @@ export const SuccessMessages = {
     SUCCESS: 'success',
     API_PROBE: 'I am the NestJs api responding',
   },
+  AI_RESOURCES: {
+    RETRIEVED: 'Personalized resources retrieved successfully',
+  },
 } as const;
