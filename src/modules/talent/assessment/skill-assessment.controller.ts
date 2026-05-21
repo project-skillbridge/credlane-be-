@@ -104,7 +104,7 @@ export class SkillAssessmentController {
     summary: 'Submit skill assessment answers',
     description:
       'Scores MCQs immediately, sends text answers to the AI rubric layer, writes validated_level to the talent profile, ' +
-      'and enforces the 75% pass gate for advanced access. Failed attempts return guidance plus a 14-day retry date.',
+      'and unlocks advanced assessment access. Returns guidance report based on evaluation.',
   })
   @ApiOkResponse({
     description: 'Assessment scored and validated_level written',

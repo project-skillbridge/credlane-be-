@@ -47,7 +47,7 @@ export class AdvancedAssessmentController {
   @ApiOperation({
     summary: 'Start an advanced assessment',
     description:
-      'Requires completed personal assessment, a passed skill assessment, and a verified level. ' +
+      'Requires completed personal assessment, a completed skill assessment, and a verified level. ' +
       'Enforces the 14-day retake gate, blocks duplicate active sessions, excludes previously served questions, ' +
       'and returns 24 ordered questions: 10 MCQ, 10 short-text, and 4 long-text prompts. ' +
       'The final LT-3 reflection question is generated later through POST /session/:id/lt2-submit.',
