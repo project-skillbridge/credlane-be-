@@ -42,7 +42,7 @@ import { RubricScoringService } from '../../ai/rubric-scoring.service';
 import { GuidanceReportService } from '../../ai/guidance-report.service';
 import { Lt3GenerationService } from '../../ai/lt3-generation.service';
 import { EmployerPoolProfileService } from './employer-pool-profile.service';
-import { GeneratedQuestion, GuidanceReport, ScoredTextAnswer, TextAnswerInput } from '../../ai/ai.types';
+import { GenerateQuestionsInput, GeneratedQuestion, GuidanceReport, ScoredTextAnswer, TextAnswerInput } from '../../ai/ai.types';
 import { QuestionGenerationService } from '../../ai/question-generation.service';
 import { MailService } from '../../mail/mail.service';
 import { UsersService } from '../../users/users.service';
@@ -1332,7 +1332,7 @@ export class AdvancedAssessmentService {
 
     const mcqDeficit = ADVANCED_ASSESSMENT_MCQ_COUNT - mcq.length;
     if (mcqDeficit > 0) {
-      const generated = await this.questionGeneration.generateQuestions({
+      const generated = await this.safeGenerateQuestions({
         track,
         verified_level: verifiedLevel,
         assessment_type: 'advanced',
@@ -1349,7 +1349,7 @@ export class AdvancedAssessmentService {
 
     const shortDeficit = ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT - shortText.length;
     if (shortDeficit > 0) {
-      const generated = await this.questionGeneration.generateQuestions({
+      const generated = await this.safeGenerateQuestions({
         track,
         verified_level: verifiedLevel,
         assessment_type: 'advanced',
@@ -1372,7 +1372,7 @@ export class AdvancedAssessmentService {
       this.logger.warn(
         `[BANK_LOW] LT-1 (SITUATIONAL) deficit=${situationalDeficit} track=${track} level=${verifiedLevel}`,
       );
-      const generated = await this.questionGeneration.generateQuestions({
+      const generated = await this.safeGenerateQuestions({
         track,
         verified_level: verifiedLevel,
         assessment_type: 'advanced',
@@ -1396,7 +1396,7 @@ export class AdvancedAssessmentService {
       this.logger.warn(
         `[BANK_LOW] LT-2 (WORK_TASK) deficit=${workTaskDeficit} track=${track} level=${verifiedLevel}`,
       );
-      const generated = await this.questionGeneration.generateQuestions({
+      const generated = await this.safeGenerateQuestions({
         track,
         verified_level: verifiedLevel,
         assessment_type: 'advanced',
@@ -1462,6 +1462,19 @@ export class AdvancedAssessmentService {
     };
   }
 
+  private async safeGenerateQuestions(
+    input: GenerateQuestionsInput,
+  ): Promise<GeneratedQuestion[]> {
+    try {
+      return await this.questionGeneration.generateQuestions(input);
+    } catch (error) {
+      this.logger.error(
+        `[BANK_LOW] AI generation failed for count=${input.count} question_type=${input.question_type} slot_type=${input.slot_type}: ${error instanceof Error ? error.message : String(error)}`,
+      );
+      return [];
+    }
+  }
+
   private async persistGeneratedQuestions(
     manager: EntityManager,
     track: string,
@@ -1495,7 +1508,7 @@ export class AdvancedAssessmentService {
         correct_answer: question.correct_answer,
         track: null,
         verified_level: null,
-        competency: normalisedCompetency,
+        competency: null,
         slot_type: slotType,
         metadata: this.buildGeneratedQuestionMetadata({
           track,
