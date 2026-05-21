@@ -67,7 +67,17 @@ type SkillAssessmentSessionPayload = {
 export interface StartSkillAssessmentResult {
   status: string;
   message: string;
+  session_id: string;
+  verified_level: VerifiedLevel;
+  questions: SkillAssessmentQuestion[];
+}
+
+export interface SkillAssessmentSessionResult {
+  status: string;
+  message: string;
   attempt_id: string;
+  session_id: string;
+  started_at: string;
   verified_level: VerifiedLevel;
   questions: SkillAssessmentQuestion[];
 }
@@ -75,6 +85,7 @@ export interface StartSkillAssessmentResult {
 export interface SubmitSkillAssessmentResult {
   status: string;
   message: string;
+  session_id: string;
   score: number;
   total: number;
   percentage: number;
@@ -300,11 +311,57 @@ export class SkillAssessmentService {
     return {
       status: 'success',
       message: SuccessMessages.SKILL_ASSESSMENT.STARTED,
-      attempt_id: savedAttempt.id,
+      session_id: savedAttempt.id,
       verified_level: verifiedLevel,
-      questions: orderedQuestions.map(
-        ({ correct_answer: _ignored, ...question }) => question,
-      ),
+      questions: this.toPublicSessionQuestions(orderedQuestions),
+    };
+  }
+
+  async getSession(
+    userId: string,
+    sessionId: string,
+  ): Promise<SkillAssessmentSessionResult> {
+    const profile = await this.talentProfileRepo.findOne({
+      where: { user_id: userId },
+    });
+    if (!profile) {
+      throw new NotFoundException(
+        ErrorMessages.SKILL_ASSESSMENT.PROFILE_NOT_FOUND,
+      );
+    }
+
+    const attempt = await this.attemptRepo.findOne({
+      where: {
+        id: sessionId,
+        talent_profile_id: profile.id,
+        assessment_type: AssessmentType.SKILL,
+      },
+    });
+    if (!attempt) {
+      throw new NotFoundException(
+        ErrorMessages.SKILL_ASSESSMENT.ATTEMPT_NOT_FOUND,
+      );
+    }
+
+    const payload = this.readSessionPayload(attempt);
+    const questions = Array.isArray(payload.questions) ? payload.questions : [];
+    if (questions.length === 0) {
+      throw new BadRequestException(
+        ErrorMessages.SKILL_ASSESSMENT.ATTEMPT_CORRUPT,
+      );
+    }
+
+    return {
+      status: 'success',
+      message: SuccessMessages.SKILL_ASSESSMENT.SESSION_RESUMED,
+      attempt_id: attempt.id,
+      session_id: attempt.id,
+      started_at: attempt.started_at.toISOString(),
+      verified_level:
+        payload.context?.verified_level ??
+        profile.claimed_level ??
+        VerifiedLevel.ENTRY,
+      questions: this.toPublicSessionQuestions(questions),
     };
   }
 
@@ -513,6 +570,7 @@ export class SkillAssessmentService {
     return {
       status: 'success',
       message: SuccessMessages.SKILL_ASSESSMENT.SUBMITTED,
+      session_id: attempt.id,
       score: Math.round(totalScore),
       total: totalMaxScore,
       percentage,
@@ -625,6 +683,14 @@ export class SkillAssessmentService {
   ): SkillAssessmentSessionQuestion[] {
     const questions = this.readSessionPayload(attempt).questions;
     return Array.isArray(questions) ? questions : [];
+  }
+
+  private toPublicSessionQuestions(
+    questions: SkillAssessmentSessionQuestion[],
+  ): SkillAssessmentQuestion[] {
+    return questions.map(({ correct_answer: _ignored, ...question }) => ({
+      ...question,
+    }));
   }
 
   private scoreGeneratedMcq(
