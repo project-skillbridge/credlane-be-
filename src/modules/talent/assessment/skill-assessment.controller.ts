@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   HttpCode,
   HttpStatus,
   Param,
@@ -74,6 +75,12 @@ export class SkillAssessmentController {
 
   @Get('session/:id')
   @HttpCode(HttpStatus.OK)
+  @Header(
+    'Cache-Control',
+    'no-store, no-cache, must-revalidate, proxy-revalidate',
+  )
+  @Header('Pragma', 'no-cache')
+  @Header('Expires', '0')
   @ApiOperation({
     summary: 'Resume a skill assessment session',
     description:
