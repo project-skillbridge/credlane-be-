@@ -25,6 +25,7 @@ import {
   AssessmentType,
 } from '../assessments/entities';
 import { VerifiedLevel } from '../assessments/entities/assessment-question.entity';
+import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
 import { SKILL_ASSESSMENT_MAX_ATTEMPTS } from '../talent/talent.constants';
 
 const SKILL_PASS_PERCENTAGE = 75;
@@ -39,6 +40,7 @@ export class DashboardService {
     private readonly assessmentResultRepository: Repository<AssessmentResult>,
     @InjectRepository(AssessmentAttempt)
     private readonly assessmentAttemptRepository: Repository<AssessmentAttempt>,
+    private readonly notificationDispatch: NotificationDispatchService,
   ) {}
 
   async getHome(userId: string): Promise<DashboardHomeResponse> {
@@ -55,6 +57,11 @@ export class DashboardService {
     const onboardingComplete = this.isOnboardingComplete(user, profile);
     const assessmentStatuses = await this.getAssessmentStatuses(profile);
     const performance = await this.buildPerformance(profile);
+
+    void this.notificationDispatch.notifyAdvancedRetakeIfEligible(
+      userId,
+      profile,
+    );
 
     return {
       firstName: user.first_name,

@@ -3,6 +3,7 @@ import { Resend } from 'resend';
 import { env } from '../../config/env';
 import { loadMailTemplateFile, substituteMailTemplate } from './mail-templates';
 import type {
+  AdvancedRetakeAvailableEmailPayload,
   AssessmentPerformanceEmailPayload,
   PasswordResetEmailPayload,
   SendMailOptions,
@@ -127,6 +128,40 @@ export class MailService {
     return this.send({
       to: params.to,
       subject: 'Your SkillBridge assessment results are ready',
+      text,
+      html,
+    });
+  }
+
+  async sendAdvancedRetakeAvailable(
+    params: AdvancedRetakeAvailableEmailPayload,
+  ) {
+    const base = env.FRONTEND_URL.replace(/\/$/, '');
+    const logoUrl =
+      env.EMAIL_LOGO_URL ??
+      'https://placehold.co/140x40/1f5f6b/ffffff/png?text=SkillBridge';
+    const dashboardUrl = `${base}/dashboard`;
+    const name = params.recipientFirstName.trim() || 'there';
+
+    const vars: Record<string, string> = {
+      name,
+      dashboardUrl,
+      logoUrl,
+      supportEmail: env.SUPPORT_EMAIL,
+      unsubscribeUrl: `${base}/email-preferences`,
+      year: String(new Date().getFullYear()),
+    };
+
+    const rawHtml = loadMailTemplateFile('advanced-retake-available.html');
+    const html = substituteMailTemplate(rawHtml, vars);
+    const text =
+      `Hi ${name},\n\n` +
+      `Your 14-day advanced assessment waiting period has ended. You can retake the assessment now.\n\n` +
+      `Go to your dashboard: ${dashboardUrl}\n`;
+
+    return this.send({
+      to: params.to,
+      subject: 'You can retake your advanced assessment',
       text,
       html,
     });

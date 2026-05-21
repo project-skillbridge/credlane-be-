@@ -24,3 +24,9 @@ export type AssessmentPerformanceEmailPayload = {
   percentage: number;
   tierLabel: string;
 };
+
+/** Payload for advanced assessment retake eligibility email. */
+export type AdvancedRetakeAvailableEmailPayload = {
+  to: string;
+  recipientFirstName: string;
+};
