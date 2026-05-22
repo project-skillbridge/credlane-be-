@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, In, LessThan, Repository } from 'typeorm';
+import { Between, LessThan, Repository } from 'typeorm';
 import {
   BadRequestError,
   ForbiddenError,
