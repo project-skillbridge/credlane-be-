@@ -1,11 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import {
-  ConflictError,
-  ForbiddenError,
-  NotFoundError,
-} from '../../shared';
+import { ConflictError, ForbiddenError, NotFoundError } from '../../shared';
 import { EmployerPoolProfile } from '../talent/entities/employer-pool-profile.entity';
 import { User } from '../users/entities/user.entity';
 import { EmployerContactRequest } from './entities/employer-contact-request.entity';
@@ -182,9 +178,7 @@ export class EmployerDiscoveryService {
     }
 
     if (poolProfile.tier !== 'job_ready') {
-      throw new ForbiddenError(
-        'Only Job Ready candidates can be saved',
-      );
+      throw new ForbiddenError('Only Job Ready candidates can be saved');
     }
 
     const existing = await this.savedCandidateRepo.findOne({
@@ -300,9 +294,7 @@ export class EmployerDiscoveryService {
     }
 
     if (poolProfile.tier !== 'job_ready') {
-      throw new ForbiddenError(
-        'Only Job Ready candidates can be contacted',
-      );
+      throw new ForbiddenError('Only Job Ready candidates can be contacted');
     }
 
     const contactRequest = await this.contactRequestRepo.save({
@@ -351,8 +343,6 @@ export class EmployerDiscoveryService {
       .andWhere('s.candidate_user_id IN (:...candidateIds)', { candidateIds })
       .getRawMany();
 
-    return new Set(
-      saved.map((row) => row.s_candidate_user_id),
-    );
+    return new Set(saved.map((row) => row.s_candidate_user_id));
   }
 }
