@@ -23,6 +23,11 @@ import {
   TalentProfile,
   TalentProfileStatus,
 } from '../entities/talent-profile.entity';
+import {
+  FlagIntegrityEventDto,
+  IntegrityEventType,
+  IntegrityFlagResult,
+} from './dto/integrity-event.dto';
 import { SubmitSkillAssessmentDto } from './dto/skill-assessment.dto';
 import { ErrorMessages, SuccessMessages } from '../../../shared';
 import {
@@ -951,5 +956,95 @@ export class SkillAssessmentService {
     }
 
     return [...competencies];
+  }
+
+  async flag(
+    userId: string,
+    sessionId: string,
+    dto: FlagIntegrityEventDto,
+  ): Promise<IntegrityFlagResult> {
+    const profile = await this.talentProfileRepo.findOne({
+      where: { user_id: userId },
+    });
+    if (!profile) {
+      throw new NotFoundException(
+        ErrorMessages.SKILL_ASSESSMENT.PROFILE_NOT_FOUND,
+      );
+    }
+
+    const counterField =
+      dto.event_type === IntegrityEventType.TAB_SWITCH
+        ? 'tab_switch_count'
+        : 'copy_paste_count';
+
+    const result = await this.talentProfileRepo.manager.transaction(
+      async (manager) => {
+        const attempt = await manager.findOne(AssessmentAttempt, {
+          where: {
+            id: sessionId,
+            talent_profile_id: profile.id,
+            assessment_type: AssessmentType.SKILL,
+          },
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        if (!attempt) {
+          throw new NotFoundException(
+            ErrorMessages.SKILL_ASSESSMENT.ATTEMPT_NOT_FOUND,
+          );
+        }
+        if (attempt.completed_at || attempt.force_submitted) {
+          throw new BadRequestException(
+            ErrorMessages.SKILL_ASSESSMENT.ATTEMPT_ALREADY_SUBMITTED,
+          );
+        }
+
+        await manager.increment(
+          AssessmentAttempt,
+          {
+            id: attempt.id,
+            talent_profile_id: profile.id,
+            assessment_type: AssessmentType.SKILL,
+          },
+          counterField,
+          1,
+        );
+
+        const updatedAttempt = await manager.findOne(AssessmentAttempt, {
+          where: { id: attempt.id },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!updatedAttempt) {
+          throw new NotFoundException(
+            ErrorMessages.SKILL_ASSESSMENT.ATTEMPT_NOT_FOUND,
+          );
+        }
+
+        await manager.update(
+          AssessmentAttempt,
+          { id: attempt.id },
+          { force_submitted: true, completed_at: new Date() },
+        );
+
+        return {
+          attemptId: attempt.id,
+          tabSwitchCount: updatedAttempt.tab_switch_count,
+          copyPasteCount: updatedAttempt.copy_paste_count,
+        };
+      },
+    );
+
+    this.logger.warn(
+      `Skill session voided - integrity ${dto.event_type}: attempt=${result.attemptId} user=${userId}`,
+    );
+
+    return {
+      status: 'voided',
+      message: ErrorMessages.SKILL_ASSESSMENT.SESSION_VOIDED,
+      tab_switch_count: result.tabSwitchCount,
+      copy_paste_count: result.copyPasteCount,
+      session_voided: true,
+      action: 'logout',
+    };
   }
 }

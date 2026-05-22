@@ -47,6 +47,8 @@ export const ErrorMessages = {
     MAX_ATTEMPTS_REACHED:
       'You have used all three skill assessment attempts. Complete the advanced assessment to unlock further skill retakes.',
     ACTIVE_SESSION_EXISTS: 'Active skill assessment session already exists',
+    SESSION_VOIDED:
+      'Skill assessment session has been voided due to integrity violations.',
   },
   ADVANCED_ASSESSMENT: {
     PROFILE_NOT_FOUND: 'Talent profile not found',

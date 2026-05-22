@@ -17,6 +17,7 @@ import {
 import { AssessmentResult } from '../../assessments/entities/assessment-result.entity';
 import { VerifiedLevel } from '../../assessments/entities/assessment-question.entity';
 import { AdvancedAssessmentService } from './advanced-assessment.service';
+import { ErrorMessages } from '../../../shared';
 import { IntegrityEventType } from './dto/advanced-assessment.dto';
 import { TalentProfile } from '../entities/talent-profile.entity';
 import { makeTalentProfile } from './personal-assessment.test-fixtures';
@@ -319,6 +320,7 @@ describe('AdvancedAssessmentService', () => {
     const entityManager = {
       findOne: entityManagerFindOne,
       increment: entityManagerIncrement,
+      count: jest.fn().mockResolvedValue(1),
       save: jest.fn().mockImplementation((entity: unknown, data: unknown) => {
         entityManagerSaveCalls.push({ entity, data });
         return Promise.resolve(data);
@@ -946,6 +948,7 @@ describe('AdvancedAssessmentService', () => {
 
       const lockedEntityManager = {
         findOne: jest.fn().mockResolvedValue(lockedProfile),
+        count: jest.fn().mockResolvedValue(1),
         createQueryBuilder: jest.fn().mockReturnValue(skillResultQuery),
       };
 
@@ -955,6 +958,30 @@ describe('AdvancedAssessmentService', () => {
       );
 
       await expect(service.start(userId)).rejects.toThrow(ForbiddenException);
+    });
+
+    it('throws 422 when no skill assessment attempt has been completed', async () => {
+      const profile = makeTalentProfile({
+        validated_level: VerifiedLevel.MID,
+        personal_assessment_completed_at: new Date(),
+      });
+
+      const entityManager = {
+        findOne: jest.fn().mockResolvedValue(profile),
+        count: jest.fn().mockResolvedValue(0),
+        createQueryBuilder: jest.fn(),
+      };
+
+      talentProfileRepo.manager.transaction.mockImplementation(
+        (work: (em: typeof entityManager) => Promise<unknown>) =>
+          work(entityManager),
+      );
+
+      await expect(service.start(userId)).rejects.toMatchObject({
+        response: expect.objectContaining({
+          message: ErrorMessages.ADVANCED_ASSESSMENT.SKILL_GATE_REQUIRED,
+        }),
+      });
     });
 
     it('throws 422 when validated_level is missing', async () => {
@@ -976,6 +1003,76 @@ describe('AdvancedAssessmentService', () => {
       await expect(service.start(userId)).rejects.toMatchObject({
         response: expect.objectContaining({ error: 'LEVEL_NOT_VERIFIED' }),
       });
+    });
+
+    it('allows start when the latest skill result is below the pass threshold', async () => {
+      const profile = makeTalentProfile({
+        validated_level: VerifiedLevel.MID,
+        personal_assessment_completed_at: new Date(),
+        assessment_locked_until: null,
+      });
+
+      const makeQuery = (overrides: Record<string, jest.Mock> = {}) => {
+        const query: Record<string, jest.Mock> = {
+          select: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          innerJoin: jest.fn().mockReturnThis(),
+          orderBy: jest.fn().mockReturnThis(),
+          addOrderBy: jest.fn().mockReturnThis(),
+          ...overrides,
+        };
+        for (const key of Object.keys(query)) {
+          if (!overrides[key]) {
+            query[key].mockReturnValue(query);
+          }
+        }
+        return query;
+      };
+
+      const entityManager = {
+        findOne: jest.fn().mockResolvedValue(profile),
+        count: jest.fn().mockResolvedValue(1),
+        create: jest
+          .fn()
+          .mockImplementation((_entity: unknown, data: unknown) => data),
+        save: jest.fn().mockResolvedValue([]),
+        createQueryBuilder: jest.fn(),
+      };
+
+      const skillQuery = makeQuery({
+        getOne: jest.fn().mockResolvedValue({
+          percentage: 45,
+          claimed_percentage: 45,
+        }),
+      });
+      const activeAttemptQuery = makeQuery({
+        getOne: jest.fn().mockResolvedValue(null),
+      });
+      const questionQuery = makeQuery({
+        getMany: jest.fn().mockResolvedValue([]),
+        getRawOne: jest.fn().mockResolvedValue({ max: '30' }),
+      });
+      entityManager.createQueryBuilder.mockImplementation((entity) => {
+        if (entity === AssessmentResult) return skillQuery;
+        if (entity === AssessmentAttempt) return activeAttemptQuery;
+        return questionQuery;
+      });
+
+      questionGeneration.generateQuestions = jest.fn().mockResolvedValue([]);
+      advancedAssessmentAiService.generateQuestions.mockReturnValue({
+        context: { verified_level: VerifiedLevel.MID },
+        questions: makeSessionJson().questions.slice(0, 10),
+      });
+
+      talentProfileRepo.manager.transaction.mockImplementation(
+        (work: (em: typeof entityManager) => Promise<unknown>) =>
+          work(entityManager),
+      );
+
+      await expect(service.start(userId)).rejects.toThrow(
+        ServiceUnavailableException,
+      );
     });
 
     it('throws 503 BANK_EXHAUSTED when fewer than 19 base questions can be assembled', async () => {
@@ -1005,6 +1102,7 @@ describe('AdvancedAssessmentService', () => {
 
       const entityManager = {
         findOne: jest.fn().mockResolvedValue(profile),
+        count: jest.fn().mockResolvedValue(1),
         create: jest
           .fn()
           .mockImplementation((_entity: unknown, data: unknown) => data),
