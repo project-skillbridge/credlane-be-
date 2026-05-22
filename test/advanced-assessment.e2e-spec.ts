@@ -214,11 +214,52 @@ describe('Advanced assessment (e2e)', () => {
     };
 
     const entityManager = {
+      findOne: jest.fn().mockImplementation((entity: unknown) => {
+        if (entity === AssessmentAttempt) {
+          return Promise.resolve(attemptStore);
+        }
+        if (entity === TalentProfile) {
+          return Promise.resolve(profileStore);
+        }
+        return Promise.resolve(null);
+      }),
+      increment: jest
+        .fn()
+        .mockImplementation(
+          (
+            _entity: unknown,
+            _criteria: Record<string, unknown>,
+            field: string,
+            value: number,
+          ) => {
+            if (field === 'tab_switch_count') {
+              attemptStore.tab_switch_count += value;
+            } else if (field === 'copy_paste_count') {
+              attemptStore.copy_paste_count += value;
+            }
+            return Promise.resolve({ affected: 1 });
+          },
+        ),
       save: jest
         .fn()
         .mockImplementation((_e: unknown, d: unknown) => Promise.resolve(d)),
       create: jest.fn().mockImplementation((_e: unknown, d: unknown) => d),
-      update: jest.fn().mockResolvedValue(undefined),
+      update: jest
+        .fn()
+        .mockImplementation(
+          (
+            entity: unknown,
+            _criteria: Record<string, unknown>,
+            patch: Partial<AssessmentAttempt> | Partial<TalentProfile>,
+          ) => {
+            if (entity === AssessmentAttempt) {
+              attemptStore = Object.assign(attemptStore, patch);
+            } else if (entity === TalentProfile) {
+              profileStore = Object.assign(profileStore, patch);
+            }
+            return Promise.resolve({ affected: 1 });
+          },
+        ),
     };
 
     const talentProfileRepoMock = {

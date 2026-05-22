@@ -928,69 +928,88 @@ export class AdvancedAssessmentService {
       );
     }
 
-    const attempt = await this.attemptRepo.findOne({
-      where: {
-        id: sessionId,
-        talent_profile_id: profile.id,
-        assessment_type: AssessmentType.ADVANCED,
-      },
-    });
-    if (!attempt) {
-      throw new NotFoundException(
-        ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_NOT_FOUND,
-      );
-    }
-    if (attempt.completed_at || attempt.force_submitted) {
-      throw new BadRequestException(
-        ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_ALREADY_SUBMITTED,
-      );
-    }
-
     const counterField =
       dto.event_type === IntegrityEventType.TAB_SWITCH
         ? 'tab_switch_count'
         : 'copy_paste_count';
 
-    await this.attemptRepo.increment(
-      {
-        id: attempt.id,
-        talent_profile_id: profile.id,
-        assessment_type: AssessmentType.ADVANCED,
-      },
-      counterField,
-      1,
-    );
+    const result = await this.talentProfileRepo.manager.transaction(
+      async (manager) => {
+        const attempt = await manager.findOne(AssessmentAttempt, {
+          where: {
+            id: sessionId,
+            talent_profile_id: profile.id,
+            assessment_type: AssessmentType.ADVANCED,
+          },
+          lock: { mode: 'pessimistic_write' },
+        });
 
-    const updatedAttempt = await this.attemptRepo.findOne({
-      where: { id: attempt.id },
-    });
-    const tabSwitchCount = updatedAttempt?.tab_switch_count ?? 0;
-    const copyPasteCount = updatedAttempt?.copy_paste_count ?? 0;
+        if (!attempt) {
+          throw new NotFoundException(
+            ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_NOT_FOUND,
+          );
+        }
+        if (attempt.completed_at || attempt.force_submitted) {
+          throw new BadRequestException(
+            ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_ALREADY_SUBMITTED,
+          );
+        }
 
-    const unlocksAt = new Date();
-    unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
+        await manager.increment(
+          AssessmentAttempt,
+          {
+            id: attempt.id,
+            talent_profile_id: profile.id,
+            assessment_type: AssessmentType.ADVANCED,
+          },
+          counterField,
+          1,
+        );
 
-    await this.attemptRepo.update(
-      { id: attempt.id },
-      { force_submitted: true, completed_at: new Date() },
-    );
-    await this.talentProfileRepo.update(
-      { id: profile.id },
-      {
-        assessment_locked_until: unlocksAt,
-        advanced_retake_required: true,
+        const updatedAttempt = await manager.findOne(AssessmentAttempt, {
+          where: { id: attempt.id },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!updatedAttempt) {
+          throw new NotFoundException(
+            ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_NOT_FOUND,
+          );
+        }
+
+        const unlocksAt = new Date();
+        unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
+
+        await manager.update(
+          AssessmentAttempt,
+          { id: attempt.id },
+          { force_submitted: true, completed_at: new Date() },
+        );
+        await manager.update(
+          TalentProfile,
+          { id: profile.id },
+          {
+            assessment_locked_until: unlocksAt,
+            advanced_retake_required: true,
+          },
+        );
+
+        return {
+          attemptId: attempt.id,
+          tabSwitchCount: updatedAttempt.tab_switch_count,
+          copyPasteCount: updatedAttempt.copy_paste_count,
+        };
       },
     );
 
     this.logger.warn(
-      `Session voided - integrity ${dto.event_type}: attempt=${attempt.id} user=${userId}`,
+      `Session voided - integrity ${dto.event_type}: attempt=${result.attemptId} user=${userId}`,
     );
 
     return {
       status: 'voided',
       message: ErrorMessages.ADVANCED_ASSESSMENT.SESSION_VOIDED,
-      tab_switch_count: tabSwitchCount,
-      copy_paste_count: copyPasteCount,
+      tab_switch_count: result.tabSwitchCount,
+      copy_paste_count: result.copyPasteCount,
       session_voided: true,
       action: 'logout',
     };

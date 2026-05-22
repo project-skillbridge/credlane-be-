@@ -222,6 +222,8 @@ describe('AdvancedAssessmentService', () => {
 
   // Cross-test captures
   let entityManagerSaveCalls: Array<{ entity: unknown; data: unknown }>;
+  let entityManagerFindOne: jest.Mock;
+  let entityManagerIncrement: jest.Mock;
   let entityManagerUpdate: jest.Mock;
 
   const userId = 'talent-user-1';
@@ -245,6 +247,31 @@ describe('AdvancedAssessmentService', () => {
     resultRepo = { update: jest.fn().mockResolvedValue({ affected: 1 }) };
     questionGeneration = {};
     entityManagerSaveCalls = [];
+    entityManagerFindOne = jest
+      .fn()
+      .mockImplementation((_entity: unknown) =>
+        Promise.resolve(
+          Object.assign(new AssessmentAttempt(), attemptData.current),
+        ),
+      );
+    entityManagerIncrement = jest
+      .fn()
+      .mockImplementation(
+        (
+          _entity: unknown,
+          _criteria: Record<string, unknown>,
+          field: string,
+          value: number,
+        ) => {
+          const current = attemptData.current;
+          if (field === 'tab_switch_count') {
+            current.tab_switch_count += value;
+          } else if (field === 'copy_paste_count') {
+            current.copy_paste_count += value;
+          }
+          return Promise.resolve({ affected: 1 });
+        },
+      );
     entityManagerUpdate = jest.fn().mockResolvedValue(undefined);
 
     attemptRepo = {
@@ -290,6 +317,8 @@ describe('AdvancedAssessmentService', () => {
     };
 
     const entityManager = {
+      findOne: entityManagerFindOne,
+      increment: entityManagerIncrement,
       save: jest.fn().mockImplementation((entity: unknown, data: unknown) => {
         entityManagerSaveCalls.push({ entity, data });
         return Promise.resolve(data);
@@ -797,16 +826,26 @@ describe('AdvancedAssessmentService', () => {
       expect(result.action).toBe('logout');
       expect(result.session_voided).toBe(true);
       expect(result.tab_switch_count).toBe(1);
-      expect(attemptRepo.increment).toHaveBeenCalledWith(
+      expect(talentProfileRepo.manager.transaction).toHaveBeenCalled();
+      expect(entityManagerFindOne).toHaveBeenCalledWith(
+        AssessmentAttempt,
+        expect.objectContaining({
+          lock: { mode: 'pessimistic_write' },
+        }),
+      );
+      expect(entityManagerIncrement).toHaveBeenCalledWith(
+        AssessmentAttempt,
         expect.anything(),
         'tab_switch_count',
         1,
       );
-      expect(attemptRepo.update).toHaveBeenCalledWith(
+      expect(entityManagerUpdate).toHaveBeenCalledWith(
+        AssessmentAttempt,
         expect.anything(),
         expect.objectContaining({ force_submitted: true }),
       );
-      expect(talentProfileRepo.update).toHaveBeenCalledWith(
+      expect(entityManagerUpdate).toHaveBeenCalledWith(
+        TalentProfile,
         { id: profileStore.id },
         expect.objectContaining({
           assessment_locked_until: expect.any(Date),
@@ -820,9 +859,10 @@ describe('AdvancedAssessmentService', () => {
         event_type: IntegrityEventType.TAB_SWITCH,
       });
 
-      const [[, patch]] = talentProfileRepo.update.mock.calls as [
-        [unknown, { assessment_locked_until: Date }],
-      ];
+      const profileUpdate = entityManagerUpdate.mock.calls.find(
+        ([entity]) => entity === TalentProfile,
+      ) as [unknown, unknown, { assessment_locked_until: Date }];
+      const [, , patch] = profileUpdate;
       const gateDate = patch.assessment_locked_until;
       const diffDays = Math.round(
         (gateDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
@@ -839,7 +879,8 @@ describe('AdvancedAssessmentService', () => {
       expect(result.action).toBe('logout');
       expect(result.session_voided).toBe(true);
       expect(result.copy_paste_count).toBe(1);
-      expect(attemptRepo.increment).toHaveBeenCalledWith(
+      expect(entityManagerIncrement).toHaveBeenCalledWith(
+        AssessmentAttempt,
         expect.anything(),
         'copy_paste_count',
         1,
@@ -857,7 +898,7 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('throws 404 when attempt not found', async () => {
-      attemptRepo.findOne.mockResolvedValue(null);
+      entityManagerFindOne.mockResolvedValueOnce(null);
 
       await expect(
         service.flag(userId, 'attempt-1', {
@@ -867,7 +908,7 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('throws 400 when attempting to flag a completed session', async () => {
-      attemptRepo.findOne.mockResolvedValue(
+      entityManagerFindOne.mockResolvedValueOnce(
         makeAttempt({ completed_at: new Date() }),
       );
 
