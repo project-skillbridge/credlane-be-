@@ -106,7 +106,7 @@ export class DashboardService {
     const percentage = result.percentage ?? 0;
     const claimedPercentage = result.claimed_percentage ?? percentage;
     const validatedLevel =
-      result.validated_level ?? profile.validated_level ?? VerifiedLevel.ENTRY;
+      result.validated_level ?? profile.validated_level ?? VerifiedLevel.JUNIOR;
 
     return {
       score: result.score,

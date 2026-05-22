@@ -569,8 +569,8 @@ export class AdvancedAssessmentService {
     const guidanceInput = {
       report_type: tier === AssessmentTier.JOB_READY ? 'job_ready' : 'emerging',
       track: profile.track ?? 'general',
-      claimed_level: profile.claimed_level ?? VerifiedLevel.ENTRY,
-      validated_level: profile.validated_level ?? VerifiedLevel.ENTRY,
+      claimed_level: profile.claimed_level ?? VerifiedLevel.JUNIOR,
+      validated_level: profile.validated_level ?? VerifiedLevel.JUNIOR,
       percentage,
       strong_competencies: strongCompetencies,
       weak_competencies: weakCompetencies,
@@ -809,7 +809,7 @@ export class AdvancedAssessmentService {
       };
     }
 
-    const verifiedLevel = profile.validated_level ?? VerifiedLevel.ENTRY;
+    const verifiedLevel = profile.validated_level ?? VerifiedLevel.JUNIOR;
     const track = profile.track ?? 'general';
 
     let generatedLt3Text: string;
@@ -1263,7 +1263,7 @@ export class AdvancedAssessmentService {
     manager: EntityManager,
     profile: TalentProfile,
   ): Promise<AssessmentQuestion[]> {
-    const verifiedLevel = profile.validated_level ?? VerifiedLevel.ENTRY;
+    const verifiedLevel = profile.validated_level ?? VerifiedLevel.JUNIOR;
     const track = profile.track ?? 'general';
 
     const primary = await manager
@@ -1350,7 +1350,7 @@ export class AdvancedAssessmentService {
     > = [];
     const industryContext = resolveIndustryContext(personalContext);
     const competencyHint = resolveCompetencyHint(personalContext);
-    const verifiedLevel = profile.validated_level ?? VerifiedLevel.ENTRY;
+    const verifiedLevel = profile.validated_level ?? VerifiedLevel.JUNIOR;
     const track = profile.track ?? 'general';
 
     const mcqDeficit = ADVANCED_ASSESSMENT_MCQ_COUNT - mcq.length;

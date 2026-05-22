@@ -331,8 +331,8 @@ describe('SkillAssessmentService', () => {
     expect(resolveLevel(54, 0, 0, 54, VerifiedLevel.EXPERT)).toBe(
       VerifiedLevel.JUNIOR,
     );
-    expect(resolveLevel(54, 0, 0, 54, VerifiedLevel.ENTRY)).toBe(
-      VerifiedLevel.ENTRY,
+    expect(resolveLevel(54, 0, 0, 54, VerifiedLevel.JUNIOR)).toBe(
+      VerifiedLevel.JUNIOR,
     );
     expect(resolveLevel(95, 70, 0, 92, VerifiedLevel.MID)).toBe(
       VerifiedLevel.SENIOR,

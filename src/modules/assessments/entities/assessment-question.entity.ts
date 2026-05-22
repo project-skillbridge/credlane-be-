@@ -20,7 +20,6 @@ export enum QuestionType {
 }
 
 export enum VerifiedLevel {
-  ENTRY = 'entry',
   JUNIOR = 'junior',
   MID = 'mid',
   SENIOR = 'senior',
