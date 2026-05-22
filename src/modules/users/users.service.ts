@@ -24,6 +24,7 @@ import {
   InternalServerError,
   NotFoundError,
 } from '../../shared';
+import { normalizeEmail } from '../../common/transforms/normalize-email';
 import type { OAuthSignupRole } from '../auth/oauth-signup-role';
 import { OAuthSignupRoleRequiredException } from '../auth/exceptions/oauth-signup-role-required.exception';
 
@@ -60,12 +61,12 @@ export class UsersService {
   ) {}
 
   async create(dto: CreateUserDto): Promise<User> {
-    const existing = await this.userModelAction.findByEmail(dto.email);
+    const normalizedEmail = normalizeEmail(dto.email) as string;
+    const existing = await this.userModelAction.findByEmail(normalizedEmail);
     if (existing) {
       throw new ConflictError(ErrorMessages.USER.EMAIL_ALREADY_REGISTERED);
     }
 
-    const normalizedEmail = dto.email.toLowerCase().trim();
     const passwordHash = await argon2.hash(dto.password);
     const signupReason =
       dto.signup_reason == null || dto.signup_reason.trim() === ''
@@ -118,7 +119,7 @@ export class UsersService {
   }
 
   findByEmail(email: string): Promise<User | null> {
-    return this.userModelAction.findByEmail(email);
+    return this.userModelAction.findByEmail(normalizeEmail(email) as string);
   }
 
   async update(id: string, dto: UpdateUserDto): Promise<User> {

@@ -94,9 +94,7 @@ export class NotificationDispatchService
           );
           break;
         default:
-          this.logger.warn(
-            `Unhandled notification type: ${String(type)}`,
-          );
+          this.logger.warn(`Unhandled notification type: ${String(type)}`);
       }
     } catch (error) {
       this.logger.error(
@@ -166,9 +164,7 @@ export class NotificationDispatchService
   ): Promise<void> {
     const user = await this.usersService.findOne(userId);
     if (!user) {
-      this.logger.warn(
-        `Notification skipped: user not found user=${userId}`,
-      );
+      this.logger.warn(`Notification skipped: user not found user=${userId}`);
       return;
     }
 
@@ -210,9 +206,7 @@ export class NotificationDispatchService
   ): Promise<void> {
     const user = await this.usersService.findOne(userId);
     if (!user) {
-      this.logger.warn(
-        `Notification skipped: user not found user=${userId}`,
-      );
+      this.logger.warn(`Notification skipped: user not found user=${userId}`);
       return;
     }
 

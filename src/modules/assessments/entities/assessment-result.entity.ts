@@ -47,6 +47,15 @@ export class AssessmentResult {
   @ApiProperty({
     required: false,
     nullable: true,
+    description:
+      'Claimed-level score percentage for skill assessment (excludes probe questions)',
+  })
+  @Column({ type: 'integer', nullable: true })
+  claimed_percentage: number | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
     enum: AssessmentTier,
     description: 'Final tier for advanced assessment only',
   })

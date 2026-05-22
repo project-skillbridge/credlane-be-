@@ -7,6 +7,7 @@ import {
   Matches,
   MaxLength,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import { CreateUserDto } from '../../users/dto/create-user.dto';
 import { UserRole } from '../../users/entities/user.entity';
@@ -39,8 +40,14 @@ export class RegisterDto extends RegisterBaseDto {
 
   @ApiProperty({
     example: 'Find a new role in tech',
+    description:
+      'Optional reason for employer signups. Ignored for talent signups.',
     required: false,
   })
+  @ValidateIf(
+    (dto: RegisterDto) =>
+      dto.role === UserRole.EMPLOYER && dto.reasonForJoining !== undefined,
+  )
   @IsOptional()
   @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' && value.trim() === '' ? undefined : value,

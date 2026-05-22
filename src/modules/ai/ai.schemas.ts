@@ -20,6 +20,12 @@ export const rubricLt3Schema = z.object({
   feedback: z.string(),
 });
 
+export const rubricGuideScoreSchema = z.object({
+  score: z.number().int().min(0).max(4),
+  total: z.number().int().min(0).max(4),
+  feedback: z.string(),
+});
+
 export const generatedQuestionSchema = z.object({
   question_text: z.string(),
   options: z.array(z.string()).nullable(),

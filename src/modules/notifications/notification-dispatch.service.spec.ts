@@ -21,7 +21,9 @@ describe('NotificationDispatchService', () => {
     };
     mailService = {
       sendAssessmentPerformance: jest.fn().mockResolvedValue({ id: 'email-1' }),
-      sendAdvancedRetakeAvailable: jest.fn().mockResolvedValue({ id: 'email-2' }),
+      sendAdvancedRetakeAvailable: jest
+        .fn()
+        .mockResolvedValue({ id: 'email-2' }),
     };
     usersService = {
       findOne: jest.fn().mockResolvedValue({
@@ -44,7 +46,12 @@ describe('NotificationDispatchService', () => {
     await service.dispatch(
       NotificationType.ADVANCED_ASSESSMENT_SCORE_READY,
       'user-1',
-      { score: 88, maxScore: 110, percentage: 80, tier: AssessmentTier.JOB_READY },
+      {
+        score: 88,
+        maxScore: 110,
+        percentage: 80,
+        tier: AssessmentTier.JOB_READY,
+      },
     );
 
     expect(notificationsService.create).toHaveBeenCalledWith(
@@ -63,12 +70,19 @@ describe('NotificationDispatchService', () => {
   });
 
   it('still creates in-app notification when email fails', async () => {
-    mailService.sendAssessmentPerformance.mockRejectedValue(new Error('smtp down'));
+    mailService.sendAssessmentPerformance.mockRejectedValue(
+      new Error('smtp down'),
+    );
 
     await service.dispatch(
       NotificationType.ADVANCED_ASSESSMENT_SCORE_READY,
       'user-1',
-      { score: 50, maxScore: 100, percentage: 50, tier: AssessmentTier.EMERGING },
+      {
+        score: 50,
+        maxScore: 100,
+        percentage: 50,
+        tier: AssessmentTier.EMERGING,
+      },
     );
 
     expect(notificationsService.create).toHaveBeenCalled();
@@ -99,9 +113,13 @@ describe('NotificationDispatchService', () => {
       ),
     );
 
-    await service.dispatch(NotificationType.ADVANCED_RETAKE_AVAILABLE, 'user-1', {
-      eligibilityDate: '2026-06-01T00:00:00.000Z',
-    });
+    await service.dispatch(
+      NotificationType.ADVANCED_RETAKE_AVAILABLE,
+      'user-1',
+      {
+        eligibilityDate: '2026-06-01T00:00:00.000Z',
+      },
+    );
 
     expect(notificationsService.create).toHaveBeenCalled();
     expect(mailService.sendAdvancedRetakeAvailable).not.toHaveBeenCalled();

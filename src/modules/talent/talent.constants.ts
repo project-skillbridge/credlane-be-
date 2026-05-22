@@ -19,6 +19,19 @@ export const TALENT_ROLE_TRACKS = [
   'mobile_developer',
   'cybersecurity',
   'data_scientist',
+  'marketing',
+  'quality_assurance',
+  'fullstack_developer',
+  'data_engineer',
+  'ml_engineer',
+  'business_analyst',
+  'bi_developer',
+  'ux_researcher',
+  'brand_designer',
+  'customer_success',
+  'project_manager',
+  'operations_manager',
+  'hr_people_ops',
 ] as const;
 
 export type TalentRoleTrack = (typeof TALENT_ROLE_TRACKS)[number];
@@ -49,13 +62,5 @@ export type TalentEducationLevel = (typeof TALENT_EDUCATION_LEVELS)[number];
 /** Maximum completed skill assessment attempts before advanced assessment is done. */
 export const SKILL_ASSESSMENT_MAX_ATTEMPTS = 3;
 
-export const SKILL_ASSESSMENT_LEVEL_THRESHOLDS: Array<{
-  level: VerifiedLevel;
-  min: number;
-}> = [
-  { level: VerifiedLevel.EXPERT, min: 90 },
-  { level: VerifiedLevel.SENIOR, min: 75 },
-  { level: VerifiedLevel.MID, min: 60 },
-  { level: VerifiedLevel.JUNIOR, min: 40 },
-  { level: VerifiedLevel.ENTRY, min: 0 },
-];
+/** Minimum claimed-level score (Stage 2) required to confirm level and unlock Stage 3. */
+export const SKILL_ASSESSMENT_PASS_PERCENTAGE = 70;
