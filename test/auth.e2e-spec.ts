@@ -93,19 +93,24 @@ const loginPayload: LoginPayload = {
   password: talentRegisterPayload.password,
 };
 
+function normalizeTestEmail(email: string): string {
+  return email.trim().toLowerCase();
+}
+
 class InMemoryUsersService {
   private readonly usersById = new Map<string, User>();
   private readonly usersByEmail = new Map<string, User>();
   private nextId = 1;
 
   async create(dto: CreateUserDto): Promise<User> {
-    if (this.usersByEmail.has(dto.email)) {
+    const normalizedEmail = normalizeTestEmail(dto.email);
+    if (this.usersByEmail.has(normalizedEmail)) {
       throw new ConflictException('Email already registered');
     }
 
     const user = Object.assign(new User(), {
       id: `user-${this.nextId++}`,
-      email: dto.email,
+      email: normalizedEmail,
       password: await argon2.hash(dto.password),
       first_name: dto.first_name,
       last_name: dto.last_name,
@@ -127,7 +132,9 @@ class InMemoryUsersService {
   }
 
   findByEmail(email: string): Promise<User | null> {
-    return Promise.resolve(this.usersByEmail.get(email) ?? null);
+    return Promise.resolve(
+      this.usersByEmail.get(normalizeTestEmail(email)) ?? null,
+    );
   }
 
   findOneOrNull(id: string): Promise<User | null> {
@@ -238,9 +245,10 @@ class InMemoryUsersService {
     avatar_url?: string | null,
     role: UserRole = UserRole.TALENT,
   ): Promise<{ user: User; oauthUser: OAuthUser }> {
+    const normalizedEmail = normalizeTestEmail(email);
     const user = Object.assign(new User(), {
       id: `user-${this.nextId++}`,
-      email,
+      email: normalizedEmail,
       password: null,
       first_name,
       last_name,
@@ -570,6 +578,24 @@ describe('Auth (e2e)', () => {
     );
   });
 
+  it('POST /auth/register lowercases stored email addresses', async () => {
+    const payload: RegisterPayload = {
+      ...talentRegisterPayload,
+      email: 'UPPERCASE-TALENT@EXAMPLE.COM',
+    };
+
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(payload)
+      .expect(201);
+
+    const createdUser = await usersService.findByEmail(payload.email);
+    expect(createdUser?.email).toBe('uppercase-talent@example.com');
+    expect(mailService.verificationMessages[0]?.to).toBe(
+      'uppercase-talent@example.com',
+    );
+  });
+
   it('POST /auth/register stores reasonForJoining for employers', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
@@ -807,6 +833,28 @@ describe('Auth (e2e)', () => {
       });
   });
 
+  it('POST /auth/register rejects duplicate emails regardless of case', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(talentRegisterPayload)
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send({
+        ...talentRegisterPayload,
+        email: talentRegisterPayload.email.toUpperCase(),
+      })
+      .expect(409)
+      .expect((response) => {
+        expect(response.body).toMatchObject({
+          success: false,
+          status_code: 409,
+          message: 'Email already registered',
+        });
+      });
+  });
+
   it('POST /auth/login blocks unverified users', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
@@ -825,6 +873,37 @@ describe('Auth (e2e)', () => {
       error: 'EMAIL_NOT_VERIFIED',
       message: 'Please verify your email to continue',
       email: talentRegisterPayload.email,
+    });
+  });
+
+  it('POST /auth/login accepts uppercase email for verified users', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(talentRegisterPayload)
+      .expect(201);
+
+    const user = await usersService.findByEmail(talentRegisterPayload.email);
+    const otp = verificationOtpService.peekLatestCode(user!.id);
+    await request(app.getHttpServer())
+      .post('/auth/verify-email')
+      .send({ email: talentRegisterPayload.email, otp })
+      .expect(200);
+
+    const response = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({
+        ...loginPayload,
+        email: loginPayload.email.toUpperCase(),
+      })
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      status_code: 200,
+      data: {
+        user: {
+          email: talentRegisterPayload.email,
+        },
+      },
     });
   });
 

@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsEmail,
   IsString,
@@ -7,9 +8,11 @@ import {
   MinLength,
 } from 'class-validator';
 import { MatchField } from '../validators/match-field.decorator';
+import { normalizeEmail } from '../../../common/transforms/normalize-email';
 
 export class ResetPasswordDto {
   @ApiProperty({ example: 'user@example.com' })
+  @Transform(({ value }: { value: unknown }) => normalizeEmail(value))
   @IsEmail()
   @MaxLength(255)
   email: string;

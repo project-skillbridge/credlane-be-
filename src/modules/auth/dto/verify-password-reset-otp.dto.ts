@@ -1,8 +1,11 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { IsEmail, IsString, Matches, MaxLength } from 'class-validator';
+import { normalizeEmail } from '../../../common/transforms/normalize-email';
 
 export class VerifyPasswordResetOtpDto {
   @ApiProperty({ example: 'user@example.com' })
+  @Transform(({ value }: { value: unknown }) => normalizeEmail(value))
   @IsEmail()
   @MaxLength(255)
   email: string;

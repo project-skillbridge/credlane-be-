@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsEmail,
   IsOptional,
@@ -8,9 +9,11 @@ import {
   MinLength,
 } from 'class-validator';
 import { UserRole, USER_ROLE_VALUES } from '../entities/user.entity';
+import { normalizeEmail } from '../../../common/transforms/normalize-email';
 
 export class CreateUserDto {
   @ApiProperty({ example: 'user@example.com' })
+  @Transform(({ value }: { value: unknown }) => normalizeEmail(value))
   @IsEmail()
   @MaxLength(255)
   email: string;
