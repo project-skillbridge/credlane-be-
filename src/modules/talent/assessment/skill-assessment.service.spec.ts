@@ -34,9 +34,8 @@ describe('SkillAssessmentService', () => {
     save: jest.Mock;
   };
   let questionRepo: Record<string, jest.Mock>;
-  let personalAssessmentService: { getAiContext: jest.Mock };
-  let questionGeneration: { generateQuestions: jest.Mock };
   let rubricScoring: { scoreAnswers: jest.Mock };
+  let eligibleSkillQuestions: AssessmentQuestion[];
 
   const userId = 'talent-user-1';
   let profile = makeTalentProfile({
@@ -52,6 +51,12 @@ describe('SkillAssessmentService', () => {
         const manager: EntityManagerLike = {
           findOne: jest.fn().mockResolvedValue(profile),
           getRepository: jest.fn(() => attemptRepo),
+          createQueryBuilder: jest.fn(() => ({
+            where: jest.fn().mockReturnThis(),
+            andWhere: jest.fn().mockReturnThis(),
+            orderBy: jest.fn().mockReturnThis(),
+            getMany: jest.fn().mockResolvedValue(eligibleSkillQuestions),
+          })),
           create: jest.fn(
             (
               _entity:
@@ -105,10 +110,7 @@ describe('SkillAssessmentService', () => {
         getRawOne: jest.fn().mockResolvedValue({ max: '0' }),
       })),
     };
-
-    questionGeneration = {
-      generateQuestions: jest.fn().mockResolvedValue([]),
-    };
+    eligibleSkillQuestions = makeSkillBankQuestions();
 
     talentProfileRepo = {
       findOne: jest.fn().mockResolvedValue(profile),
@@ -117,11 +119,6 @@ describe('SkillAssessmentService', () => {
 
     mockTransaction();
 
-    personalAssessmentService = {
-      getAiContext: jest
-        .fn()
-        .mockResolvedValue({ track: 'frontend_developer' }),
-    };
     rubricScoring = { scoreAnswers: jest.fn().mockResolvedValue([]) };
 
     service = new SkillAssessmentService(
@@ -133,8 +130,6 @@ describe('SkillAssessmentService', () => {
       {} as never,
       rubricScoring as never,
       { generate: jest.fn() } as never,
-      questionGeneration as never,
-      personalAssessmentService as never,
     );
   });
 
@@ -147,7 +142,6 @@ describe('SkillAssessmentService', () => {
     await expect(service.start(userId)).rejects.toMatchObject({
       message: ErrorMessages.SKILL_ASSESSMENT.MAX_ATTEMPTS_REACHED,
     });
-    expect(talentProfileRepo.manager.transaction).not.toHaveBeenCalled();
     expect(attemptRepo.save).not.toHaveBeenCalled();
   });
 
@@ -173,6 +167,24 @@ describe('SkillAssessmentService', () => {
 
     expect(result.session_id).toBe('attempt-1');
     expect(result).not.toHaveProperty('attempt_id');
+    expect(result.questions).toHaveLength(10);
+    expect(attemptRepo.save).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          question_id: 'skill-mcq-1',
+          user_answer: { served: true },
+        }),
+      ]),
+    );
+  });
+
+  it('refuses to start when the unseen bank lacks the skill question mix', async () => {
+    eligibleSkillQuestions = makeSkillBankQuestions().slice(0, 9);
+
+    await expect(service.start(userId)).rejects.toMatchObject({
+      message: ErrorMessages.SKILL_ASSESSMENT.NO_QUESTIONS_AVAILABLE,
+    });
+    expect(attemptRepo.save).not.toHaveBeenCalled();
   });
 
   it('returns a stored skill session without exposing correct answers or side effects', async () => {
@@ -286,6 +298,23 @@ describe('SkillAssessmentService', () => {
     expect(result).not.toHaveProperty('attempt_id');
   });
 
+  it('resolves Stage 2 confirmed-level outcomes from claimed-level score', () => {
+    const resolveLevel = (
+      service as unknown as {
+        resolveValidatedLevel: (
+          percentage: number,
+          claimedLevel: VerifiedLevel,
+        ) => VerifiedLevel;
+      }
+    ).resolveValidatedLevel.bind(service);
+
+    expect(resolveLevel(70, VerifiedLevel.MID)).toBe(VerifiedLevel.MID);
+    expect(resolveLevel(59, VerifiedLevel.SENIOR)).toBe(VerifiedLevel.MID);
+    expect(resolveLevel(54, VerifiedLevel.EXPERT)).toBe(VerifiedLevel.JUNIOR);
+    expect(resolveLevel(54, VerifiedLevel.ENTRY)).toBe(VerifiedLevel.ENTRY);
+    expect(resolveLevel(100, VerifiedLevel.MID)).toBe(VerifiedLevel.MID);
+  });
+
   it('does not enforce attempt limit after advanced assessment is complete', async () => {
     profile.advanced_assessment_completed_at = new Date();
     attemptRepo.count.mockResolvedValue(SKILL_ASSESSMENT_MAX_ATTEMPTS);
@@ -307,7 +336,31 @@ describe('SkillAssessmentService', () => {
 type EntityManagerLike = {
   findOne: jest.Mock;
   getRepository: jest.Mock;
+  createQueryBuilder: jest.Mock;
   create: jest.Mock;
   save: jest.Mock;
   update: jest.Mock;
 };
+
+function makeSkillBankQuestions(): AssessmentQuestion[] {
+  return [
+    ...Array.from({ length: 6 }, (_ignored, index) =>
+      Object.assign(new AssessmentQuestion(), {
+        id: `skill-mcq-${index + 1}`,
+        question_type: QuestionType.SINGLE_PICK,
+        question_text: `Skill MCQ ${index + 1}`,
+        options: ['A', 'B'],
+        correct_answer: 'A',
+      }),
+    ),
+    ...Array.from({ length: 4 }, (_ignored, index) =>
+      Object.assign(new AssessmentQuestion(), {
+        id: `skill-text-${index + 1}`,
+        question_type: QuestionType.REQUIRED_TEXT,
+        question_text: `Skill text ${index + 1}`,
+        options: null,
+        correct_answer: null,
+      }),
+    ),
+  ];
+}

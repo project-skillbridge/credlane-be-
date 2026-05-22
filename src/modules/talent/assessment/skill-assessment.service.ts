@@ -16,7 +16,6 @@ import {
   AssessmentResult,
   AssessmentType,
   QuestionType,
-  SlotType,
   TalentQuestionHistory,
   VerifiedLevel,
 } from '../../assessments/entities';
@@ -26,24 +25,14 @@ import {
 } from '../entities/talent-profile.entity';
 import { SubmitSkillAssessmentDto } from './dto/skill-assessment.dto';
 import { ErrorMessages, SuccessMessages } from '../../../shared';
-import {
-  SKILL_ASSESSMENT_LEVEL_THRESHOLDS,
-  SKILL_ASSESSMENT_MAX_ATTEMPTS,
-} from '../talent.constants';
+import { SKILL_ASSESSMENT_MAX_ATTEMPTS } from '../talent.constants';
 import { RubricScoringService } from '../../ai/rubric-scoring.service';
 import { GuidanceReportService } from '../../ai/guidance-report.service';
-import { QuestionGenerationService } from '../../ai/question-generation.service';
 import { GuidanceReport, ScoredTextAnswer } from '../../ai/ai.types';
-import { PersonalAssessmentService } from './personal-assessment.service';
-import {
-  metadataDifficulty,
-  resolveCompetencyHint,
-  resolveIndustryContext,
-} from './assessment-utils';
 
 const SKILL_ASSESSMENT_MCQ_COUNT = 6;
 const SKILL_ASSESSMENT_TEXT_COUNT = 4;
-const SKILL_ASSESSMENT_PASS_PERCENTAGE = 75;
+const SKILL_ASSESSMENT_PASS_PERCENTAGE = 70;
 
 export interface SkillAssessmentQuestion {
   question_id: string;
@@ -134,8 +123,6 @@ export class SkillAssessmentService {
 
     private readonly rubricScoring: RubricScoringService,
     private readonly guidanceReport: GuidanceReportService,
-    private readonly questionGeneration: QuestionGenerationService,
-    private readonly personalAssessmentService: PersonalAssessmentService,
   ) {}
 
   private countCompletedSkillAttempts(
@@ -223,54 +210,9 @@ export class SkillAssessmentService {
         ErrorMessages.SKILL_ASSESSMENT.TRACK_MISSING,
       );
     }
-    // block start if max of 3 is reached
-    await this.assertSkillAssessmentAttemptsRemaining(profile);
-
     const verifiedLevel = profile.claimed_level;
-    const personalContext =
-      await this.personalAssessmentService.getAiContext(userId);
-    const industryContext = resolveIndustryContext(personalContext);
-    const competencyHint = resolveCompetencyHint(personalContext);
-
-    const [generatedMcqs, generatedTexts] = await Promise.all([
-      this.questionGeneration.generateQuestions({
-        track: profile.track,
-        verified_level: verifiedLevel,
-        assessment_type: 'skill',
-        question_type: QuestionType.SINGLE_PICK,
-        slot_type: SlotType.WORK_TASK,
-        competency: competencyHint,
-        industry_context: industryContext,
-        count: SKILL_ASSESSMENT_MCQ_COUNT,
-      }),
-      this.questionGeneration.generateQuestions({
-        track: profile.track,
-        verified_level: verifiedLevel,
-        assessment_type: 'skill',
-        question_type: QuestionType.REQUIRED_TEXT,
-        slot_type: SlotType.SITUATIONAL,
-        competency: competencyHint,
-        industry_context: industryContext,
-        count: SKILL_ASSESSMENT_TEXT_COUNT,
-      }),
-    ]);
-
-    const savedQuestions = await this.persistGeneratedQuestions(
-      profile.track,
-      verifiedLevel,
-      [...generatedMcqs, ...generatedTexts],
-    );
-
-    const orderedQuestions = savedQuestions.map((question, index) => ({
-      question_id: question.id,
-      question_number: index + 1,
-      question_type: question.question_type,
-      question_text: question.question_text,
-      options: question.options,
-      correct_answer: question.correct_answer,
-    }));
-
-    const savedAttempt = await this.talentProfileRepo.manager.transaction(
+    const { savedAttempt, orderedQuestions } =
+      await this.talentProfileRepo.manager.transaction(
       async (manager) => {
         const lockedProfile = await manager.findOne(TalentProfile, {
           where: { id: profile.id },
@@ -288,19 +230,53 @@ export class SkillAssessmentService {
           manager,
         );
 
-        const attempt = manager.create(AssessmentAttempt, {
-          talent_profile_id: lockedProfile.id,
-          assessment_type: AssessmentType.SKILL,
-          started_at: new Date(),
-          completed_at: null,
-          expires_at: null,
-          generated_questions_json: {
-            context: { verified_level: verifiedLevel },
-            questions: orderedQuestions,
-          },
-        });
+        const bankQuestions = await this.findEligibleSkillQuestions(
+          manager,
+          lockedProfile,
+          verifiedLevel,
+        );
+        const selectedQuestions = this.selectSkillQuestionMix(bankQuestions);
+        const orderedQuestions = selectedQuestions.map((question, index) => ({
+          question_id: question.id,
+          question_number: index + 1,
+          question_type: question.question_type,
+          question_text: question.question_text,
+          options: question.options,
+          correct_answer: question.correct_answer,
+        }));
+        const startedAt = new Date();
+        const attempt = await manager.save(
+          AssessmentAttempt,
+          manager.create(AssessmentAttempt, {
+            talent_profile_id: lockedProfile.id,
+            assessment_type: AssessmentType.SKILL,
+            started_at: startedAt,
+            completed_at: null,
+            expires_at: null,
+            generated_questions_json: {
+              context: { verified_level: verifiedLevel },
+              questions: orderedQuestions,
+            },
+          }),
+        );
 
-        return manager.save(AssessmentAttempt, attempt);
+        await manager.save(
+          TalentQuestionHistory,
+          selectedQuestions.map((question) =>
+            manager.create(TalentQuestionHistory, {
+              talent_profile_id: lockedProfile.id,
+              question_id: question.id,
+              attempt_id: attempt.id,
+              user_answer: { served: true },
+              is_correct: null,
+              raw_score: null,
+              max_score: null,
+              answered_at: startedAt,
+            }),
+          ),
+        );
+
+        return { savedAttempt: attempt, orderedQuestions };
       },
     );
 
@@ -420,7 +396,7 @@ export class SkillAssessmentService {
       answer: string;
     }> = [];
     const responsesToSave: Partial<AssessmentResponse>[] = [];
-    const historyToSave: Partial<TalentQuestionHistory>[] = [];
+    const historyPatches = new Map<string, Partial<TalentQuestionHistory>>();
 
     for (const question of sessionQuestions) {
       const submitted = answerMap.get(question.question_id);
@@ -450,10 +426,7 @@ export class SkillAssessmentService {
       });
 
       if (entityMap.has(question.question_id)) {
-        historyToSave.push({
-          talent_profile_id: profile.id,
-          question_id: question.question_id,
-          attempt_id: attempt.id,
+        historyPatches.set(question.question_id, {
           user_answer: submitted?.answer ?? null,
           is_correct: isCorrect,
           raw_score: isCorrect === null ? null : isCorrect ? 1 : 0,
@@ -484,9 +457,7 @@ export class SkillAssessmentService {
         response.ai_evaluation_json = { ...scored.rubric };
       }
 
-      const historyEntry = historyToSave.find(
-        (entry) => entry.question_id === scored.question_id,
-      );
+      const historyEntry = historyPatches.get(scored.question_id);
       if (historyEntry) {
         historyEntry.raw_score = scored.raw_score;
         historyEntry.max_score = scored.max_score;
@@ -504,7 +475,7 @@ export class SkillAssessmentService {
     );
     const claimed = profile.claimed_level ?? VerifiedLevel.ENTRY;
     const downgraded = levelIsLower(validatedLevel, claimed);
-    const passed = true; // Advanced assessment is unlocked for anyone who completes skill assessment
+    const passed = percentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE;
     const tier = this.resolveSkillTier(percentage);
 
     let guidanceReport: GuidanceReport | null = null;
@@ -534,8 +505,16 @@ export class SkillAssessmentService {
 
     await this.talentProfileRepo.manager.transaction(async (manager) => {
       await manager.save(AssessmentResponse, responsesToSave);
-      if (historyToSave.length > 0) {
-        await manager.save(TalentQuestionHistory, historyToSave);
+      for (const [questionId, patch] of historyPatches) {
+        await manager.update(
+          TalentQuestionHistory,
+          {
+            talent_profile_id: profile.id,
+            question_id: questionId,
+            attempt_id: attempt.id,
+          },
+          patch,
+        );
       }
 
       attempt.completed_at = new Date();
@@ -585,87 +564,61 @@ export class SkillAssessmentService {
     };
   }
 
-  private async persistGeneratedQuestions(
-    track: string,
+  private async findEligibleSkillQuestions(
+    manager: EntityManager,
+    profile: TalentProfile,
     verifiedLevel: VerifiedLevel,
-    generated: Array<{
-      question_text: string;
-      question_type: QuestionType;
-      slot_type: SlotType | null;
-      options: string[] | null;
-      correct_answer: string | null;
-      competency: string | null;
-      industry_context: string | null;
-    }>,
   ): Promise<AssessmentQuestion[]> {
-    const nextQuestionNumber = await this.nextSkillQuestionNumber();
-
-    const questions = generated.map((question, index) =>
-      this.questionRepo.create({
-        assessment_type: AssessmentType.SKILL,
-        question_type: question.question_type,
-        question_text: question.question_text,
-        question_number: nextQuestionNumber + index,
-        options: question.options,
-        correct_answer: question.correct_answer,
-        track,
-        verified_level: verifiedLevel,
-        competency: question.competency ?? 'general',
-        slot_type: null,
-        metadata: this.buildGeneratedQuestionMetadata({
-          track,
-          verifiedLevel,
-          questionType: question.question_type,
-          competency: question.competency ?? 'general',
-          slotType: question.slot_type,
-          industryContext: question.industry_context,
-        }),
-        is_live: false,
-      }),
-    );
-
-    return this.questionRepo.save(questions);
-  }
-
-  private buildGeneratedQuestionMetadata(input: {
-    track: string;
-    verifiedLevel: VerifiedLevel;
-    questionType: QuestionType;
-    competency: string | null;
-    slotType: SlotType | null;
-    industryContext: string | null;
-  }): Record<string, unknown> {
-    const isTextQuestion =
-      input.questionType === QuestionType.REQUIRED_TEXT ||
-      input.questionType === QuestionType.OPTIONAL_TEXT;
-
-    return {
-      difficulty: metadataDifficulty(input.verifiedLevel),
-      estimated_time_seconds: isTextQuestion ? 300 : 90,
-      tags: [
-        'generated',
-        'skill',
-        input.track,
-        input.verifiedLevel,
-        input.competency,
-        input.slotType,
-      ].filter((tag): tag is string => Boolean(tag)),
-      generated: true,
-      industry_context: input.industryContext,
-      slot_type: input.slotType,
-    };
-  }
-
-  private async nextSkillQuestionNumber(): Promise<number> {
-    const row = await this.questionRepo
-      .createQueryBuilder('question')
-      .select('MAX(question.question_number)', 'max')
+    return manager
+      .createQueryBuilder(AssessmentQuestion, 'question')
       .where('question.assessment_type = :assessmentType', {
         assessmentType: AssessmentType.SKILL,
       })
-      .getRawOne<{ max: string | null }>();
+      .andWhere('question.is_live = true')
+      .andWhere('question.track = :track', { track: profile.track })
+      .andWhere('question.verified_level = :verifiedLevel', {
+        verifiedLevel,
+      })
+      .andWhere(
+        `NOT EXISTS (
+          SELECT 1
+          FROM talent_question_history history
+          WHERE history.question_id = question.id
+          AND history.talent_profile_id = :talentProfileId
+        )`,
+        { talentProfileId: profile.id },
+      )
+      .orderBy('RANDOM()')
+      .getMany();
+  }
 
-    return Number(row?.max ?? 0) + 1;
+  private selectSkillQuestionMix(
+    bankQuestions: AssessmentQuestion[],
+  ): AssessmentQuestion[] {
+    const mcqs = bankQuestions
+      .filter((question) => this.isPickQuestion(question))
+      .slice(0, SKILL_ASSESSMENT_MCQ_COUNT);
+    const text = bankQuestions
+      .filter((question) => !this.isPickQuestion(question))
+      .slice(0, SKILL_ASSESSMENT_TEXT_COUNT);
+
+    if (
+      mcqs.length < SKILL_ASSESSMENT_MCQ_COUNT ||
+      text.length < SKILL_ASSESSMENT_TEXT_COUNT
+    ) {
+      throw new UnprocessableEntityException(
+        ErrorMessages.SKILL_ASSESSMENT.NO_QUESTIONS_AVAILABLE,
+      );
+    }
+
+    return [...mcqs, ...text];
+  }
+
+  private isPickQuestion(question: AssessmentQuestion): boolean {
+    return (
+      question.question_type === QuestionType.SINGLE_PICK ||
+      question.question_type === QuestionType.MULTI_PICK
+    );
   }
 
   private readSessionPayload(
@@ -713,19 +666,25 @@ export class SkillAssessmentService {
     percentage: number,
     claimedLevel: VerifiedLevel,
   ): VerifiedLevel {
-    let rawLevel = VerifiedLevel.ENTRY;
-    for (const threshold of SKILL_ASSESSMENT_LEVEL_THRESHOLDS) {
-      if (percentage >= threshold.min) {
-        rawLevel = threshold.level;
-        break;
-      }
+    if (percentage < 55) {
+      return LEVEL_ORDER[claimedLevel] > LEVEL_ORDER[VerifiedLevel.JUNIOR]
+        ? VerifiedLevel.JUNIOR
+        : claimedLevel;
     }
 
-    if (LEVEL_ORDER[rawLevel] > LEVEL_ORDER[claimedLevel]) {
-      return claimedLevel;
+    if (percentage < 60) {
+      return this.levelBelow(claimedLevel);
     }
 
-    return rawLevel;
+    // The claimed-level bank can confirm or demote. Promotion requires a
+    // separately scored above-level probe set and is intentionally not inferred.
+    return claimedLevel;
+  }
+
+  private levelBelow(level: VerifiedLevel): VerifiedLevel {
+    const levels = Object.values(VerifiedLevel);
+    const index = levels.indexOf(level);
+    return levels[Math.max(0, index - 1)] ?? VerifiedLevel.ENTRY;
   }
 
   private resolveSkillTier(percentage: number): TalentProfileStatus {
