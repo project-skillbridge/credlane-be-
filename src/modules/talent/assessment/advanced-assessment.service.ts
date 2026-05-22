@@ -970,6 +970,11 @@ export class AdvancedAssessmentService {
           where: { id: attempt.id },
           lock: { mode: 'pessimistic_write' },
         });
+        if (!updatedAttempt) {
+          throw new NotFoundException(
+            ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_NOT_FOUND,
+          );
+        }
 
         const unlocksAt = new Date();
         unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
@@ -979,15 +984,19 @@ export class AdvancedAssessmentService {
           { id: attempt.id },
           { force_submitted: true, completed_at: new Date() },
         );
-        await manager.update(TalentProfile, { id: profile.id }, {
-          assessment_locked_until: unlocksAt,
-          advanced_retake_required: true,
-        });
+        await manager.update(
+          TalentProfile,
+          { id: profile.id },
+          {
+            assessment_locked_until: unlocksAt,
+            advanced_retake_required: true,
+          },
+        );
 
         return {
           attemptId: attempt.id,
-          tabSwitchCount: updatedAttempt?.tab_switch_count ?? 0,
-          copyPasteCount: updatedAttempt?.copy_paste_count ?? 0,
+          tabSwitchCount: updatedAttempt.tab_switch_count,
+          copyPasteCount: updatedAttempt.copy_paste_count,
         };
       },
     );
