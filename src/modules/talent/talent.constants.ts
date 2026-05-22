@@ -38,7 +38,6 @@ export type TalentRoleTrack = (typeof TALENT_ROLE_TRACKS)[number];
 
 /** Same values as `verified_level_enum` / `ValidatedLevel` on the profile. */
 export const TALENT_CLAIMED_LEVELS = [
-  VerifiedLevel.ENTRY,
   VerifiedLevel.JUNIOR,
   VerifiedLevel.MID,
   VerifiedLevel.SENIOR,

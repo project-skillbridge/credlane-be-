@@ -256,6 +256,76 @@ describe('DashboardService', () => {
     expect(assessmentAttemptRepository.count).toHaveBeenCalled();
   });
 
+  it('keeps advanced locked until a skill assessment has been submitted once', async () => {
+    const talentUser = makeUser({
+      first_name: 'Jane',
+      role: UserRole.TALENT,
+      onboarding_complete: true,
+    });
+
+    const profile = makeProfile({
+      onboarding_step: 3,
+      goal: 'land_first_role',
+      track: 'frontend_developer',
+      region: 'Lagos',
+      education_level: 'bachelors',
+      claimed_level: VerifiedLevel.MID,
+      personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+      skill_assessment_completed_at: null,
+      validated_level: null,
+      status: TalentProfileStatus.IN_PROGRESS,
+    });
+
+    (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
+    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+    (assessmentAttemptRepository.count as jest.Mock).mockResolvedValue(1);
+    (queryBuilder.getOne as jest.Mock).mockResolvedValue(null);
+
+    const home = await service.getHome(talentUser.id);
+
+    expect(home.journeyOverview).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'skill',
+          status: DashboardJourneyStatus.AVAILABLE,
+        }),
+        expect.objectContaining({
+          key: 'advanced',
+          status: DashboardJourneyStatus.LOCKED,
+        }),
+      ]),
+    );
+  });
+
+  it('keeps skill locked until personal assessment has been completed once', async () => {
+    const talentUser = makeUser({
+      first_name: 'Jane',
+      role: UserRole.TALENT,
+      onboarding_complete: true,
+    });
+
+    const profile = makeProfile({
+      onboarding_step: 3,
+      goal: 'land_first_role',
+      track: 'frontend_developer',
+      region: 'Lagos',
+      education_level: 'bachelors',
+      claimed_level: VerifiedLevel.MID,
+      personal_assessment_completed_at: null,
+      status: TalentProfileStatus.IN_PROGRESS,
+    });
+
+    (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
+    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+
+    const home = await service.getHome(talentUser.id);
+    const skillJourney = home.journeyOverview.find(
+      (item) => item.key === 'skill',
+    );
+
+    expect(skillJourney?.status).toBe(DashboardJourneyStatus.LOCKED);
+  });
+
   it('keeps skill assessment available when attempts remain before advanced', async () => {
     const talentUser = makeUser({
       first_name: 'Jane',
@@ -315,6 +385,17 @@ describe('DashboardService', () => {
 
     (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
     (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+    (queryBuilder.getOne as jest.Mock).mockImplementation(() => {
+      if (lastAssessmentType === AssessmentType.SKILL) {
+        return Promise.resolve(
+          makeAssessmentResult({
+            percentage: 80,
+            validated_level: VerifiedLevel.MID,
+          }),
+        );
+      }
+      return Promise.resolve(null);
+    });
 
     const home = await service.getHome(talentUser.id);
     const skillJourney = home.journeyOverview.find(
@@ -334,7 +415,7 @@ describe('DashboardService', () => {
     expect(home.advancedRetake?.countdownSeconds).toBeGreaterThan(0);
   });
 
-  it('returns completed personal and skill assessments and unlocks advanced when the latest skill score passes', async () => {
+  it('keeps skill available and unlocks advanced after one completed skill attempt', async () => {
     const talentUser = makeUser({
       first_name: 'Jane',
       role: UserRole.TALENT,
@@ -359,6 +440,7 @@ describe('DashboardService', () => {
 
     (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
     (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+    (assessmentAttemptRepository.count as jest.Mock).mockResolvedValue(1);
     (queryBuilder.getOne as jest.Mock).mockImplementation(() => {
       if (lastAssessmentType === AssessmentType.SKILL) {
         return Promise.resolve(
@@ -388,7 +470,7 @@ describe('DashboardService', () => {
         {
           key: 'skill',
           title: 'Skill Assessment',
-          status: DashboardJourneyStatus.COMPLETED,
+          status: DashboardJourneyStatus.AVAILABLE,
         },
         {
           key: 'advanced',
@@ -407,6 +489,62 @@ describe('DashboardService', () => {
         },
         advanced: null,
       },
+    });
+  });
+
+  it('keeps skill available and unlocks advanced after a failed skill attempt with retries left', async () => {
+    const talentUser = makeUser({
+      first_name: 'Jane',
+      role: UserRole.TALENT,
+      onboarding_complete: true,
+    });
+
+    const profile = makeProfile({
+      onboarding_step: 3,
+      goal: 'land_first_role',
+      track: 'frontend_developer',
+      region: 'Lagos',
+      education_level: 'bachelors',
+      claimed_level: VerifiedLevel.MID,
+      personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+      skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
+      validated_level: VerifiedLevel.JUNIOR,
+      status: TalentProfileStatus.IN_PROGRESS,
+    });
+
+    (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
+    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+    (assessmentAttemptRepository.count as jest.Mock).mockResolvedValue(1);
+    (queryBuilder.getOne as jest.Mock).mockImplementation(() => {
+      if (lastAssessmentType === AssessmentType.SKILL) {
+        return Promise.resolve(
+          makeAssessmentResult({
+            percentage: 45,
+            claimed_percentage: 45,
+            validated_level: VerifiedLevel.JUNIOR,
+          }),
+        );
+      }
+      return Promise.resolve(null);
+    });
+
+    const home = await service.getHome(talentUser.id);
+
+    expect(home.journeyOverview).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: 'skill',
+          status: DashboardJourneyStatus.AVAILABLE,
+        }),
+        expect.objectContaining({
+          key: 'advanced',
+          status: DashboardJourneyStatus.AVAILABLE,
+        }),
+      ]),
+    );
+    expect(home.performance.skill).toMatchObject({
+      percentage: 45,
+      passed: false,
     });
   });
 

@@ -76,6 +76,8 @@ export const env = createEnv({
     AWS_S3_BUCKET: z.string().optional(),
     AWS_ACCESS_KEY_ID: z.string().optional(),
     AWS_SECRET_ACCESS_KEY: z.string().optional(),
+    AWS_ENDPOINT: z.string().url().optional(),
+    AWS_PUBLIC_URL: z.string().url().optional(),
 
     OPENROUTER_API_KEY: z.string().min(1).optional(),
     OPENROUTER_MODEL: z.string().default('openai/gpt-oss-120b:free'),

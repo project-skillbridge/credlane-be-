@@ -19,6 +19,7 @@ import { ErrorMessages } from '../../../shared';
 import { SKILL_ASSESSMENT_MAX_ATTEMPTS } from '../talent.constants';
 import { SkillAssessmentService } from './skill-assessment.service';
 import { makeTalentProfile } from './personal-assessment.test-fixtures';
+import { IntegrityEventType } from './dto/integrity-event.dto';
 
 describe('SkillAssessmentService', () => {
   let service: SkillAssessmentService;
@@ -330,8 +331,8 @@ describe('SkillAssessmentService', () => {
     expect(resolveLevel(54, 0, 0, 54, VerifiedLevel.EXPERT)).toBe(
       VerifiedLevel.JUNIOR,
     );
-    expect(resolveLevel(54, 0, 0, 54, VerifiedLevel.ENTRY)).toBe(
-      VerifiedLevel.ENTRY,
+    expect(resolveLevel(54, 0, 0, 54, VerifiedLevel.JUNIOR)).toBe(
+      VerifiedLevel.JUNIOR,
     );
     expect(resolveLevel(95, 70, 0, 92, VerifiedLevel.MID)).toBe(
       VerifiedLevel.SENIOR,
@@ -359,6 +360,69 @@ describe('SkillAssessmentService', () => {
     ).resolves.toBeUndefined();
 
     expect(attemptRepo.count).not.toHaveBeenCalled();
+  });
+
+  describe('flag()', () => {
+    it('voids an active skill session and returns logout action', async () => {
+      const attempt = Object.assign(new AssessmentAttempt(), {
+        id: 'attempt-1',
+        talent_profile_id: profile.id,
+        assessment_type: AssessmentType.SKILL,
+        completed_at: null,
+        force_submitted: false,
+        tab_switch_count: 0,
+        copy_paste_count: 0,
+      });
+
+      talentProfileRepo.manager.transaction.mockImplementation(
+        async (
+          work: (manager: Record<string, jest.Mock>) => Promise<unknown>,
+        ) =>
+          work({
+            findOne: jest
+              .fn()
+              .mockResolvedValueOnce(attempt)
+              .mockResolvedValueOnce({
+                ...attempt,
+                tab_switch_count: 1,
+                copy_paste_count: 0,
+              }),
+            increment: jest.fn().mockResolvedValue(undefined),
+            update: jest.fn().mockResolvedValue(undefined),
+          }),
+      );
+
+      const result = await service.flag(userId, 'attempt-1', {
+        event_type: IntegrityEventType.TAB_SWITCH,
+      });
+
+      expect(result.status).toBe('voided');
+      expect(result.action).toBe('logout');
+      expect(result.session_voided).toBe(true);
+      expect(result.tab_switch_count).toBe(1);
+    });
+
+    it('throws 400 when flagging a completed skill session', async () => {
+      talentProfileRepo.manager.transaction.mockImplementation(
+        async (
+          work: (manager: Record<string, jest.Mock>) => Promise<unknown>,
+        ) =>
+          work({
+            findOne: jest.fn().mockResolvedValue(
+              Object.assign(new AssessmentAttempt(), {
+                id: 'attempt-1',
+                completed_at: new Date(),
+              }),
+            ),
+          }),
+      );
+
+      await expect(
+        service.flag(userId, 'attempt-1', {
+          event_type: IntegrityEventType.COPY_PASTE,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
   });
 });
 

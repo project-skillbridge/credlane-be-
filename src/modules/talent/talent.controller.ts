@@ -16,6 +16,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import {
+  ApiBody,
   ApiCookieAuth,
   ApiConsumes,
   ApiForbiddenResponse,
@@ -87,6 +88,15 @@ export class TalentController {
     summary: 'Upload avatar to S3; returns avatarUrl for use in profile step',
   })
   @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
@@ -182,6 +192,14 @@ export class TalentController {
       'Step 3 — save talent profile with optional photo upload (BE-ONB-TAL-003)',
   })
   @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        photo: { type: 'string', format: 'binary' },
+      },
+    },
+  })
   @UseInterceptors(
     FileInterceptor('photo', {
       storage: memoryStorage(),

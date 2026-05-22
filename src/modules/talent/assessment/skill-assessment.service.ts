@@ -23,6 +23,11 @@ import {
   TalentProfile,
   TalentProfileStatus,
 } from '../entities/talent-profile.entity';
+import {
+  FlagIntegrityEventDto,
+  IntegrityEventType,
+  IntegrityFlagResult,
+} from './dto/integrity-event.dto';
 import { SubmitSkillAssessmentDto } from './dto/skill-assessment.dto';
 import { ErrorMessages, SuccessMessages } from '../../../shared';
 import {
@@ -95,11 +100,10 @@ export interface SubmitSkillAssessmentResult {
 }
 
 const LEVEL_ORDER: Record<VerifiedLevel, number> = {
-  [VerifiedLevel.ENTRY]: 0,
-  [VerifiedLevel.JUNIOR]: 1,
-  [VerifiedLevel.MID]: 2,
-  [VerifiedLevel.SENIOR]: 3,
-  [VerifiedLevel.EXPERT]: 4,
+  [VerifiedLevel.JUNIOR]: 0,
+  [VerifiedLevel.MID]: 1,
+  [VerifiedLevel.SENIOR]: 2,
+  [VerifiedLevel.EXPERT]: 3,
 };
 
 function levelIsLower(a: VerifiedLevel, b: VerifiedLevel): boolean {
@@ -383,7 +387,7 @@ export class SkillAssessmentService {
       verified_level:
         payload.context?.verified_level ??
         profile.claimed_level ??
-        VerifiedLevel.ENTRY,
+        VerifiedLevel.JUNIOR,
       questions: this.toPublicSessionQuestions(questions),
     };
   }
@@ -609,9 +613,9 @@ export class SkillAssessmentService {
       aboveLevelPercentage,
       belowLevelPercentage,
       percentage,
-      profile.claimed_level ?? VerifiedLevel.ENTRY,
+      profile.claimed_level ?? VerifiedLevel.JUNIOR,
     );
-    const claimed = profile.claimed_level ?? VerifiedLevel.ENTRY;
+    const claimed = profile.claimed_level ?? VerifiedLevel.JUNIOR;
     const downgraded = levelIsLower(validatedLevel, claimed);
     const passed = claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE;
     const tier = this.resolveSkillTier(percentage);
@@ -887,7 +891,7 @@ export class SkillAssessmentService {
   private levelBelow(level: VerifiedLevel): VerifiedLevel {
     const levels = Object.values(VerifiedLevel);
     const index = levels.indexOf(level);
-    return levels[Math.max(0, index - 1)] ?? VerifiedLevel.ENTRY;
+    return levels[Math.max(0, index - 1)] ?? VerifiedLevel.JUNIOR;
   }
 
   private resolveSkillTier(percentage: number): TalentProfileStatus {
@@ -951,5 +955,95 @@ export class SkillAssessmentService {
     }
 
     return [...competencies];
+  }
+
+  async flag(
+    userId: string,
+    sessionId: string,
+    dto: FlagIntegrityEventDto,
+  ): Promise<IntegrityFlagResult> {
+    const profile = await this.talentProfileRepo.findOne({
+      where: { user_id: userId },
+    });
+    if (!profile) {
+      throw new NotFoundException(
+        ErrorMessages.SKILL_ASSESSMENT.PROFILE_NOT_FOUND,
+      );
+    }
+
+    const counterField =
+      dto.event_type === IntegrityEventType.TAB_SWITCH
+        ? 'tab_switch_count'
+        : 'copy_paste_count';
+
+    const result = await this.talentProfileRepo.manager.transaction(
+      async (manager) => {
+        const attempt = await manager.findOne(AssessmentAttempt, {
+          where: {
+            id: sessionId,
+            talent_profile_id: profile.id,
+            assessment_type: AssessmentType.SKILL,
+          },
+          lock: { mode: 'pessimistic_write' },
+        });
+
+        if (!attempt) {
+          throw new NotFoundException(
+            ErrorMessages.SKILL_ASSESSMENT.ATTEMPT_NOT_FOUND,
+          );
+        }
+        if (attempt.completed_at || attempt.force_submitted) {
+          throw new BadRequestException(
+            ErrorMessages.SKILL_ASSESSMENT.ATTEMPT_ALREADY_SUBMITTED,
+          );
+        }
+
+        await manager.increment(
+          AssessmentAttempt,
+          {
+            id: attempt.id,
+            talent_profile_id: profile.id,
+            assessment_type: AssessmentType.SKILL,
+          },
+          counterField,
+          1,
+        );
+
+        const updatedAttempt = await manager.findOne(AssessmentAttempt, {
+          where: { id: attempt.id },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!updatedAttempt) {
+          throw new NotFoundException(
+            ErrorMessages.SKILL_ASSESSMENT.ATTEMPT_NOT_FOUND,
+          );
+        }
+
+        await manager.update(
+          AssessmentAttempt,
+          { id: attempt.id },
+          { force_submitted: true, completed_at: new Date() },
+        );
+
+        return {
+          attemptId: attempt.id,
+          tabSwitchCount: updatedAttempt.tab_switch_count,
+          copyPasteCount: updatedAttempt.copy_paste_count,
+        };
+      },
+    );
+
+    this.logger.warn(
+      `Skill session voided - integrity ${dto.event_type}: attempt=${result.attemptId} user=${userId}`,
+    );
+
+    return {
+      status: 'voided',
+      message: ErrorMessages.SKILL_ASSESSMENT.SESSION_VOIDED,
+      tab_switch_count: result.tabSwitchCount,
+      copy_paste_count: result.copyPasteCount,
+      session_voided: true,
+      action: 'logout',
+    };
   }
 }
