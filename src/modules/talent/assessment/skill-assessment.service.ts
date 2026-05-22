@@ -95,11 +95,10 @@ export interface SubmitSkillAssessmentResult {
 }
 
 const LEVEL_ORDER: Record<VerifiedLevel, number> = {
-  [VerifiedLevel.ENTRY]: 0,
-  [VerifiedLevel.JUNIOR]: 1,
-  [VerifiedLevel.MID]: 2,
-  [VerifiedLevel.SENIOR]: 3,
-  [VerifiedLevel.EXPERT]: 4,
+  [VerifiedLevel.JUNIOR]: 0,
+  [VerifiedLevel.MID]: 1,
+  [VerifiedLevel.SENIOR]: 2,
+  [VerifiedLevel.EXPERT]: 3,
 };
 
 function levelIsLower(a: VerifiedLevel, b: VerifiedLevel): boolean {
@@ -383,7 +382,7 @@ export class SkillAssessmentService {
       verified_level:
         payload.context?.verified_level ??
         profile.claimed_level ??
-        VerifiedLevel.ENTRY,
+        VerifiedLevel.JUNIOR,
       questions: this.toPublicSessionQuestions(questions),
     };
   }
@@ -609,9 +608,9 @@ export class SkillAssessmentService {
       aboveLevelPercentage,
       belowLevelPercentage,
       percentage,
-      profile.claimed_level ?? VerifiedLevel.ENTRY,
+      profile.claimed_level ?? VerifiedLevel.JUNIOR,
     );
-    const claimed = profile.claimed_level ?? VerifiedLevel.ENTRY;
+    const claimed = profile.claimed_level ?? VerifiedLevel.JUNIOR;
     const downgraded = levelIsLower(validatedLevel, claimed);
     const passed = claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE;
     const tier = this.resolveSkillTier(percentage);
@@ -887,7 +886,7 @@ export class SkillAssessmentService {
   private levelBelow(level: VerifiedLevel): VerifiedLevel {
     const levels = Object.values(VerifiedLevel);
     const index = levels.indexOf(level);
-    return levels[Math.max(0, index - 1)] ?? VerifiedLevel.ENTRY;
+    return levels[Math.max(0, index - 1)] ?? VerifiedLevel.JUNIOR;
   }
 
   private resolveSkillTier(percentage: number): TalentProfileStatus {

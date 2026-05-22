@@ -115,7 +115,7 @@ export class VerifiedProfileService {
     const validatedLevel =
       profile.validated_level ??
       (poolProfile?.verified_level as VerifiedLevel | undefined) ??
-      VerifiedLevel.ENTRY;
+      VerifiedLevel.JUNIOR;
 
     const skillProficiency =
       validatedLevel != null
