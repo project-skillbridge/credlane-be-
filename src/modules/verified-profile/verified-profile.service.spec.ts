@@ -39,6 +39,7 @@ describe('VerifiedProfileService', () => {
     Repository<AssessmentResponse>,
     'find'
   >;
+  let openRouterService: { chat: jest.Mock };
   let resultQueryBuilder: {
     innerJoin: jest.Mock;
     where: jest.Mock;
@@ -77,6 +78,8 @@ describe('VerifiedProfileService', () => {
     };
     assessmentResponseRepository = { find: jest.fn().mockResolvedValue([]) };
 
+    openRouterService = { chat: jest.fn() };
+
     service = new VerifiedProfileService(
       talentProfileRepository as Repository<TalentProfile>,
       employerPoolRepository as Repository<EmployerPoolProfile>,
@@ -84,180 +87,408 @@ describe('VerifiedProfileService', () => {
       assessmentAttemptRepository as never,
       assessmentResponseRepository as never,
       usersService as UsersService,
+      openRouterService as never,
     );
   });
 
-  it('returns a verified profile for a job-ready talent', async () => {
-    const user = makeUser();
-    const profile = makeProfile({
-      status: TalentProfileStatus.JOB_READY,
-      goal: 'land_first_role',
-      bio: 'Builder of useful products',
-      track: 'frontend_developer',
-      validated_level: VerifiedLevel.MID,
-      personal_assessment_answers: {
-        tools: ['react', 'typescript'],
-        specialization: 'frontend_engineer',
-      },
-      advanced_assessment_completed_at: new Date('2026-05-03T00:00:00.000Z'),
-    });
-
-    (usersService.findOne as jest.Mock).mockResolvedValue(user);
-    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
-    (resultQueryBuilder.getOne as jest.Mock).mockImplementation(() => {
-      if (lastAssessmentType === AssessmentType.ADVANCED) {
-        return Promise.resolve(
-          makeResult({ tier: AssessmentTier.JOB_READY, percentage: 80 }),
-        );
-      }
-      if (lastAssessmentType === AssessmentType.SKILL) {
-        return Promise.resolve(makeResult({ percentage: 82 }));
-      }
-      return Promise.resolve(null);
-    });
-
-    await expect(service.getForTalentUser(user.id)).resolves.toEqual({
-      fullName: 'Jane Doe',
-      role: 'Frontend Engineer',
-      goal: 'Land First Role',
-      about: 'Builder of useful products',
-      skills: ['react', 'typescript'],
-      skillProficiency: {
-        validatedLevel: VerifiedLevel.MID,
-        skillAssessmentPercentage: 82,
-      },
-      verifiedAt: '2026-05-03T00:00:00.000Z',
-      tier: AssessmentTier.JOB_READY,
-    });
-  });
-
-  it('rejects non-talent users', async () => {
-    (usersService.findOne as jest.Mock).mockResolvedValue(
-      makeUser({ role: UserRole.EMPLOYER }),
-    );
-
-    await expect(service.getForTalentUser('user-1')).rejects.toBeInstanceOf(
-      ForbiddenError,
-    );
-  });
-
-  it('rejects when no persisted verification timestamp exists', async () => {
-    const user = makeUser();
-    const profile = makeProfile({
-      status: TalentProfileStatus.JOB_READY,
-      advanced_assessment_completed_at: null,
-    });
-
-    (usersService.findOne as jest.Mock).mockResolvedValue(user);
-    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
-    (resultQueryBuilder.getOne as jest.Mock).mockResolvedValue(null);
-
-    await expect(service.getForTalentUser(user.id)).rejects.toMatchObject({
-      message: ErrorMessages.VERIFIED_PROFILE.TIMESTAMP_UNAVAILABLE,
-    });
-  });
-
-  it('rejects talents who are not job-ready', async () => {
-    const user = makeUser();
-    const profile = makeProfile({
-      status: TalentProfileStatus.EMERGING,
-      advanced_assessment_completed_at: new Date(),
-    });
-
-    (usersService.findOne as jest.Mock).mockResolvedValue(user);
-    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
-    (resultQueryBuilder.getOne as jest.Mock).mockResolvedValue(
-      makeResult({ tier: AssessmentTier.EMERGING }),
-    );
-
-    await expect(service.getForTalentUser(user.id)).rejects.toBeInstanceOf(
-      NotFoundError,
-    );
-  });
-
-  it.each(['', 'bad-token', 'abc123'])(
-    'rejects malformed share token %j without querying the database',
-    async (token) => {
-      const promise = service.getByShareToken(token);
-
-      await expect(promise).rejects.toBeInstanceOf(BadRequestError);
-      await expect(promise).rejects.toMatchObject({
-        message: ErrorMessages.VERIFIED_PROFILE.INVALID_TOKEN,
+  describe('getForTalentUser', () => {
+    it('returns a verified profile for a job-ready talent', async () => {
+      const user = makeUser();
+      const profile = makeProfile({
+        status: TalentProfileStatus.JOB_READY,
+        goal: 'land_first_role',
+        bio: 'Builder of useful products',
+        track: 'frontend_developer',
+        validated_level: VerifiedLevel.MID,
+        personal_assessment_answers: {
+          tools: ['react', 'typescript'],
+          specialization: 'frontend_engineer',
+        },
+        advanced_assessment_completed_at: new Date('2026-05-03T00:00:00.000Z'),
+        personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
       });
-      expect(employerPoolRepository.findOne).not.toHaveBeenCalled();
-    },
-  );
+      const pool = Object.assign(new EmployerPoolProfile(), {
+        talent_profile_id: profile.id,
+        candidate_id: user.id,
+        shareable_link_token: 'ab'.repeat(32),
+        verified_at: new Date('2026-05-03T00:00:00.000Z'),
+        verified_level: VerifiedLevel.MID,
+        strong_competencies: ['technical_reasoning', 'communication'],
+        competency_scores: { technical_reasoning: 92, communication: 78 },
+      });
 
-  it('loads a verified profile by share token', async () => {
-    const shareToken = 'ab'.repeat(32);
+      (usersService.findOne as jest.Mock).mockResolvedValue(user);
+      (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+      (employerPoolRepository.findOne as jest.Mock).mockResolvedValue(pool);
+      openRouterService.chat.mockResolvedValue({
+        summary:
+          'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
+      });
+      (resultQueryBuilder.getOne as jest.Mock).mockImplementation(() => {
+        if (lastAssessmentType === AssessmentType.ADVANCED) {
+          return Promise.resolve(
+            makeResult({ tier: AssessmentTier.JOB_READY, percentage: 80 }),
+          );
+        }
+        if (lastAssessmentType === AssessmentType.SKILL) {
+          return Promise.resolve(makeResult({ percentage: 82 }));
+        }
+        return Promise.resolve(null);
+      });
 
-    const user = makeUser();
-    const profile = makeProfile({
-      status: TalentProfileStatus.JOB_READY,
-      track: 'backend_developer',
-      bio: 'API specialist',
+      const result = await service.getForTalentUser(user.id);
+
+      expect(result).toMatchObject({
+        fullName: 'Jane Doe',
+        role: 'Frontend Engineer',
+        goal: 'Land First Role',
+        about: 'Builder of useful products',
+        skills: ['react', 'typescript'],
+        verified: true,
+        status: TalentProfileStatus.JOB_READY,
+        aiSummary:
+          'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
+        skillProficiency: {
+          validatedLevel: VerifiedLevel.MID,
+          skillAssessmentPercentage: 82,
+        },
+        seniorityBadge: 'Mid Level',
+        tierLabel: 'Job Ready',
+        scorePercentage: 80,
+        verifiedAt: '2026-05-03T00:00:00.000Z',
+        tier: AssessmentTier.JOB_READY,
+        isOwner: true,
+      });
+      expect(result.keyStrengths).toBeDefined();
+      expect(result.keyStrengths!.length).toBeGreaterThan(0);
+      expect(result.shareUrl).toContain('/verified-profiles/');
+      expect(result.qrCodeUrl).toContain('api.qrserver.com');
     });
-    const pool = Object.assign(new EmployerPoolProfile(), {
-      candidate_id: user.id,
-      talent_profile: profile,
-      shareable_link_token: shareToken,
-      verified_at: new Date('2026-05-04T00:00:00.000Z'),
-      specialization: 'api_engineering',
-      verified_level: VerifiedLevel.SENIOR,
+
+    it('rejects non-talent users', async () => {
+      (usersService.findOne as jest.Mock).mockResolvedValue(
+        makeUser({ role: UserRole.EMPLOYER }),
+      );
+
+      await expect(service.getForTalentUser('user-1')).rejects.toBeInstanceOf(
+        ForbiddenError,
+      );
     });
 
-    (employerPoolRepository.findOne as jest.Mock).mockResolvedValue(pool);
-    (usersService.findOne as jest.Mock).mockResolvedValue(user);
-    (resultQueryBuilder.getOne as jest.Mock).mockImplementation(() => {
-      if (lastAssessmentType === AssessmentType.ADVANCED) {
-        return Promise.resolve(makeResult({ tier: AssessmentTier.JOB_READY }));
-      }
-      return Promise.resolve(null);
+    it('rejects when talent profile does not exist', async () => {
+      (usersService.findOne as jest.Mock).mockResolvedValue(makeUser());
+      (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.getForTalentUser('user-1')).rejects.toBeInstanceOf(
+        NotFoundError,
+      );
     });
 
-    await expect(service.getByShareToken(shareToken)).resolves.toMatchObject({
-      fullName: 'Jane Doe',
-      role: 'Api Engineering',
-      about: 'API specialist',
-      verifiedAt: '2026-05-04T00:00:00.000Z',
-      skillProficiency: { validatedLevel: VerifiedLevel.MID },
+    it('rejects when personal assessment (Stage 1) is not completed', async () => {
+      const user = makeUser();
+      const profile = makeProfile({
+        status: TalentProfileStatus.JOB_READY,
+        personal_assessment_completed_at: null,
+        advanced_assessment_completed_at: new Date('2026-05-03T00:00:00.000Z'),
+      });
+
+      (usersService.findOne as jest.Mock).mockResolvedValue(user);
+      (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+
+      await expect(service.getForTalentUser(user.id)).rejects.toMatchObject({
+        message:
+          ErrorMessages.ADVANCED_ASSESSMENT.PERSONAL_ASSESSMENT_INCOMPLETE,
+      });
+    });
+
+    it('rejects when no persisted verification timestamp exists', async () => {
+      const user = makeUser();
+      const profile = makeProfile({
+        status: TalentProfileStatus.JOB_READY,
+        personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+        advanced_assessment_completed_at: null,
+      });
+
+      (usersService.findOne as jest.Mock).mockResolvedValue(user);
+      (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+      (resultQueryBuilder.getOne as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.getForTalentUser(user.id)).rejects.toMatchObject({
+        message: ErrorMessages.VERIFIED_PROFILE.TIMESTAMP_UNAVAILABLE,
+      });
+    });
+
+    it('rejects talents who are not job-ready', async () => {
+      const user = makeUser();
+      const profile = makeProfile({
+        status: TalentProfileStatus.EMERGING,
+        personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+        advanced_assessment_completed_at: new Date(),
+      });
+
+      (usersService.findOne as jest.Mock).mockResolvedValue(user);
+      (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+      (resultQueryBuilder.getOne as jest.Mock).mockResolvedValue(
+        makeResult({ tier: AssessmentTier.EMERGING }),
+      );
+
+      await expect(service.getForTalentUser(user.id)).rejects.toBeInstanceOf(
+        NotFoundError,
+      );
+    });
+
+    it('returns avatarUrl when user has one', async () => {
+      const user = makeUser({
+        avatar_url: 'https://example.com/avatar.jpg',
+      });
+      const profile = makeProfile({
+        status: TalentProfileStatus.JOB_READY,
+        personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+      });
+      const pool = Object.assign(new EmployerPoolProfile(), {
+        talent_profile_id: profile.id,
+        candidate_id: user.id,
+        shareable_link_token: 'ef'.repeat(32),
+        verified_at: new Date('2026-05-03T00:00:00.000Z'),
+        verified_level: VerifiedLevel.MID,
+      });
+
+      (usersService.findOne as jest.Mock).mockResolvedValue(user);
+      (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+      (employerPoolRepository.findOne as jest.Mock).mockResolvedValue(pool);
+      (resultQueryBuilder.getOne as jest.Mock).mockResolvedValue(
+        makeResult({ tier: AssessmentTier.JOB_READY }),
+      );
+
+      const result = await service.getForTalentUser(user.id);
+      expect(result.avatarUrl).toBe('https://example.com/avatar.jpg');
+    });
+
+    it('returns undefined optional fields when data is minimal', async () => {
+      const user = makeUser();
+      const profile = makeProfile({
+        status: TalentProfileStatus.JOB_READY,
+        personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+        bio: null,
+        track: null,
+        goal: null,
+        validated_level: null,
+        personal_assessment_answers: null,
+      });
+      const pool = Object.assign(new EmployerPoolProfile(), {
+        talent_profile_id: profile.id,
+        candidate_id: user.id,
+        shareable_link_token: 'gh'.repeat(32),
+        verified_at: new Date('2026-05-03T00:00:00.000Z'),
+        verified_level: VerifiedLevel.ENTRY,
+        strong_competencies: null,
+        competency_scores: null,
+      });
+
+      (usersService.findOne as jest.Mock).mockResolvedValue(user);
+      (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+      (employerPoolRepository.findOne as jest.Mock).mockResolvedValue(pool);
+      (resultQueryBuilder.getOne as jest.Mock).mockResolvedValue(
+        makeResult({ tier: null, percentage: null }),
+      );
+
+      const result = await service.getForTalentUser(user.id);
+
+      expect(result.goal).toBe('');
+      expect(result.about).toBe('');
+      expect(result.skills).toBeUndefined();
+      expect(result.aiSummary).toBeUndefined();
+      expect(result.keyStrengths).toBeUndefined();
+      expect(result.professionalSkills).toBeUndefined();
+      expect(result.softSkills).toBeUndefined();
+      expect(result.scorePercentage).toBeUndefined();
+      expect(result.seniorityBadge).toBe('Entry Level');
+      expect(result.tierLabel).toBeUndefined();
+    });
+
+    it('falls back to profile_share_link when no employer pool profile exists', async () => {
+      const user = makeUser();
+      const profile = makeProfile({
+        status: TalentProfileStatus.JOB_READY,
+        personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+        profile_share_link: 'legacy-share-link-123',
+      });
+
+      (usersService.findOne as jest.Mock).mockResolvedValue(user);
+      (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+      (employerPoolRepository.findOne as jest.Mock).mockResolvedValue(null);
+      (resultQueryBuilder.getOne as jest.Mock).mockResolvedValue(
+        makeResult({ tier: AssessmentTier.JOB_READY }),
+      );
+
+      const result = await service.getForTalentUser(user.id);
+      expect(result.shareUrl).toContain('legacy-share-link-123');
+      expect(result.qrCodeUrl).toContain('api.qrserver.com');
+    });
+
+    it('gracefully degrades AI summary when OpenRouter fails', async () => {
+      const user = makeUser();
+      const profile = makeProfile({
+        status: TalentProfileStatus.JOB_READY,
+        personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+      });
+      const pool = Object.assign(new EmployerPoolProfile(), {
+        talent_profile_id: profile.id,
+        candidate_id: user.id,
+        shareable_link_token: 'ij'.repeat(32),
+        verified_at: new Date('2026-05-03T00:00:00.000Z'),
+        verified_level: VerifiedLevel.MID,
+      });
+
+      (usersService.findOne as jest.Mock).mockResolvedValue(user);
+      (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+      (employerPoolRepository.findOne as jest.Mock).mockResolvedValue(pool);
+      openRouterService.chat.mockRejectedValue(new Error('AI service down'));
+      (resultQueryBuilder.getOne as jest.Mock).mockResolvedValue(
+        makeResult({ tier: AssessmentTier.JOB_READY }),
+      );
+
+      const result = await service.getForTalentUser(user.id);
+      expect(result.aiSummary).toBeUndefined();
+    });
+
+    it('returns empty shareUrl when no token or pool link exists', async () => {
+      const user = makeUser();
+      const profile = makeProfile({
+        status: TalentProfileStatus.JOB_READY,
+        personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+        profile_share_link: null,
+      });
+
+      (usersService.findOne as jest.Mock).mockResolvedValue(user);
+      (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+      (employerPoolRepository.findOne as jest.Mock).mockResolvedValue(null);
+      (resultQueryBuilder.getOne as jest.Mock).mockResolvedValue(
+        makeResult({ tier: AssessmentTier.JOB_READY }),
+      );
+
+      const result = await service.getForTalentUser(user.id);
+      expect(result.shareUrl).toBe('');
+      expect(result.qrCodeUrl).toBeUndefined();
     });
   });
 
-  it('falls back to profile advanced completion when pool verified_at is missing', async () => {
-    const shareToken = 'cd'.repeat(32);
+  describe('getByShareToken', () => {
+    it.each(['', 'bad-token', 'abc123'])(
+      'rejects malformed share token %j without querying the database',
+      async (token) => {
+        const promise = service.getByShareToken(token);
 
-    const user = makeUser();
-    const profile = makeProfile({
-      status: TalentProfileStatus.JOB_READY,
-      track: 'backend_developer',
-      advanced_assessment_completed_at: new Date('2026-05-03T12:00:00.000Z'),
-    });
-    const pool = Object.assign(new EmployerPoolProfile(), {
-      candidate_id: user.id,
-      talent_profile: profile,
-      shareable_link_token: shareToken,
-      verified_at: null,
-      verified_level: VerifiedLevel.MID,
-    });
+        await expect(promise).rejects.toBeInstanceOf(BadRequestError);
+        await expect(promise).rejects.toMatchObject({
+          message: ErrorMessages.VERIFIED_PROFILE.INVALID_TOKEN,
+        });
+        expect(employerPoolRepository.findOne).not.toHaveBeenCalled();
+      },
+    );
 
-    (employerPoolRepository.findOne as jest.Mock).mockResolvedValue(pool);
-    (usersService.findOne as jest.Mock).mockResolvedValue(user);
-    (resultQueryBuilder.getOne as jest.Mock).mockImplementation(() => {
-      if (lastAssessmentType === AssessmentType.ADVANCED) {
-        return Promise.resolve(
-          makeResult({
-            tier: AssessmentTier.JOB_READY,
-            created_at: new Date('2026-05-03T11:00:00.000Z'),
-          }),
-        );
-      }
-      return Promise.resolve(null);
+    it('rejects when pool profile is not found', async () => {
+      (employerPoolRepository.findOne as jest.Mock).mockResolvedValue(null);
+
+      const promise = service.getByShareToken('ab'.repeat(32));
+      await expect(promise).rejects.toBeInstanceOf(NotFoundError);
+      await expect(promise).rejects.toMatchObject({
+        message: ErrorMessages.VERIFIED_PROFILE.NOT_FOUND,
+      });
     });
 
-    await expect(service.getByShareToken(shareToken)).resolves.toMatchObject({
-      verifiedAt: '2026-05-03T12:00:00.000Z',
-      tier: AssessmentTier.JOB_READY,
+    it('rejects when pool profile has no talent_profile relation', async () => {
+      const pool = Object.assign(new EmployerPoolProfile(), {
+        candidate_id: 'user-1',
+        talent_profile: null,
+        shareable_link_token: 'ab'.repeat(32),
+      });
+      (employerPoolRepository.findOne as jest.Mock).mockResolvedValue(pool);
+
+      const promise = service.getByShareToken('ab'.repeat(32));
+      await expect(promise).rejects.toBeInstanceOf(NotFoundError);
+    });
+
+    it('loads a verified profile by share token', async () => {
+      const shareToken = 'ab'.repeat(32);
+
+      const user = makeUser();
+      const profile = makeProfile({
+        status: TalentProfileStatus.JOB_READY,
+        track: 'backend_developer',
+        bio: 'API specialist',
+        personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+      });
+      const pool = Object.assign(new EmployerPoolProfile(), {
+        candidate_id: user.id,
+        talent_profile: profile,
+        shareable_link_token: shareToken,
+        verified_at: new Date('2026-05-04T00:00:00.000Z'),
+        specialization: 'api_engineering',
+        verified_level: VerifiedLevel.SENIOR,
+      });
+
+      (employerPoolRepository.findOne as jest.Mock).mockResolvedValue(pool);
+      (usersService.findOne as jest.Mock).mockResolvedValue(user);
+      (resultQueryBuilder.getOne as jest.Mock).mockImplementation(() => {
+        if (lastAssessmentType === AssessmentType.ADVANCED) {
+          return Promise.resolve(makeResult({ tier: AssessmentTier.JOB_READY }));
+        }
+        return Promise.resolve(null);
+      });
+
+      const result = await service.getByShareToken(shareToken);
+
+      expect(result).toMatchObject({
+        fullName: 'Jane Doe',
+        role: 'Api Engineering',
+        about: 'API specialist',
+        verified: true,
+        verifiedAt: '2026-05-04T00:00:00.000Z',
+        skillProficiency: { validatedLevel: VerifiedLevel.MID },
+        isOwner: false,
+      });
+      expect(result.shareUrl).toContain(shareToken);
+    });
+
+    it('falls back to profile advanced completion when pool verified_at is missing', async () => {
+      const shareToken = 'cd'.repeat(32);
+
+      const user = makeUser();
+      const profile = makeProfile({
+        status: TalentProfileStatus.JOB_READY,
+        track: 'backend_developer',
+        personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+        advanced_assessment_completed_at: new Date('2026-05-03T12:00:00.000Z'),
+      });
+      const pool = Object.assign(new EmployerPoolProfile(), {
+        candidate_id: user.id,
+        talent_profile: profile,
+        shareable_link_token: shareToken,
+        verified_at: null,
+        verified_level: VerifiedLevel.MID,
+      });
+
+      (employerPoolRepository.findOne as jest.Mock).mockResolvedValue(pool);
+      (usersService.findOne as jest.Mock).mockResolvedValue(user);
+      (resultQueryBuilder.getOne as jest.Mock).mockImplementation(() => {
+        if (lastAssessmentType === AssessmentType.ADVANCED) {
+          return Promise.resolve(
+            makeResult({
+              tier: AssessmentTier.JOB_READY,
+              created_at: new Date('2026-05-03T11:00:00.000Z'),
+            }),
+          );
+        }
+        return Promise.resolve(null);
+      });
+
+      await expect(
+        service.getByShareToken(shareToken),
+      ).resolves.toMatchObject({
+        verifiedAt: '2026-05-03T12:00:00.000Z',
+        tier: AssessmentTier.JOB_READY,
+      });
     });
   });
 });
@@ -270,6 +501,7 @@ function makeUser(overrides: Partial<User> = {}): User {
     last_name: 'Doe',
     country: 'Nigeria',
     role: UserRole.TALENT,
+    avatar_url: null,
     ...overrides,
   });
 }

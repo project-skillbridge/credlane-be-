@@ -1,4 +1,78 @@
+import { VerifiedLevel } from '../assessments/entities';
 import type { AdvancedAssessmentGeneratedQuestion } from '../talent/assessment/advanced-assessment-ai.service';
+
+const SENIORITY_LABELS: Record<string, string> = {
+  [VerifiedLevel.ENTRY]: 'Entry Level',
+  [VerifiedLevel.JUNIOR]: 'Junior Level',
+  [VerifiedLevel.MID]: 'Mid Level',
+  [VerifiedLevel.SENIOR]: 'Senior Level',
+  [VerifiedLevel.EXPERT]: 'Expert Level',
+};
+
+const PROFESSIONAL_COMPETENCIES = new Set([
+  'technical_reasoning',
+  'analytical_thinking',
+  'problem_solving',
+  'critical_thinking',
+  'data_analysis',
+  'technical_aptitude',
+  'industry_knowledge',
+  'strategic_thinking',
+  'attention_to_detail',
+  'domain_expertise',
+  'systems_thinking',
+  'technical_communication',
+  'quality_assurance',
+  'requirements_analysis',
+  'solution_design',
+  'implementation',
+  'technical_writing',
+  'code_quality',
+  'testing',
+  'architecture',
+  'stakeholder_management',
+  'project_management',
+  'product_sense',
+  'business_acumen',
+  'research',
+  'quantitative_analysis',
+  'experimentation',
+  'technical_planning',
+  'decision_making',
+]);
+
+const SOFT_COMPETENCIES = new Set([
+  'communication',
+  'collaboration',
+  'teamwork',
+  'leadership',
+  'adaptability',
+  'emotional_intelligence',
+  'creativity',
+  'initiative',
+  'ownership',
+  'accountability',
+  'mentoring',
+  'conflict_resolution',
+  'negotiation',
+  'empathy',
+  'resilience',
+  'time_management',
+  'self_awareness',
+  'coaching',
+  'delegation',
+  'cross_functional_collaboration',
+  'feedback',
+  'growth_mindset',
+  'continuous_learning',
+  'interpersonal_skills',
+  'cultural_awareness',
+  'remote_collaboration',
+  'change_management',
+  'influence',
+  'networking',
+  'stress_management',
+]);
 
 export function formatSlugLabel(value: string): string {
   return value
@@ -19,8 +93,9 @@ export function readPersonalAnswers(
 }
 
 export function resolveSkills(
-  answers: Record<string, unknown>,
+  answers: Record<string, unknown> | null | undefined,
 ): string[] | undefined {
+  if (!answers) return undefined;
   const tools = answers.tools;
   const items: string[] = [];
 
@@ -104,4 +179,105 @@ export function rubricScorePercentage(
   const max = isLt3 ? 6 : 12;
   const clampedTotal = Math.min(max, Math.max(0, evaluation.total));
   return Math.round((clampedTotal / max) * 100);
+}
+
+export function resolveSeniorityBadge(
+  validatedLevel: VerifiedLevel | string | null | undefined,
+): string | undefined {
+  if (!validatedLevel) return undefined;
+  return SENIORITY_LABELS[validatedLevel] ?? formatSlugLabel(validatedLevel);
+}
+
+export function resolveTierLabel(tier: string | null | undefined): string | undefined {
+  if (!tier) return undefined;
+  switch (tier) {
+    case 'job_ready':
+      return 'Job Ready';
+    case 'emerging':
+      return 'Emerging';
+    case 'not_ready':
+      return 'Not Ready';
+    default:
+      return formatSlugLabel(tier);
+  }
+}
+
+export function resolveKeyStrengths(
+  competencyScores: Record<string, number> | null | undefined,
+  strongCompetencies: string[] | null | undefined,
+): { competency: string; label: string; percentage: number }[] | undefined {
+  if (!competencyScores || !strongCompetencies || strongCompetencies.length === 0) {
+    return undefined;
+  }
+
+  const items: { competency: string; label: string; percentage: number }[] = [];
+  const strongSet = new Set(strongCompetencies.map((s) => s.toLowerCase()));
+
+  for (const [competency, percentage] of Object.entries(competencyScores)) {
+    if (strongSet.has(competency.toLowerCase())) {
+      items.push({
+        competency,
+        label: formatSlugLabel(competency),
+        percentage,
+      });
+    }
+  }
+
+  items.sort((a, b) => b.percentage - a.percentage);
+
+  return items.length > 0 ? items : undefined;
+}
+
+export function categorizeCompetencies(
+  competencyScores: Record<string, number> | null | undefined,
+): {
+  professionalSkills: { label: string; percentage: number }[] | undefined;
+  softSkills: { label: string; percentage: number }[] | undefined;
+} {
+  if (!competencyScores) {
+    return { professionalSkills: undefined, softSkills: undefined };
+  }
+
+  const professional: { label: string; percentage: number }[] = [];
+  const soft: { label: string; percentage: number }[] = [];
+
+  for (const [competency, percentage] of Object.entries(competencyScores)) {
+    const key = competency.toLowerCase().trim();
+    const item = { label: formatSlugLabel(competency), percentage };
+
+    if (PROFESSIONAL_COMPETENCIES.has(key)) {
+      professional.push(item);
+    } else if (SOFT_COMPETENCIES.has(key)) {
+      soft.push(item);
+    } else {
+      professional.push(item);
+    }
+  }
+
+  const sortByPercentage = (
+    a: { percentage: number },
+    b: { percentage: number },
+  ) => b.percentage - a.percentage;
+
+  return {
+    professionalSkills:
+      professional.length > 0
+        ? professional.sort(sortByPercentage)
+        : undefined,
+    softSkills: soft.length > 0 ? soft.sort(sortByPercentage) : undefined,
+  };
+}
+
+export function buildShareUrl(
+  frontendUrl: string,
+  token: string | null | undefined,
+): string {
+  if (!token) return '';
+  const base = frontendUrl.replace(/\/+$/, '');
+  return `${base}/verified-profiles/${token}`;
+}
+
+export function buildQrCodeUrl(shareUrl: string): string | undefined {
+  if (!shareUrl) return undefined;
+  return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(shareUrl)}`;
 }
