@@ -788,41 +788,20 @@ describe('AdvancedAssessmentService', () => {
   // ── flag ────────────────────────────────────────────────────────────────────
 
   describe('flag()', () => {
-    it('returns warn action on first tab switch', async () => {
+    it('voids session and returns logout action on tab switch', async () => {
       const result = await service.flag(userId, 'attempt-1', {
         event_type: IntegrityEventType.TAB_SWITCH,
       });
 
-      expect(result.action).toBe('warn');
-      expect(result.session_voided).toBe(false);
+      expect(result.status).toBe('voided');
+      expect(result.action).toBe('logout');
+      expect(result.session_voided).toBe(true);
       expect(result.tab_switch_count).toBe(1);
       expect(attemptRepo.increment).toHaveBeenCalledWith(
         expect.anything(),
         'tab_switch_count',
         1,
       );
-    });
-
-    it('returns warn action on second tab switch', async () => {
-      attemptData.current = makeAttempt({ tab_switch_count: 1 });
-
-      const result = await service.flag(userId, 'attempt-1', {
-        event_type: IntegrityEventType.TAB_SWITCH,
-      });
-
-      expect(result.action).toBe('warn');
-      expect(result.tab_switch_count).toBe(2);
-    });
-
-    it('voids session and returns logout action on third tab switch', async () => {
-      attemptData.current = makeAttempt({ tab_switch_count: 2 });
-
-      const result = await service.flag(userId, 'attempt-1', {
-        event_type: IntegrityEventType.TAB_SWITCH,
-      });
-
-      expect(result.action).toBe('logout');
-      expect(result.session_voided).toBe(true);
       expect(attemptRepo.update).toHaveBeenCalledWith(
         expect.anything(),
         expect.objectContaining({ force_submitted: true }),
@@ -837,8 +816,6 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('sets 14-day retake gate when session is voided', async () => {
-      attemptData.current = makeAttempt({ tab_switch_count: 2 });
-
       await service.flag(userId, 'attempt-1', {
         event_type: IntegrityEventType.TAB_SWITCH,
       });
@@ -853,13 +830,14 @@ describe('AdvancedAssessmentService', () => {
       expect(diffDays).toBe(14);
     });
 
-    it('increments copy_paste_count on COPY_PASTE without voiding', async () => {
+    it('increments copy_paste_count on COPY_PASTE and voids session', async () => {
       const result = await service.flag(userId, 'attempt-1', {
         event_type: IntegrityEventType.COPY_PASTE,
       });
 
-      expect(result.status).toBe('flagged');
-      expect(result.session_voided).toBe(false);
+      expect(result.status).toBe('voided');
+      expect(result.action).toBe('logout');
+      expect(result.session_voided).toBe(true);
       expect(result.copy_paste_count).toBe(1);
       expect(attemptRepo.increment).toHaveBeenCalledWith(
         expect.anything(),
