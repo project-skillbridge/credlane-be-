@@ -73,7 +73,6 @@ import {
 const ADVANCED_ASSESSMENT_DURATION_MINUTES = 90;
 const RETAKE_GATE_DAYS = 14;
 const ABNORMAL_LONG_TEXT_SECONDS = 5;
-const TAB_SWITCH_VOID_THRESHOLD = 3;
 const ADVANCED_SHORT_TEXT_MIN_CHARS = 60;
 const ADVANCED_SHORT_TEXT_MAX_CHARS = 600;
 const ADVANCED_LONG_TEXT_MIN_CHARS = 150;
@@ -929,49 +928,64 @@ export class AdvancedAssessmentService {
       );
     }
 
-    const attempt = await this.attemptRepo.findOne({
-      where: {
-        id: sessionId,
-        talent_profile_id: profile.id,
-        assessment_type: AssessmentType.ADVANCED,
-      },
-    });
-    if (!attempt) {
-      throw new NotFoundException(
-        ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_NOT_FOUND,
-      );
-    }
-    if (attempt.completed_at || attempt.force_submitted) {
-      throw new BadRequestException(
-        ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_ALREADY_SUBMITTED,
-      );
-    }
+    const counterField =
+      dto.event_type === IntegrityEventType.TAB_SWITCH
+        ? 'tab_switch_count'
+        : 'copy_paste_count';
 
-    if (dto.event_type === IntegrityEventType.TAB_SWITCH) {
-      await this.attemptRepo.increment(
-        {
-          id: attempt.id,
-          talent_profile_id: profile.id,
-          assessment_type: AssessmentType.ADVANCED,
-        },
-        'tab_switch_count',
-        1,
-      );
+    const result = await this.talentProfileRepo.manager.transaction(
+      async (manager) => {
+        const attempt = await manager.findOne(AssessmentAttempt, {
+          where: {
+            id: sessionId,
+            talent_profile_id: profile.id,
+            assessment_type: AssessmentType.ADVANCED,
+          },
+          lock: { mode: 'pessimistic_write' },
+        });
 
-      const updatedAttempt = await this.attemptRepo.findOne({
-        where: { id: attempt.id },
-      });
-      const newTabCount = updatedAttempt?.tab_switch_count ?? 0;
+        if (!attempt) {
+          throw new NotFoundException(
+            ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_NOT_FOUND,
+          );
+        }
+        if (attempt.completed_at || attempt.force_submitted) {
+          throw new BadRequestException(
+            ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_ALREADY_SUBMITTED,
+          );
+        }
 
-      if (newTabCount >= TAB_SWITCH_VOID_THRESHOLD) {
+        await manager.increment(
+          AssessmentAttempt,
+          {
+            id: attempt.id,
+            talent_profile_id: profile.id,
+            assessment_type: AssessmentType.ADVANCED,
+          },
+          counterField,
+          1,
+        );
+
+        const updatedAttempt = await manager.findOne(AssessmentAttempt, {
+          where: { id: attempt.id },
+          lock: { mode: 'pessimistic_write' },
+        });
+        if (!updatedAttempt) {
+          throw new NotFoundException(
+            ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_NOT_FOUND,
+          );
+        }
+
         const unlocksAt = new Date();
         unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
 
-        await this.attemptRepo.update(
+        await manager.update(
+          AssessmentAttempt,
           { id: attempt.id },
           { force_submitted: true, completed_at: new Date() },
         );
-        await this.talentProfileRepo.update(
+        await manager.update(
+          TalentProfile,
           { id: profile.id },
           {
             assessment_locked_until: unlocksAt,
@@ -979,53 +993,25 @@ export class AdvancedAssessmentService {
           },
         );
 
-        this.logger.warn(
-          `Session voided - 3rd tab switch: attempt=${attempt.id} user=${userId}`,
-        );
-
         return {
-          status: 'voided',
-          message: ErrorMessages.ADVANCED_ASSESSMENT.SESSION_VOIDED,
-          tab_switch_count: newTabCount,
-          session_voided: true,
-          action: 'logout',
+          attemptId: attempt.id,
+          tabSwitchCount: updatedAttempt.tab_switch_count,
+          copyPasteCount: updatedAttempt.copy_paste_count,
         };
-      }
-
-      this.logger.log(
-        `Tab switch #${newTabCount}: attempt=${attempt.id} user=${userId}`,
-      );
-
-      return {
-        status: 'warning',
-        message: SuccessMessages.ADVANCED_ASSESSMENT.INTEGRITY_WARNED,
-        tab_switch_count: newTabCount,
-        session_voided: false,
-        action: 'warn',
-      };
-    }
-
-    // COPY_PASTE: atomic increment + persist so submit() can roll it into
-    // integrity_confidence.
-    await this.attemptRepo.increment(
-      {
-        id: attempt.id,
-        talent_profile_id: profile.id,
-        assessment_type: AssessmentType.ADVANCED,
       },
-      'copy_paste_count',
-      1,
     );
 
     this.logger.warn(
-      `Copy-paste #${attempt.copy_paste_count + 1}: attempt=${attempt.id} user=${userId}`,
+      `Session voided - integrity ${dto.event_type}: attempt=${result.attemptId} user=${userId}`,
     );
 
     return {
-      status: 'flagged',
-      message: SuccessMessages.ADVANCED_ASSESSMENT.INTEGRITY_FLAGGED,
-      copy_paste_count: attempt.copy_paste_count + 1,
-      session_voided: false,
+      status: 'voided',
+      message: ErrorMessages.ADVANCED_ASSESSMENT.SESSION_VOIDED,
+      tab_switch_count: result.tabSwitchCount,
+      copy_paste_count: result.copyPasteCount,
+      session_voided: true,
+      action: 'logout',
     };
   }
 
