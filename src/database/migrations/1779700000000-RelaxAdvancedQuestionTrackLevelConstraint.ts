@@ -7,6 +7,27 @@ export class RelaxAdvancedQuestionTrackLevelConstraint1779700000000 implements M
       DROP CONSTRAINT IF EXISTS "CHK_assessment_questions_type_fields"
     `);
 
+    // Legacy advanced placeholders were stored with track/level/competency NULL
+    // under the old CHECK. Backfill so the relaxed constraint can apply; keep
+    // them inactive — real banks are imported separately.
+    await queryRunner.query(`
+      UPDATE "assessment_questions"
+      SET
+        track = COALESCE(track, 'general'),
+        verified_level = COALESCE(
+          verified_level,
+          'entry'::verified_level_enum
+        ),
+        competency = COALESCE(competency, 'legacy_placeholder'),
+        is_live = false
+      WHERE assessment_type = 'advanced'
+        AND (
+          track IS NULL
+          OR verified_level IS NULL
+          OR competency IS NULL
+        )
+    `);
+
     await queryRunner.query(`
       ALTER TABLE "assessment_questions"
       ADD CONSTRAINT "CHK_assessment_questions_type_fields"
