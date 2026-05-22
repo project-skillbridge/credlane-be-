@@ -26,9 +26,10 @@ import {
 } from '../assessments/entities';
 import { VerifiedLevel } from '../assessments/entities/assessment-question.entity';
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
-import { SKILL_ASSESSMENT_MAX_ATTEMPTS } from '../talent/talent.constants';
-
-const SKILL_PASS_PERCENTAGE = 75;
+import {
+  SKILL_ASSESSMENT_MAX_ATTEMPTS,
+  SKILL_ASSESSMENT_PASS_PERCENTAGE,
+} from '../talent/talent.constants';
 
 @Injectable()
 export class DashboardService {
@@ -103,6 +104,7 @@ export class DashboardService {
     profile: TalentProfile,
   ): DashboardSkillPerformance {
     const percentage = result.percentage ?? 0;
+    const claimedPercentage = result.claimed_percentage ?? percentage;
     const validatedLevel =
       result.validated_level ?? profile.validated_level ?? VerifiedLevel.ENTRY;
 
@@ -111,7 +113,7 @@ export class DashboardService {
       maxScore: result.max_score ?? result.score,
       percentage,
       validatedLevel,
-      passed: percentage >= SKILL_PASS_PERCENTAGE,
+      passed: claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE,
       completedAt: this.toIsoTimestamp(
         profile.skill_assessment_completed_at,
         result.created_at,
@@ -365,7 +367,9 @@ export class DashboardService {
         AssessmentType.SKILL,
       );
       const skillPass =
-        (latestSkillResult?.percentage ?? 0) >= SKILL_PASS_PERCENTAGE;
+        (latestSkillResult?.claimed_percentage ??
+          latestSkillResult?.percentage ??
+          0) >= SKILL_ASSESSMENT_PASS_PERCENTAGE;
       advancedStatus = skillPass
         ? DashboardJourneyStatus.AVAILABLE
         : DashboardJourneyStatus.LOCKED;

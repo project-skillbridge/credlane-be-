@@ -30,6 +30,7 @@
     "migration:show": "pnpm typeorm migration:show",
     "schema:drop": "pnpm typeorm schema:drop",
     "seed": "ts-node -r tsconfig-paths/register src/database/seeds/run-seed.ts",
+    "import:questions": "ts-node -r tsconfig-paths/register src/database/import/run-import.ts",
     "db:reset": "pnpm schema:drop && pnpm migration:run && pnpm seed",
     "prepare": "husky"
   },

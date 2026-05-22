@@ -24,6 +24,19 @@ export const EMPLOYER_DESIRED_ROLES = [
   'mobile_developer',
   'cybersecurity',
   'data_scientist',
+  'marketing',
+  'quality_assurance',
+  'fullstack_developer',
+  'data_engineer',
+  'ml_engineer',
+  'business_analyst',
+  'bi_developer',
+  'ux_researcher',
+  'brand_designer',
+  'customer_success',
+  'project_manager',
+  'operations_manager',
+  'hr_people_ops',
 ] as const;
 
 export type EmployerDesiredRole = (typeof EMPLOYER_DESIRED_ROLES)[number];

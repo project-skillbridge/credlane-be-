@@ -19,10 +19,18 @@ export interface RubricScore extends RubricDimensions {
   pending?: boolean; // true when AI failed and a backfill should re-score this answer
 }
 
+export interface QuestionGradingRubric {
+  what_to_evaluate: string;
+  strong_answer_must_show: string[];
+  weak_answer_indicators: string[];
+  score_guide: Record<string, string>;
+}
+
 export interface TextAnswerInput {
   question_id: string;
   question_text: string;
   answer: string;
+  grading_rubric?: QuestionGradingRubric | null;
   // LT-3 (reflection) is scored on Relevance + Reasoning only, 0–4 each, max 8.
   is_lt3?: boolean;
 }
