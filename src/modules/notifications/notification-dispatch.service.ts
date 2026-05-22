@@ -345,9 +345,12 @@ export class NotificationDispatchService
       return;
     }
 
-    const actionLabel = payload.action === 'accept' ? 'accepted' : 'declined';
+    // Derive action from type to guarantee consistency
+    const resolvedAction =
+      type === NotificationType.OFFER_ACCEPTED ? 'accept' : 'decline';
+    const actionLabel = resolvedAction === 'accept' ? 'accepted' : 'declined';
     const title =
-      payload.action === 'accept' ? 'Offer accepted!' : 'Offer declined';
+      resolvedAction === 'accept' ? 'Offer accepted!' : 'Offer declined';
 
     await this.notificationsService.create({
       userId,
@@ -359,7 +362,7 @@ export class NotificationDispatchService
         candidateUserId: payload.candidateUserId,
         candidateName: payload.candidateName,
         roleTitle: payload.roleTitle,
-        action: payload.action,
+        action: resolvedAction,
       },
     });
 

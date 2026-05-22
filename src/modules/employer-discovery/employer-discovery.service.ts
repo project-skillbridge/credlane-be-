@@ -181,23 +181,24 @@ export class EmployerDiscoveryService {
       throw new ForbiddenError('Only Job Ready candidates can be saved');
     }
 
-    const existing = await this.savedCandidateRepo.findOne({
-      where: {
+    try {
+      await this.savedCandidateRepo.save({
         employer_user_id: employerUserId,
         candidate_user_id: candidateUserId,
-      },
-    });
-
-    if (existing) {
-      throw new ConflictError('Candidate already saved');
+        employer_pool_profile_id: poolProfile.id,
+        notes: notes ?? null,
+      });
+    } catch (error: unknown) {
+      // Unique constraint violation (concurrent duplicate save)
+      if (
+        error instanceof Error &&
+        'code' in error &&
+        (error as { code: string }).code === '23505'
+      ) {
+        throw new ConflictError('Candidate already saved');
+      }
+      throw error;
     }
-
-    await this.savedCandidateRepo.save({
-      employer_user_id: employerUserId,
-      candidate_user_id: candidateUserId,
-      employer_pool_profile_id: poolProfile.id,
-      notes: notes ?? null,
-    });
 
     return { status: 'success', message: 'Candidate saved to shortlist' };
   }

@@ -1,7 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Between, In, LessThan, Repository } from 'typeorm';
-import { BadRequestError, ForbiddenError, NotFoundError } from '../../shared';
+import {
+  BadRequestError,
+  ForbiddenError,
+  NotFoundError,
+  TooManyRequestsError,
+} from '../../shared';
 import { EmployerPoolProfile } from '../talent/entities/employer-pool-profile.entity';
 import { User } from '../users/entities/user.entity';
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
@@ -76,9 +81,26 @@ export class OffersService {
     expiresAt.setDate(expiresAt.getDate() + expiresInDays);
 
     const offer = await this.offerRepo.manager.transaction(async (manager) => {
-      const monthlyCount = await this.getDistributionCount(employerUserId);
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(
+        now.getFullYear(),
+        now.getMonth() + 1,
+        0,
+        23,
+        59,
+        59,
+        999,
+      );
+      const monthlyCount = await manager.count(OfferDistributionLog, {
+        where: {
+          employer_user_id: employerUserId,
+          sent_at: Between(startOfMonth, endOfMonth),
+        },
+      });
+
       if (monthlyCount >= this.monthlyCap) {
-        throw new BadRequestError(
+        throw new TooManyRequestsError(
           `Monthly offer limit reached (${this.monthlyCap}). Try again next month.`,
         );
       }
@@ -136,6 +158,9 @@ export class OffersService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
 
+    // Expire stale offers before querying to keep filter/pagination consistent
+    await this.expireStaleOffers(employerUserId);
+
     const where: Record<string, unknown> = {
       employer_user_id: employerUserId,
     };
@@ -151,9 +176,6 @@ export class OffersService {
       take: limit,
       relations: ['candidate'],
     });
-
-    // Bulk-mark expired offers
-    await this.markExpiredOffers(offers);
 
     return {
       offers,
@@ -171,6 +193,9 @@ export class OffersService {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
 
+    // Expire stale offers before querying
+    await this.expireStaleOffersForCandidate(candidateUserId);
+
     const where: Record<string, unknown> = {
       candidate_user_id: candidateUserId,
     };
@@ -186,9 +211,6 @@ export class OffersService {
       take: limit,
       relations: ['employer'],
     });
-
-    // Bulk-mark expired offers
-    await this.markExpiredOffers(offers);
 
     return {
       offers,
@@ -250,21 +272,36 @@ export class OffersService {
       );
     }
 
-    if (offer.expires_at < new Date()) {
-      await this.offerRepo.update(offer.id, {
-        status: OfferStatus.EXPIRED,
-      });
-      throw new BadRequestError('This offer has expired');
-    }
-
     const newStatus =
       action === 'accept' ? OfferStatus.ACCEPTED : OfferStatus.DECLINED;
     const respondedAt = new Date();
 
-    await this.offerRepo.update(offer.id, {
-      status: newStatus,
-      responded_at: respondedAt,
-    });
+    // Atomic conditional update to prevent race conditions
+    const result = await this.offerRepo.update(
+      {
+        id: offer.id,
+        status: OfferStatus.PENDING,
+        expires_at: LessThan(new Date()) as unknown as Date,
+      },
+      { status: OfferStatus.EXPIRED },
+    );
+
+    // If the offer was just expired by the above, throw
+    if (result.affected && result.affected > 0) {
+      throw new BadRequestError('This offer has expired');
+    }
+
+    // Now atomically set the response (only if still PENDING)
+    const updateResult = await this.offerRepo.update(
+      { id: offer.id, status: OfferStatus.PENDING },
+      { status: newStatus, responded_at: respondedAt },
+    );
+
+    if (!updateResult.affected || updateResult.affected === 0) {
+      throw new BadRequestError(
+        `Cannot respond to an offer with status: ${offer.status}`,
+      );
+    }
 
     offer.status = newStatus;
     offer.responded_at = respondedAt;
@@ -304,6 +341,9 @@ export class OffersService {
   }
 
   async getAnalytics(employerUserId: string): Promise<OfferAnalytics> {
+    // Expire stale offers so counts reflect true statuses
+    await this.expireStaleOffers(employerUserId);
+
     const monthlyCount = await this.getDistributionCount(employerUserId);
 
     const [acceptedCount, declinedCount, pendingCount, expiredCount] =
@@ -376,27 +416,27 @@ export class OffersService {
     return offer;
   }
 
-  private async markExpiredOffers(offers: Offer[]): Promise<void> {
-    const now = new Date();
-    const expiredIds = offers
-      .filter((o) => o.status === OfferStatus.PENDING && o.expires_at < now)
-      .map((o) => o.id);
+  private async expireStaleOffers(employerUserId: string): Promise<void> {
+    await this.offerRepo.update(
+      {
+        employer_user_id: employerUserId,
+        status: OfferStatus.PENDING,
+        expires_at: LessThan(new Date()),
+      },
+      { status: OfferStatus.EXPIRED },
+    );
+  }
 
-    if (expiredIds.length > 0) {
-      await this.offerRepo.update(
-        {
-          id: In(expiredIds),
-          status: OfferStatus.PENDING,
-          expires_at: LessThan(now),
-        },
-        { status: OfferStatus.EXPIRED },
-      );
-      // Reflect in-memory
-      for (const offer of offers) {
-        if (expiredIds.includes(offer.id)) {
-          offer.status = OfferStatus.EXPIRED;
-        }
-      }
-    }
+  private async expireStaleOffersForCandidate(
+    candidateUserId: string,
+  ): Promise<void> {
+    await this.offerRepo.update(
+      {
+        candidate_user_id: candidateUserId,
+        status: OfferStatus.PENDING,
+        expires_at: LessThan(new Date()),
+      },
+      { status: OfferStatus.EXPIRED },
+    );
   }
 }

@@ -79,12 +79,12 @@ describe('OffersService', () => {
         tier: 'job_ready',
       };
       mockPoolProfileRepo.findOne.mockResolvedValue(pool);
-      mockDistributionLogRepo.count.mockResolvedValue(0);
       mockOfferRepo.manager.transaction.mockImplementation(
         async (
           cb: (manager: typeof mockOfferRepo.manager) => Promise<unknown>,
         ) => {
           const manager = {
+            count: jest.fn().mockResolvedValue(0),
             save: jest
               .fn()
               .mockResolvedValueOnce({
@@ -134,17 +134,17 @@ describe('OffersService', () => {
       );
     });
 
-    it('should throw BadRequestError if monthly cap reached', async () => {
+    it('should throw TooManyRequestsError if monthly cap reached', async () => {
       const pool = {
         id: 'pool-1',
         candidate_id: 'candidate-1',
         tier: 'job_ready',
       };
       mockPoolProfileRepo.findOne.mockResolvedValue(pool);
-      mockDistributionLogRepo.count.mockResolvedValue(50);
       mockOfferRepo.manager.transaction.mockImplementation(
         async (cb: (manager: unknown) => Promise<unknown>) => {
-          return cb({});
+          const manager = { count: jest.fn().mockResolvedValue(50) };
+          return cb(manager);
         },
       );
 
@@ -165,7 +165,11 @@ describe('OffersService', () => {
         expires_at: new Date(Date.now() + 86400000),
       };
       mockOfferRepo.findOne.mockResolvedValue(offer);
-      mockOfferRepo.update.mockResolvedValue({ affected: 1 });
+      // First update: expire check (not expired → affected=0)
+      // Second update: respond (affected=1)
+      mockOfferRepo.update
+        .mockResolvedValueOnce({ affected: 0 })
+        .mockResolvedValueOnce({ affected: 1 });
       mockUserRepo.findOne.mockResolvedValue({
         id: 'candidate-1',
         first_name: 'Bob',
@@ -193,7 +197,9 @@ describe('OffersService', () => {
         expires_at: new Date(Date.now() + 86400000),
       };
       mockOfferRepo.findOne.mockResolvedValue(offer);
-      mockOfferRepo.update.mockResolvedValue({ affected: 1 });
+      mockOfferRepo.update
+        .mockResolvedValueOnce({ affected: 0 })
+        .mockResolvedValueOnce({ affected: 1 });
       mockUserRepo.findOne.mockResolvedValue({
         id: 'candidate-1',
         first_name: 'Bob',
@@ -241,6 +247,7 @@ describe('OffersService', () => {
         expires_at: new Date(Date.now() - 86400000), // expired yesterday
       };
       mockOfferRepo.findOne.mockResolvedValue(offer);
+      // Expire check succeeds (affected=1 → offer was expired)
       mockOfferRepo.update.mockResolvedValue({ affected: 1 });
 
       await expect(
@@ -251,6 +258,8 @@ describe('OffersService', () => {
 
   describe('getAnalytics', () => {
     it('should return offer analytics', async () => {
+      // expireStaleOffers update call
+      mockOfferRepo.update.mockResolvedValue({ affected: 0 });
       mockDistributionLogRepo.count.mockResolvedValue(5);
       mockOfferRepo.count
         .mockResolvedValueOnce(3) // accepted
@@ -270,36 +279,26 @@ describe('OffersService', () => {
   });
 
   describe('listEmployerOffers - expiry marking', () => {
-    it('should bulk-mark expired PENDING offers as EXPIRED', async () => {
-      const expiredOffer = {
-        id: 'offer-1',
-        employer_user_id: 'employer-1',
-        status: OfferStatus.PENDING,
-        expires_at: new Date(Date.now() - 86400000), // expired yesterday
-      };
+    it('should bulk-expire stale PENDING offers before querying', async () => {
+      // expireStaleOffers update called first
+      mockOfferRepo.update.mockResolvedValue({ affected: 1 });
+      // After expiry, findAndCount returns the updated state
       const activeOffer = {
         id: 'offer-2',
         employer_user_id: 'employer-1',
         status: OfferStatus.PENDING,
-        expires_at: new Date(Date.now() + 86400000), // expires tomorrow
+        expires_at: new Date(Date.now() + 86400000),
       };
-      mockOfferRepo.findAndCount.mockResolvedValue([
-        [expiredOffer, activeOffer],
-        2,
-      ]);
-      mockOfferRepo.update.mockResolvedValue({ affected: 1 });
+      mockOfferRepo.findAndCount.mockResolvedValue([[activeOffer], 1]);
 
       const result = await service.listEmployerOffers('employer-1', {});
 
-      expect(result.offers[0].status).toBe(OfferStatus.EXPIRED);
-      expect(result.offers[1].status).toBe(OfferStatus.PENDING);
-      expect(mockOfferRepo.update).toHaveBeenCalledWith(
-        expect.objectContaining({ id: expect.anything() }),
-        { status: OfferStatus.EXPIRED },
-      );
+      expect(result.offers[0].status).toBe(OfferStatus.PENDING);
+      expect(mockOfferRepo.update).toHaveBeenCalled();
     });
 
-    it('should not update if no offers are expired', async () => {
+    it('should return offers as-is when no expiry needed', async () => {
+      mockOfferRepo.update.mockResolvedValue({ affected: 0 });
       const activeOffer = {
         id: 'offer-1',
         employer_user_id: 'employer-1',
@@ -311,10 +310,10 @@ describe('OffersService', () => {
       const result = await service.listEmployerOffers('employer-1', {});
 
       expect(result.offers[0].status).toBe(OfferStatus.PENDING);
-      expect(mockOfferRepo.update).not.toHaveBeenCalled();
     });
 
-    it('should not update already accepted/declined offers', async () => {
+    it('should not affect already accepted/declined offers', async () => {
+      mockOfferRepo.update.mockResolvedValue({ affected: 0 });
       const acceptedOffer = {
         id: 'offer-1',
         employer_user_id: 'employer-1',
@@ -326,7 +325,6 @@ describe('OffersService', () => {
       const result = await service.listEmployerOffers('employer-1', {});
 
       expect(result.offers[0].status).toBe(OfferStatus.ACCEPTED);
-      expect(mockOfferRepo.update).not.toHaveBeenCalled();
     });
   });
 });

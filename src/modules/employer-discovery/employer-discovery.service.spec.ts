@@ -105,7 +105,6 @@ describe('EmployerDiscoveryService', () => {
     it('should save a job_ready candidate', async () => {
       const pool = { id: 'pool-1', candidate_id: 'user-1', tier: 'job_ready' };
       mockPoolProfileRepo.findOne.mockResolvedValue(pool);
-      mockSavedCandidateRepo.findOne.mockResolvedValue(null);
       mockSavedCandidateRepo.save.mockResolvedValue({ id: 'saved-1' });
 
       const result = await service.saveCandidate(
@@ -126,7 +125,10 @@ describe('EmployerDiscoveryService', () => {
     it('should throw ConflictError if already saved', async () => {
       const pool = { id: 'pool-1', candidate_id: 'user-1', tier: 'job_ready' };
       mockPoolProfileRepo.findOne.mockResolvedValue(pool);
-      mockSavedCandidateRepo.findOne.mockResolvedValue({ id: 'saved-1' });
+      const duplicateError = Object.assign(new Error('duplicate'), {
+        code: '23505',
+      });
+      mockSavedCandidateRepo.save.mockRejectedValue(duplicateError);
 
       await expect(
         service.saveCandidate('employer-1', 'user-1'),

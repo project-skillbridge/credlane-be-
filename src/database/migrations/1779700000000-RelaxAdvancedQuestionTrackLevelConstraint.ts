@@ -89,6 +89,20 @@ export class RelaxAdvancedQuestionTrackLevelConstraint1779700000000 implements M
       DROP CONSTRAINT IF EXISTS "CHK_assessment_questions_type_fields"
     `);
 
+    // Revert backfilled data: null out columns for advanced rows
+    // so the original strict CHECK can be re-applied
+    await queryRunner.query(`
+      UPDATE "assessment_questions"
+      SET track = NULL, verified_level = NULL, competency = NULL
+      WHERE assessment_type = 'advanced'
+    `);
+
+    // Remove personal assessment rows that didn't exist before
+    await queryRunner.query(`
+      DELETE FROM "assessment_questions"
+      WHERE assessment_type = 'personal'
+    `);
+
     await queryRunner.query(`
       ALTER TABLE "assessment_questions"
       ADD CONSTRAINT "CHK_assessment_questions_type_fields"
