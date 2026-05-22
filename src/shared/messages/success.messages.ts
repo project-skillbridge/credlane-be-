@@ -54,4 +54,14 @@ export const SuccessMessages = {
   AI_RESOURCES: {
     RETRIEVED: 'Personalized resources retrieved successfully',
   },
+  EMPLOYER_DISCOVERY: {
+    CANDIDATE_SAVED: 'Candidate saved to shortlist',
+    CANDIDATE_REMOVED: 'Candidate removed from shortlist',
+    CONTACT_SENT: 'Contact request sent',
+  },
+  OFFERS: {
+    CREATED: 'Offer sent successfully',
+    ACCEPTED: 'Offer accepted',
+    DECLINED: 'Offer declined',
+  },
 } as const;
