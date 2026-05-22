@@ -73,7 +73,6 @@ import {
 const ADVANCED_ASSESSMENT_DURATION_MINUTES = 90;
 const RETAKE_GATE_DAYS = 14;
 const ABNORMAL_LONG_TEXT_SECONDS = 5;
-const TAB_SWITCH_VOID_THRESHOLD = 3;
 const ADVANCED_SHORT_TEXT_MIN_CHARS = 60;
 const ADVANCED_SHORT_TEXT_MAX_CHARS = 600;
 const ADVANCED_LONG_TEXT_MIN_CHARS = 150;
@@ -947,85 +946,53 @@ export class AdvancedAssessmentService {
       );
     }
 
-    if (dto.event_type === IntegrityEventType.TAB_SWITCH) {
-      await this.attemptRepo.increment(
-        {
-          id: attempt.id,
-          talent_profile_id: profile.id,
-          assessment_type: AssessmentType.ADVANCED,
-        },
-        'tab_switch_count',
-        1,
-      );
+    const counterField =
+      dto.event_type === IntegrityEventType.TAB_SWITCH
+        ? 'tab_switch_count'
+        : 'copy_paste_count';
 
-      const updatedAttempt = await this.attemptRepo.findOne({
-        where: { id: attempt.id },
-      });
-      const newTabCount = updatedAttempt?.tab_switch_count ?? 0;
-
-      if (newTabCount >= TAB_SWITCH_VOID_THRESHOLD) {
-        const unlocksAt = new Date();
-        unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
-
-        await this.attemptRepo.update(
-          { id: attempt.id },
-          { force_submitted: true, completed_at: new Date() },
-        );
-        await this.talentProfileRepo.update(
-          { id: profile.id },
-          {
-            assessment_locked_until: unlocksAt,
-            advanced_retake_required: true,
-          },
-        );
-
-        this.logger.warn(
-          `Session voided - 3rd tab switch: attempt=${attempt.id} user=${userId}`,
-        );
-
-        return {
-          status: 'voided',
-          message: ErrorMessages.ADVANCED_ASSESSMENT.SESSION_VOIDED,
-          tab_switch_count: newTabCount,
-          session_voided: true,
-          action: 'logout',
-        };
-      }
-
-      this.logger.log(
-        `Tab switch #${newTabCount}: attempt=${attempt.id} user=${userId}`,
-      );
-
-      return {
-        status: 'warning',
-        message: SuccessMessages.ADVANCED_ASSESSMENT.INTEGRITY_WARNED,
-        tab_switch_count: newTabCount,
-        session_voided: false,
-        action: 'warn',
-      };
-    }
-
-    // COPY_PASTE: atomic increment + persist so submit() can roll it into
-    // integrity_confidence.
     await this.attemptRepo.increment(
       {
         id: attempt.id,
         talent_profile_id: profile.id,
         assessment_type: AssessmentType.ADVANCED,
       },
-      'copy_paste_count',
+      counterField,
       1,
     );
 
+    const updatedAttempt = await this.attemptRepo.findOne({
+      where: { id: attempt.id },
+    });
+    const tabSwitchCount = updatedAttempt?.tab_switch_count ?? 0;
+    const copyPasteCount = updatedAttempt?.copy_paste_count ?? 0;
+
+    const unlocksAt = new Date();
+    unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
+
+    await this.attemptRepo.update(
+      { id: attempt.id },
+      { force_submitted: true, completed_at: new Date() },
+    );
+    await this.talentProfileRepo.update(
+      { id: profile.id },
+      {
+        assessment_locked_until: unlocksAt,
+        advanced_retake_required: true,
+      },
+    );
+
     this.logger.warn(
-      `Copy-paste #${attempt.copy_paste_count + 1}: attempt=${attempt.id} user=${userId}`,
+      `Session voided - integrity ${dto.event_type}: attempt=${attempt.id} user=${userId}`,
     );
 
     return {
-      status: 'flagged',
-      message: SuccessMessages.ADVANCED_ASSESSMENT.INTEGRITY_FLAGGED,
-      copy_paste_count: attempt.copy_paste_count + 1,
-      session_voided: false,
+      status: 'voided',
+      message: ErrorMessages.ADVANCED_ASSESSMENT.SESSION_VOIDED,
+      tab_switch_count: tabSwitchCount,
+      copy_paste_count: copyPasteCount,
+      session_voided: true,
+      action: 'logout',
     };
   }
 

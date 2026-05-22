@@ -177,9 +177,9 @@ export class AdvancedAssessmentController {
   @ApiOperation({
     summary: 'Report an integrity event',
     description:
-      'Accepts tab_switch or copy_paste events. Tab switch 1–2: logs + returns warning (action=warn). ' +
-      'Tab switch 3: voids session, marks an advanced retake gate, sets assessment_locked_until, and returns action=logout. ' +
-      'Copy-paste: logs + returns toast confirmation.',
+      'Accepts tab_switch or copy_paste events. The frontend decides when the threshold has been reached; ' +
+      'once called, this endpoint records the event, force-submits/voids the session, marks an advanced retake gate, ' +
+      'sets assessment_locked_until, and returns action=logout.',
   })
   @ApiParam({ name: 'id', format: 'uuid', description: 'Session ID' })
   @ApiOkResponse({ description: 'Integrity event recorded' })
