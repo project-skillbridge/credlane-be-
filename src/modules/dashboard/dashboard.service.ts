@@ -106,7 +106,7 @@ export class DashboardService {
     const percentage = result.percentage ?? 0;
     const claimedPercentage = result.claimed_percentage ?? percentage;
     const validatedLevel =
-      result.validated_level ?? profile.validated_level ?? VerifiedLevel.ENTRY;
+      result.validated_level ?? profile.validated_level ?? VerifiedLevel.JUNIOR;
 
     return {
       score: result.score,
@@ -335,25 +335,30 @@ export class DashboardService {
         ? DashboardJourneyStatus.AVAILABLE
         : DashboardJourneyStatus.LOCKED;
 
-    let skillStatus: DashboardJourneyStatus;
+    const [completedSkillAttempts, latestSkillResult] = await Promise.all([
+      this.countCompletedSkillAttempts(profile.id),
+      this.getLatestResult(profile.id, AssessmentType.SKILL),
+    ]);
+    const hasCompletedSkillOnce = latestSkillResult != null;
     const skillAttemptsExhausted =
       !profile.advanced_assessment_completed_at &&
-      (await this.countCompletedSkillAttempts(profile.id)) >=
-        SKILL_ASSESSMENT_MAX_ATTEMPTS;
+      completedSkillAttempts >= SKILL_ASSESSMENT_MAX_ATTEMPTS;
 
-    if (skillAttemptsExhausted) {
+    let skillStatus: DashboardJourneyStatus;
+    if (skillAttemptsExhausted || !this.canStartSkillAssessment(profile)) {
       skillStatus = DashboardJourneyStatus.LOCKED;
-    } else if (profile.skill_assessment_completed_at) {
+    } else if (
+      profile.advanced_assessment_completed_at &&
+      hasCompletedSkillOnce
+    ) {
       skillStatus = DashboardJourneyStatus.COMPLETED;
-    } else if (!this.canStartSkillAssessment(profile)) {
-      skillStatus = DashboardJourneyStatus.LOCKED;
     } else {
       skillStatus = DashboardJourneyStatus.AVAILABLE;
     }
 
     let advancedStatus: DashboardJourneyStatus;
     const advancedRetake = this.buildAdvancedRetake(profile);
-    if (!this.canStartAdvancedAssessment(profile)) {
+    if (!this.canStartAdvancedAssessment(profile, hasCompletedSkillOnce)) {
       advancedStatus = DashboardJourneyStatus.LOCKED;
     } else if (advancedRetake) {
       advancedStatus = advancedRetake.ctaEnabled
@@ -362,17 +367,7 @@ export class DashboardService {
     } else if (profile.advanced_assessment_completed_at) {
       advancedStatus = DashboardJourneyStatus.COMPLETED;
     } else {
-      const latestSkillResult = await this.getLatestResult(
-        profile.id,
-        AssessmentType.SKILL,
-      );
-      const skillPass =
-        (latestSkillResult?.claimed_percentage ??
-          latestSkillResult?.percentage ??
-          0) >= SKILL_ASSESSMENT_PASS_PERCENTAGE;
-      advancedStatus = skillPass
-        ? DashboardJourneyStatus.AVAILABLE
-        : DashboardJourneyStatus.LOCKED;
+      advancedStatus = DashboardJourneyStatus.AVAILABLE;
     }
 
     return {
@@ -391,6 +386,10 @@ export class DashboardService {
   }
 
   private canStartSkillAssessment(profile: TalentProfile): boolean {
+    return this.hasCompletedPersonalAssessment(profile);
+  }
+
+  private hasCompletedPersonalAssessment(profile: TalentProfile): boolean {
     return Boolean(
       profile.personal_assessment_completed_at &&
       profile.claimed_level &&
@@ -398,11 +397,14 @@ export class DashboardService {
     );
   }
 
-  private canStartAdvancedAssessment(profile: TalentProfile): boolean {
+  private canStartAdvancedAssessment(
+    profile: TalentProfile,
+    hasCompletedSkillOnce: boolean,
+  ): boolean {
     return Boolean(
-      profile.personal_assessment_completed_at &&
-      profile.skill_assessment_completed_at &&
-      profile.validated_level,
+      this.hasCompletedPersonalAssessment(profile) &&
+      profile.validated_level &&
+      hasCompletedSkillOnce,
     );
   }
 }

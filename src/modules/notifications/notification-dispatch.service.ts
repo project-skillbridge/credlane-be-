@@ -27,6 +27,27 @@ export type AdvancedRetakeAvailablePayload = {
   eligibilityDate: string;
 };
 
+export type OfferReceivedPayload = {
+  offerId: string;
+  employerUserId: string;
+  employerName: string;
+  roleTitle: string;
+};
+
+export type OfferRespondedPayload = {
+  offerId: string;
+  candidateUserId: string;
+  candidateName: string;
+  roleTitle: string;
+  action: 'accept' | 'decline';
+};
+
+export type ContactRequestReceivedPayload = {
+  contactRequestId: string;
+  employerUserId: string;
+  employerName: string;
+};
+
 type RetakeEligibilityProfile = Pick<
   TalentProfile,
   'advanced_retake_required' | 'assessment_locked_until'
@@ -75,9 +96,29 @@ export class NotificationDispatchService
     payload: AdvancedRetakeAvailablePayload,
   ): Promise<void>;
   async dispatch(
+    type: NotificationType.OFFER_RECEIVED,
+    userId: string,
+    payload: OfferReceivedPayload,
+  ): Promise<void>;
+  async dispatch(
+    type: NotificationType.OFFER_ACCEPTED | NotificationType.OFFER_DECLINED,
+    userId: string,
+    payload: OfferRespondedPayload,
+  ): Promise<void>;
+  async dispatch(
+    type: NotificationType.CONTACT_REQUEST_RECEIVED,
+    userId: string,
+    payload: ContactRequestReceivedPayload,
+  ): Promise<void>;
+  async dispatch(
     type: NotificationType,
     userId: string,
-    payload: AdvancedScoreReadyPayload | AdvancedRetakeAvailablePayload,
+    payload:
+      | AdvancedScoreReadyPayload
+      | AdvancedRetakeAvailablePayload
+      | OfferReceivedPayload
+      | OfferRespondedPayload
+      | ContactRequestReceivedPayload,
   ): Promise<void> {
     try {
       switch (type) {
@@ -91,6 +132,26 @@ export class NotificationDispatchService
           await this.dispatchAdvancedRetakeAvailable(
             userId,
             payload as AdvancedRetakeAvailablePayload,
+          );
+          break;
+        case NotificationType.OFFER_RECEIVED:
+          await this.dispatchOfferReceived(
+            userId,
+            payload as OfferReceivedPayload,
+          );
+          break;
+        case NotificationType.OFFER_ACCEPTED:
+        case NotificationType.OFFER_DECLINED:
+          await this.dispatchOfferResponded(
+            type,
+            userId,
+            payload as OfferRespondedPayload,
+          );
+          break;
+        case NotificationType.CONTACT_REQUEST_RECEIVED:
+          await this.dispatchContactRequestReceived(
+            userId,
+            payload as ContactRequestReceivedPayload,
           );
           break;
         default:
@@ -233,6 +294,122 @@ export class NotificationDispatchService
     } catch (error) {
       this.logger.error(
         `Advanced retake email failed for user=${userId}: ${String(error)}`,
+      );
+    }
+  }
+
+  private async dispatchOfferReceived(
+    userId: string,
+    payload: OfferReceivedPayload,
+  ): Promise<void> {
+    const user = await this.usersService.findOne(userId);
+    if (!user) {
+      this.logger.warn(`Notification skipped: user not found user=${userId}`);
+      return;
+    }
+
+    await this.notificationsService.create({
+      userId,
+      type: NotificationType.OFFER_RECEIVED,
+      title: 'New offer received',
+      body: `${payload.employerName} sent you an offer for ${payload.roleTitle}.`,
+      data: {
+        offerId: payload.offerId,
+        employerUserId: payload.employerUserId,
+        employerName: payload.employerName,
+        roleTitle: payload.roleTitle,
+      },
+    });
+
+    try {
+      await this.mailService.send({
+        to: user.email,
+        subject: `New offer: ${payload.roleTitle}`,
+        text: `Hi ${user.first_name},\n\n${payload.employerName} has sent you an offer for the role of ${payload.roleTitle}. Log in to view and respond.\n\nBest,\nSkillBridge Team`,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Offer received email failed for user=${userId}: ${String(error)}`,
+      );
+    }
+  }
+
+  private async dispatchOfferResponded(
+    type: NotificationType.OFFER_ACCEPTED | NotificationType.OFFER_DECLINED,
+    userId: string,
+    payload: OfferRespondedPayload,
+  ): Promise<void> {
+    const user = await this.usersService.findOne(userId);
+    if (!user) {
+      this.logger.warn(`Notification skipped: user not found user=${userId}`);
+      return;
+    }
+
+    // Derive action from type to guarantee consistency
+    const resolvedAction =
+      type === NotificationType.OFFER_ACCEPTED ? 'accept' : 'decline';
+    const actionLabel = resolvedAction === 'accept' ? 'accepted' : 'declined';
+    const title =
+      resolvedAction === 'accept' ? 'Offer accepted!' : 'Offer declined';
+
+    await this.notificationsService.create({
+      userId,
+      type,
+      title,
+      body: `${payload.candidateName} has ${actionLabel} your offer for ${payload.roleTitle}.`,
+      data: {
+        offerId: payload.offerId,
+        candidateUserId: payload.candidateUserId,
+        candidateName: payload.candidateName,
+        roleTitle: payload.roleTitle,
+        action: resolvedAction,
+      },
+    });
+
+    try {
+      await this.mailService.send({
+        to: user.email,
+        subject: `Offer ${actionLabel}: ${payload.roleTitle}`,
+        text: `Hi ${user.first_name},\n\n${payload.candidateName} has ${actionLabel} your offer for ${payload.roleTitle}. Log in to view details.\n\nBest,\nSkillBridge Team`,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Offer response email failed for user=${userId}: ${String(error)}`,
+      );
+    }
+  }
+
+  private async dispatchContactRequestReceived(
+    userId: string,
+    payload: ContactRequestReceivedPayload,
+  ): Promise<void> {
+    const user = await this.usersService.findOne(userId);
+    if (!user) {
+      this.logger.warn(`Notification skipped: user not found user=${userId}`);
+      return;
+    }
+
+    await this.notificationsService.create({
+      userId,
+      type: NotificationType.CONTACT_REQUEST_RECEIVED,
+      title: 'New contact request',
+      body: `${payload.employerName} wants to connect with you.`,
+      data: {
+        contactRequestId: payload.contactRequestId,
+        employerUserId: payload.employerUserId,
+        employerName: payload.employerName,
+      },
+    });
+
+    try {
+      await this.mailService.send({
+        to: user.email,
+        subject: 'An employer wants to connect with you',
+        text: `Hi ${user.first_name},\n\n${payload.employerName} is interested in your profile and wants to connect. Log in to view the message.\n\nBest,\nSkillBridge Team`,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Contact request email failed for user=${userId}: ${String(error)}`,
       );
     }
   }

@@ -9,7 +9,7 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, Repository } from 'typeorm';
+import { EntityManager, IsNull, Not, Repository } from 'typeorm';
 import {
   AssessmentAttempt,
   AssessmentQuestion,
@@ -60,6 +60,7 @@ import {
   SubmitAdvancedAssessmentDto,
   SubmitLt2Dto,
 } from './dto/advanced-assessment.dto';
+import { IntegrityFlagResult } from './dto/integrity-event.dto';
 import {
   metadataDifficulty,
   resolveCompetencyHint,
@@ -70,7 +71,6 @@ import {
   normaliseCompetency,
   sanitiseCompetencyList,
 } from './competency-taxonomy';
-import { SKILL_ASSESSMENT_PASS_PERCENTAGE } from '../talent.constants';
 
 const ADVANCED_ASSESSMENT_DURATION_MINUTES = 90;
 const RETAKE_GATE_DAYS = 14;
@@ -120,15 +120,6 @@ export interface AdvancedAssessmentSubmitResult {
   integrity_confidence: string;
   guidance_report?: GuidanceReport;
   auto_submitted?: boolean;
-}
-
-export interface IntegrityFlagResult {
-  status: string;
-  message: string;
-  tab_switch_count?: number;
-  copy_paste_count?: number;
-  session_voided?: boolean;
-  action?: 'warn' | 'logout';
 }
 
 export interface SubmitLt2Result {
@@ -212,6 +203,19 @@ export class AdvancedAssessmentService {
           });
         }
 
+        const completedSkillAttempts = await manager.count(AssessmentAttempt, {
+          where: {
+            talent_profile_id: profile.id,
+            assessment_type: AssessmentType.SKILL,
+            completed_at: Not(IsNull()),
+          },
+        });
+        if (completedSkillAttempts < 1) {
+          throw new UnprocessableEntityException(
+            ErrorMessages.ADVANCED_ASSESSMENT.SKILL_GATE_REQUIRED,
+          );
+        }
+
         const latestSkillResult = await this.findLatestSkillResult(
           manager,
           profile.id,
@@ -220,17 +224,6 @@ export class AdvancedAssessmentService {
           throw new UnprocessableEntityException(
             ErrorMessages.ADVANCED_ASSESSMENT.SKILL_GATE_REQUIRED,
           );
-        }
-
-        const skillPassPercentage =
-          latestSkillResult.claimed_percentage ??
-          latestSkillResult.percentage ??
-          0;
-        if (skillPassPercentage < SKILL_ASSESSMENT_PASS_PERCENTAGE) {
-          throw new UnprocessableEntityException({
-            error: 'SKILL_PASS_REQUIRED',
-            message: ErrorMessages.SKILL_ASSESSMENT.PASS_REQUIRED,
-          });
         }
 
         if (
@@ -576,8 +569,8 @@ export class AdvancedAssessmentService {
     const guidanceInput = {
       report_type: tier === AssessmentTier.JOB_READY ? 'job_ready' : 'emerging',
       track: profile.track ?? 'general',
-      claimed_level: profile.claimed_level ?? VerifiedLevel.ENTRY,
-      validated_level: profile.validated_level ?? VerifiedLevel.ENTRY,
+      claimed_level: profile.claimed_level ?? VerifiedLevel.JUNIOR,
+      validated_level: profile.validated_level ?? VerifiedLevel.JUNIOR,
       percentage,
       strong_competencies: strongCompetencies,
       weak_competencies: weakCompetencies,
@@ -816,7 +809,7 @@ export class AdvancedAssessmentService {
       };
     }
 
-    const verifiedLevel = profile.validated_level ?? VerifiedLevel.ENTRY;
+    const verifiedLevel = profile.validated_level ?? VerifiedLevel.JUNIOR;
     const track = profile.track ?? 'general';
 
     let generatedLt3Text: string;
@@ -1270,7 +1263,7 @@ export class AdvancedAssessmentService {
     manager: EntityManager,
     profile: TalentProfile,
   ): Promise<AssessmentQuestion[]> {
-    const verifiedLevel = profile.validated_level ?? VerifiedLevel.ENTRY;
+    const verifiedLevel = profile.validated_level ?? VerifiedLevel.JUNIOR;
     const track = profile.track ?? 'general';
 
     const primary = await manager
@@ -1357,7 +1350,7 @@ export class AdvancedAssessmentService {
     > = [];
     const industryContext = resolveIndustryContext(personalContext);
     const competencyHint = resolveCompetencyHint(personalContext);
-    const verifiedLevel = profile.validated_level ?? VerifiedLevel.ENTRY;
+    const verifiedLevel = profile.validated_level ?? VerifiedLevel.JUNIOR;
     const track = profile.track ?? 'general';
 
     const mcqDeficit = ADVANCED_ASSESSMENT_MCQ_COUNT - mcq.length;

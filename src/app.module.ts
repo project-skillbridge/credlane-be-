@@ -27,6 +27,8 @@ import { WelcomeController } from './welcome.controller';
 import { AiResourcesModule } from './modules/ai-resources/ai-resources.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AdminQuestionsModule } from './modules/admin/questions/admin-questions.module';
+import { EmployerDiscoveryModule } from './modules/employer-discovery/employer-discovery.module';
+import { OffersModule } from './modules/offers/offers.module';
 
 @Module({
   imports: [
@@ -52,6 +54,8 @@ import { AdminQuestionsModule } from './modules/admin/questions/admin-questions.
     AiResourcesModule,
     NotificationsModule,
     AdminQuestionsModule,
+    EmployerDiscoveryModule,
+    OffersModule,
   ],
   providers: [
     {

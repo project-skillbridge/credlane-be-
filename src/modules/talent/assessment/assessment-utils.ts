@@ -3,7 +3,7 @@ import { VerifiedLevel } from '../../assessments/entities';
 export function metadataDifficulty(
   level: VerifiedLevel,
 ): 'easy' | 'medium' | 'hard' {
-  if (level === VerifiedLevel.ENTRY || level === VerifiedLevel.JUNIOR) {
+  if (level === VerifiedLevel.JUNIOR) {
     return 'easy';
   }
   if (level === VerifiedLevel.MID) {

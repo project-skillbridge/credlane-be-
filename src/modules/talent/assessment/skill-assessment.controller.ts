@@ -28,6 +28,7 @@ import {
   StartSkillAssessmentDto,
   SubmitSkillAssessmentDto,
 } from './dto/skill-assessment.dto';
+import { FlagIntegrityEventDto } from './dto/integrity-event.dto';
 import { SkillAssessmentService } from './skill-assessment.service';
 
 @ApiTags('talent-assessment')
@@ -96,6 +97,33 @@ export class SkillAssessmentController {
     @Param('id') sessionId: string,
   ) {
     return this.skillAssessmentService.getSession(userId, sessionId);
+  }
+
+  @Post('session/:id/flag')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Report a skill assessment integrity event',
+    description:
+      'Accepts tab_switch or copy_paste events. Records the violation, voids the session, ' +
+      'and returns action=logout so the frontend can end the assessment.',
+  })
+  @ApiParam({ name: 'id', format: 'uuid', description: 'Session ID' })
+  @ApiOkResponse({ description: 'Integrity event recorded' })
+  @ApiNotFoundResponse({ description: 'Session not found' })
+  @ApiForbiddenResponse({ description: 'Not a talent user' })
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+    }),
+  )
+  flagIntegrity(
+    @CurrentUser('sub') userId: string,
+    @Param('id') sessionId: string,
+    @Body() dto: FlagIntegrityEventDto,
+  ) {
+    return this.skillAssessmentService.flag(userId, sessionId, dto);
   }
 
   @Post('submit')

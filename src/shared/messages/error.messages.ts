@@ -47,6 +47,8 @@ export const ErrorMessages = {
     MAX_ATTEMPTS_REACHED:
       'You have used all three skill assessment attempts. Complete the advanced assessment to unlock further skill retakes.',
     ACTIVE_SESSION_EXISTS: 'Active skill assessment session already exists',
+    SESSION_VOIDED:
+      'Skill assessment session has been voided due to integrity violations.',
   },
   ADVANCED_ASSESSMENT: {
     PROFILE_NOT_FOUND: 'Talent profile not found',
@@ -104,5 +106,20 @@ export const ErrorMessages = {
     NO_ASSESSMENT_SCORES:
       'Please complete at least one assessment to view personalized resources.',
     PROFILE_NOT_FOUND: 'Talent profile not found',
+  },
+  EMPLOYER_DISCOVERY: {
+    CANDIDATE_NOT_FOUND: 'Candidate not found',
+    NOT_JOB_READY: 'Only Job Ready candidates are accessible to employers',
+    ALREADY_SAVED: 'Candidate already saved',
+    SAVED_NOT_FOUND: 'Saved candidate not found',
+    CONTACT_NOT_JOB_READY: 'Only Job Ready candidates can be contacted',
+  },
+  OFFERS: {
+    CANDIDATE_NOT_FOUND: 'Candidate not found',
+    NOT_JOB_READY: 'Offers can only be sent to Job Ready candidates',
+    MONTHLY_CAP_REACHED: 'Monthly offer limit reached. Try again next month.',
+    OFFER_NOT_FOUND: 'Offer not found',
+    CANNOT_RESPOND: 'Cannot respond to an offer that is not pending',
+    OFFER_EXPIRED: 'This offer has expired',
   },
 } as const;

@@ -65,7 +65,7 @@ export class AdvancedAssessmentController {
   })
   @ApiUnprocessableEntityResponse({
     description:
-      'Personal assessment incomplete, skill gate not passed, or no validated skill level exists',
+      'Personal assessment incomplete, skill assessment not completed, or no validated skill level exists',
   })
   @UsePipes(
     new ValidationPipe({
