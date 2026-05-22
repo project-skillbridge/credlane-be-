@@ -52,12 +52,12 @@ function makeAttempt(
 }
 
 /**
- * 10 MCQ + 10 short text + 2 LT-1 (SITUATIONAL) + 2 LT-2 (WORK_TASK) + 1
+ * 5 MCQ + 10 short text + 2 LT-1 (SITUATIONAL) + 2 LT-2 (WORK_TASK) + 1
  * LT-3 (REFLECTION, runtime-generated). For tests we pre-populate the
  * reflection slot so submit() doesn't hit the LT2_NOT_SUBMITTED guard.
  */
 function makeSessionJson() {
-  const mcqQuestions = Array.from({ length: 10 }, (_, i) => ({
+  const mcqQuestions = Array.from({ length: 5 }, (_, i) => ({
     question_id: `mcq-${i + 1}`,
     question_number: i + 1,
     block: 'mcq',
@@ -66,12 +66,12 @@ function makeSessionJson() {
     options: ['Option A', 'Option B', 'Option C', 'Option D'],
     slot_type: null,
     metadata: { competency: 'sql_queries' },
-    correct_answer: i < 8 ? 'Option A' : 'Option B',
+    correct_answer: i < 4 ? 'Option A' : 'Option B',
   }));
 
   const shortTextQuestions = Array.from({ length: 10 }, (_, i) => ({
     question_id: `short-${i + 1}`,
-    question_number: 11 + i,
+    question_number: 6 + i,
     block: 'short_text',
     question_type: QuestionType.REQUIRED_TEXT,
     question_text: `Short text question ${i + 1}`,
@@ -90,7 +90,7 @@ function makeSessionJson() {
   ];
   const longTextQuestions = longTextSlots.map((slot_type, i) => ({
     question_id: `long-${i + 1}`,
-    question_number: 21 + i,
+    question_number: 16 + i,
     block: 'long_text',
     question_type: QuestionType.OPTIONAL_TEXT,
     question_text: `Long text question ${i + 1} (${slot_type})`,
@@ -445,10 +445,10 @@ describe('AdvancedAssessmentService', () => {
   // ── submit ──────────────────────────────────────────────────────────────────
 
   describe('submit()', () => {
-    // 10 MCQ + (10+2+2)*12 + 1*8 = 10 + 168 + 8 = 186
-    const ADVANCED_MAX_SCORE = 186;
+    // 5 MCQ + (10+2+2)*12 + 1*8 = 5 + 168 + 8 = 181
+    const ADVANCED_MAX_SCORE = 181;
 
-    it('returns the max_score (186) for a complete session', async () => {
+    it('returns the max_score (181) for a complete session', async () => {
       // perfect text scoring + all MCQ correct
       rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
       const result = await service.submit(userId, makeSubmitDto() as never);
@@ -523,7 +523,7 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('places tier at Emerging when 50% <= pct < 75%', async () => {
-      // Need ~60% of 186 = 112; choose 100/176 text raw → MCQ also high
+      // Need ~60% of 181 = 109; choose 100/176 text raw → MCQ also high
       rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(115, 176));
       const result = await service.submit(userId, makeSubmitDto() as never);
 
@@ -558,7 +558,7 @@ describe('AdvancedAssessmentService', () => {
       );
     });
 
-    it('writes one assessment_scores row per session question (25)', async () => {
+    it('writes one assessment_scores row per session question (20)', async () => {
       rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
       await service.submit(userId, makeSubmitDto() as never);
 
@@ -570,7 +570,7 @@ describe('AdvancedAssessmentService', () => {
         question_type: AssessmentScoreQuestionType;
         max_score: number;
       }>;
-      expect(rows).toHaveLength(25);
+      expect(rows).toHaveLength(20);
 
       const mcqRows = rows.filter(
         (r) => r.question_type === AssessmentScoreQuestionType.MCQ,
@@ -581,7 +581,7 @@ describe('AdvancedAssessmentService', () => {
       const longRows = rows.filter(
         (r) => r.question_type === AssessmentScoreQuestionType.LONG_TEXT,
       );
-      expect(mcqRows).toHaveLength(10);
+      expect(mcqRows).toHaveLength(5);
       expect(shortRows).toHaveLength(10);
       expect(longRows).toHaveLength(5);
       // LT-3 row carries max_score=8
@@ -699,7 +699,7 @@ describe('AdvancedAssessmentService', () => {
 
     describe('tier boundary cases', () => {
       it('49% → Not Ready', async () => {
-        // 91/186 = 48.9%
+        // 91/181 = 50.3%
         rubricScoring.scoreAnswers.mockResolvedValue(
           makeScoredAnswers(85, 176),
         );
@@ -978,7 +978,7 @@ describe('AdvancedAssessmentService', () => {
       });
     });
 
-    it('throws 503 BANK_EXHAUSTED when fewer than 25 questions can be assembled', async () => {
+    it('throws 503 BANK_EXHAUSTED when fewer than 19 base questions can be assembled', async () => {
       const profile = makeTalentProfile({
         validated_level: VerifiedLevel.MID,
         personal_assessment_completed_at: new Date(),

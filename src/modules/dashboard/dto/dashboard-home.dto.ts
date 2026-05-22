@@ -37,7 +37,7 @@ export class DashboardSkillPerformanceDto {
 
   @ApiProperty({
     description:
-      'Whether the skill assessment met the 75% pass gate for advanced',
+      'Whether the skill assessment met the 70% pass gate for advanced',
   })
   passed: boolean;
 

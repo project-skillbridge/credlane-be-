@@ -26,6 +26,7 @@ import { ProbeController } from './probe.controller';
 import { WelcomeController } from './welcome.controller';
 import { AiResourcesModule } from './modules/ai-resources/ai-resources.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { AdminQuestionsModule } from './modules/admin/questions/admin-questions.module';
 
 @Module({
   imports: [
@@ -50,6 +51,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     MailModule,
     AiResourcesModule,
     NotificationsModule,
+    AdminQuestionsModule,
   ],
   providers: [
     {

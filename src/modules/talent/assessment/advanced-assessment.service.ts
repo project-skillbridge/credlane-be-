@@ -46,6 +46,7 @@ import {
   GenerateQuestionsInput,
   GeneratedQuestion,
   GuidanceReport,
+  QuestionGradingRubric,
   ScoredTextAnswer,
   TextAnswerInput,
 } from '../../ai/ai.types';
@@ -69,6 +70,7 @@ import {
   normaliseCompetency,
   sanitiseCompetencyList,
 } from './competency-taxonomy';
+import { SKILL_ASSESSMENT_PASS_PERCENTAGE } from '../talent.constants';
 
 const ADVANCED_ASSESSMENT_DURATION_MINUTES = 90;
 const RETAKE_GATE_DAYS = 14;
@@ -220,6 +222,17 @@ export class AdvancedAssessmentService {
           );
         }
 
+        const skillPassPercentage =
+          latestSkillResult.claimed_percentage ??
+          latestSkillResult.percentage ??
+          0;
+        if (skillPassPercentage < SKILL_ASSESSMENT_PASS_PERCENTAGE) {
+          throw new UnprocessableEntityException({
+            error: 'SKILL_PASS_REQUIRED',
+            message: ErrorMessages.SKILL_ASSESSMENT.PASS_REQUIRED,
+          });
+        }
+
         if (
           profile.advanced_retake_required &&
           profile.assessment_locked_until &&
@@ -259,7 +272,7 @@ export class AdvancedAssessmentService {
 
         const eligibleQuestions = await this.findEligibleQuestions(
           manager,
-          profile.id,
+          profile,
         );
         const selectedQuestions = await this.selectQuestionBlocks(
           manager,
@@ -486,11 +499,20 @@ export class AdvancedAssessmentService {
         abnormalTimingByQuestion.set(question.question_id, true);
       }
 
+      const metadata = (question.metadata ?? {}) as Record<string, unknown>;
+      const rawRubric = metadata.grading_rubric;
+      const gradingRubric =
+        rawRubric !== null &&
+        typeof rawRubric === 'object' &&
+        !Array.isArray(rawRubric)
+          ? (rawRubric as QuestionGradingRubric)
+          : null;
+
       textInputs.push({
         question_id: question.question_id,
         question_text: question.question_text,
         answer,
-        // LT-3 alone uses the 2-dim 0–4 rubric (max 8).
+        grading_rubric: gradingRubric,
         is_lt3: question.slot_type === SlotType.REFLECTION,
       });
       responsesToSave.push({
@@ -830,9 +852,9 @@ export class AdvancedAssessmentService {
             question_number: nextQuestionNumber,
             options: null,
             correct_answer: null,
-            track: null,
-            verified_level: null,
-            competency: null,
+            track,
+            verified_level: verifiedLevel,
+            competency: normaliseCompetency(track, null),
             slot_type: SlotType.REFLECTION,
             // CHK_assessment_questions_metadata_valid requires difficulty,
             // estimated_time_seconds, and a tags array. We extend the base
@@ -1246,14 +1268,19 @@ export class AdvancedAssessmentService {
 
   private async findEligibleQuestions(
     manager: EntityManager,
-    talentProfileId: string,
+    profile: TalentProfile,
   ): Promise<AssessmentQuestion[]> {
-    return manager
+    const verifiedLevel = profile.validated_level ?? VerifiedLevel.ENTRY;
+    const track = profile.track ?? 'general';
+
+    const primary = await manager
       .createQueryBuilder(AssessmentQuestion, 'question')
       .where('question.assessment_type = :assessmentType', {
         assessmentType: AssessmentType.ADVANCED,
       })
       .andWhere('question.is_live = true')
+      .andWhere('question.track = :track', { track })
+      .andWhere('question.verified_level = :verifiedLevel', { verifiedLevel })
       .andWhere(
         `NOT EXISTS (
           SELECT 1
@@ -1261,11 +1288,33 @@ export class AdvancedAssessmentService {
           WHERE history.question_id = question.id
           AND history.talent_profile_id = :talentProfileId
         )`,
-        { talentProfileId },
+        { talentProfileId: profile.id },
       )
-      .orderBy('question.question_number', 'ASC')
-      .addOrderBy('question.created_at', 'ASC')
-      .addOrderBy('question.id', 'ASC')
+      .orderBy('RANDOM()')
+      .getMany();
+
+    if (primary.length > 0) {
+      return primary;
+    }
+
+    return manager
+      .createQueryBuilder(AssessmentQuestion, 'question')
+      .where('question.assessment_type = :assessmentType', {
+        assessmentType: AssessmentType.ADVANCED,
+      })
+      .andWhere('question.is_live = false')
+      .andWhere('question.track = :track', { track })
+      .andWhere('question.verified_level = :verifiedLevel', { verifiedLevel })
+      .andWhere(
+        `NOT EXISTS (
+          SELECT 1
+          FROM talent_question_history history
+          WHERE history.question_id = question.id
+          AND history.talent_profile_id = :talentProfileId
+        )`,
+        { talentProfileId: profile.id },
+      )
+      .orderBy('RANDOM()')
       .getMany();
   }
 
@@ -1488,11 +1537,6 @@ export class AdvancedAssessmentService {
           ? SlotType.WORK_TASK
           : SlotType.SITUATIONAL);
 
-      // CHK_assessment_questions_type_fields: advanced rows must have
-      // track/verified_level/competency = NULL on the row itself. The
-      // normalised competency lives in metadata.competency so the rest of
-      // the engine (extractCompetencies, employer pool, assessment_scores)
-      // can still read it from the session jsonb.
       return manager.create(AssessmentQuestion, {
         assessment_type: AssessmentType.ADVANCED,
         question_type: question.question_type,
@@ -1500,9 +1544,9 @@ export class AdvancedAssessmentService {
         question_number: nextQuestionNumber + index,
         options: question.options,
         correct_answer: question.correct_answer,
-        track: null,
-        verified_level: null,
-        competency: null,
+        track,
+        verified_level: verifiedLevel,
+        competency: normalisedCompetency,
         slot_type: slotType,
         metadata: this.buildGeneratedQuestionMetadata({
           track,

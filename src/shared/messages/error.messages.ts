@@ -43,7 +43,7 @@ export const ErrorMessages = {
     ATTEMPT_CORRUPT:
       'Assessment attempt has no questions; please start a new session',
     PASS_REQUIRED:
-      'You need a score of 75% or higher in the skill assessment before starting the advanced assessment',
+      'You need a score of 70% or higher on your claimed level in the skill assessment before starting the advanced assessment',
     MAX_ATTEMPTS_REACHED:
       'You have used all three skill assessment attempts. Complete the advanced assessment to unlock further skill retakes.',
     ACTIVE_SESSION_EXISTS: 'Active skill assessment session already exists',

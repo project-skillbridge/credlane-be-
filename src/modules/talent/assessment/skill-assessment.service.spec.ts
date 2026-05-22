@@ -45,7 +45,8 @@ describe('SkillAssessmentService', () => {
     advanced_assessment_completed_at: null,
   });
 
-  function mockTransaction() {
+  function mockTransaction(probeQuestions: AssessmentQuestion[] = []) {
+    let eligibleQueryCount = 0;
     talentProfileRepo.manager.transaction.mockImplementation(
       async (work: (manager: EntityManagerLike) => Promise<unknown>) => {
         const manager: EntityManagerLike = {
@@ -55,13 +56,17 @@ describe('SkillAssessmentService', () => {
             where: jest.fn().mockReturnThis(),
             andWhere: jest.fn().mockReturnThis(),
             orderBy: jest.fn().mockReturnThis(),
-            getMany: jest.fn().mockResolvedValue(eligibleSkillQuestions),
+            getMany: jest.fn().mockImplementation(() => {
+              eligibleQueryCount += 1;
+              if (eligibleQueryCount === 1) {
+                return eligibleSkillQuestions;
+              }
+              return probeQuestions;
+            }),
           })),
           create: jest.fn(
             (
-              _entity:
-                | typeof AssessmentAttempt
-                | typeof AssessmentResult,
+              _entity: typeof AssessmentAttempt | typeof AssessmentResult,
               data: Partial<AssessmentAttempt | AssessmentResult>,
             ) => attemptRepo.create(data),
           ),
@@ -73,8 +78,7 @@ describe('SkillAssessmentService', () => {
                 | typeof TalentQuestionHistory
                 | typeof AssessmentResult,
               data: AssessmentAttempt | unknown[],
-            ) =>
-              attemptRepo.save(data),
+            ) => attemptRepo.save(data),
           ),
           update: jest.fn(),
         };
@@ -238,9 +242,9 @@ describe('SkillAssessmentService', () => {
   it('throws 404 when skill session does not exist for the talent', async () => {
     attemptRepo.findOne.mockResolvedValue(null);
 
-    await expect(service.getSession(userId, 'missing-attempt')).rejects.toBeInstanceOf(
-      NotFoundException,
-    );
+    await expect(
+      service.getSession(userId, 'missing-attempt'),
+    ).rejects.toBeInstanceOf(NotFoundException);
   });
 
   it('throws 400 when stored skill session has no questions', async () => {
@@ -250,13 +254,16 @@ describe('SkillAssessmentService', () => {
         talent_profile_id: profile.id,
         assessment_type: AssessmentType.SKILL,
         started_at: new Date('2026-05-21T10:00:00.000Z'),
-        generated_questions_json: { context: { verified_level: VerifiedLevel.MID }, questions: [] },
+        generated_questions_json: {
+          context: { verified_level: VerifiedLevel.MID },
+          questions: [],
+        },
       }),
     );
 
-    await expect(service.getSession(userId, 'attempt-1')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      service.getSession(userId, 'attempt-1'),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('returns session_id when submitting a skill assessment', async () => {
@@ -302,17 +309,39 @@ describe('SkillAssessmentService', () => {
     const resolveLevel = (
       service as unknown as {
         resolveValidatedLevel: (
-          percentage: number,
+          claimedPercentage: number,
+          aboveLevelPercentage: number,
+          belowLevelPercentage: number,
+          overallPercentage: number,
           claimedLevel: VerifiedLevel,
         ) => VerifiedLevel;
       }
     ).resolveValidatedLevel.bind(service);
 
-    expect(resolveLevel(70, VerifiedLevel.MID)).toBe(VerifiedLevel.MID);
-    expect(resolveLevel(59, VerifiedLevel.SENIOR)).toBe(VerifiedLevel.MID);
-    expect(resolveLevel(54, VerifiedLevel.EXPERT)).toBe(VerifiedLevel.JUNIOR);
-    expect(resolveLevel(54, VerifiedLevel.ENTRY)).toBe(VerifiedLevel.ENTRY);
-    expect(resolveLevel(100, VerifiedLevel.MID)).toBe(VerifiedLevel.MID);
+    expect(resolveLevel(70, 0, 0, 70, VerifiedLevel.MID)).toBe(
+      VerifiedLevel.MID,
+    );
+    expect(resolveLevel(59, 0, 65, 60, VerifiedLevel.SENIOR)).toBe(
+      VerifiedLevel.MID,
+    );
+    expect(resolveLevel(59, 0, 50, 58, VerifiedLevel.SENIOR)).toBe(
+      VerifiedLevel.MID,
+    );
+    expect(resolveLevel(54, 0, 0, 54, VerifiedLevel.EXPERT)).toBe(
+      VerifiedLevel.JUNIOR,
+    );
+    expect(resolveLevel(54, 0, 0, 54, VerifiedLevel.ENTRY)).toBe(
+      VerifiedLevel.ENTRY,
+    );
+    expect(resolveLevel(95, 70, 0, 92, VerifiedLevel.MID)).toBe(
+      VerifiedLevel.SENIOR,
+    );
+    expect(resolveLevel(95, 50, 0, 90, VerifiedLevel.MID)).toBe(
+      VerifiedLevel.MID,
+    );
+    expect(resolveLevel(65, 0, 0, 65, VerifiedLevel.MID)).toBe(
+      VerifiedLevel.JUNIOR,
+    );
   });
 
   it('does not enforce attempt limit after advanced assessment is complete', async () => {
