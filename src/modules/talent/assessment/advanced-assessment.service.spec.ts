@@ -222,6 +222,8 @@ describe('AdvancedAssessmentService', () => {
 
   // Cross-test captures
   let entityManagerSaveCalls: Array<{ entity: unknown; data: unknown }>;
+  let entityManagerFindOne: jest.Mock;
+  let entityManagerIncrement: jest.Mock;
   let entityManagerUpdate: jest.Mock;
 
   const userId = 'talent-user-1';
@@ -245,6 +247,31 @@ describe('AdvancedAssessmentService', () => {
     resultRepo = { update: jest.fn().mockResolvedValue({ affected: 1 }) };
     questionGeneration = {};
     entityManagerSaveCalls = [];
+    entityManagerFindOne = jest
+      .fn()
+      .mockImplementation((_entity: unknown) =>
+        Promise.resolve(
+          Object.assign(new AssessmentAttempt(), attemptData.current),
+        ),
+      );
+    entityManagerIncrement = jest
+      .fn()
+      .mockImplementation(
+        (
+          _entity: unknown,
+          _criteria: Record<string, unknown>,
+          field: string,
+          value: number,
+        ) => {
+          const current = attemptData.current;
+          if (field === 'tab_switch_count') {
+            current.tab_switch_count += value;
+          } else if (field === 'copy_paste_count') {
+            current.copy_paste_count += value;
+          }
+          return Promise.resolve({ affected: 1 });
+        },
+      );
     entityManagerUpdate = jest.fn().mockResolvedValue(undefined);
 
     attemptRepo = {
@@ -290,6 +317,8 @@ describe('AdvancedAssessmentService', () => {
     };
 
     const entityManager = {
+      findOne: entityManagerFindOne,
+      increment: entityManagerIncrement,
       save: jest.fn().mockImplementation((entity: unknown, data: unknown) => {
         entityManagerSaveCalls.push({ entity, data });
         return Promise.resolve(data);
