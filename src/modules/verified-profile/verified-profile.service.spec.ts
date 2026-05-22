@@ -280,7 +280,7 @@ describe('VerifiedProfileService', () => {
         candidate_id: user.id,
         shareable_link_token: 'gh'.repeat(32),
         verified_at: new Date('2026-05-03T00:00:00.000Z'),
-        verified_level: VerifiedLevel.ENTRY,
+        verified_level: 'entry' as VerifiedLevel,
         strong_competencies: null,
         competency_scores: null,
       });

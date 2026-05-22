@@ -2,7 +2,7 @@ import { VerifiedLevel } from '../assessments/entities';
 import type { AdvancedAssessmentGeneratedQuestion } from '../talent/assessment/advanced-assessment-ai.service';
 
 const SENIORITY_LABELS: Record<string, string> = {
-  [VerifiedLevel.ENTRY]: 'Entry Level',
+  entry: 'Entry Level',
   [VerifiedLevel.JUNIOR]: 'Junior Level',
   [VerifiedLevel.MID]: 'Mid Level',
   [VerifiedLevel.SENIOR]: 'Senior Level',
