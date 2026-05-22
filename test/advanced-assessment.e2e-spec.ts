@@ -157,6 +157,7 @@ function makeActiveAttempt(
     completed_at: null,
     expires_at: new Date(Date.now() + 90 * 60 * 1000),
     tab_switch_count: 0,
+    copy_paste_count: 0,
     force_submitted: false,
     generated_questions_json: makeSessionJson(),
     created_at: new Date(),
@@ -241,6 +242,33 @@ describe('Advanced assessment (e2e)', () => {
         attemptStore = a;
         return Promise.resolve(a);
       }),
+      increment: jest
+        .fn()
+        .mockImplementation(
+          (
+            _criteria: Record<string, unknown>,
+            field: string,
+            value: number,
+          ) => {
+            if (field === 'tab_switch_count') {
+              attemptStore.tab_switch_count += value;
+            } else if (field === 'copy_paste_count') {
+              attemptStore.copy_paste_count += value;
+            }
+            return Promise.resolve({ affected: 1 });
+          },
+        ),
+      update: jest
+        .fn()
+        .mockImplementation(
+          (
+            _criteria: Record<string, unknown>,
+            patch: Partial<AssessmentAttempt>,
+          ) => {
+            attemptStore = Object.assign(attemptStore, patch);
+            return Promise.resolve({ affected: 1 });
+          },
+        ),
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -508,39 +536,29 @@ describe('Advanced assessment (e2e)', () => {
   // ── POST /session/:id/flag ─────────────────────────────────────────────────
 
   describe('POST /api/v1/talent/assessment/session/:id/flag', () => {
-    it('returns warning on first tab switch', async () => {
+    it('voids session on tab switch', async () => {
       await request(app.getHttpServer())
         .post(`/api/v1/talent/assessment/session/${ATTEMPT_ID}/flag`)
         .send({ event_type: 'tab_switch' })
         .expect(200)
         .expect((res) => {
-          expect(res.body.action).toBe('warn');
-          expect(res.body.session_voided).toBe(false);
+          expect(res.body.status).toBe('voided');
+          expect(res.body.action).toBe('logout');
+          expect(res.body.session_voided).toBe(true);
           expect(res.body.tab_switch_count).toBe(1);
         });
     });
 
-    it('returns logout and voids session on third tab switch', async () => {
-      attemptStore = makeActiveAttempt({ tab_switch_count: 2 });
-
-      await request(app.getHttpServer())
-        .post(`/api/v1/talent/assessment/session/${ATTEMPT_ID}/flag`)
-        .send({ event_type: 'tab_switch' })
-        .expect(200)
-        .expect((res) => {
-          expect(res.body.action).toBe('logout');
-          expect(res.body.session_voided).toBe(true);
-        });
-    });
-
-    it('returns flagged status for copy_paste event', async () => {
+    it('voids session on copy_paste event', async () => {
       await request(app.getHttpServer())
         .post(`/api/v1/talent/assessment/session/${ATTEMPT_ID}/flag`)
         .send({ event_type: 'copy_paste' })
         .expect(200)
         .expect((res) => {
-          expect(res.body.status).toBe('flagged');
-          expect(res.body.session_voided).toBe(false);
+          expect(res.body.status).toBe('voided');
+          expect(res.body.action).toBe('logout');
+          expect(res.body.session_voided).toBe(true);
+          expect(res.body.copy_paste_count).toBe(1);
         });
     });
 
