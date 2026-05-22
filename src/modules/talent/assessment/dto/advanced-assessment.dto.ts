@@ -2,7 +2,6 @@ import { ApiProperty } from '@nestjs/swagger';
 import {
   ArrayNotEmpty,
   IsArray,
-  IsEnum,
   IsNotEmpty,
   IsNumber,
   IsOptional,
@@ -84,21 +83,10 @@ export class AdvancedAnswerDto {
   time_spent_seconds?: number;
 }
 
-export enum IntegrityEventType {
-  TAB_SWITCH = 'tab_switch',
-  COPY_PASTE = 'copy_paste',
-}
-
-export class FlagIntegrityEventDto {
-  @ApiProperty({ enum: IntegrityEventType })
-  @IsEnum(IntegrityEventType)
-  event_type: IntegrityEventType;
-
-  @ApiProperty({ required: false, description: 'Additional context' })
-  @IsOptional()
-  @IsString()
-  context?: string;
-}
+export {
+  FlagIntegrityEventDto,
+  IntegrityEventType,
+} from './integrity-event.dto';
 
 export class SubmitAdvancedAssessmentDto {
   @ApiProperty({

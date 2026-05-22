@@ -16,6 +16,9 @@ export class UploadService {
     ) {
       this.s3 = new S3Client({
         region: env.AWS_REGION,
+        ...(env.AWS_ENDPOINT
+          ? { endpoint: env.AWS_ENDPOINT, forcePathStyle: true }
+          : {}),
         credentials: {
           accessKeyId: env.AWS_ACCESS_KEY_ID,
           secretAccessKey: env.AWS_SECRET_ACCESS_KEY,
@@ -44,6 +47,19 @@ export class UploadService {
         ContentType: file.mimetype,
       }),
     );
+
+    return this.buildPublicUrl(key);
+  }
+
+  private buildPublicUrl(key: string): string {
+    if (env.AWS_PUBLIC_URL) {
+      return `${env.AWS_PUBLIC_URL.replace(/\/$/, '')}/${key}`;
+    }
+
+    if (env.AWS_ENDPOINT) {
+      const base = env.AWS_ENDPOINT.replace(/\/$/, '');
+      return `${base}/${env.AWS_S3_BUCKET}/${key}`;
+    }
 
     return `https://${env.AWS_S3_BUCKET}.s3.${env.AWS_REGION}.amazonaws.com/${key}`;
   }
