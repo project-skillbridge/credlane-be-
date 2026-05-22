@@ -34,7 +34,7 @@ export class RemoveEntryLevel1779760000000 implements MigrationInterface {
     `);
   }
 
-  public async down(queryRunner: QueryRunner): Promise<void> {
+  public async down(_queryRunner: QueryRunner): Promise<void> {
     // No reliable way to reverse — we don't know which rows were originally 'entry'.
     // The old 'entry' value still exists in the verified_level_enum type in Postgres,
     // so nothing is broken. This migration is forward-only for data.
