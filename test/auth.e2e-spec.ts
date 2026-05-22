@@ -41,6 +41,7 @@ import {
 } from '../src/modules/auth/verification-otp.service';
 import { PasswordResetQueueService } from '../src/modules/auth/password-reset-queue.service';
 import { MailService } from '../src/modules/mail/mail.service';
+import { TalentProfile } from '../src/modules/talent/entities/talent-profile.entity';
 import { OAuthSignupRoleRequiredException } from '../src/modules/auth/exceptions/oauth-signup-role-required.exception';
 import { CreateUserDto } from '../src/modules/users/dto/create-user.dto';
 import { UpdateUserDto } from '../src/modules/users/dto/update-user.dto';
@@ -70,18 +71,26 @@ type StoredOtp = {
   createdAt: Date;
 };
 
-const registerPayload: RegisterPayload = {
+const talentRegisterPayload: RegisterPayload = {
   firstName: 'Jane',
   lastName: 'Doe',
   email: 'jane@example.com',
   password: 'StrongPass123',
-  reasonForJoining: 'Testing',
   role: UserRole.TALENT,
 };
 
+const employerRegisterPayload: RegisterPayload = {
+  firstName: 'Erin',
+  lastName: 'Stone',
+  email: 'erin-employer@example.com',
+  password: 'StrongPass123',
+  reasonForJoining: 'Hiring vetted talent',
+  role: UserRole.EMPLOYER,
+};
+
 const loginPayload: LoginPayload = {
-  email: registerPayload.email,
-  password: registerPayload.password,
+  email: talentRegisterPayload.email,
+  password: talentRegisterPayload.password,
 };
 
 class InMemoryUsersService {
@@ -500,6 +509,10 @@ describe('Auth (e2e)', () => {
           provide: getRepositoryToken(PasswordResetOtp),
           useValue: {},
         },
+        {
+          provide: getRepositoryToken(TalentProfile),
+          useValue: { findOne: jest.fn().mockResolvedValue(null) },
+        },
         { provide: APP_GUARD, useClass: JwtAuthGuard },
         { provide: APP_FILTER, useClass: HttpExceptionFilter },
         { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
@@ -536,7 +549,7 @@ describe('Auth (e2e)', () => {
   it('POST /auth/register creates an unverified user and sends an OTP without cookies', async () => {
     const response = await request(app.getHttpServer())
       .post('/auth/register')
-      .send(registerPayload)
+      .send(talentRegisterPayload)
       .expect(201);
 
     expect(getSetCookies(response)).toHaveLength(0);
@@ -545,12 +558,46 @@ describe('Auth (e2e)', () => {
       message: 'Verification otp sent',
     });
 
-    const createdUser = await usersService.findByEmail(registerPayload.email);
+    const createdUser = await usersService.findByEmail(
+      talentRegisterPayload.email,
+    );
     expect(createdUser?.is_verified).toBe(false);
-    expect(createdUser?.role).toBe(registerPayload.role);
-    expect(createdUser?.signup_reason).toBe(registerPayload.reasonForJoining);
+    expect(createdUser?.role).toBe(talentRegisterPayload.role);
+    expect(createdUser?.signup_reason).toBeNull();
     expect(mailService.verificationMessages).toHaveLength(1);
-    expect(mailService.verificationMessages[0]?.to).toBe(registerPayload.email);
+    expect(mailService.verificationMessages[0]?.to).toBe(
+      talentRegisterPayload.email,
+    );
+  });
+
+  it('POST /auth/register stores reasonForJoining for employers', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(employerRegisterPayload)
+      .expect(201);
+
+    const createdUser = await usersService.findByEmail(
+      employerRegisterPayload.email,
+    );
+    expect(createdUser?.signup_reason).toBe(
+      employerRegisterPayload.reasonForJoining,
+    );
+  });
+
+  it('POST /auth/register ignores reasonForJoining for talents', async () => {
+    const payload: RegisterPayload = {
+      ...talentRegisterPayload,
+      email: 'talent-with-reason@example.com',
+      reasonForJoining: 'Should be ignored',
+    };
+
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(payload)
+      .expect(201);
+
+    const createdUser = await usersService.findByEmail(payload.email);
+    expect(createdUser?.signup_reason).toBeNull();
   });
 
   it('POST /auth/register accepts omitting reasonForJoining', async () => {
@@ -590,12 +637,12 @@ describe('Auth (e2e)', () => {
   it('POST /auth/forgot-password for existing user triggers token save and sends reset mail', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
-      .send(registerPayload)
+      .send(talentRegisterPayload)
       .expect(201);
 
     const response = await request(app.getHttpServer())
       .post('/auth/forgot-password')
-      .send({ email: registerPayload.email })
+      .send({ email: talentRegisterPayload.email })
       .expect(200);
 
     await passwordResetQueue.awaitIdleForTests();
@@ -607,7 +654,7 @@ describe('Auth (e2e)', () => {
     expect(mockPasswordResetOtpService.issue).toHaveBeenCalled();
     expect(mailService.passwordResetMessages).toHaveLength(1);
     expect(mailService.passwordResetMessages[0]?.to).toBe(
-      registerPayload.email,
+      talentRegisterPayload.email,
     );
     expect(mailService.passwordResetMessages[0]?.otp).toBeDefined();
   });
@@ -615,12 +662,12 @@ describe('Auth (e2e)', () => {
   it('POST /auth/forgot-password for existing user sends OTP email', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
-      .send(registerPayload)
+      .send(talentRegisterPayload)
       .expect(201);
 
     await request(app.getHttpServer())
       .post('/auth/forgot-password')
-      .send({ email: registerPayload.email })
+      .send({ email: talentRegisterPayload.email })
       .expect(200);
 
     await passwordResetQueue.awaitIdleForTests();
@@ -652,15 +699,15 @@ describe('Auth (e2e)', () => {
   it('POST /auth/verify-reset-otp returns 200 for a valid password reset OTP', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
-      .send(registerPayload)
+      .send(talentRegisterPayload)
       .expect(201);
 
     const response = await request(app.getHttpServer())
       .post('/auth/verify-reset-otp')
-      .send({ email: registerPayload.email, otp: '123456' })
+      .send({ email: talentRegisterPayload.email, otp: '123456' })
       .expect(200);
 
-    const user = await usersService.findByEmail(registerPayload.email);
+    const user = await usersService.findByEmail(talentRegisterPayload.email);
     expect(mockPasswordResetOtpService.verify).toHaveBeenCalledWith(
       user?.id,
       '123456',
@@ -677,12 +724,12 @@ describe('Auth (e2e)', () => {
 
     await request(app.getHttpServer())
       .post('/auth/register')
-      .send(registerPayload)
+      .send(talentRegisterPayload)
       .expect(201);
 
     const response = await request(app.getHttpServer())
       .post('/auth/verify-reset-otp')
-      .send({ email: registerPayload.email, otp: '999999' })
+      .send({ email: talentRegisterPayload.email, otp: '999999' })
       .expect(400);
 
     expect(response.body).toMatchObject({
@@ -728,9 +775,8 @@ describe('Auth (e2e)', () => {
 
   it('POST /auth/register persists the selected employer role', async () => {
     const employerPayload: RegisterPayload = {
-      ...registerPayload,
+      ...employerRegisterPayload,
       email: 'employer@example.com',
-      role: UserRole.EMPLOYER,
     };
 
     await request(app.getHttpServer())
@@ -745,12 +791,12 @@ describe('Auth (e2e)', () => {
   it('POST /auth/register rejects duplicate emails', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
-      .send(registerPayload)
+      .send(talentRegisterPayload)
       .expect(201);
 
     await request(app.getHttpServer())
       .post('/auth/register')
-      .send(registerPayload)
+      .send(talentRegisterPayload)
       .expect(409)
       .expect((response) => {
         expect(response.body).toMatchObject({
@@ -764,7 +810,7 @@ describe('Auth (e2e)', () => {
   it('POST /auth/login blocks unverified users', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
-      .send(registerPayload)
+      .send(talentRegisterPayload)
       .expect(201);
 
     const response = await request(app.getHttpServer())
@@ -778,37 +824,39 @@ describe('Auth (e2e)', () => {
       status_code: 403,
       error: 'EMAIL_NOT_VERIFIED',
       message: 'Please verify your email to continue',
-      email: registerPayload.email,
+      email: talentRegisterPayload.email,
     });
   });
 
   it('POST /auth/verify-email verifies the user and issues auth cookies', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
-      .send(registerPayload)
+      .send(talentRegisterPayload)
       .expect(201);
 
-    const user = await usersService.findByEmail(registerPayload.email);
+    const user = await usersService.findByEmail(talentRegisterPayload.email);
     const otp = verificationOtpService.peekLatestCode(user!.id);
 
     const response = await request(app.getHttpServer())
       .post('/auth/verify-email')
-      .send({ email: registerPayload.email, otp })
+      .send({ email: talentRegisterPayload.email, otp })
       .expect(200);
 
     const authCookieHeader = expectAuthCookies(response);
     expect(response.body).toMatchObject({
       status_code: 200,
       message: 'Email verified',
-      user: {
-        email: registerPayload.email,
-        first_name: registerPayload.firstName,
-        last_name: registerPayload.lastName,
-        fullname: `${registerPayload.firstName} ${registerPayload.lastName}`,
-        country: 'Unknown',
-        role: registerPayload.role,
-        is_verified: true,
-        onboardingComplete: false,
+      data: {
+        user: {
+          email: talentRegisterPayload.email,
+          first_name: talentRegisterPayload.firstName,
+          last_name: talentRegisterPayload.lastName,
+          fullname: `${talentRegisterPayload.firstName} ${talentRegisterPayload.lastName}`,
+          country: 'Unknown',
+          role: talentRegisterPayload.role,
+          is_verified: true,
+          onboardingComplete: false,
+        },
       },
     });
 
@@ -821,7 +869,7 @@ describe('Auth (e2e)', () => {
           status_code: 200,
           message: 'success',
           data: {
-            email: registerPayload.email,
+            email: talentRegisterPayload.email,
             is_verified: true,
           },
         });
@@ -831,52 +879,52 @@ describe('Auth (e2e)', () => {
   it('POST /auth/verify-email rejects invalid, expired, and reused OTPs', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
-      .send(registerPayload)
+      .send(talentRegisterPayload)
       .expect(201);
 
-    const user = await usersService.findByEmail(registerPayload.email);
+    const user = await usersService.findByEmail(talentRegisterPayload.email);
     const otp = verificationOtpService.peekLatestCode(user!.id);
 
     await request(app.getHttpServer())
       .post('/auth/verify-email')
-      .send({ email: registerPayload.email, otp: '999999' })
+      .send({ email: talentRegisterPayload.email, otp: '999999' })
       .expect(400);
 
     verificationOtpService.expireLatest(user!.id);
     await request(app.getHttpServer())
       .post('/auth/verify-email')
-      .send({ email: registerPayload.email, otp })
+      .send({ email: talentRegisterPayload.email, otp })
       .expect(400);
 
     await request(app.getHttpServer())
       .post('/auth/resend-verification')
-      .send({ email: registerPayload.email })
+      .send({ email: talentRegisterPayload.email })
       .expect(200);
 
     const freshOtp = verificationOtpService.peekLatestCode(user!.id);
     await request(app.getHttpServer())
       .post('/auth/verify-email')
-      .send({ email: registerPayload.email, otp: freshOtp })
+      .send({ email: talentRegisterPayload.email, otp: freshOtp })
       .expect(200);
 
     await request(app.getHttpServer())
       .post('/auth/verify-email')
-      .send({ email: registerPayload.email, otp: freshOtp })
+      .send({ email: talentRegisterPayload.email, otp: freshOtp })
       .expect(400);
   });
 
   it('POST /auth/resend-verification invalidates the previous OTP and enforces the hourly limit', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
-      .send(registerPayload)
+      .send(talentRegisterPayload)
       .expect(201);
 
-    const user = await usersService.findByEmail(registerPayload.email);
+    const user = await usersService.findByEmail(talentRegisterPayload.email);
     const initialOtp = verificationOtpService.peekLatestCode(user!.id);
 
     await request(app.getHttpServer())
       .post('/auth/resend-verification')
-      .send({ email: registerPayload.email })
+      .send({ email: talentRegisterPayload.email })
       .expect(200);
 
     const resentOtp = verificationOtpService.peekLatestCode(user!.id);
@@ -884,22 +932,22 @@ describe('Auth (e2e)', () => {
 
     await request(app.getHttpServer())
       .post('/auth/verify-email')
-      .send({ email: registerPayload.email, otp: initialOtp })
+      .send({ email: talentRegisterPayload.email, otp: initialOtp })
       .expect(400);
 
     await request(app.getHttpServer())
       .post('/auth/resend-verification')
-      .send({ email: registerPayload.email })
+      .send({ email: talentRegisterPayload.email })
       .expect(200);
 
     await request(app.getHttpServer())
       .post('/auth/resend-verification')
-      .send({ email: registerPayload.email })
+      .send({ email: talentRegisterPayload.email })
       .expect(200);
 
     await request(app.getHttpServer())
       .post('/auth/resend-verification')
-      .send({ email: registerPayload.email })
+      .send({ email: talentRegisterPayload.email })
       .expect(429)
       .expect((response) => {
         expect(response.body).toMatchObject({
@@ -913,19 +961,19 @@ describe('Auth (e2e)', () => {
   it('POST /auth/resend-verification rejects already verified accounts', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
-      .send(registerPayload)
+      .send(talentRegisterPayload)
       .expect(201);
 
-    const user = await usersService.findByEmail(registerPayload.email);
+    const user = await usersService.findByEmail(talentRegisterPayload.email);
     const otp = verificationOtpService.peekLatestCode(user!.id);
     await request(app.getHttpServer())
       .post('/auth/verify-email')
-      .send({ email: registerPayload.email, otp })
+      .send({ email: talentRegisterPayload.email, otp })
       .expect(200);
 
     await request(app.getHttpServer())
       .post('/auth/resend-verification')
-      .send({ email: registerPayload.email })
+      .send({ email: talentRegisterPayload.email })
       .expect(400)
       .expect((response) => {
         expect(response.body).toMatchObject({
@@ -939,14 +987,14 @@ describe('Auth (e2e)', () => {
   it('verified users can log in, refresh, and log out', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
-      .send(registerPayload)
+      .send(talentRegisterPayload)
       .expect(201);
 
-    const user = await usersService.findByEmail(registerPayload.email);
+    const user = await usersService.findByEmail(talentRegisterPayload.email);
     const otp = verificationOtpService.peekLatestCode(user!.id);
     await request(app.getHttpServer())
       .post('/auth/verify-email')
-      .send({ email: registerPayload.email, otp })
+      .send({ email: talentRegisterPayload.email, otp })
       .expect(200);
 
     const loginResponse = await request(app.getHttpServer())
@@ -1033,6 +1081,10 @@ describe('Google OAuth callback (e2e)', () => {
         {
           provide: getRepositoryToken(PasswordResetOtp),
           useValue: {},
+        },
+        {
+          provide: getRepositoryToken(TalentProfile),
+          useValue: { findOne: jest.fn().mockResolvedValue(null) },
         },
         {
           provide: PasswordResetQueueService,
