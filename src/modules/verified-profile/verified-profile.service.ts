@@ -1,12 +1,15 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, Not, Repository } from 'typeorm';
+import { z } from 'zod';
+import { env } from '../../config/env';
 import {
   BadRequestError,
   ErrorMessages,
   ForbiddenError,
   NotFoundError,
 } from '../../shared';
+import { OpenRouterService } from '../ai/openrouter.service';
 import {
   AssessmentAttempt,
   AssessmentResponse,
@@ -25,11 +28,17 @@ import { UsersService } from '../users/users.service';
 import type { AdvancedAssessmentGeneratedQuestion } from '../talent/assessment/advanced-assessment-ai.service';
 import type { VerifiedProfileResponseDto } from './dto/verified-profile.dto';
 import {
+  buildQrCodeUrl,
+  buildShareUrl,
+  categorizeCompetencies,
   readPersonalAnswers,
   readSessionQuestions,
   resolveGoalLabel,
+  resolveKeyStrengths,
   resolveRoleLabel,
+  resolveSeniorityBadge,
   resolveSkills,
+  resolveTierLabel,
   rubricScorePercentage,
 } from './verified-profile.utils';
 
@@ -37,10 +46,23 @@ type BlockAggregate = { total: number; count: number };
 
 const SHARE_LINK_TOKEN_PATTERN = /^[a-fA-F0-9]{64}$/;
 
+const AI_SUMMARY_SCHEMA = z.object({
+  summary: z
+    .string()
+    .min(1)
+    .describe('3-4 sentence third-person professional summary for employers'),
+});
+
+const AI_SUMMARY_SYSTEM_PROMPT = `You are a professional CV writer creating a concise, third-person candidate summary for employer audiences.
+Write 3-4 sentences highlighting the candidate's validated skills, experience, and assessment performance.
+Be specific, factual, and professional. Return ONLY valid JSON.`;
+
 export type VerifiedProfileResponse = VerifiedProfileResponseDto;
 
 @Injectable()
 export class VerifiedProfileService {
+  private readonly logger = new Logger(VerifiedProfileService.name);
+
   constructor(
     @InjectRepository(TalentProfile)
     private readonly talentProfileRepository: Repository<TalentProfile>,
@@ -53,6 +75,7 @@ export class VerifiedProfileService {
     @InjectRepository(AssessmentResponse)
     private readonly assessmentResponseRepository: Repository<AssessmentResponse>,
     private readonly usersService: UsersService,
+    private readonly openRouterService: OpenRouterService,
   ) {}
 
   async getForTalentUser(userId: string): Promise<VerifiedProfileResponse> {
@@ -70,7 +93,11 @@ export class VerifiedProfileService {
       throw new NotFoundError(ErrorMessages.VERIFIED_PROFILE.NOT_AVAILABLE);
     }
 
-    return this.buildVerifiedProfile(user, profile);
+    const poolProfile = await this.employerPoolRepository.findOne({
+      where: { talent_profile_id: profile.id },
+    });
+
+    return this.buildVerifiedProfile(user, profile, poolProfile, true);
   }
 
   async getByShareToken(token: string): Promise<VerifiedProfileResponse> {
@@ -92,6 +119,7 @@ export class VerifiedProfileService {
       user,
       poolProfile.talent_profile,
       poolProfile,
+      false,
     );
   }
 
@@ -99,7 +127,14 @@ export class VerifiedProfileService {
     user: User,
     profile: TalentProfile,
     poolProfile?: EmployerPoolProfile | null,
+    isOwner?: boolean,
   ): Promise<VerifiedProfileResponse> {
+    if (!profile.personal_assessment_completed_at) {
+      throw new NotFoundError(
+        ErrorMessages.ADVANCED_ASSESSMENT.PERSONAL_ASSESSMENT_INCOMPLETE,
+      );
+    }
+
     const latestAdvancedResult = await this.getLatestAdvancedResult(profile.id);
 
     if (!this.isJobReady(profile, latestAdvancedResult)) {
@@ -134,6 +169,40 @@ export class VerifiedProfileService {
     );
 
     const skills = resolveSkills(personalAnswers);
+    const seniorityBadge = resolveSeniorityBadge(validatedLevel);
+    const tierLabel = resolveTierLabel(
+      latestAdvancedResult?.tier ?? poolProfile?.tier ?? null,
+    );
+    const scorePercentage = latestAdvancedResult?.percentage ?? undefined;
+
+    const competencyScores =
+      poolProfile?.competency_scores ?? undefined;
+    const strongCompetencies =
+      poolProfile?.strong_competencies ?? undefined;
+
+    const keyStrengths = resolveKeyStrengths(
+      competencyScores,
+      strongCompetencies,
+    );
+    const { professionalSkills, softSkills } =
+      categorizeCompetencies(competencyScores);
+
+    const shareUrl = buildShareUrl(
+      env.FRONTEND_URL,
+      poolProfile?.shareable_link_token ?? profile.profile_share_link,
+    );
+    const qrCodeUrl = buildQrCodeUrl(shareUrl);
+
+    let aiSummary: string | undefined;
+    if (latestAdvancedResult) {
+      aiSummary = await this.generateAiSummary(
+        user,
+        profile,
+        latestAdvancedResult,
+        latestSkillResult,
+        poolProfile,
+      );
+    }
 
     return {
       fullName: `${user.first_name} ${user.last_name}`.trim(),
@@ -145,7 +214,17 @@ export class VerifiedProfileService {
       ),
       goal: resolveGoalLabel(profile.goal),
       about: profile.bio?.trim() ?? '',
+      ...(aiSummary && { aiSummary }),
+      avatarUrl: user.avatar_url,
+      verified: true,
+      status: profile.status,
+      ...(seniorityBadge && { seniorityBadge }),
       ...(skills && { skills }),
+      ...(tierLabel && { tierLabel }),
+      ...(scorePercentage !== undefined && { scorePercentage }),
+      ...(keyStrengths && { keyStrengths }),
+      ...(professionalSkills && { professionalSkills }),
+      ...(softSkills && { softSkills }),
       ...(skillProficiency && { skillProficiency }),
       ...(blockScores.workplaceReadiness && {
         workplaceReadiness: blockScores.workplaceReadiness,
@@ -153,9 +232,70 @@ export class VerifiedProfileService {
       ...(blockScores.practicalApplication && {
         practicalApplication: blockScores.practicalApplication,
       }),
+      shareUrl,
+      ...(qrCodeUrl && { qrCodeUrl }),
+      isOwner: isOwner ?? false,
       verifiedAt: verifiedAt.toISOString(),
       ...(latestAdvancedResult?.tier && { tier: latestAdvancedResult.tier }),
     };
+  }
+
+  private async generateAiSummary(
+    user: User,
+    profile: TalentProfile,
+    advancedResult: AssessmentResult,
+    skillResult: AssessmentResult | null,
+    poolProfile?: EmployerPoolProfile | null,
+  ): Promise<string | undefined> {
+    if (!env.OPENROUTER_API_KEY) return undefined;
+
+    const fullName = `${user.first_name} ${user.last_name}`.trim();
+    const role = profile.track ? profile.track.replace(/_/g, ' ') : undefined;
+    const validatedLevel = profile.validated_level ?? undefined;
+    const advancedPercentage = advancedResult.percentage ?? undefined;
+    const skillPercentage = skillResult?.percentage ?? undefined;
+    const tier = advancedResult.tier ?? undefined;
+
+    const strongComp =
+      poolProfile?.strong_competencies?.join(', ') ?? 'not specified';
+    const topSkills = poolProfile?.competency_scores
+      ? Object.entries(poolProfile.competency_scores)
+          .sort(([, a], [, b]) => b - a)
+          .slice(0, 3)
+          .map(([k]) => k.replace(/_/g, ' '))
+          .join(', ')
+      : 'not specified';
+
+    const userPrompt = `
+Generate a 3-4 sentence professional summary for an employer audience.
+
+Candidate details:
+- Name: ${fullName}
+${role ? `- Role track: ${role}` : ''}
+${validatedLevel ? `- Validated level: ${validatedLevel}` : ''}
+${tier ? `- Assessment tier: ${tier}` : ''}
+${advancedPercentage != null ? `- Advanced assessment score: ${advancedPercentage}%` : ''}
+${skillPercentage != null ? `- Skill assessment score: ${skillPercentage}%` : ''}
+- Strong competencies: ${strongComp}
+- Top skills: ${topSkills}
+${profile.bio ? `- Self description: ${profile.bio}` : ''}
+
+Write a third-person summary (3-4 sentences) that an employer would find useful when reviewing this candidate's verified profile. Be specific about their validated abilities. Do not fabricate details.`.trim();
+
+    try {
+      const result = await this.openRouterService.chat(
+        AI_SUMMARY_SYSTEM_PROMPT,
+        userPrompt,
+        AI_SUMMARY_SCHEMA,
+        0.3,
+      );
+      return result.summary;
+    } catch (error) {
+      this.logger.warn(
+        `AI summary generation failed for user=${user.id}: ${String(error)}`,
+      );
+      return undefined;
+    }
   }
 
   private isJobReady(
