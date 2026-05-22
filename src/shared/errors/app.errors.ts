@@ -2,6 +2,8 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  HttpException,
+  HttpStatus,
   InternalServerErrorException,
   NotFoundException,
   UnauthorizedException,
@@ -40,5 +42,11 @@ export class NotFoundError extends NotFoundException {
 export class UnauthorizedError extends UnauthorizedException {
   constructor(message: string) {
     super(message);
+  }
+}
+
+export class TooManyRequestsError extends HttpException {
+  constructor(message: string) {
+    super(message, HttpStatus.TOO_MANY_REQUESTS);
   }
 }
