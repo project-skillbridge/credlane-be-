@@ -174,6 +174,14 @@ export class TalentProfile {
   @ApiProperty({
     required: false,
     nullable: true,
+    description: 'When the current advanced assessment retake gate started',
+  })
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  assessment_locked_from: Date | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
     description: 'Date until which advanced assessment retakes are locked',
   })
   @Column({ type: 'timestamp with time zone', nullable: true })

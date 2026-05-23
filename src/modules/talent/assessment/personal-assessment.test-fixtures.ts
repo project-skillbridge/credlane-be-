@@ -57,6 +57,7 @@ export function makeTalentProfile(
     skill_assessment_completed_at: null,
     advanced_assessment_completed_at: null,
     validated_level: null,
+    assessment_locked_from: null,
     assessment_locked_until: null,
     advanced_retake_required: false,
     created_at: new Date(),

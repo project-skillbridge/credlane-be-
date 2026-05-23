@@ -64,6 +64,18 @@ export class DashboardSkillPerformanceDto {
 export class DashboardRetakeDto {
   @ApiProperty({
     format: 'date-time',
+    example: '2026-05-03T00:00:00.000Z',
+  })
+  probationStartDate: string;
+
+  @ApiProperty({
+    format: 'date-time',
+    example: '2026-05-17T00:00:00.000Z',
+  })
+  probationEndDate: string;
+
+  @ApiProperty({
+    format: 'date-time',
     example: '2026-05-17T00:00:00.000Z',
   })
   eligibilityDate: string;
@@ -205,6 +217,8 @@ export type DashboardHomeResponse = {
 };
 
 export type DashboardRetake = {
+  probationStartDate: string;
+  probationEndDate: string;
   eligibilityDate: string;
   ctaEnabled: boolean;
   countdownSeconds: number;
