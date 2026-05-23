@@ -720,27 +720,38 @@ export class SkillAssessmentService {
     profile: TalentProfile,
     verifiedLevel: VerifiedLevel,
   ): Promise<AssessmentQuestion[]> {
-    return manager
+    const lastAttempt = await manager.getRepository(AssessmentAttempt).findOne({
+      where: {
+        talent_profile_id: profile.id,
+        assessment_type: AssessmentType.SKILL,
+        completed_at: Not(IsNull()),
+      },
+      order: { completed_at: 'DESC' },
+    });
+
+    const qb = manager
       .createQueryBuilder(AssessmentQuestion, 'question')
       .where('question.assessment_type = :assessmentType', {
         assessmentType: AssessmentType.SKILL,
       })
       .andWhere('question.is_live = true')
       .andWhere('question.track = :track', { track: profile.track })
-      .andWhere('question.verified_level = :verifiedLevel', {
-        verifiedLevel,
-      })
-      .andWhere(
+      .andWhere('question.verified_level = :verifiedLevel', { verifiedLevel });
+
+    if (lastAttempt) {
+      qb.andWhere(
         `NOT EXISTS (
           SELECT 1
           FROM talent_question_history history
           WHERE history.question_id = question.id
           AND history.talent_profile_id = :talentProfileId
+          AND history.attempt_id = :lastAttemptId
         )`,
-        { talentProfileId: profile.id },
-      )
-      .orderBy('RANDOM()')
-      .getMany();
+        { talentProfileId: profile.id, lastAttemptId: lastAttempt.id },
+      );
+    }
+
+    return qb.orderBy('RANDOM()').getMany();
   }
 
   private selectSkillQuestionMix(
