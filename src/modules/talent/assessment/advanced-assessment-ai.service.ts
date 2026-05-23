@@ -18,6 +18,15 @@ export const ADVANCED_ASSESSMENT_BASE_QUESTIONS =
 
 export type AdvancedAssessmentBlock = 'mcq' | 'short_text' | 'long_text';
 
+export function blockLengthLimits(block: AdvancedAssessmentBlock): {
+  min_length: number | null;
+  max_length: number | null;
+} {
+  if (block === 'short_text') return { min_length: 10, max_length: 600 };
+  if (block === 'long_text') return { min_length: 60, max_length: 2000 };
+  return { min_length: null, max_length: null };
+}
+
 export type AdvancedAssessmentAiContext = TalentPersonalAssessmentContext & {
   track: string | null;
   verified_level: string;
@@ -33,6 +42,8 @@ export type AdvancedAssessmentGeneratedQuestion = {
   slot_type: string | null;
   metadata: Record<string, any> | null;
   correct_answer: string | null;
+  min_length: number | null;
+  max_length: number | null;
 };
 
 @Injectable()
@@ -79,6 +90,7 @@ export class AdvancedAssessmentAiService {
     block: AdvancedAssessmentBlock,
     startAt: number,
   ): AdvancedAssessmentGeneratedQuestion[] {
+    const { min_length, max_length } = blockLengthLimits(block);
     return questions.map((question, index) => ({
       question_id: question.id,
       question_number: startAt + index,
@@ -89,6 +101,8 @@ export class AdvancedAssessmentAiService {
       slot_type: question.slot_type,
       metadata: question.metadata,
       correct_answer: question.correct_answer,
+      min_length,
+      max_length,
     }));
   }
 }

@@ -36,6 +36,7 @@ import {
   ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT,
   AdvancedAssessmentAiService,
   AdvancedAssessmentGeneratedQuestion,
+  blockLengthLimits,
 } from './advanced-assessment-ai.service';
 import { PersonalAssessmentService } from './personal-assessment.service';
 import { RubricScoringService } from '../../ai/rubric-scoring.service';
@@ -75,9 +76,9 @@ import {
 const ADVANCED_ASSESSMENT_DURATION_MINUTES = 90;
 const RETAKE_GATE_DAYS = 14;
 const ABNORMAL_LONG_TEXT_SECONDS = 5;
-const ADVANCED_SHORT_TEXT_MIN_CHARS = 60;
+const ADVANCED_SHORT_TEXT_MIN_CHARS = 10;
 const ADVANCED_SHORT_TEXT_MAX_CHARS = 600;
-const ADVANCED_LONG_TEXT_MIN_CHARS = 150;
+const ADVANCED_LONG_TEXT_MIN_CHARS = 60;
 const ADVANCED_LONG_TEXT_MAX_CHARS = 2000;
 
 // Long-text block = 2 situational (LT-1) + 2 work-task (LT-2) + 1 reflection
@@ -900,6 +901,7 @@ export class AdvancedAssessmentService {
             slot_type: SlotType.REFLECTION,
             metadata: lt3Question.metadata as Record<string, unknown>,
             correct_answer: null,
+            ...blockLengthLimits('long_text'),
           },
         ];
 
