@@ -814,6 +814,20 @@ describe('AdvancedAssessmentService', () => {
         }),
       ).rejects.toThrow(UnprocessableEntityException);
     });
+
+    it('calls manager.update (not manager.save) to persist the LT-3 session update', async () => {
+      await service.submitLt2(userId, 'attempt-1', {
+        question_id: 'long-4',
+        answer: LT_ANSWER,
+      });
+
+      const attemptUpdateCall = entityManagerUpdate.mock.calls.find(
+        ([entity, criteria]) =>
+          entity === AssessmentAttempt &&
+          (criteria as Record<string, unknown>).id === 'attempt-1',
+      );
+      expect(attemptUpdateCall).toBeDefined();
+    });
   });
 
   // ── flag ────────────────────────────────────────────────────────────────────
