@@ -846,6 +846,18 @@ describe('AdvancedAssessmentService', () => {
       };
       expect(updatedJson.questions.some((q) => q.slot_type === SlotType.REFLECTION)).toBe(true);
     });
+
+    it('does not call manager.save for the attempt entity when persisting LT-3', async () => {
+      await service.submitLt2(userId, 'attempt-1', {
+        question_id: 'long-4',
+        answer: LT_ANSWER,
+      });
+
+      const attemptSaveCall = entityManagerSaveCalls.find(
+        ({ entity }) => entity === AssessmentAttempt,
+      );
+      expect(attemptSaveCall).toBeUndefined();
+    });
   });
 
   // ── flag ────────────────────────────────────────────────────────────────────
