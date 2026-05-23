@@ -828,6 +828,24 @@ describe('AdvancedAssessmentService', () => {
       );
       expect(attemptUpdateCall).toBeDefined();
     });
+
+    it('includes the REFLECTION slot in the generated_questions_json written by manager.update', async () => {
+      await service.submitLt2(userId, 'attempt-1', {
+        question_id: 'long-4',
+        answer: LT_ANSWER,
+      });
+
+      const attemptUpdateCall = entityManagerUpdate.mock.calls.find(
+        ([entity, criteria]) =>
+          entity === AssessmentAttempt &&
+          (criteria as Record<string, unknown>).id === 'attempt-1',
+      );
+      const [, , patch] = attemptUpdateCall as [unknown, unknown, Record<string, unknown>];
+      const updatedJson = patch.generated_questions_json as {
+        questions: Array<{ slot_type: string }>;
+      };
+      expect(updatedJson.questions.some((q) => q.slot_type === SlotType.REFLECTION)).toBe(true);
+    });
   });
 
   // ── flag ────────────────────────────────────────────────────────────────────
