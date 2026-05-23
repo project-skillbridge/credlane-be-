@@ -86,13 +86,22 @@ export class DashboardService {
       return { skill: null, advanced: null };
     }
 
-    const [skillResult, advancedResult] = await Promise.all([
+    const [skillResult, advancedResult, skillAttemptsUsed] = await Promise.all([
       this.getLatestResult(profile.id, AssessmentType.SKILL),
       this.getLatestResult(profile.id, AssessmentType.ADVANCED),
+      this.assessmentAttemptRepository.count({
+        where: {
+          talent_profile_id: profile.id,
+          assessment_type: AssessmentType.SKILL,
+          completed_at: Not(IsNull()),
+        },
+      }),
     ]);
 
     return {
-      skill: skillResult ? this.toSkillPerformance(skillResult, profile) : null,
+      skill: skillResult
+        ? this.toSkillPerformance(skillResult, profile, skillAttemptsUsed)
+        : null,
       advanced: advancedResult
         ? this.toAdvancedPerformance(advancedResult, profile)
         : null,
@@ -102,6 +111,7 @@ export class DashboardService {
   private toSkillPerformance(
     result: AssessmentResult,
     profile: TalentProfile,
+    attemptsUsed: number,
   ): DashboardSkillPerformance {
     const percentage = result.percentage ?? 0;
     const claimedPercentage = result.claimed_percentage ?? percentage;
@@ -118,6 +128,8 @@ export class DashboardService {
         profile.skill_assessment_completed_at,
         result.created_at,
       ),
+      attemptsUsed,
+      attemptsRemaining: Math.max(0, SKILL_ASSESSMENT_MAX_ATTEMPTS - attemptsUsed),
       ...(result.guidance_report != null && {
         guidanceReport: result.guidance_report,
       }),

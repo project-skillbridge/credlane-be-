@@ -164,7 +164,7 @@ describe('SkillAssessmentService', () => {
         existing_session_id: 'active-attempt',
       }),
     });
-    await expect(attemptRepo.save).not.toHaveBeenCalled();
+    expect(attemptRepo.save).not.toHaveBeenCalled();
   });
 
   it('returns session_id, not attempt_id, when starting a skill assessment', async () => {
@@ -190,6 +190,113 @@ describe('SkillAssessmentService', () => {
       message: ErrorMessages.SKILL_ASSESSMENT.NO_QUESTIONS_AVAILABLE,
     });
     expect(attemptRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('scopes history exclusion to last attempt ID when a prior attempt exists', async () => {
+    const lastAttempt = Object.assign(new AssessmentAttempt(), {
+      id: 'prev-attempt-1',
+      completed_at: new Date('2026-05-20T10:00:00.000Z'),
+    });
+    attemptRepo.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(lastAttempt);
+
+    let andWhereCallArgs: unknown[] = [];
+    talentProfileRepo.manager.transaction.mockImplementation(
+      async (work: (manager: EntityManagerLike) => Promise<unknown>) => {
+        const andWhereMock = jest.fn().mockReturnThis();
+        const manager: EntityManagerLike = {
+          findOne: jest.fn().mockResolvedValue(profile),
+          getRepository: jest.fn(() => attemptRepo),
+          createQueryBuilder: jest.fn(() => ({
+            where: jest.fn().mockReturnThis(),
+            andWhere: andWhereMock,
+            orderBy: jest.fn().mockReturnThis(),
+            getMany: jest.fn().mockResolvedValue(eligibleSkillQuestions),
+          })),
+          create: jest.fn((_entity: unknown, data: unknown) =>
+            attemptRepo.create(data),
+          ),
+          save: jest.fn((_entity: unknown, data: unknown) =>
+            attemptRepo.save(data),
+          ),
+          update: jest.fn(),
+        };
+        const result = await work(manager);
+        andWhereCallArgs = andWhereMock.mock.calls.map((call) => call[1]);
+        return result;
+      },
+    );
+
+    await service.start(userId);
+
+    const historyFilter = andWhereCallArgs.find(
+      (args): args is Record<string, unknown> =>
+        args !== null &&
+        typeof args === 'object' &&
+        'lastAttemptId' in (args as Record<string, unknown>),
+    );
+
+    expect(historyFilter).toBeDefined();
+    expect(historyFilter!.lastAttemptId).toBe('prev-attempt-1');
+  });
+
+  it('omits history filter when no previous completed attempt exists', async () => {
+    attemptRepo.findOne.mockResolvedValue(null);
+
+    let andWhereCallArgs: unknown[] = [];
+    talentProfileRepo.manager.transaction.mockImplementation(
+      async (work: (manager: EntityManagerLike) => Promise<unknown>) => {
+        const andWhereMock = jest.fn().mockReturnThis();
+        const manager: EntityManagerLike = {
+          findOne: jest.fn().mockResolvedValue(profile),
+          getRepository: jest.fn(() => attemptRepo),
+          createQueryBuilder: jest.fn(() => ({
+            where: jest.fn().mockReturnThis(),
+            andWhere: andWhereMock,
+            orderBy: jest.fn().mockReturnThis(),
+            getMany: jest.fn().mockResolvedValue(eligibleSkillQuestions),
+          })),
+          create: jest.fn((_entity: unknown, data: unknown) =>
+            attemptRepo.create(data),
+          ),
+          save: jest.fn((_entity: unknown, data: unknown) =>
+            attemptRepo.save(data),
+          ),
+          update: jest.fn(),
+        };
+        const result = await work(manager);
+        andWhereCallArgs = andWhereMock.mock.calls.map((call) => call[1]);
+        return result;
+      },
+    );
+
+    await service.start(userId);
+
+    const historyFilter = andWhereCallArgs.find(
+      (args) =>
+        args !== null &&
+        typeof args === 'object' &&
+        'lastAttemptId' in (args as Record<string, unknown>),
+    );
+
+    expect(historyFilter).toBeUndefined();
+  });
+
+  it('starts a retake session successfully when history is scoped to the last attempt', async () => {
+    const lastAttempt = Object.assign(new AssessmentAttempt(), {
+      id: 'prev-attempt-1',
+      completed_at: new Date('2026-05-20T10:00:00.000Z'),
+    });
+    attemptRepo.count.mockResolvedValue(1);
+    attemptRepo.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(lastAttempt);
+
+    const result = await service.start(userId);
+
+    expect(result.session_id).toBe('attempt-1');
+    expect(result.questions).toHaveLength(10);
   });
 
   it('returns a stored skill session without exposing correct answers or side effects', async () => {
