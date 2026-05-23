@@ -18,6 +18,15 @@ export const ADVANCED_ASSESSMENT_BASE_QUESTIONS =
 
 export type AdvancedAssessmentBlock = 'mcq' | 'short_text' | 'long_text';
 
+export function blockLengthLimits(block: AdvancedAssessmentBlock): {
+  min_length: number | null;
+  max_length: number | null;
+} {
+  if (block === 'short_text') return { min_length: 10, max_length: 600 };
+  if (block === 'long_text') return { min_length: 60, max_length: 2000 };
+  return { min_length: null, max_length: null };
+}
+
 export type AdvancedAssessmentAiContext = TalentPersonalAssessmentContext & {
   track: string | null;
   verified_level: string;
