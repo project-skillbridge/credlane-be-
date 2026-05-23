@@ -36,6 +36,7 @@ import {
   ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT,
   AdvancedAssessmentAiService,
   AdvancedAssessmentGeneratedQuestion,
+  blockLengthLimits,
 } from './advanced-assessment-ai.service';
 import { PersonalAssessmentService } from './personal-assessment.service';
 import { RubricScoringService } from '../../ai/rubric-scoring.service';
@@ -900,6 +901,7 @@ export class AdvancedAssessmentService {
             slot_type: SlotType.REFLECTION,
             metadata: lt3Question.metadata as Record<string, unknown>,
             correct_answer: null,
+            ...blockLengthLimits('long_text'),
           },
         ];
 
