@@ -139,6 +139,7 @@ describe('SkillAssessmentService', () => {
       {} as never,
       rubricScoring as never,
       { generate: jest.fn() } as never,
+      { generateQuestions: jest.fn().mockResolvedValue([]) } as never,
     );
   });
 
