@@ -30,6 +30,7 @@
     "migration:show": "pnpm typeorm migration:show",
     "schema:drop": "pnpm typeorm schema:drop",
     "seed": "ts-node -r tsconfig-paths/register src/database/seeds/run-seed.ts",
+    "seed:generate:advanced": "node scripts/build-role-scenario-bank.mjs && ts-node -r tsconfig-paths/register src/database/seeds/generate-advanced-bank-7200.ts",
     "import:questions": "ts-node -r tsconfig-paths/register src/database/import/run-import.ts",
     "db:reset": "pnpm schema:drop && pnpm migration:run && pnpm seed",
     "prepare": "husky"
