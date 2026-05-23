@@ -486,6 +486,8 @@ describe('DashboardService', () => {
           validatedLevel: VerifiedLevel.MID,
           passed: true,
           completedAt: '2026-05-02T00:00:00.000Z',
+          attemptsUsed: 1,
+          attemptsRemaining: 2,
         },
         advanced: null,
       },
