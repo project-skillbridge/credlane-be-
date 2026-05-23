@@ -1,6 +1,5 @@
 import {
   BadRequestException,
-  ForbiddenException,
   NotFoundException,
   ServiceUnavailableException,
   UnprocessableEntityException,
@@ -598,18 +597,65 @@ describe('AdvancedAssessmentService', () => {
         TalentProfile,
         { id: profileStore.id },
         expect.objectContaining({
+          assessment_locked_from: expect.any(Date),
           assessment_locked_until: expect.any(Date),
           advanced_retake_required: true,
         }),
       );
       const [, , patch] = entityManagerUpdate.mock.calls.find(
         (call) => call[0] === TalentProfile,
-      ) as [unknown, unknown, { assessment_locked_until: Date }];
+      ) as [
+        unknown,
+        unknown,
+        { assessment_locked_from: Date; assessment_locked_until: Date },
+      ];
+      expect(patch.assessment_locked_from.getTime()).toBeLessThanOrEqual(
+        patch.assessment_locked_until.getTime(),
+      );
       const diffDays = Math.round(
         (patch.assessment_locked_until.getTime() - Date.now()) /
           (1000 * 60 * 60 * 24),
       );
       expect(diffDays).toBe(14);
+    });
+
+    it('clears retake lock dates when tier is job_ready', async () => {
+      rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
+
+      await service.submit(userId, makeSubmitDto() as never);
+
+      expect(entityManagerUpdate).toHaveBeenCalledWith(
+        TalentProfile,
+        { id: profileStore.id },
+        expect.objectContaining({
+          assessment_locked_from: null,
+          assessment_locked_until: null,
+          advanced_retake_required: false,
+        }),
+      );
+    });
+
+    it('throws 403 with probation metadata when profile lock is active', async () => {
+      const lockedFrom = new Date('2026-05-01T00:00:00.000Z');
+      const lockedUntil = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+      talentProfileRepo.findOne.mockResolvedValue(
+        makeTalentProfile({
+          advanced_retake_required: true,
+          assessment_locked_from: lockedFrom,
+          assessment_locked_until: lockedUntil,
+        }),
+      );
+
+      await expect(
+        service.submit(userId, makeSubmitDto() as never),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          error: 'ADVANCED_RETAKE_LOCKED',
+          probation_started_at: lockedFrom.toISOString(),
+          probation_ends_at: lockedUntil.toISOString(),
+          remaining_seconds: expect.any(Number),
+        }),
+      });
     });
 
     it('still scores when session is expired (auto_submitted=true)', async () => {
@@ -814,6 +860,57 @@ describe('AdvancedAssessmentService', () => {
         }),
       ).rejects.toThrow(UnprocessableEntityException);
     });
+
+    it('throws 403 with probation metadata when profile lock is active', async () => {
+      const lockedFrom = new Date('2026-05-01T00:00:00.000Z');
+      const lockedUntil = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+      talentProfileRepo.findOne.mockResolvedValue(
+        makeTalentProfile({
+          advanced_retake_required: true,
+          assessment_locked_from: lockedFrom,
+          assessment_locked_until: lockedUntil,
+        }),
+      );
+
+      await expect(
+        service.submitLt2(userId, 'attempt-1', {
+          question_id: 'long-4',
+          answer: validAnswer,
+        }),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          error: 'ADVANCED_RETAKE_LOCKED',
+          probation_started_at: lockedFrom.toISOString(),
+          probation_ends_at: lockedUntil.toISOString(),
+        }),
+      });
+    });
+  });
+
+  // ── getSession ──────────────────────────────────────────────────────────────
+
+  describe('getSession()', () => {
+    it('throws 403 with probation metadata when profile lock is active', async () => {
+      const lockedFrom = new Date('2026-05-01T00:00:00.000Z');
+      const lockedUntil = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
+      talentProfileRepo.findOne.mockResolvedValue(
+        makeTalentProfile({
+          advanced_retake_required: true,
+          assessment_locked_from: lockedFrom,
+          assessment_locked_until: lockedUntil,
+        }),
+      );
+
+      await expect(service.getSession(userId, 'attempt-1')).rejects.toMatchObject(
+        {
+          response: expect.objectContaining({
+            error: 'ADVANCED_RETAKE_LOCKED',
+            probation_started_at: lockedFrom.toISOString(),
+            probation_ends_at: lockedUntil.toISOString(),
+          }),
+        },
+      );
+    });
   });
 
   // ── flag ────────────────────────────────────────────────────────────────────
@@ -850,6 +947,7 @@ describe('AdvancedAssessmentService', () => {
         TalentProfile,
         { id: profileStore.id },
         expect.objectContaining({
+          assessment_locked_from: expect.any(Date),
           assessment_locked_until: expect.any(Date),
           advanced_retake_required: true,
         }),
@@ -863,9 +961,14 @@ describe('AdvancedAssessmentService', () => {
 
       const profileUpdate = entityManagerUpdate.mock.calls.find(
         ([entity]) => entity === TalentProfile,
-      ) as [unknown, unknown, { assessment_locked_until: Date }];
+      ) as [
+        unknown,
+        unknown,
+        { assessment_locked_from: Date; assessment_locked_until: Date },
+      ];
       const [, , patch] = profileUpdate;
       const gateDate = patch.assessment_locked_until;
+      expect(patch.assessment_locked_from).toBeInstanceOf(Date);
       const diffDays = Math.round(
         (gateDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24),
       );
@@ -926,13 +1029,14 @@ describe('AdvancedAssessmentService', () => {
 
   describe('start() retake gate', () => {
     it('throws 403 when assessment_locked_until is in the future', async () => {
+      const lockedFrom = new Date('2026-05-01T00:00:00.000Z');
+      const lockedUntil = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
       const lockedProfile = makeTalentProfile({
         validated_level: VerifiedLevel.MID,
         personal_assessment_completed_at: new Date(),
         advanced_retake_required: true,
-        assessment_locked_until: new Date(
-          Date.now() + 10 * 24 * 60 * 60 * 1000,
-        ),
+        assessment_locked_from: lockedFrom,
+        assessment_locked_until: lockedUntil,
       });
 
       const skillResultQuery = {
@@ -957,7 +1061,14 @@ describe('AdvancedAssessmentService', () => {
           work(lockedEntityManager),
       );
 
-      await expect(service.start(userId)).rejects.toThrow(ForbiddenException);
+      await expect(service.start(userId)).rejects.toMatchObject({
+        response: expect.objectContaining({
+          error: 'ADVANCED_RETAKE_LOCKED',
+          probation_started_at: lockedFrom.toISOString(),
+          probation_ends_at: lockedUntil.toISOString(),
+          remaining_seconds: expect.any(Number),
+        }),
+      });
     });
 
     it('throws 422 when no skill assessment attempt has been completed', async () => {
