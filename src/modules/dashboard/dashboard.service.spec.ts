@@ -550,6 +550,46 @@ describe('DashboardService', () => {
     });
   });
 
+  it('returns attemptsUsed and attemptsRemaining based on completed attempt count', async () => {
+    const talentUser = makeUser({
+      first_name: 'Jane',
+      role: UserRole.TALENT,
+      onboarding_complete: true,
+    });
+
+    const profile = makeProfile({
+      onboarding_step: 3,
+      track: 'frontend_developer',
+      personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+      skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
+      validated_level: VerifiedLevel.MID,
+      status: TalentProfileStatus.IN_PROGRESS,
+    });
+
+    (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
+    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+    (assessmentAttemptRepository.count as jest.Mock).mockResolvedValue(2);
+    (queryBuilder.getOne as jest.Mock).mockImplementation(() => {
+      if (lastAssessmentType === AssessmentType.SKILL) {
+        return Promise.resolve(
+          makeAssessmentResult({
+            percentage: 60,
+            claimed_percentage: 60,
+            validated_level: VerifiedLevel.MID,
+          }),
+        );
+      }
+      return Promise.resolve(null);
+    });
+
+    const home = await service.getHome(talentUser.id);
+
+    expect(home.performance.skill).toMatchObject({
+      attemptsUsed: 2,
+      attemptsRemaining: 1,
+    });
+  });
+
   it('returns skill and advanced performance from the latest assessment results', async () => {
     const talentUser = makeUser({
       first_name: 'Jane',
