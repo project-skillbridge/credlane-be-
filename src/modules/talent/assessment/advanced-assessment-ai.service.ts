@@ -33,6 +33,8 @@ export type AdvancedAssessmentGeneratedQuestion = {
   slot_type: string | null;
   metadata: Record<string, any> | null;
   correct_answer: string | null;
+  min_length: number | null;
+  max_length: number | null;
 };
 
 @Injectable()
