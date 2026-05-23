@@ -47,6 +47,7 @@ import {
 } from './assessment-answer-blocks.constants';
 import { RubricScoringService } from '../../ai/rubric-scoring.service';
 import { GuidanceReportService } from '../../ai/guidance-report.service';
+import { QuestionGenerationService } from '../../ai/question-generation.service';
 import { GuidanceReport, ScoredTextAnswer } from '../../ai/ai.types';
 
 const SKILL_ASSESSMENT_MCQ_COUNT = 6;
@@ -151,6 +152,7 @@ export class SkillAssessmentService {
 
     private readonly rubricScoring: RubricScoringService,
     private readonly guidanceReport: GuidanceReportService,
+    private readonly questionGeneration: QuestionGenerationService,
   ) {}
 
   private async resolveSkillAttemptNumber(
@@ -287,10 +289,16 @@ export class SkillAssessmentService {
           manager,
         );
 
-        const bankQuestions = await this.findEligibleSkillQuestions(
+        const rawBankQuestions = await this.findEligibleSkillQuestions(
           manager,
           lockedProfile,
           verifiedLevel,
+        );
+        const bankQuestions = await this.ensureSkillQuestionsWithAI(
+          manager,
+          lockedProfile,
+          verifiedLevel,
+          rawBankQuestions,
         );
         const selectedQuestions = this.selectSkillQuestionMix(bankQuestions);
 
@@ -823,6 +831,90 @@ export class SkillAssessmentService {
     }
 
     return qb.orderBy('RANDOM()').getMany();
+  }
+
+  private async ensureSkillQuestionsWithAI(
+    manager: EntityManager,
+    profile: TalentProfile,
+    verifiedLevel: VerifiedLevel,
+    bankQuestions: AssessmentQuestion[],
+  ): Promise<AssessmentQuestion[]> {
+    const mcqs = bankQuestions.filter((q) => this.isPickQuestion(q));
+    const texts = bankQuestions.filter((q) => !this.isPickQuestion(q));
+
+    const neededMcqs = Math.max(0, SKILL_ASSESSMENT_MCQ_COUNT - mcqs.length);
+    const neededTexts = Math.max(
+      0,
+      SKILL_ASSESSMENT_TEXT_COUNT - texts.length,
+    );
+
+    if (neededMcqs === 0 && neededTexts === 0) {
+      return bankQuestions;
+    }
+
+    this.logger.log(
+      `Generating AI questions for track=${profile.track} level=${verifiedLevel}: ${neededMcqs} MCQ, ${neededTexts} text`,
+    );
+
+    const [generatedMcqs, generatedTexts] = await Promise.all([
+      neededMcqs > 0
+        ? this.questionGeneration.generateQuestions({
+            track: profile.track!,
+            verified_level: verifiedLevel,
+            assessment_type: 'skill',
+            question_type: QuestionType.SINGLE_PICK,
+            count: neededMcqs,
+          })
+        : Promise.resolve([]),
+      neededTexts > 0
+        ? this.questionGeneration.generateQuestions({
+            track: profile.track!,
+            verified_level: verifiedLevel,
+            assessment_type: 'skill',
+            question_type: QuestionType.REQUIRED_TEXT,
+            count: neededTexts,
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const allGenerated = [...generatedMcqs, ...generatedTexts];
+    if (allGenerated.length === 0) {
+      return bankQuestions;
+    }
+
+    const questionRepo = manager.getRepository(AssessmentQuestion);
+    const existingCount = await questionRepo.count({
+      where: {
+        assessment_type: AssessmentType.SKILL,
+        track: profile.track,
+        verified_level: verifiedLevel,
+      },
+    });
+
+    const persistedEntities = await manager.save(
+      AssessmentQuestion,
+      allGenerated.map((q, i) =>
+        manager.create(AssessmentQuestion, {
+          assessment_type: AssessmentType.SKILL,
+          question_type: q.question_type,
+          question_text: q.question_text,
+          question_number: existingCount + i + 1,
+          options: q.options,
+          correct_answer: q.correct_answer,
+          track: profile.track,
+          verified_level: verifiedLevel,
+          competency: q.competency,
+          slot_type: q.slot_type,
+          is_live: true,
+        }),
+      ),
+    );
+
+    this.logger.log(
+      `Persisted ${persistedEntities.length} AI-generated questions for track=${profile.track} level=${verifiedLevel}`,
+    );
+
+    return [...bankQuestions, ...persistedEntities];
   }
 
   private selectSkillQuestionMix(
