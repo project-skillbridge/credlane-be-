@@ -241,7 +241,18 @@ export class AuthService {
     const user = await this.usersService.findByEmail(dto.email);
 
     if (user) {
-      this.passwordResetQueue.enqueue(user.id);
+      const windowStart = new Date(Date.now() - 60 * 60 * 1000);
+      const recentRequests =
+        await this.passwordResetOtpService.countRecentRequests(
+          user.id,
+          windowStart,
+        );
+
+      if (recentRequests < env.PASSWORD_RESET_RATE_LIMIT_PER_HOUR) {
+        this.passwordResetQueue.enqueue(user.id);
+      }
+      // Rate-limited requests are silently dropped — the response is always
+      // identical so callers cannot infer account existence or limit status.
     }
 
     return {

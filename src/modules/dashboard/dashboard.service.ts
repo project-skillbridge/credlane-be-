@@ -77,6 +77,8 @@ export class DashboardService {
         assessmentStatuses,
       ),
       performance,
+      skillAttemptsUsed: assessmentStatuses.completedSkillAttempts,
+      skillMaxAttempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
       ...this.withAdvancedRetake(profile),
     };
   }
@@ -342,12 +344,14 @@ export class DashboardService {
     personal: DashboardJourneyStatus;
     skill: DashboardJourneyStatus;
     advanced: DashboardJourneyStatus;
+    completedSkillAttempts: number;
   }> {
     if (!profile) {
       return {
         personal: DashboardJourneyStatus.LOCKED,
         skill: DashboardJourneyStatus.LOCKED,
         advanced: DashboardJourneyStatus.LOCKED,
+        completedSkillAttempts: 0,
       };
     }
 
@@ -396,6 +400,7 @@ export class DashboardService {
       personal: personalStatus,
       skill: skillStatus,
       advanced: advancedStatus,
+      completedSkillAttempts,
     };
   }
 
