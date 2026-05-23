@@ -1048,19 +1048,14 @@ export class AdvancedAssessmentService {
 
   private resolveTier(percentage: number): AssessmentTier {
     if (percentage >= 75) return AssessmentTier.JOB_READY;
-    if (percentage >= 50) return AssessmentTier.EMERGING;
-    return AssessmentTier.NOT_READY;
+    return AssessmentTier.EMERGING;
   }
 
   private tierToProfileStatus(tier: AssessmentTier): TalentProfileStatus {
-    switch (tier) {
-      case AssessmentTier.JOB_READY:
-        return TalentProfileStatus.JOB_READY;
-      case AssessmentTier.EMERGING:
-        return TalentProfileStatus.EMERGING;
-      default:
-        return TalentProfileStatus.NOT_READY;
+    if (tier === AssessmentTier.JOB_READY) {
+      return TalentProfileStatus.JOB_READY;
     }
+    return TalentProfileStatus.EMERGING;
   }
 
   /**
