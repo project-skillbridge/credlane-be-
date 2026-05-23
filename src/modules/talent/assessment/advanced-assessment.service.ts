@@ -902,11 +902,11 @@ export class AdvancedAssessmentService {
         ];
 
         const payload = this.readSessionPayload(attempt);
-        attempt.generated_questions_json = {
-          ...payload,
-          questions: updatedQuestions,
-        };
-        await manager.save(AssessmentAttempt, attempt);
+        const updatedJson = { ...payload, questions: updatedQuestions };
+        await manager.update(AssessmentAttempt, { id: attempt.id }, {
+          generated_questions_json: updatedJson as unknown as Record<string, any>,
+        });
+        attempt.generated_questions_json = updatedJson;
 
         return lt3Question;
       },

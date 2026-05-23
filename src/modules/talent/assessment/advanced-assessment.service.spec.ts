@@ -861,6 +861,63 @@ describe('AdvancedAssessmentService', () => {
       ).rejects.toThrow(UnprocessableEntityException);
     });
 
+    it('calls manager.update (not manager.save) to persist the LT-3 session update', async () => {
+      await service.submitLt2(userId, 'attempt-1', {
+        question_id: 'long-4',
+        answer: LT_ANSWER,
+      });
+
+      const attemptUpdateCall = entityManagerUpdate.mock.calls.find(
+        ([entity, criteria]) =>
+          entity === AssessmentAttempt &&
+          (criteria as Record<string, unknown>).id === 'attempt-1',
+      );
+      expect(attemptUpdateCall).toBeDefined();
+    });
+
+    it('includes the REFLECTION slot in the generated_questions_json written by manager.update', async () => {
+      await service.submitLt2(userId, 'attempt-1', {
+        question_id: 'long-4',
+        answer: LT_ANSWER,
+      });
+
+      const attemptUpdateCall = entityManagerUpdate.mock.calls.find(
+        ([entity, criteria]) =>
+          entity === AssessmentAttempt &&
+          (criteria as Record<string, unknown>).id === 'attempt-1',
+      );
+      const [, , patch] = attemptUpdateCall as [unknown, unknown, Record<string, unknown>];
+      const updatedJson = patch.generated_questions_json as {
+        questions: Array<{ slot_type: string }>;
+      };
+      expect(updatedJson.questions.some((q) => q.slot_type === SlotType.REFLECTION)).toBe(true);
+    });
+
+    it('does not call manager.save for the attempt entity when persisting LT-3', async () => {
+      await service.submitLt2(userId, 'attempt-1', {
+        question_id: 'long-4',
+        answer: LT_ANSWER,
+      });
+
+      const attemptSaveCall = entityManagerSaveCalls.find(
+        ({ entity }) => entity === AssessmentAttempt,
+      );
+      expect(attemptSaveCall).toBeUndefined();
+    });
+
+    it('updates attempt.generated_questions_json in-memory after manager.update so the idempotency guard sees LT-3', async () => {
+      await service.submitLt2(userId, 'attempt-1', {
+        question_id: 'long-4',
+        answer: LT_ANSWER,
+      });
+
+      // attemptStore is the same object returned by findOne (mockResolvedValue returns same ref)
+      const inMemoryQuestions = (
+        attemptStore.generated_questions_json as { questions: Array<{ slot_type: string }> }
+      ).questions;
+      expect(inMemoryQuestions.some((q) => q.slot_type === SlotType.REFLECTION)).toBe(true);
+    });
+
     it('throws 403 with probation metadata when profile lock is active', async () => {
       const lockedFrom = new Date('2026-05-01T00:00:00.000Z');
       const lockedUntil = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
