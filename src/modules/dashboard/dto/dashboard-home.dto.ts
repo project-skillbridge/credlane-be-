@@ -47,6 +47,12 @@ export class DashboardSkillPerformanceDto {
   })
   completedAt: string;
 
+  @ApiProperty({ example: 1, description: 'Number of skill attempts used' })
+  attemptsUsed: number;
+
+  @ApiProperty({ example: 2, description: 'Skill attempts remaining (max 3)' })
+  attemptsRemaining: number;
+
   @ApiPropertyOptional({
     nullable: true,
     description:
@@ -168,6 +174,8 @@ export type DashboardSkillPerformance = {
   validatedLevel: VerifiedLevel;
   passed: boolean;
   completedAt: string;
+  attemptsUsed: number;
+  attemptsRemaining: number;
   guidanceReport?: Record<string, unknown> | null;
 };
 
