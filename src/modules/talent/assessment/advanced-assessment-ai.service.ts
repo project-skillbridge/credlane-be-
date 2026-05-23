@@ -90,6 +90,7 @@ export class AdvancedAssessmentAiService {
     block: AdvancedAssessmentBlock,
     startAt: number,
   ): AdvancedAssessmentGeneratedQuestion[] {
+    const { min_length, max_length } = blockLengthLimits(block);
     return questions.map((question, index) => ({
       question_id: question.id,
       question_number: startAt + index,
@@ -100,6 +101,8 @@ export class AdvancedAssessmentAiService {
       slot_type: question.slot_type,
       metadata: question.metadata,
       correct_answer: question.correct_answer,
+      min_length,
+      max_length,
     }));
   }
 }
