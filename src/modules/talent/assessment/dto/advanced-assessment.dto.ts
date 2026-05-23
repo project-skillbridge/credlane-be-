@@ -143,12 +143,12 @@ export class SubmitLt2Dto {
   question_id: string;
 
   @ApiProperty({
-    description: 'Candidate\u2019s LT-2 answer text (150\u20132000 chars)',
-    minLength: 150,
+    description: 'Candidate\u2019s LT-2 answer text (60\u20132000 chars)',
+    minLength: 60,
     maxLength: 2000,
   })
   @IsString()
-  @MinLength(150)
+  @MinLength(60)
   @MaxLength(2000)
   answer: string;
 }
