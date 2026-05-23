@@ -119,6 +119,8 @@ describe('DashboardService', () => {
         },
       ],
       performance: { skill: null, advanced: null },
+      skillAttemptsUsed: 0,
+      skillMaxAttempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
     });
   });
 
@@ -168,6 +170,8 @@ describe('DashboardService', () => {
         },
       ],
       performance: { skill: null, advanced: null },
+      skillAttemptsUsed: 0,
+      skillMaxAttempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
     });
   });
 
@@ -218,6 +222,8 @@ describe('DashboardService', () => {
         },
       ],
       performance: { skill: null, advanced: null },
+      skillAttemptsUsed: 0,
+      skillMaxAttempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
     });
   });
 
@@ -548,6 +554,8 @@ describe('DashboardService', () => {
         },
         advanced: null,
       },
+      skillAttemptsUsed: 1,
+      skillMaxAttempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
     });
   });
 

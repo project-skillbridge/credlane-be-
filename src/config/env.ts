@@ -53,6 +53,12 @@ export const env = createEnv({
       .default(3),
 
     PASSWORD_RESET_OTP_EXPIRES_IN: durationString('15m'),
+    /** Max forgot-password requests allowed per account within a 1-hour rolling window. */
+    PASSWORD_RESET_RATE_LIMIT_PER_HOUR: z.coerce
+      .number()
+      .int()
+      .positive()
+      .default(5),
 
     CORS_ORIGIN: z.string().default('http://localhost:3000'),
     AUTH_COOKIE_SAMESITE: z.enum(['strict', 'lax', 'none']).optional(),

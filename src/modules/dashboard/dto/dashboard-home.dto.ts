@@ -170,6 +170,20 @@ export class DashboardHomeResponseDto {
   @ApiProperty({ type: DashboardPerformanceDto })
   performance: DashboardPerformanceDto;
 
+  @ApiProperty({
+    example: 1,
+    minimum: 0,
+    description:
+      'Number of completed skill assessment attempts for the current user. Use with skillMaxAttempts to display e.g. "1/3".',
+  })
+  skillAttemptsUsed: number;
+
+  @ApiProperty({
+    example: 3,
+    description: 'Maximum skill assessment attempts allowed before advanced assessment is required.',
+  })
+  skillMaxAttempts: number;
+
   @ApiPropertyOptional({
     type: () => DashboardRetakeDto,
     nullable: true,
@@ -213,6 +227,8 @@ export type DashboardHomeResponse = {
   profileCompletionPercentage: number;
   journeyOverview: JourneyOverviewItemDto[];
   performance: DashboardPerformance;
+  skillAttemptsUsed: number;
+  skillMaxAttempts: number;
   advancedRetake?: DashboardRetake | null;
 };
 
