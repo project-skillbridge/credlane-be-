@@ -88,6 +88,9 @@ export const env = createEnv({
     OPENROUTER_API_KEY: z.string().min(1).optional(),
     OPENROUTER_MODEL: z.string().default('openai/gpt-oss-120b:free'),
     OPENROUTER_BASE_URL: z.string().default('https://openrouter.ai/api/v1'),
+
+    ANTHROPIC_API_KEY: z.string().min(1).optional(),
+    ANTHROPIC_MODEL: z.string().default('claude-sonnet-4-5'),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
