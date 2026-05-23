@@ -858,6 +858,19 @@ describe('AdvancedAssessmentService', () => {
       );
       expect(attemptSaveCall).toBeUndefined();
     });
+
+    it('updates attempt.generated_questions_json in-memory after manager.update so the idempotency guard sees LT-3', async () => {
+      await service.submitLt2(userId, 'attempt-1', {
+        question_id: 'long-4',
+        answer: LT_ANSWER,
+      });
+
+      // attemptStore is the same object returned by findOne (mockResolvedValue returns same ref)
+      const inMemoryQuestions = (
+        attemptStore.generated_questions_json as { questions: Array<{ slot_type: string }> }
+      ).questions;
+      expect(inMemoryQuestions.some((q) => q.slot_type === SlotType.REFLECTION)).toBe(true);
+    });
   });
 
   // ── flag ────────────────────────────────────────────────────────────────────
