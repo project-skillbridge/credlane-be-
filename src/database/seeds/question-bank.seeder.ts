@@ -12,7 +12,7 @@ const DEFAULT_SEED_FILE = path.join(
   '..',
   'data',
   'question-banks',
-  'seed.json',
+  'seed-advanced.json',
 );
 
 export const questionBankSeeder: Seeder = {

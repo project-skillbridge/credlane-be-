@@ -24,6 +24,7 @@ export const ROLE_CODE_TO_TRACK: Record<string, string> = {
   CSM: 'customer_success',
   PJM: 'project_manager',
   HRO: 'hr_people_ops',
+  CYB: 'cybersecurity',
 };
 
 export function resolveTrackFromRoleCode(

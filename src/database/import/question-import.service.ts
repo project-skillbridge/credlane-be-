@@ -15,6 +15,10 @@ import {
 } from './import.types';
 import { resolveSourceToText } from './resolve-source';
 
+// Max IDs per SELECT … = ANY($1) call and max entities per save() call.
+// Keeps Postgres parameter count well under the 65 535 limit.
+const CHUNK_SIZE = 500;
+
 @Injectable()
 export class QuestionImportService {
   private readonly logger = new Logger(QuestionImportService.name);
@@ -43,8 +47,8 @@ export class QuestionImportService {
       summary: [],
     };
 
-    const summaryMap = new Map<string, ImportSummaryRow>();
-
+    // ── Step 1: validate all source objects up-front ──────────────────────
+    const validSources: SourceQuestion[] = [];
     for (const raw of rawObjects) {
       const parsed = sourceQuestionSchema.safeParse(raw);
       if (!parsed.success) {
@@ -52,23 +56,82 @@ export class QuestionImportService {
         result.errors.push(
           `Invalid question object: ${parsed.error.issues[0]?.message ?? 'unknown error'}`,
         );
-        continue;
+      } else {
+        validSources.push(parsed.data);
       }
+    }
 
-      const source = parsed.data;
+    // ── Step 2: batch-fetch all existing rows by source_id ────────────────
+    // One SELECT … = ANY($1) per chunk instead of one query per question.
+    const allSourceIds = validSources.map((s) => s.id);
+    const existingBySourceId = new Map<string, AssessmentQuestion>();
+
+    for (let i = 0; i < allSourceIds.length; i += CHUNK_SIZE) {
+      const chunk = allSourceIds.slice(i, i + CHUNK_SIZE);
+      const rows = await this.questionRepo
+        .createQueryBuilder('question')
+        .where("question.metadata->>'source_id' = ANY(:ids)", { ids: chunk })
+        .getMany();
+      for (const row of rows) {
+        const sid = (row.metadata as Record<string, unknown>)
+          ?.source_id as string;
+        if (sid) existingBySourceId.set(sid, row);
+      }
+    }
+
+    // ── Step 3: pre-fetch max question_number per track+level+type ─────────
+    // One MAX() query per unique combo instead of one per new question.
+    const maxNumberCache = new Map<string, number>();
+
+    const nextNumberFor = async (
+      mapped: Partial<AssessmentQuestion>,
+    ): Promise<number> => {
+      const key = `${mapped.assessment_type}|${mapped.track}|${mapped.verified_level}`;
+      if (!maxNumberCache.has(key)) {
+        const row = await this.questionRepo
+          .createQueryBuilder('question')
+          .select('MAX(question.question_number)', 'max')
+          .where('question.assessment_type = :type', {
+            type: mapped.assessment_type,
+          })
+          .andWhere('question.track = :track', { track: mapped.track })
+          .andWhere('question.verified_level = :level', {
+            level: mapped.verified_level,
+          })
+          .getRawOne<{ max: string | null }>();
+        maxNumberCache.set(key, Number(row?.max ?? 0));
+      }
+      const next = maxNumberCache.get(key)! + 1;
+      maxNumberCache.set(key, next);
+      return next;
+    };
+
+    // ── Step 4: build insert / update lists ───────────────────────────────
+    const toInsert: AssessmentQuestion[] = [];
+    const toUpdate: AssessmentQuestion[] = [];
+    const summaryMap = new Map<string, ImportSummaryRow>();
+
+    for (const source of validSources) {
       try {
-        const action = await this.upsertQuestion(source);
-        if (action === 'inserted') {
-          result.inserted += 1;
-        } else {
+        const existing = existingBySourceId.get(source.id);
+        const questionNumber = existing
+          ? existing.question_number
+          : await nextNumberFor(mapSourceQuestion(source, 0));
+        const mapped = mapSourceQuestion(source, questionNumber);
+
+        if (existing) {
+          Object.assign(existing, mapped);
+          toUpdate.push(existing);
           result.updated += 1;
+        } else {
+          toInsert.push(this.questionRepo.create(mapped));
+          result.inserted += 1;
         }
 
-        const mapped = mapSourceQuestion(source, 0);
         const key = `${mapped.track}|${mapped.verified_level}|${source.assessment_stage}`;
-        const existing = summaryMap.get(key);
-        if (existing) {
-          existing.count += 1;
+        const row = summaryMap.get(key);
+        if (row) {
+          row.count += 1;
         } else {
           summaryMap.set(key, {
             track: mapped.track ?? 'unknown',
@@ -85,6 +148,16 @@ export class QuestionImportService {
       }
     }
 
+    // ── Step 5: bulk save in chunks ───────────────────────────────────────
+    // TypeORM save() on an array emits a single multi-row INSERT / UPDATE
+    // batch per chunk, replacing the previous one-row-per-call pattern.
+    for (let i = 0; i < toInsert.length; i += CHUNK_SIZE) {
+      await this.questionRepo.save(toInsert.slice(i, i + CHUNK_SIZE));
+    }
+    for (let i = 0; i < toUpdate.length; i += CHUNK_SIZE) {
+      await this.questionRepo.save(toUpdate.slice(i, i + CHUNK_SIZE));
+    }
+
     result.summary = [...summaryMap.values()].sort((a, b) =>
       `${a.track}${a.level}${a.stage}`.localeCompare(
         `${b.track}${b.level}${b.stage}`,
@@ -96,51 +169,6 @@ export class QuestionImportService {
     );
 
     return result;
-  }
-
-  private async upsertQuestion(
-    source: SourceQuestion,
-  ): Promise<'inserted' | 'updated'> {
-    const existing = await this.questionRepo
-      .createQueryBuilder('question')
-      .where("question.metadata->>'source_id' = :sourceId", {
-        sourceId: source.id,
-      })
-      .getOne();
-
-    const nextNumber = existing
-      ? existing.question_number
-      : await this.nextQuestionNumber(source);
-
-    const mapped = mapSourceQuestion(source, nextNumber);
-
-    if (existing) {
-      await this.questionRepo.update(existing.id, mapped);
-      return 'updated';
-    }
-
-    await this.questionRepo.save(this.questionRepo.create(mapped));
-    return 'inserted';
-  }
-
-  private async nextQuestionNumber(source: SourceQuestion): Promise<number> {
-    const mapped = mapSourceQuestion(source, 0);
-    const row = await this.questionRepo
-      .createQueryBuilder('question')
-      .select('MAX(question.question_number)', 'max')
-      .where('question.assessment_type = :assessmentType', {
-        assessmentType:
-          source.assessment_stage === 'skill_assessment'
-            ? AssessmentType.SKILL
-            : AssessmentType.ADVANCED,
-      })
-      .andWhere('question.track = :track', { track: mapped.track })
-      .andWhere('question.verified_level = :level', {
-        level: mapped.verified_level,
-      })
-      .getRawOne<{ max: string | null }>();
-
-    return Number(row?.max ?? 0) + 1;
   }
 
   /** Mark legacy inline seed questions inactive before first real import. */
