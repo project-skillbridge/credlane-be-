@@ -527,7 +527,14 @@ function makeProfile(overrides: Partial<TalentProfile>): TalentProfile {
     skill_assessment_completed_at: null,
     advanced_assessment_completed_at: null,
     validated_level: VerifiedLevel.MID,
+    assessment_locked_from: null,
     assessment_locked_until: null,
+    advanced_retake_required: false,
+    profile_share_link: null,
+    is_published: false,
+    published_at: null,
+    created_at: new Date(),
+    updated_at: new Date(),
     ...overrides,
   });
 }

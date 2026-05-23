@@ -227,17 +227,7 @@ export class AdvancedAssessmentService {
           );
         }
 
-        if (
-          profile.advanced_retake_required &&
-          profile.assessment_locked_until &&
-          profile.assessment_locked_until > new Date()
-        ) {
-          throw new ForbiddenException(
-            ErrorMessages.ADVANCED_ASSESSMENT.RETAKE_LOCKED(
-              profile.assessment_locked_until.toISOString(),
-            ),
-          );
-        }
+        this.assertAdvancedRetakeUnlocked(profile);
 
         const activeAttempt = await manager
           .createQueryBuilder(AssessmentAttempt, 'attempt')
@@ -365,6 +355,7 @@ export class AdvancedAssessmentService {
         ErrorMessages.ADVANCED_ASSESSMENT.PROFILE_NOT_FOUND,
       );
     }
+    this.assertAdvancedRetakeUnlocked(profile);
 
     const attempt = await this.attemptRepo.findOne({
       where: {
@@ -397,6 +388,7 @@ export class AdvancedAssessmentService {
         ErrorMessages.ADVANCED_ASSESSMENT.PROFILE_NOT_FOUND,
       );
     }
+    this.assertAdvancedRetakeUnlocked(profile);
 
     const attempt = await this.attemptRepo.findOne({
       where: {
@@ -625,11 +617,14 @@ export class AdvancedAssessmentService {
       };
 
       if (tier !== AssessmentTier.JOB_READY) {
-        const unlocksAt = new Date();
+        const lockedFrom = new Date();
+        const unlocksAt = new Date(lockedFrom);
         unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
+        profilePatch.assessment_locked_from = lockedFrom;
         profilePatch.assessment_locked_until = unlocksAt;
         profilePatch.advanced_retake_required = true;
       } else {
+        profilePatch.assessment_locked_from = null;
         profilePatch.assessment_locked_until = null;
         profilePatch.advanced_retake_required = false;
       }
@@ -733,6 +728,7 @@ export class AdvancedAssessmentService {
         ErrorMessages.ADVANCED_ASSESSMENT.PROFILE_NOT_FOUND,
       );
     }
+    this.assertAdvancedRetakeUnlocked(profile);
 
     const attempt = await this.attemptRepo.findOne({
       where: {
@@ -993,7 +989,8 @@ export class AdvancedAssessmentService {
           );
         }
 
-        const unlocksAt = new Date();
+        const lockedFrom = new Date();
+        const unlocksAt = new Date(lockedFrom);
         unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
 
         await manager.update(
@@ -1005,6 +1002,7 @@ export class AdvancedAssessmentService {
           TalentProfile,
           { id: profile.id },
           {
+            assessment_locked_from: lockedFrom,
             assessment_locked_until: unlocksAt,
             advanced_retake_required: true,
           },
@@ -1079,6 +1077,44 @@ export class AdvancedAssessmentService {
     if (hasAbnormalTiming) return 'low';
     if (tabSwitchCount >= 1 || copyPasteCount >= 1) return 'medium';
     return 'high';
+  }
+
+  private assertAdvancedRetakeUnlocked(profile: TalentProfile): void {
+    if (
+      !profile.advanced_retake_required ||
+      !profile.assessment_locked_until ||
+      profile.assessment_locked_until <= new Date()
+    ) {
+      return;
+    }
+
+    throw new ForbiddenException(
+      this.buildAdvancedRetakeLockedResponse(profile),
+    );
+  }
+
+  private buildAdvancedRetakeLockedResponse(
+    profile: TalentProfile,
+  ): Record<string, unknown> {
+    const probationEndsAt = profile.assessment_locked_until as Date;
+    const probationStartedAt =
+      profile.assessment_locked_from ??
+      new Date(
+        probationEndsAt.getTime() - RETAKE_GATE_DAYS * 24 * 60 * 60 * 1000,
+      );
+
+    return {
+      error: 'ADVANCED_RETAKE_LOCKED',
+      message: ErrorMessages.ADVANCED_ASSESSMENT.RETAKE_LOCKED(
+        probationEndsAt.toISOString(),
+      ),
+      probation_started_at: probationStartedAt.toISOString(),
+      probation_ends_at: probationEndsAt.toISOString(),
+      remaining_seconds: Math.max(
+        0,
+        Math.ceil((probationEndsAt.getTime() - Date.now()) / 1000),
+      ),
+    };
   }
 
   /**

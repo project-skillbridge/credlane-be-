@@ -31,6 +31,8 @@ import {
   SKILL_ASSESSMENT_PASS_PERCENTAGE,
 } from '../talent/talent.constants';
 
+const ADVANCED_RETAKE_GATE_DAYS = 14;
+
 @Injectable()
 export class DashboardService {
   constructor(
@@ -187,12 +189,20 @@ export class DashboardService {
 
     const now = Date.now();
     const eligibilityTime = profile.assessment_locked_until.getTime();
+    const probationStartedAt =
+      profile.assessment_locked_from ??
+      new Date(
+        eligibilityTime -
+          ADVANCED_RETAKE_GATE_DAYS * 24 * 60 * 60 * 1000,
+      );
     const countdownSeconds = Math.max(
       0,
       Math.ceil((eligibilityTime - now) / 1000),
     );
 
     return {
+      probationStartDate: probationStartedAt.toISOString(),
+      probationEndDate: profile.assessment_locked_until.toISOString(),
       eligibilityDate: profile.assessment_locked_until.toISOString(),
       ctaEnabled: countdownSeconds === 0,
       countdownSeconds,
