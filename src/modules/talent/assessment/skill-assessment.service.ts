@@ -886,7 +886,7 @@ export class SkillAssessmentService {
     const existingCount = await questionRepo.count({
       where: {
         assessment_type: AssessmentType.SKILL,
-        track: profile.track,
+        track: profile.track ?? undefined,
         verified_level: verifiedLevel,
       },
     });
