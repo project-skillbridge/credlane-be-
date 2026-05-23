@@ -164,7 +164,7 @@ describe('SkillAssessmentService', () => {
         existing_session_id: 'active-attempt',
       }),
     });
-    await expect(attemptRepo.save).not.toHaveBeenCalled();
+    expect(attemptRepo.save).not.toHaveBeenCalled();
   });
 
   it('returns session_id, not attempt_id, when starting a skill assessment', async () => {
@@ -281,6 +281,22 @@ describe('SkillAssessmentService', () => {
     );
 
     expect(historyFilter).toBeUndefined();
+  });
+
+  it('starts a retake session successfully when history is scoped to the last attempt', async () => {
+    const lastAttempt = Object.assign(new AssessmentAttempt(), {
+      id: 'prev-attempt-1',
+      completed_at: new Date('2026-05-20T10:00:00.000Z'),
+    });
+    attemptRepo.count.mockResolvedValue(1);
+    attemptRepo.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(lastAttempt);
+
+    const result = await service.start(userId);
+
+    expect(result.session_id).toBe('attempt-1');
+    expect(result.questions).toHaveLength(10);
   });
 
   it('returns a stored skill session without exposing correct answers or side effects', async () => {
