@@ -100,6 +100,15 @@ export class PasswordResetOtpService {
       .getCount();
   }
 
+  /** Counts ALL reset requests (initial + resend) for the account within the window. */
+  async countRecentRequests(userId: string, since: Date): Promise<number> {
+    return this.repository
+      .createQueryBuilder('password_reset_otp')
+      .where('password_reset_otp.user_id = :userId', { userId })
+      .andWhere('password_reset_otp.created_at >= :since', { since })
+      .getCount();
+  }
+
   private async invalidateActiveOtps(userId: string): Promise<void> {
     await this.repository
       .createQueryBuilder()

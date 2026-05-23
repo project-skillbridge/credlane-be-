@@ -8,7 +8,14 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, In, IsNull, Not, Repository } from 'typeorm';
+import {
+  EntityManager,
+  In,
+  IsNull,
+  LessThanOrEqual,
+  Not,
+  Repository,
+} from 'typeorm';
 import {
   AssessmentAttempt,
   AssessmentQuestion,
@@ -34,6 +41,10 @@ import {
   SKILL_ASSESSMENT_MAX_ATTEMPTS,
   SKILL_ASSESSMENT_PASS_PERCENTAGE,
 } from '../talent.constants';
+import {
+  AssessmentAnswerBlock,
+  textLengthBoundsForBlock,
+} from './assessment-answer-blocks.constants';
 import { RubricScoringService } from '../../ai/rubric-scoring.service';
 import { GuidanceReportService } from '../../ai/guidance-report.service';
 import { GuidanceReport, ScoredTextAnswer } from '../../ai/ai.types';
@@ -48,6 +59,7 @@ type ProbeDirection = 'above' | 'below';
 export interface SkillAssessmentQuestion {
   question_id: string;
   question_number: number;
+  block: AssessmentAnswerBlock;
   question_type: QuestionType;
   question_text: string;
   options: string[] | null;
@@ -62,6 +74,7 @@ type SkillAssessmentSessionQuestion = SkillAssessmentQuestion & {
 type SkillAssessmentSessionPayload = {
   context?: {
     verified_level?: VerifiedLevel;
+    attempt_number?: number;
   };
   questions?: SkillAssessmentSessionQuestion[];
 };
@@ -70,6 +83,7 @@ export interface StartSkillAssessmentResult {
   status: string;
   message: string;
   session_id: string;
+  attempt_number: number;
   verified_level: VerifiedLevel;
   questions: SkillAssessmentQuestion[];
 }
@@ -79,6 +93,7 @@ export interface SkillAssessmentSessionResult {
   message: string;
   attempt_id: string;
   session_id: string;
+  attempt_number: number;
   started_at: string;
   verified_level: VerifiedLevel;
   questions: SkillAssessmentQuestion[];
@@ -88,6 +103,7 @@ export interface SubmitSkillAssessmentResult {
   status: string;
   message: string;
   session_id: string;
+  attempt_number: number;
   score: number;
   total: number;
   percentage: number;
@@ -136,6 +152,36 @@ export class SkillAssessmentService {
     private readonly rubricScoring: RubricScoringService,
     private readonly guidanceReport: GuidanceReportService,
   ) {}
+
+  private async resolveSkillAttemptNumber(
+    talentProfileId: string,
+    attempt: AssessmentAttempt,
+    payload: SkillAssessmentSessionPayload,
+    manager?: EntityManager,
+  ): Promise<number> {
+    const fromPayload = payload.context?.attempt_number;
+    if (
+      typeof fromPayload === 'number' &&
+      Number.isInteger(fromPayload) &&
+      fromPayload >= 1
+    ) {
+      return fromPayload;
+    }
+
+    const attemptRepository = manager
+      ? manager.getRepository(AssessmentAttempt)
+      : this.attemptRepo;
+
+    const ordinal = await attemptRepository.count({
+      where: {
+        talent_profile_id: talentProfileId,
+        assessment_type: AssessmentType.SKILL,
+        started_at: LessThanOrEqual(attempt.started_at),
+      },
+    });
+
+    return Math.max(1, ordinal);
+  }
 
   private countCompletedSkillAttempts(
     talentProfileId: string,
@@ -223,7 +269,7 @@ export class SkillAssessmentService {
       );
     }
     const verifiedLevel = profile.claimed_level;
-    const { savedAttempt, orderedQuestions } =
+    const { savedAttempt, orderedQuestions, attemptNumber } =
       await this.talentProfileRepo.manager.transaction(async (manager) => {
         const lockedProfile = await manager.findOne(TalentProfile, {
           where: { id: profile.id },
@@ -288,6 +334,7 @@ export class SkillAssessmentService {
           return {
             question_id: question.id,
             question_number: index + 1,
+            block: this.blockForQuestionType(question.question_type),
             question_type: question.question_type,
             question_text: question.question_text,
             options: question.options,
@@ -296,6 +343,11 @@ export class SkillAssessmentService {
             probe_direction,
           };
         });
+        const completedAttempts = await this.countCompletedSkillAttempts(
+          lockedProfile.id,
+          manager,
+        );
+        const attemptNumber = completedAttempts + 1;
         const startedAt = new Date();
         const attempt = await manager.save(
           AssessmentAttempt,
@@ -306,7 +358,10 @@ export class SkillAssessmentService {
             completed_at: null,
             expires_at: null,
             generated_questions_json: {
-              context: { verified_level: verifiedLevel },
+              context: {
+                verified_level: verifiedLevel,
+                attempt_number: attemptNumber,
+              },
               questions: orderedQuestions,
             },
           }),
@@ -328,17 +383,18 @@ export class SkillAssessmentService {
           ),
         );
 
-        return { savedAttempt: attempt, orderedQuestions };
+        return { savedAttempt: attempt, orderedQuestions, attemptNumber };
       });
 
     this.logger.log(
-      `Skill assessment started: attempt=${savedAttempt.id} user=${userId} track=${profile.track} level=${verifiedLevel}`,
+      `Skill assessment started: attempt=${savedAttempt.id} attempt_number=${attemptNumber} user=${userId} track=${profile.track} level=${verifiedLevel}`,
     );
 
     return {
       status: 'success',
       message: SuccessMessages.SKILL_ASSESSMENT.STARTED,
       session_id: savedAttempt.id,
+      attempt_number: attemptNumber,
       verified_level: verifiedLevel,
       questions: this.toPublicSessionQuestions(orderedQuestions),
     };
@@ -378,11 +434,18 @@ export class SkillAssessmentService {
       );
     }
 
+    const attemptNumber = await this.resolveSkillAttemptNumber(
+      profile.id,
+      attempt,
+      payload,
+    );
+
     return {
       status: 'success',
       message: SuccessMessages.SKILL_ASSESSMENT.SESSION_RESUMED,
       attempt_id: attempt.id,
       session_id: attempt.id,
+      attempt_number: attemptNumber,
       started_at: attempt.started_at.toISOString(),
       verified_level:
         payload.context?.verified_level ??
@@ -501,6 +564,7 @@ export class SkillAssessmentService {
         }
       } else {
         const answer = submitted ? String(submitted.answer) : '';
+        this.assertTextLength(question, answer);
         const payload = { question, answer, grading_rubric: gradingRubric };
         if (question.is_probe) {
           if (question.probe_direction === 'below') {
@@ -697,10 +761,17 @@ export class SkillAssessmentService {
       `Skill assessment submitted: attempt=${attempt.id} user=${userId} score=${totalScore}/${totalMaxScore} pct=${percentage} validated=${validatedLevel} passed=${passed} downgraded=${downgraded}`,
     );
 
+    const attemptNumber = await this.resolveSkillAttemptNumber(
+      profile.id,
+      attempt,
+      this.readSessionPayload(attempt),
+    );
+
     return {
       status: 'success',
       message: SuccessMessages.SKILL_ASSESSMENT.SUBMITTED,
       session_id: attempt.id,
+      attempt_number: attemptNumber,
       score: Math.round(totalScore),
       total: totalMaxScore,
       percentage,
@@ -805,7 +876,49 @@ export class SkillAssessmentService {
   ): SkillAssessmentQuestion[] {
     return questions.map(({ correct_answer: _ignored, ...question }) => ({
       ...question,
+      block:
+        question.block ?? this.blockForQuestionType(question.question_type),
     }));
+  }
+
+  private blockForQuestionType(
+    questionType: QuestionType,
+  ): AssessmentAnswerBlock {
+    if (
+      questionType === QuestionType.SINGLE_PICK ||
+      questionType === QuestionType.MULTI_PICK
+    ) {
+      return 'mcq';
+    }
+    return 'long_text';
+  }
+
+  private assertTextLength(
+    question: SkillAssessmentSessionQuestion,
+    answer: string,
+  ): void {
+    const block =
+      question.block ?? this.blockForQuestionType(question.question_type);
+    const bounds = textLengthBoundsForBlock(block);
+    if (!bounds) {
+      return;
+    }
+
+    const trimmed = answer.trim();
+    if (!trimmed) {
+      if (question.question_type === QuestionType.REQUIRED_TEXT) {
+        throw new UnprocessableEntityException(
+          `Question ${question.question_number} is required`,
+        );
+      }
+      return;
+    }
+
+    if (trimmed.length < bounds.min || trimmed.length > bounds.max) {
+      throw new UnprocessableEntityException(
+        `Question ${question.question_number} must be between ${bounds.min} and ${bounds.max} characters`,
+      );
+    }
   }
 
   private scoreGeneratedMcq(
