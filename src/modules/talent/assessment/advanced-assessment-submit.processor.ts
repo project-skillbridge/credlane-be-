@@ -1,10 +1,11 @@
-import { Injectable } from '@nestjs/common';
+import { forwardRef, Inject, Injectable } from '@nestjs/common';
 import { AdvancedAssessmentService } from './advanced-assessment.service';
 import type { AdvancedAssessmentSubmitJobData } from './advanced-assessment-submit.types';
 
 @Injectable()
 export class AdvancedAssessmentSubmitProcessor {
   constructor(
+    @Inject(forwardRef(() => AdvancedAssessmentService))
     private readonly advancedAssessmentService: AdvancedAssessmentService,
   ) {}
 

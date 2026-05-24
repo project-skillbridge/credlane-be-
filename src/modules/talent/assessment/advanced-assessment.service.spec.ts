@@ -581,6 +581,37 @@ describe('AdvancedAssessmentService', () => {
       expect(rubricScoring.scoreAnswers).not.toHaveBeenCalled();
     });
 
+    it('re-dispatches score-ready notification on completed-attempt retry when result exists', async () => {
+      attemptRepo.findOne.mockResolvedValue(
+        makeAttempt({ completed_at: new Date() }),
+      );
+      resultRepo.findOne.mockResolvedValue(
+        Object.assign(new AssessmentResult(), {
+          id: 'result-1',
+          attempt_id: 'attempt-1',
+          score: 78,
+          max_score: 100,
+          percentage: 78,
+          tier: AssessmentTier.JOB_READY,
+          guidance_report: { report_type: 'job_ready' },
+        }),
+      );
+
+      await service.processSubmitJob(makeSubmitJobData() as never);
+
+      expect(rubricScoring.scoreAnswers).not.toHaveBeenCalled();
+      expect(notificationDispatch.dispatch).toHaveBeenCalledWith(
+        NotificationType.ADVANCED_ASSESSMENT_SCORE_READY,
+        userId,
+        {
+          score: 78,
+          maxScore: 100,
+          percentage: 78,
+          tier: AssessmentTier.JOB_READY,
+        },
+      );
+    });
+
     it('routes the REFLECTION slot through is_lt3=true and others through full rubric', async () => {
       rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(80, 176));
       await service.processSubmitJob(makeSubmitJobData() as never);
