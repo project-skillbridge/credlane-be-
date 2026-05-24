@@ -280,6 +280,7 @@ describe('Dashboard home (e2e)', () => {
 
   it('GET /api/v1/dashboard/home includes locked advanced retake metadata', async () => {
     const now = new Date('2026-05-21T00:00:00.000Z');
+    const probationStartDate = new Date('2026-05-10T00:00:00.000Z');
     const eligibilityDate = new Date('2026-05-24T00:00:00.000Z');
     const dateNowSpy = jest.spyOn(Date, 'now').mockReturnValue(now.getTime());
 
@@ -296,6 +297,7 @@ describe('Dashboard home (e2e)', () => {
       skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
       advanced_assessment_completed_at: new Date('2026-05-20T00:00:00.000Z'),
       validated_level: VerifiedLevel.MID,
+      assessment_locked_from: probationStartDate,
       assessment_locked_until: eligibilityDate,
       advanced_retake_required: true,
       status: TalentProfileStatus.EMERGING,
@@ -314,6 +316,8 @@ describe('Dashboard home (e2e)', () => {
         .expect(200)
         .expect((res) => {
           expect(res.body.data.advancedRetake).toEqual({
+            probationStartDate: probationStartDate.toISOString(),
+            probationEndDate: eligibilityDate.toISOString(),
             eligibilityDate: eligibilityDate.toISOString(),
             countdownSeconds: 3 * 24 * 60 * 60,
             daysRemaining: 3,
@@ -392,6 +396,7 @@ function makeProfile(overrides: Partial<TalentProfile>): TalentProfile {
     skill_assessment_completed_at: null,
     advanced_assessment_completed_at: null,
     validated_level: null,
+    assessment_locked_from: null,
     assessment_locked_until: null,
     advanced_retake_required: false,
     created_at: new Date(),

@@ -47,6 +47,12 @@ export class DashboardSkillPerformanceDto {
   })
   completedAt: string;
 
+  @ApiProperty({ example: 1, description: 'Number of skill attempts used' })
+  attemptsUsed: number;
+
+  @ApiProperty({ example: 2, description: 'Skill attempts remaining (max 3)' })
+  attemptsRemaining: number;
+
   @ApiPropertyOptional({
     nullable: true,
     description:
@@ -56,6 +62,18 @@ export class DashboardSkillPerformanceDto {
 }
 
 export class DashboardRetakeDto {
+  @ApiProperty({
+    format: 'date-time',
+    example: '2026-05-03T00:00:00.000Z',
+  })
+  probationStartDate: string;
+
+  @ApiProperty({
+    format: 'date-time',
+    example: '2026-05-17T00:00:00.000Z',
+  })
+  probationEndDate: string;
+
   @ApiProperty({
     format: 'date-time',
     example: '2026-05-17T00:00:00.000Z',
@@ -152,6 +170,20 @@ export class DashboardHomeResponseDto {
   @ApiProperty({ type: DashboardPerformanceDto })
   performance: DashboardPerformanceDto;
 
+  @ApiProperty({
+    example: 1,
+    minimum: 0,
+    description:
+      'Number of completed skill assessment attempts for the current user. Use with skillMaxAttempts to display e.g. "1/3".',
+  })
+  skillAttemptsUsed: number;
+
+  @ApiProperty({
+    example: 3,
+    description: 'Maximum skill assessment attempts allowed before advanced assessment is required.',
+  })
+  skillMaxAttempts: number;
+
   @ApiPropertyOptional({
     type: () => DashboardRetakeDto,
     nullable: true,
@@ -168,6 +200,8 @@ export type DashboardSkillPerformance = {
   validatedLevel: VerifiedLevel;
   passed: boolean;
   completedAt: string;
+  attemptsUsed: number;
+  attemptsRemaining: number;
   guidanceReport?: Record<string, unknown> | null;
 };
 
@@ -193,10 +227,14 @@ export type DashboardHomeResponse = {
   profileCompletionPercentage: number;
   journeyOverview: JourneyOverviewItemDto[];
   performance: DashboardPerformance;
+  skillAttemptsUsed: number;
+  skillMaxAttempts: number;
   advancedRetake?: DashboardRetake | null;
 };
 
 export type DashboardRetake = {
+  probationStartDate: string;
+  probationEndDate: string;
   eligibilityDate: string;
   ctaEnabled: boolean;
   countdownSeconds: number;

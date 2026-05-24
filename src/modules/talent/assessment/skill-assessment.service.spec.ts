@@ -17,6 +17,10 @@ import {
 import { TalentProfile } from '../entities/talent-profile.entity';
 import { ErrorMessages } from '../../../shared';
 import { SKILL_ASSESSMENT_MAX_ATTEMPTS } from '../talent.constants';
+import {
+  ASSESSMENT_LONG_TEXT_MAX_CHARS,
+  ASSESSMENT_LONG_TEXT_MIN_CHARS,
+} from './assessment-answer-blocks.constants';
 import { SkillAssessmentService } from './skill-assessment.service';
 import { makeTalentProfile } from './personal-assessment.test-fixtures';
 import { IntegrityEventType } from './dto/integrity-event.dto';
@@ -135,6 +139,7 @@ describe('SkillAssessmentService', () => {
       {} as never,
       rubricScoring as never,
       { generate: jest.fn() } as never,
+      { generateQuestions: jest.fn().mockResolvedValue([]) } as never,
     );
   });
 
@@ -164,15 +169,27 @@ describe('SkillAssessmentService', () => {
         existing_session_id: 'active-attempt',
       }),
     });
-    await expect(attemptRepo.save).not.toHaveBeenCalled();
+    expect(attemptRepo.save).not.toHaveBeenCalled();
   });
 
-  it('returns session_id, not attempt_id, when starting a skill assessment', async () => {
+  it('returns session_id and attempt_number when starting a skill assessment', async () => {
     const result = await service.start(userId);
 
     expect(result.session_id).toBe('attempt-1');
+    expect(result.attempt_number).toBe(1);
     expect(result).not.toHaveProperty('attempt_id');
     expect(result.questions).toHaveLength(10);
+    expect(result.questions[0].block).toBe('mcq');
+    expect(result.questions[6].block).toBe('long_text');
+    expect(attemptRepo.save).toHaveBeenCalledWith(
+      expect.objectContaining({
+        generated_questions_json: expect.objectContaining({
+          context: expect.objectContaining({
+            attempt_number: 1,
+          }),
+        }),
+      }),
+    );
     expect(attemptRepo.save).toHaveBeenCalledWith(
       expect.arrayContaining([
         expect.objectContaining({
@@ -183,6 +200,14 @@ describe('SkillAssessmentService', () => {
     );
   });
 
+  it('returns attempt_number 3 when two skill attempts are already completed', async () => {
+    attemptRepo.count.mockResolvedValue(2);
+
+    const result = await service.start(userId);
+
+    expect(result.attempt_number).toBe(3);
+  });
+
   it('refuses to start when the unseen bank lacks the skill question mix', async () => {
     eligibleSkillQuestions = makeSkillBankQuestions().slice(0, 9);
 
@@ -190,6 +215,113 @@ describe('SkillAssessmentService', () => {
       message: ErrorMessages.SKILL_ASSESSMENT.NO_QUESTIONS_AVAILABLE,
     });
     expect(attemptRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('scopes history exclusion to last attempt ID when a prior attempt exists', async () => {
+    const lastAttempt = Object.assign(new AssessmentAttempt(), {
+      id: 'prev-attempt-1',
+      completed_at: new Date('2026-05-20T10:00:00.000Z'),
+    });
+    attemptRepo.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(lastAttempt);
+
+    let andWhereCallArgs: unknown[] = [];
+    talentProfileRepo.manager.transaction.mockImplementation(
+      async (work: (manager: EntityManagerLike) => Promise<unknown>) => {
+        const andWhereMock = jest.fn().mockReturnThis();
+        const manager: EntityManagerLike = {
+          findOne: jest.fn().mockResolvedValue(profile),
+          getRepository: jest.fn(() => attemptRepo),
+          createQueryBuilder: jest.fn(() => ({
+            where: jest.fn().mockReturnThis(),
+            andWhere: andWhereMock,
+            orderBy: jest.fn().mockReturnThis(),
+            getMany: jest.fn().mockResolvedValue(eligibleSkillQuestions),
+          })),
+          create: jest.fn((_entity: unknown, data: unknown) =>
+            attemptRepo.create(data),
+          ),
+          save: jest.fn((_entity: unknown, data: unknown) =>
+            attemptRepo.save(data),
+          ),
+          update: jest.fn(),
+        };
+        const result = await work(manager);
+        andWhereCallArgs = andWhereMock.mock.calls.map((call) => call[1]);
+        return result;
+      },
+    );
+
+    await service.start(userId);
+
+    const historyFilter = andWhereCallArgs.find(
+      (args): args is Record<string, unknown> =>
+        args !== null &&
+        typeof args === 'object' &&
+        'lastAttemptId' in (args as Record<string, unknown>),
+    );
+
+    expect(historyFilter).toBeDefined();
+    expect(historyFilter!.lastAttemptId).toBe('prev-attempt-1');
+  });
+
+  it('omits history filter when no previous completed attempt exists', async () => {
+    attemptRepo.findOne.mockResolvedValue(null);
+
+    let andWhereCallArgs: unknown[] = [];
+    talentProfileRepo.manager.transaction.mockImplementation(
+      async (work: (manager: EntityManagerLike) => Promise<unknown>) => {
+        const andWhereMock = jest.fn().mockReturnThis();
+        const manager: EntityManagerLike = {
+          findOne: jest.fn().mockResolvedValue(profile),
+          getRepository: jest.fn(() => attemptRepo),
+          createQueryBuilder: jest.fn(() => ({
+            where: jest.fn().mockReturnThis(),
+            andWhere: andWhereMock,
+            orderBy: jest.fn().mockReturnThis(),
+            getMany: jest.fn().mockResolvedValue(eligibleSkillQuestions),
+          })),
+          create: jest.fn((_entity: unknown, data: unknown) =>
+            attemptRepo.create(data),
+          ),
+          save: jest.fn((_entity: unknown, data: unknown) =>
+            attemptRepo.save(data),
+          ),
+          update: jest.fn(),
+        };
+        const result = await work(manager);
+        andWhereCallArgs = andWhereMock.mock.calls.map((call) => call[1]);
+        return result;
+      },
+    );
+
+    await service.start(userId);
+
+    const historyFilter = andWhereCallArgs.find(
+      (args) =>
+        args !== null &&
+        typeof args === 'object' &&
+        'lastAttemptId' in (args as Record<string, unknown>),
+    );
+
+    expect(historyFilter).toBeUndefined();
+  });
+
+  it('starts a retake session successfully when history is scoped to the last attempt', async () => {
+    const lastAttempt = Object.assign(new AssessmentAttempt(), {
+      id: 'prev-attempt-1',
+      completed_at: new Date('2026-05-20T10:00:00.000Z'),
+    });
+    attemptRepo.count.mockResolvedValue(1);
+    attemptRepo.findOne
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(lastAttempt);
+
+    const result = await service.start(userId);
+
+    expect(result.session_id).toBe('attempt-1');
+    expect(result.questions).toHaveLength(10);
   });
 
   it('returns a stored skill session without exposing correct answers or side effects', async () => {
@@ -224,12 +356,14 @@ describe('SkillAssessmentService', () => {
       message: 'Skill assessment session returned',
       attempt_id: 'attempt-1',
       session_id: 'attempt-1',
+      attempt_number: 1,
       started_at: '2026-05-21T10:00:00.000Z',
       verified_level: VerifiedLevel.MID,
       questions: [
         {
           question_id: 'question-1',
           question_number: 1,
+          block: 'mcq',
           question_type: QuestionType.SINGLE_PICK,
           question_text: 'Which metric best indicates activation?',
           options: ['Signups', 'First key action', 'Page views'],
@@ -303,7 +437,48 @@ describe('SkillAssessmentService', () => {
     });
 
     expect(result.session_id).toBe('attempt-1');
+    expect(result.attempt_number).toBe(1);
     expect(result).not.toHaveProperty('attempt_id');
+  });
+
+  it('rejects skill text answers outside the allowed length range', async () => {
+    const attempt = Object.assign(new AssessmentAttempt(), {
+      id: 'attempt-1',
+      talent_profile_id: profile.id,
+      assessment_type: AssessmentType.SKILL,
+      started_at: new Date('2026-05-21T10:00:00.000Z'),
+      completed_at: null,
+      generated_questions_json: {
+        context: { verified_level: VerifiedLevel.MID },
+        questions: [
+          {
+            question_id: 'question-text-1',
+            question_number: 7,
+            block: 'long_text',
+            question_type: QuestionType.REQUIRED_TEXT,
+            question_text: 'Describe your approach.',
+            options: null,
+            correct_answer: null,
+          },
+        ],
+      },
+    });
+    attemptRepo.findOne.mockResolvedValue(attempt);
+    questionRepo.findBy.mockResolvedValue([
+      Object.assign(new AssessmentQuestion(), {
+        id: 'question-text-1',
+        metadata: {},
+      }),
+    ]);
+
+    await expect(
+      service.submit(userId, {
+        attempt_id: 'attempt-1',
+        answers: [{ question_id: 'question-text-1', answer: 'Too short' }],
+      }),
+    ).rejects.toMatchObject({
+      message: `Question 7 must be between ${ASSESSMENT_LONG_TEXT_MIN_CHARS} and ${ASSESSMENT_LONG_TEXT_MAX_CHARS} characters`,
+    });
   });
 
   it('resolves Stage 2 confirmed-level outcomes from claimed-level score', () => {

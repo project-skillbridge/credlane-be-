@@ -36,6 +36,7 @@ import {
   ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT,
   AdvancedAssessmentAiService,
   AdvancedAssessmentGeneratedQuestion,
+  blockLengthLimits,
 } from './advanced-assessment-ai.service';
 import { PersonalAssessmentService } from './personal-assessment.service';
 import { RubricScoringService } from '../../ai/rubric-scoring.service';
@@ -75,9 +76,9 @@ import {
 const ADVANCED_ASSESSMENT_DURATION_MINUTES = 90;
 const RETAKE_GATE_DAYS = 14;
 const ABNORMAL_LONG_TEXT_SECONDS = 5;
-const ADVANCED_SHORT_TEXT_MIN_CHARS = 60;
+const ADVANCED_SHORT_TEXT_MIN_CHARS = 10;
 const ADVANCED_SHORT_TEXT_MAX_CHARS = 600;
-const ADVANCED_LONG_TEXT_MIN_CHARS = 150;
+const ADVANCED_LONG_TEXT_MIN_CHARS = 60;
 const ADVANCED_LONG_TEXT_MAX_CHARS = 2000;
 
 // Long-text block = 2 situational (LT-1) + 2 work-task (LT-2) + 1 reflection
@@ -226,17 +227,7 @@ export class AdvancedAssessmentService {
           );
         }
 
-        if (
-          profile.advanced_retake_required &&
-          profile.assessment_locked_until &&
-          profile.assessment_locked_until > new Date()
-        ) {
-          throw new ForbiddenException(
-            ErrorMessages.ADVANCED_ASSESSMENT.RETAKE_LOCKED(
-              profile.assessment_locked_until.toISOString(),
-            ),
-          );
-        }
+        this.assertAdvancedRetakeUnlocked(profile);
 
         const activeAttempt = await manager
           .createQueryBuilder(AssessmentAttempt, 'attempt')
@@ -364,6 +355,7 @@ export class AdvancedAssessmentService {
         ErrorMessages.ADVANCED_ASSESSMENT.PROFILE_NOT_FOUND,
       );
     }
+    this.assertAdvancedRetakeUnlocked(profile);
 
     const attempt = await this.attemptRepo.findOne({
       where: {
@@ -396,6 +388,7 @@ export class AdvancedAssessmentService {
         ErrorMessages.ADVANCED_ASSESSMENT.PROFILE_NOT_FOUND,
       );
     }
+    this.assertAdvancedRetakeUnlocked(profile);
 
     const attempt = await this.attemptRepo.findOne({
       where: {
@@ -624,11 +617,14 @@ export class AdvancedAssessmentService {
       };
 
       if (tier !== AssessmentTier.JOB_READY) {
-        const unlocksAt = new Date();
+        const lockedFrom = new Date();
+        const unlocksAt = new Date(lockedFrom);
         unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
+        profilePatch.assessment_locked_from = lockedFrom;
         profilePatch.assessment_locked_until = unlocksAt;
         profilePatch.advanced_retake_required = true;
       } else {
+        profilePatch.assessment_locked_from = null;
         profilePatch.assessment_locked_until = null;
         profilePatch.advanced_retake_required = false;
       }
@@ -732,6 +728,7 @@ export class AdvancedAssessmentService {
         ErrorMessages.ADVANCED_ASSESSMENT.PROFILE_NOT_FOUND,
       );
     }
+    this.assertAdvancedRetakeUnlocked(profile);
 
     const attempt = await this.attemptRepo.findOne({
       where: {
@@ -900,15 +897,16 @@ export class AdvancedAssessmentService {
             slot_type: SlotType.REFLECTION,
             metadata: lt3Question.metadata as Record<string, unknown>,
             correct_answer: null,
+            ...blockLengthLimits('long_text'),
           },
         ];
 
         const payload = this.readSessionPayload(attempt);
-        attempt.generated_questions_json = {
-          ...payload,
-          questions: updatedQuestions,
-        };
-        await manager.save(AssessmentAttempt, attempt);
+        const updatedJson = { ...payload, questions: updatedQuestions };
+        await manager.update(AssessmentAttempt, { id: attempt.id }, {
+          generated_questions_json: updatedJson as unknown as Record<string, any>,
+        });
+        attempt.generated_questions_json = updatedJson;
 
         return lt3Question;
       },
@@ -991,7 +989,8 @@ export class AdvancedAssessmentService {
           );
         }
 
-        const unlocksAt = new Date();
+        const lockedFrom = new Date();
+        const unlocksAt = new Date(lockedFrom);
         unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
 
         await manager.update(
@@ -1003,6 +1002,7 @@ export class AdvancedAssessmentService {
           TalentProfile,
           { id: profile.id },
           {
+            assessment_locked_from: lockedFrom,
             assessment_locked_until: unlocksAt,
             advanced_retake_required: true,
           },
@@ -1048,19 +1048,14 @@ export class AdvancedAssessmentService {
 
   private resolveTier(percentage: number): AssessmentTier {
     if (percentage >= 75) return AssessmentTier.JOB_READY;
-    if (percentage >= 50) return AssessmentTier.EMERGING;
-    return AssessmentTier.NOT_READY;
+    return AssessmentTier.EMERGING;
   }
 
   private tierToProfileStatus(tier: AssessmentTier): TalentProfileStatus {
-    switch (tier) {
-      case AssessmentTier.JOB_READY:
-        return TalentProfileStatus.JOB_READY;
-      case AssessmentTier.EMERGING:
-        return TalentProfileStatus.EMERGING;
-      default:
-        return TalentProfileStatus.NOT_READY;
+    if (tier === AssessmentTier.JOB_READY) {
+      return TalentProfileStatus.JOB_READY;
     }
+    return TalentProfileStatus.EMERGING;
   }
 
   /**
@@ -1077,6 +1072,44 @@ export class AdvancedAssessmentService {
     if (hasAbnormalTiming) return 'low';
     if (tabSwitchCount >= 1 || copyPasteCount >= 1) return 'medium';
     return 'high';
+  }
+
+  private assertAdvancedRetakeUnlocked(profile: TalentProfile): void {
+    if (
+      !profile.advanced_retake_required ||
+      !profile.assessment_locked_until ||
+      profile.assessment_locked_until <= new Date()
+    ) {
+      return;
+    }
+
+    throw new ForbiddenException(
+      this.buildAdvancedRetakeLockedResponse(profile),
+    );
+  }
+
+  private buildAdvancedRetakeLockedResponse(
+    profile: TalentProfile,
+  ): Record<string, unknown> {
+    const probationEndsAt = profile.assessment_locked_until as Date;
+    const probationStartedAt =
+      profile.assessment_locked_from ??
+      new Date(
+        probationEndsAt.getTime() - RETAKE_GATE_DAYS * 24 * 60 * 60 * 1000,
+      );
+
+    return {
+      error: 'ADVANCED_RETAKE_LOCKED',
+      message: ErrorMessages.ADVANCED_ASSESSMENT.RETAKE_LOCKED(
+        probationEndsAt.toISOString(),
+      ),
+      probation_started_at: probationStartedAt.toISOString(),
+      probation_ends_at: probationEndsAt.toISOString(),
+      remaining_seconds: Math.max(
+        0,
+        Math.ceil((probationEndsAt.getTime() - Date.now()) / 1000),
+      ),
+    };
   }
 
   /**

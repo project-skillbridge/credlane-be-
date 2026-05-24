@@ -119,6 +119,8 @@ describe('DashboardService', () => {
         },
       ],
       performance: { skill: null, advanced: null },
+      skillAttemptsUsed: 0,
+      skillMaxAttempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
     });
   });
 
@@ -168,6 +170,8 @@ describe('DashboardService', () => {
         },
       ],
       performance: { skill: null, advanced: null },
+      skillAttemptsUsed: 0,
+      skillMaxAttempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
     });
   });
 
@@ -218,6 +222,8 @@ describe('DashboardService', () => {
         },
       ],
       performance: { skill: null, advanced: null },
+      skillAttemptsUsed: 0,
+      skillMaxAttempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
     });
   });
 
@@ -366,6 +372,7 @@ describe('DashboardService', () => {
       role: UserRole.TALENT,
       onboarding_complete: true,
     });
+    const probationStartDate = new Date('2026-05-03T00:00:00.000Z');
     const eligibilityDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
 
     const profile = makeProfile({
@@ -379,6 +386,7 @@ describe('DashboardService', () => {
       skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
       advanced_assessment_completed_at: new Date(),
       advanced_retake_required: true,
+      assessment_locked_from: probationStartDate,
       assessment_locked_until: eligibilityDate,
       status: TalentProfileStatus.EMERGING,
     });
@@ -408,11 +416,66 @@ describe('DashboardService', () => {
     expect(skillJourney?.status).toBe(DashboardJourneyStatus.COMPLETED);
     expect(advancedJourney?.status).toBe(DashboardJourneyStatus.LOCKED);
     expect(home.advancedRetake).toMatchObject({
+      probationStartDate: probationStartDate.toISOString(),
+      probationEndDate: eligibilityDate.toISOString(),
       eligibilityDate: eligibilityDate.toISOString(),
       ctaEnabled: false,
       daysRemaining: 3,
     });
     expect(home.advancedRetake?.countdownSeconds).toBeGreaterThan(0);
+  });
+
+  it('shows advanced retake metadata as available after the probation countdown elapses', async () => {
+    const talentUser = makeUser({
+      first_name: 'Jane',
+      role: UserRole.TALENT,
+      onboarding_complete: true,
+    });
+    const probationStartDate = new Date('2026-05-03T00:00:00.000Z');
+    const eligibilityDate = new Date(Date.now() - 1000);
+
+    const profile = makeProfile({
+      onboarding_step: 3,
+      track: 'frontend_developer',
+      claimed_level: VerifiedLevel.MID,
+      personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+      skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
+      advanced_assessment_completed_at: new Date('2026-05-03T00:00:00.000Z'),
+      validated_level: VerifiedLevel.MID,
+      advanced_retake_required: true,
+      assessment_locked_from: probationStartDate,
+      assessment_locked_until: eligibilityDate,
+      status: TalentProfileStatus.EMERGING,
+    });
+
+    (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
+    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+    (queryBuilder.getOne as jest.Mock).mockImplementation(() => {
+      if (lastAssessmentType === AssessmentType.SKILL) {
+        return Promise.resolve(
+          makeAssessmentResult({
+            percentage: 80,
+            validated_level: VerifiedLevel.MID,
+          }),
+        );
+      }
+      return Promise.resolve(null);
+    });
+
+    const home = await service.getHome(talentUser.id);
+    const advancedJourney = home.journeyOverview.find(
+      (item) => item.key === 'advanced',
+    );
+
+    expect(advancedJourney?.status).toBe(DashboardJourneyStatus.AVAILABLE);
+    expect(home.advancedRetake).toMatchObject({
+      probationStartDate: probationStartDate.toISOString(),
+      probationEndDate: eligibilityDate.toISOString(),
+      eligibilityDate: eligibilityDate.toISOString(),
+      ctaEnabled: true,
+      countdownSeconds: 0,
+      daysRemaining: 0,
+    });
   });
 
   it('keeps skill available and unlocks advanced after one completed skill attempt', async () => {
@@ -486,9 +549,13 @@ describe('DashboardService', () => {
           validatedLevel: VerifiedLevel.MID,
           passed: true,
           completedAt: '2026-05-02T00:00:00.000Z',
+          attemptsUsed: 1,
+          attemptsRemaining: 2,
         },
         advanced: null,
       },
+      skillAttemptsUsed: 1,
+      skillMaxAttempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
     });
   });
 
@@ -545,6 +612,88 @@ describe('DashboardService', () => {
     expect(home.performance.skill).toMatchObject({
       percentage: 45,
       passed: false,
+    });
+  });
+
+  it('returns attemptsUsed and attemptsRemaining based on completed attempt count', async () => {
+    const talentUser = makeUser({
+      first_name: 'Jane',
+      role: UserRole.TALENT,
+      onboarding_complete: true,
+    });
+
+    const profile = makeProfile({
+      onboarding_step: 3,
+      track: 'frontend_developer',
+      personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+      skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
+      validated_level: VerifiedLevel.MID,
+      status: TalentProfileStatus.IN_PROGRESS,
+    });
+
+    (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
+    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+    (assessmentAttemptRepository.count as jest.Mock).mockResolvedValue(2);
+    (queryBuilder.getOne as jest.Mock).mockImplementation(() => {
+      if (lastAssessmentType === AssessmentType.SKILL) {
+        return Promise.resolve(
+          makeAssessmentResult({
+            percentage: 60,
+            claimed_percentage: 60,
+            validated_level: VerifiedLevel.MID,
+          }),
+        );
+      }
+      return Promise.resolve(null);
+    });
+
+    const home = await service.getHome(talentUser.id);
+
+    expect(home.performance.skill).toMatchObject({
+      attemptsUsed: 2,
+      attemptsRemaining: 1,
+    });
+  });
+
+  it('returns attemptsRemaining as 0 when all three skill attempts are exhausted', async () => {
+    const talentUser = makeUser({
+      first_name: 'Jane',
+      role: UserRole.TALENT,
+      onboarding_complete: true,
+    });
+
+    const profile = makeProfile({
+      onboarding_step: 3,
+      track: 'frontend_developer',
+      personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+      skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
+      validated_level: VerifiedLevel.MID,
+      status: TalentProfileStatus.IN_PROGRESS,
+    });
+
+    (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
+    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+    (assessmentAttemptRepository.count as jest.Mock).mockResolvedValue(
+      SKILL_ASSESSMENT_MAX_ATTEMPTS,
+    );
+    (queryBuilder.getOne as jest.Mock).mockImplementation(() => {
+      if (lastAssessmentType === AssessmentType.SKILL) {
+        return Promise.resolve(
+          makeAssessmentResult({
+            percentage: 55,
+            claimed_percentage: 55,
+            validated_level: VerifiedLevel.MID,
+          }),
+        );
+      }
+      return Promise.resolve(null);
+    });
+
+    const home = await service.getHome(talentUser.id);
+
+    expect(home.performance.skill).toMatchObject({
+      attemptsUsed: SKILL_ASSESSMENT_MAX_ATTEMPTS,
+      attemptsRemaining: 0,
     });
   });
 
@@ -621,6 +770,66 @@ describe('DashboardService', () => {
     expect(queryBuilder.getOne).toHaveBeenCalled();
   });
 
+  it('includes nested advanced retake metadata on advanced performance', async () => {
+    const talentUser = makeUser({
+      first_name: 'Jane',
+      role: UserRole.TALENT,
+      onboarding_complete: true,
+    });
+    const probationStartDate = new Date('2026-05-03T00:00:00.000Z');
+    const eligibilityDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+
+    const profile = makeProfile({
+      onboarding_step: 3,
+      track: 'frontend_developer',
+      personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+      skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
+      advanced_assessment_completed_at: new Date('2026-05-03T00:00:00.000Z'),
+      validated_level: VerifiedLevel.MID,
+      advanced_retake_required: true,
+      assessment_locked_from: probationStartDate,
+      assessment_locked_until: eligibilityDate,
+      status: TalentProfileStatus.EMERGING,
+    });
+
+    (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
+    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+    (queryBuilder.getOne as jest.Mock).mockImplementation(() => {
+      if (lastAssessmentType === AssessmentType.SKILL) {
+        return Promise.resolve(
+          makeAssessmentResult({
+            percentage: 80,
+            validated_level: VerifiedLevel.MID,
+          }),
+        );
+      }
+      if (lastAssessmentType === AssessmentType.ADVANCED) {
+        return Promise.resolve(
+          makeAssessmentResult({
+            score: 70,
+            max_score: 110,
+            percentage: 64,
+            tier: AssessmentTier.EMERGING,
+            integrity_confidence: 'medium',
+          }),
+        );
+      }
+      return Promise.resolve(null);
+    });
+
+    const home = await service.getHome(talentUser.id);
+
+    expect(home.performance.advanced?.retake).toMatchObject({
+      probationStartDate: probationStartDate.toISOString(),
+      probationEndDate: eligibilityDate.toISOString(),
+      eligibilityDate: eligibilityDate.toISOString(),
+      ctaEnabled: false,
+    });
+    expect(home.performance.advanced?.retake?.countdownSeconds).toBeGreaterThan(
+      0,
+    );
+  });
+
   it('rejects non-talent users', async () => {
     const employerUser = makeUser({
       first_name: 'Emeka',
@@ -680,6 +889,7 @@ function makeProfile(overrides: Partial<TalentProfile>): TalentProfile {
     skill_assessment_completed_at: null,
     advanced_assessment_completed_at: null,
     validated_level: null,
+    assessment_locked_from: null,
     assessment_locked_until: null,
     advanced_retake_required: false,
     created_at: new Date(),

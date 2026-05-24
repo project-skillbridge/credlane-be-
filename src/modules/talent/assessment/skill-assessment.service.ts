@@ -8,7 +8,14 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, In, IsNull, Not, Repository } from 'typeorm';
+import {
+  EntityManager,
+  In,
+  IsNull,
+  LessThanOrEqual,
+  Not,
+  Repository,
+} from 'typeorm';
 import {
   AssessmentAttempt,
   AssessmentQuestion,
@@ -34,8 +41,13 @@ import {
   SKILL_ASSESSMENT_MAX_ATTEMPTS,
   SKILL_ASSESSMENT_PASS_PERCENTAGE,
 } from '../talent.constants';
+import {
+  AssessmentAnswerBlock,
+  textLengthBoundsForBlock,
+} from './assessment-answer-blocks.constants';
 import { RubricScoringService } from '../../ai/rubric-scoring.service';
 import { GuidanceReportService } from '../../ai/guidance-report.service';
+import { QuestionGenerationService } from '../../ai/question-generation.service';
 import { GuidanceReport, ScoredTextAnswer } from '../../ai/ai.types';
 
 const SKILL_ASSESSMENT_MCQ_COUNT = 6;
@@ -48,6 +60,7 @@ type ProbeDirection = 'above' | 'below';
 export interface SkillAssessmentQuestion {
   question_id: string;
   question_number: number;
+  block: AssessmentAnswerBlock;
   question_type: QuestionType;
   question_text: string;
   options: string[] | null;
@@ -62,6 +75,7 @@ type SkillAssessmentSessionQuestion = SkillAssessmentQuestion & {
 type SkillAssessmentSessionPayload = {
   context?: {
     verified_level?: VerifiedLevel;
+    attempt_number?: number;
   };
   questions?: SkillAssessmentSessionQuestion[];
 };
@@ -70,6 +84,7 @@ export interface StartSkillAssessmentResult {
   status: string;
   message: string;
   session_id: string;
+  attempt_number: number;
   verified_level: VerifiedLevel;
   questions: SkillAssessmentQuestion[];
 }
@@ -79,6 +94,7 @@ export interface SkillAssessmentSessionResult {
   message: string;
   attempt_id: string;
   session_id: string;
+  attempt_number: number;
   started_at: string;
   verified_level: VerifiedLevel;
   questions: SkillAssessmentQuestion[];
@@ -88,6 +104,7 @@ export interface SubmitSkillAssessmentResult {
   status: string;
   message: string;
   session_id: string;
+  attempt_number: number;
   score: number;
   total: number;
   percentage: number;
@@ -135,7 +152,38 @@ export class SkillAssessmentService {
 
     private readonly rubricScoring: RubricScoringService,
     private readonly guidanceReport: GuidanceReportService,
+    private readonly questionGeneration: QuestionGenerationService,
   ) {}
+
+  private async resolveSkillAttemptNumber(
+    talentProfileId: string,
+    attempt: AssessmentAttempt,
+    payload: SkillAssessmentSessionPayload,
+    manager?: EntityManager,
+  ): Promise<number> {
+    const fromPayload = payload.context?.attempt_number;
+    if (
+      typeof fromPayload === 'number' &&
+      Number.isInteger(fromPayload) &&
+      fromPayload >= 1
+    ) {
+      return fromPayload;
+    }
+
+    const attemptRepository = manager
+      ? manager.getRepository(AssessmentAttempt)
+      : this.attemptRepo;
+
+    const ordinal = await attemptRepository.count({
+      where: {
+        talent_profile_id: talentProfileId,
+        assessment_type: AssessmentType.SKILL,
+        started_at: LessThanOrEqual(attempt.started_at),
+      },
+    });
+
+    return Math.max(1, ordinal);
+  }
 
   private countCompletedSkillAttempts(
     talentProfileId: string,
@@ -223,7 +271,7 @@ export class SkillAssessmentService {
       );
     }
     const verifiedLevel = profile.claimed_level;
-    const { savedAttempt, orderedQuestions } =
+    const { savedAttempt, orderedQuestions, attemptNumber } =
       await this.talentProfileRepo.manager.transaction(async (manager) => {
         const lockedProfile = await manager.findOne(TalentProfile, {
           where: { id: profile.id },
@@ -241,10 +289,16 @@ export class SkillAssessmentService {
           manager,
         );
 
-        const bankQuestions = await this.findEligibleSkillQuestions(
+        const rawBankQuestions = await this.findEligibleSkillQuestions(
           manager,
           lockedProfile,
           verifiedLevel,
+        );
+        const bankQuestions = await this.ensureSkillQuestionsWithAI(
+          manager,
+          lockedProfile,
+          verifiedLevel,
+          rawBankQuestions,
         );
         const selectedQuestions = this.selectSkillQuestionMix(bankQuestions);
 
@@ -288,6 +342,7 @@ export class SkillAssessmentService {
           return {
             question_id: question.id,
             question_number: index + 1,
+            block: this.blockForQuestionType(question.question_type),
             question_type: question.question_type,
             question_text: question.question_text,
             options: question.options,
@@ -296,6 +351,11 @@ export class SkillAssessmentService {
             probe_direction,
           };
         });
+        const completedAttempts = await this.countCompletedSkillAttempts(
+          lockedProfile.id,
+          manager,
+        );
+        const attemptNumber = completedAttempts + 1;
         const startedAt = new Date();
         const attempt = await manager.save(
           AssessmentAttempt,
@@ -306,7 +366,10 @@ export class SkillAssessmentService {
             completed_at: null,
             expires_at: null,
             generated_questions_json: {
-              context: { verified_level: verifiedLevel },
+              context: {
+                verified_level: verifiedLevel,
+                attempt_number: attemptNumber,
+              },
               questions: orderedQuestions,
             },
           }),
@@ -328,17 +391,18 @@ export class SkillAssessmentService {
           ),
         );
 
-        return { savedAttempt: attempt, orderedQuestions };
+        return { savedAttempt: attempt, orderedQuestions, attemptNumber };
       });
 
     this.logger.log(
-      `Skill assessment started: attempt=${savedAttempt.id} user=${userId} track=${profile.track} level=${verifiedLevel}`,
+      `Skill assessment started: attempt=${savedAttempt.id} attempt_number=${attemptNumber} user=${userId} track=${profile.track} level=${verifiedLevel}`,
     );
 
     return {
       status: 'success',
       message: SuccessMessages.SKILL_ASSESSMENT.STARTED,
       session_id: savedAttempt.id,
+      attempt_number: attemptNumber,
       verified_level: verifiedLevel,
       questions: this.toPublicSessionQuestions(orderedQuestions),
     };
@@ -378,11 +442,18 @@ export class SkillAssessmentService {
       );
     }
 
+    const attemptNumber = await this.resolveSkillAttemptNumber(
+      profile.id,
+      attempt,
+      payload,
+    );
+
     return {
       status: 'success',
       message: SuccessMessages.SKILL_ASSESSMENT.SESSION_RESUMED,
       attempt_id: attempt.id,
       session_id: attempt.id,
+      attempt_number: attemptNumber,
       started_at: attempt.started_at.toISOString(),
       verified_level:
         payload.context?.verified_level ??
@@ -501,6 +572,7 @@ export class SkillAssessmentService {
         }
       } else {
         const answer = submitted ? String(submitted.answer) : '';
+        this.assertTextLength(question, answer);
         const payload = { question, answer, grading_rubric: gradingRubric };
         if (question.is_probe) {
           if (question.probe_direction === 'below') {
@@ -697,10 +769,17 @@ export class SkillAssessmentService {
       `Skill assessment submitted: attempt=${attempt.id} user=${userId} score=${totalScore}/${totalMaxScore} pct=${percentage} validated=${validatedLevel} passed=${passed} downgraded=${downgraded}`,
     );
 
+    const attemptNumber = await this.resolveSkillAttemptNumber(
+      profile.id,
+      attempt,
+      this.readSessionPayload(attempt),
+    );
+
     return {
       status: 'success',
       message: SuccessMessages.SKILL_ASSESSMENT.SUBMITTED,
       session_id: attempt.id,
+      attempt_number: attemptNumber,
       score: Math.round(totalScore),
       total: totalMaxScore,
       percentage,
@@ -720,27 +799,122 @@ export class SkillAssessmentService {
     profile: TalentProfile,
     verifiedLevel: VerifiedLevel,
   ): Promise<AssessmentQuestion[]> {
-    return manager
+    const lastAttempt = await manager.getRepository(AssessmentAttempt).findOne({
+      where: {
+        talent_profile_id: profile.id,
+        assessment_type: AssessmentType.SKILL,
+        completed_at: Not(IsNull()),
+      },
+      order: { completed_at: 'DESC' },
+    });
+
+    const qb = manager
       .createQueryBuilder(AssessmentQuestion, 'question')
       .where('question.assessment_type = :assessmentType', {
         assessmentType: AssessmentType.SKILL,
       })
       .andWhere('question.is_live = true')
       .andWhere('question.track = :track', { track: profile.track })
-      .andWhere('question.verified_level = :verifiedLevel', {
-        verifiedLevel,
-      })
-      .andWhere(
+      .andWhere('question.verified_level = :verifiedLevel', { verifiedLevel });
+
+    if (lastAttempt) {
+      qb.andWhere(
         `NOT EXISTS (
           SELECT 1
           FROM talent_question_history history
           WHERE history.question_id = question.id
           AND history.talent_profile_id = :talentProfileId
+          AND history.attempt_id = :lastAttemptId
         )`,
-        { talentProfileId: profile.id },
-      )
-      .orderBy('RANDOM()')
-      .getMany();
+        { talentProfileId: profile.id, lastAttemptId: lastAttempt.id },
+      );
+    }
+
+    return qb.orderBy('RANDOM()').getMany();
+  }
+
+  private async ensureSkillQuestionsWithAI(
+    manager: EntityManager,
+    profile: TalentProfile,
+    verifiedLevel: VerifiedLevel,
+    bankQuestions: AssessmentQuestion[],
+  ): Promise<AssessmentQuestion[]> {
+    const mcqs = bankQuestions.filter((q) => this.isPickQuestion(q));
+    const texts = bankQuestions.filter((q) => !this.isPickQuestion(q));
+
+    const neededMcqs = Math.max(0, SKILL_ASSESSMENT_MCQ_COUNT - mcqs.length);
+    const neededTexts = Math.max(
+      0,
+      SKILL_ASSESSMENT_TEXT_COUNT - texts.length,
+    );
+
+    if (neededMcqs === 0 && neededTexts === 0) {
+      return bankQuestions;
+    }
+
+    this.logger.log(
+      `Generating AI questions for track=${profile.track} level=${verifiedLevel}: ${neededMcqs} MCQ, ${neededTexts} text`,
+    );
+
+    const [generatedMcqs, generatedTexts] = await Promise.all([
+      neededMcqs > 0
+        ? this.questionGeneration.generateQuestions({
+            track: profile.track!,
+            verified_level: verifiedLevel,
+            assessment_type: 'skill',
+            question_type: QuestionType.SINGLE_PICK,
+            count: neededMcqs,
+          })
+        : Promise.resolve([]),
+      neededTexts > 0
+        ? this.questionGeneration.generateQuestions({
+            track: profile.track!,
+            verified_level: verifiedLevel,
+            assessment_type: 'skill',
+            question_type: QuestionType.REQUIRED_TEXT,
+            count: neededTexts,
+          })
+        : Promise.resolve([]),
+    ]);
+
+    const allGenerated = [...generatedMcqs, ...generatedTexts];
+    if (allGenerated.length === 0) {
+      return bankQuestions;
+    }
+
+    const questionRepo = manager.getRepository(AssessmentQuestion);
+    const existingCount = await questionRepo.count({
+      where: {
+        assessment_type: AssessmentType.SKILL,
+        track: profile.track ?? undefined,
+        verified_level: verifiedLevel,
+      },
+    });
+
+    const persistedEntities = await manager.save(
+      AssessmentQuestion,
+      allGenerated.map((q, i) =>
+        manager.create(AssessmentQuestion, {
+          assessment_type: AssessmentType.SKILL,
+          question_type: q.question_type,
+          question_text: q.question_text,
+          question_number: existingCount + i + 1,
+          options: q.options,
+          correct_answer: q.correct_answer,
+          track: profile.track,
+          verified_level: verifiedLevel,
+          competency: q.competency,
+          slot_type: q.slot_type,
+          is_live: true,
+        }),
+      ),
+    );
+
+    this.logger.log(
+      `Persisted ${persistedEntities.length} AI-generated questions for track=${profile.track} level=${verifiedLevel}`,
+    );
+
+    return [...bankQuestions, ...persistedEntities];
   }
 
   private selectSkillQuestionMix(
@@ -794,7 +968,49 @@ export class SkillAssessmentService {
   ): SkillAssessmentQuestion[] {
     return questions.map(({ correct_answer: _ignored, ...question }) => ({
       ...question,
+      block:
+        question.block ?? this.blockForQuestionType(question.question_type),
     }));
+  }
+
+  private blockForQuestionType(
+    questionType: QuestionType,
+  ): AssessmentAnswerBlock {
+    if (
+      questionType === QuestionType.SINGLE_PICK ||
+      questionType === QuestionType.MULTI_PICK
+    ) {
+      return 'mcq';
+    }
+    return 'long_text';
+  }
+
+  private assertTextLength(
+    question: SkillAssessmentSessionQuestion,
+    answer: string,
+  ): void {
+    const block =
+      question.block ?? this.blockForQuestionType(question.question_type);
+    const bounds = textLengthBoundsForBlock(block);
+    if (!bounds) {
+      return;
+    }
+
+    const trimmed = answer.trim();
+    if (!trimmed) {
+      if (question.question_type === QuestionType.REQUIRED_TEXT) {
+        throw new UnprocessableEntityException(
+          `Question ${question.question_number} is required`,
+        );
+      }
+      return;
+    }
+
+    if (trimmed.length < bounds.min || trimmed.length > bounds.max) {
+      throw new UnprocessableEntityException(
+        `Question ${question.question_number} must be between ${bounds.min} and ${bounds.max} characters`,
+      );
+    }
   }
 
   private scoreGeneratedMcq(

@@ -102,7 +102,7 @@ export class MailService {
     const logoUrl =
       env.EMAIL_LOGO_URL ??
       'https://placehold.co/140x40/1f5f6b/ffffff/png?text=SkillBridge';
-    const dashboardUrl = `${base}/dashboard`;
+    const dashboardUrl = `${base}/t/dashboard`;
     const name = params.recipientFirstName.trim() || 'there';
 
     const vars: Record<string, string> = {
@@ -140,7 +140,7 @@ export class MailService {
     const logoUrl =
       env.EMAIL_LOGO_URL ??
       'https://placehold.co/140x40/1f5f6b/ffffff/png?text=SkillBridge';
-    const dashboardUrl = `${base}/dashboard`;
+    const dashboardUrl = `${base}/t/dashboard`;
     const name = params.recipientFirstName.trim() || 'there';
 
     const vars: Record<string, string> = {
