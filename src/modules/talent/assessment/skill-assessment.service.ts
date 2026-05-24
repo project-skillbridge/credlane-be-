@@ -679,6 +679,21 @@ export class SkillAssessmentService {
     const totalMaxScore =
       primaryMaxScore + aboveProbeMaxScore + belowProbeMaxScore;
     const percentage = this.toPercentage(totalScore, totalMaxScore);
+    const primaryMcqGatePassed =
+      primaryMcqTotal === 0 || primaryMcqCorrect > 0;
+    const aboveProbeMcqGatePassed =
+      aboveProbeMcqTotal === 0 || aboveProbeMcqCorrect > 0;
+
+    if (primaryMcqTotal === 0) {
+      this.logger.warn(
+        `Skill assessment primary MCQ gate bypassed: no primary MCQs attempt=${attempt.id} user=${userId}`,
+      );
+    }
+    if (aboveProbeMaxScore > 0 && aboveProbeMcqTotal === 0) {
+      this.logger.warn(
+        `Skill assessment above-level MCQ gate bypassed: no above-level MCQs attempt=${attempt.id} user=${userId}`,
+      );
+    }
 
     const validatedLevel = this.resolveValidatedLevel(
       claimedPercentage,
@@ -686,14 +701,18 @@ export class SkillAssessmentService {
       belowLevelPercentage,
       percentage,
       profile.claimed_level ?? VerifiedLevel.JUNIOR,
+      primaryMcqGatePassed,
+      aboveProbeMcqGatePassed,
     );
     const claimed = profile.claimed_level ?? VerifiedLevel.JUNIOR;
     const downgraded = levelIsLower(validatedLevel, claimed);
-    const passed = claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE;
+    const passed =
+      claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE &&
+      primaryMcqGatePassed;
     const tier = this.resolveSkillTier(percentage);
 
     let guidanceReport: GuidanceReport | null = null;
-    if (percentage < SKILL_ASSESSMENT_PASS_PERCENTAGE) {
+    if (!passed) {
       try {
         guidanceReport = await this.guidanceReport.generate({
           report_type: 'emerging',
@@ -1077,6 +1096,8 @@ export class SkillAssessmentService {
     belowLevelPercentage: number,
     overallPercentage: number,
     claimedLevel: VerifiedLevel,
+    primaryMcqGatePassed = true,
+    aboveProbeMcqGatePassed = true,
   ): VerifiedLevel {
     if (overallPercentage < 55) {
       return LEVEL_ORDER[claimedLevel] > LEVEL_ORDER[VerifiedLevel.JUNIOR]
@@ -1087,12 +1108,16 @@ export class SkillAssessmentService {
     if (
       claimedPercentage >= 95 &&
       aboveLevelPercentage >= 70 &&
+      aboveProbeMcqGatePassed &&
       this.levelAbove(claimedLevel)
     ) {
       return this.levelAbove(claimedLevel) as VerifiedLevel;
     }
 
-    if (claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE) {
+    if (
+      claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE &&
+      primaryMcqGatePassed
+    ) {
       return claimedLevel;
     }
 
