@@ -42,6 +42,12 @@ export class DashboardSkillPerformanceDto {
   passed: boolean;
 
   @ApiProperty({
+    description:
+      'True when overall score was below 50% (attempt does not count toward verification)',
+  })
+  failed: boolean;
+
+  @ApiProperty({
     format: 'date-time',
     example: '2026-05-02T00:00:00.000Z',
   })
@@ -207,6 +213,7 @@ export type DashboardSkillPerformance = {
   percentage: number;
   validatedLevel: VerifiedLevel;
   passed: boolean;
+  failed: boolean;
   completedAt: string;
   attemptsUsed: number;
   attemptsRemaining: number;
