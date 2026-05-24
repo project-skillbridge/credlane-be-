@@ -182,6 +182,11 @@ class InMemoryUsersService {
     return user;
   }
 
+  async updatePassword(id: string, passwordHash: string): Promise<void> {
+    const user = await this.findOne(id);
+    user.password = passwordHash;
+  }
+
   // ── OAuth helpers ──────────────────────────────────────────────────────
   // A simple list of { provider, provider_id, user } records
   private readonly oauthAccounts: Array<{
@@ -702,6 +707,38 @@ describe('Auth (e2e)', () => {
     expect(mockPasswordResetOtpService.issue).toHaveBeenCalled();
     expect(mailService.passwordResetMessages).toHaveLength(1);
     expect(mailService.passwordResetMessages[0]?.otp).toBeDefined();
+  });
+
+  it('password reset flow accepts uppercase email through request, verify, and reset', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(talentRegisterPayload)
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/auth/forgot-password')
+      .send({ email: talentRegisterPayload.email.toUpperCase() })
+      .expect(200);
+
+    await passwordResetQueue.awaitIdleForTests();
+    expect(mailService.passwordResetMessages.at(-1)?.to).toBe(
+      talentRegisterPayload.email,
+    );
+
+    await request(app.getHttpServer())
+      .post('/auth/verify-reset-otp')
+      .send({ email: talentRegisterPayload.email.toUpperCase(), otp: '123456' })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post('/auth/reset-password')
+      .send({
+        email: talentRegisterPayload.email.toUpperCase(),
+        otp: '123456',
+        password: 'NewPassword123!',
+        confirmPassword: 'NewPassword123!',
+      })
+      .expect(200);
   });
 
   it('POST /auth/forgot-password returns 429 after 5 requests in the same minute from the same client', async () => {
