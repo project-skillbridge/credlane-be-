@@ -65,7 +65,7 @@ export class AdvancedAssessmentQueueService
     });
   }
 
-  enqueue(payload: AdvancedAssessmentSubmitJobData): void {
+  async enqueue(payload: AdvancedAssessmentSubmitJobData): Promise<void> {
     const conn = redisQueueConnection();
     if (!conn) {
       this.inlinePending++;
@@ -86,18 +86,30 @@ export class AdvancedAssessmentQueueService
       });
       return;
     }
-    void this.queue!
-      .add(JOB_NAME, payload, {
+
+    const existing = await this.queue!.getJob(payload.sessionId);
+    if (existing) {
+      const state = await existing.getState();
+      if (state === 'failed') {
+        await existing.remove();
+      } else {
+        return;
+      }
+    }
+
+    try {
+      await this.queue!.add(JOB_NAME, payload, {
         jobId: payload.sessionId,
         removeOnComplete: true,
         removeOnFail: false,
-      })
-      .catch((err: unknown) => {
-        this.logger.error(
-          'Failed to enqueue advanced-assessment submit job',
-          err instanceof Error ? err.stack : err,
-        );
       });
+    } catch (err: unknown) {
+      this.logger.error(
+        'Failed to enqueue advanced-assessment submit job',
+        err instanceof Error ? err.stack : err,
+      );
+      throw err;
+    }
   }
 
   /** For e2e when REDIS_URL is unset: wait until inline jobs finish. */
