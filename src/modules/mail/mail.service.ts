@@ -87,7 +87,10 @@ export class MailService {
 
     const rawHtml = loadMailTemplateFile('verify-code.html');
     const html = substituteMailTemplate(rawHtml, vars);
-    const text = `Hi ${vars.name},\n\nYour SkillBridge verification code is ${padded}. It expires in ${expiresInMinutes} minute(s).\n`;
+    const text =
+      `Hi ${vars.name},\n\n` +
+      `Use this code to verify your SkillBridge account: ${padded}.\n` +
+      `It expires in ${expiresInMinutes} minute(s). If you did not create a SkillBridge account, you can ignore this email safely.\n`;
 
     return this.send({
       to: params.to,

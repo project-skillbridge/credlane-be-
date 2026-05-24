@@ -28,7 +28,7 @@
     <meta name="x-apple-disable-message-reformatting" />
     <meta name="color-scheme" content="light only" />
     <meta name="supported-color-schemes" content="light only" />
-    <title>Email verification code</title>
+    <title>Verify your SkillBridge account</title>
     <!--[if mso]>
       <style type="text/css">
         table,
@@ -106,7 +106,7 @@
     >
       Your SkillBridge verification code is
       {{digit1}}{{digit2}}{{digit3}}{{digit4}}{{digit5}}{{digit6}} — valid for
-      15 minutes.
+      {{expiresMinutes}} minutes.
     </div>
 
     <table
@@ -197,7 +197,7 @@
                   color: #52525b;
                 "
               >
-                This is your verification code:
+                Use this code to verify your SkillBridge account:
               </td>
             </tr>
 
@@ -361,11 +361,10 @@
                   color: #52525b;
                 "
               >
-                Whether you&rsquo;re here for your brand, for a cause, or just
-                for fun &ndash; welcome! This code will only be valid for the
-                next {{expiresMinutes}} minutes. If the code does not work,
-                visit the app and request a new code from the verification
-                screen.
+                This code is valid for the next {{expiresMinutes}} minutes.
+                If you did not create a SkillBridge account, you can ignore
+                this email safely. If the code does not work, return to the
+                app and request a new code from the verification screen.
               </td>
             </tr>
 
@@ -411,7 +410,7 @@
                   color: #71717a;
                 "
               >
-                Questions or faq? Contact us at
+                Questions? Contact us at
                 <a
                   href="mailto:{{supportEmail}}"
                   style="color: #1f5f6b; text-decoration: underline"
