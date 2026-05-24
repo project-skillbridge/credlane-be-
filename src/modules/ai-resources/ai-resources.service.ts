@@ -63,36 +63,35 @@ export class AiResourcesService {
       },
     });
 
-    if (!latestAttempt) {
-      throw new UnprocessableEntityException(
-        ErrorMessages.AI_RESOURCES.NO_ASSESSMENT_SCORES,
-      );
-    }
-
-    // 3. Fetch corresponding assessment result containing the percentage score
-    const result = await this.resultRepo.findOne({
-      where: { attempt_id: latestAttempt.id },
-    });
-
-    if (
-      !result ||
-      result.percentage === null ||
-      result.percentage === undefined
-    ) {
-      throw new UnprocessableEntityException(
-        ErrorMessages.AI_RESOURCES.NO_ASSESSMENT_SCORES,
-      );
-    }
-
-    // 4. Map score to threshold group
-    const percentage = result.percentage;
+    // 3. Determine threshold group based on assessment result (or general if none)
     let thresholdGroup: ScoreThresholdGroup;
-    if (percentage < 50) {
-      thresholdGroup = ScoreThresholdGroup.BELOW_50;
-    } else if (percentage <= 75) {
-      thresholdGroup = ScoreThresholdGroup.BETWEEN_50_75;
+
+    if (!latestAttempt) {
+      // No assessment completed — serve general resources for the track
+      thresholdGroup = ScoreThresholdGroup.GENERAL;
     } else {
-      thresholdGroup = ScoreThresholdGroup.ABOVE_75;
+      const result = await this.resultRepo.findOne({
+        where: { attempt_id: latestAttempt.id },
+      });
+
+      if (
+        !result ||
+        result.percentage === null ||
+        result.percentage === undefined
+      ) {
+        // Result not yet scored — serve general resources
+        thresholdGroup = ScoreThresholdGroup.GENERAL;
+      } else {
+        // 4. Map score to threshold group
+        const percentage = result.percentage;
+        if (percentage < 50) {
+          thresholdGroup = ScoreThresholdGroup.BELOW_50;
+        } else if (percentage <= 75) {
+          thresholdGroup = ScoreThresholdGroup.BETWEEN_50_75;
+        } else {
+          thresholdGroup = ScoreThresholdGroup.ABOVE_75;
+        }
+      }
     }
 
     const trackKey = profile.track.toLowerCase().trim();
