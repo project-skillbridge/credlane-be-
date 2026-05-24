@@ -68,6 +68,7 @@ export class DashboardService {
 
     return {
       firstName: user.first_name,
+      avatarUrl: user.avatar_url,
       goal: profile?.goal ?? null,
       profileCompletionPercentage: this.calculateProfileCompletion(
         user,
@@ -259,6 +260,10 @@ export class DashboardService {
   ): number {
     if (!profile) {
       return 0;
+    }
+
+    if (this.isOnboardingComplete(user, profile)) {
+      return 100;
     }
 
     const onboardingStep = Math.max(
