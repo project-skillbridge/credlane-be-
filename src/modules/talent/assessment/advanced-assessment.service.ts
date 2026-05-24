@@ -80,6 +80,7 @@ const ADVANCED_SHORT_TEXT_MIN_CHARS = 10;
 const ADVANCED_SHORT_TEXT_MAX_CHARS = 600;
 const ADVANCED_LONG_TEXT_MIN_CHARS = 60;
 const ADVANCED_LONG_TEXT_MAX_CHARS = 2000;
+const ADVANCED_MCQ_SCORE_WEIGHT = 0.3;
 
 // Long-text block = 2 situational (LT-1) + 2 work-task (LT-2) + 1 reflection
 // (LT-3). LT-3 is runtime-generated, served via /lt2-submit, not pre-selected
@@ -87,12 +88,8 @@ const ADVANCED_LONG_TEXT_MAX_CHARS = 2000;
 const ADVANCED_LT1_COUNT = 2;
 const ADVANCED_LT2_COUNT = 2;
 
-// Scoring totals:
-//   MCQ × 10 (1 pt each)             =  10
-//   Short text × 10 (max 12 each)    = 120
-//   LT-1 + LT-2 × 4 (max 12 each)    =  48
-//   LT-3 × 1 (max 8)                 =   8
-//   TOTAL                            = 186
+// Text questions keep their rubric max scores for per-question analytics.
+// Final attempt percentage is weighted separately: MCQ 30%, text 70%.
 const TEXT_FULL_RUBRIC_MAX = 12;
 const LT3_RUBRIC_MAX = 8;
 
@@ -532,12 +529,16 @@ export class AdvancedAssessmentService {
       }
     }
 
-    const totalRawScore = mcqRawScore + textRawScore;
-    // MCQ contributes 1 pt per question (10 max); text contributes the
-    // rubric's max_score per question (12 for short/LT-1/LT-2, 8 for LT-3).
-    const maxScore = Math.round(ADVANCED_ASSESSMENT_MCQ_COUNT + textMaxScore);
-    const percentage =
-      maxScore > 0 ? Math.round((totalRawScore / maxScore) * 100) : 0;
+    const weightedScore = this.toWeightedAssessmentScore(
+      mcqRawScore,
+      mcqTotal,
+      textRawScore,
+      textMaxScore,
+      ADVANCED_MCQ_SCORE_WEIGHT,
+    );
+    const totalRawScore = weightedScore.score;
+    const maxScore = weightedScore.maxScore;
+    const percentage = weightedScore.percentage;
 
     const mcqGatePassed = mcqTotal === 0 || mcqRawScore > 0;
     if (mcqTotal === 0) {
@@ -1061,6 +1062,40 @@ export class AdvancedAssessmentService {
   ): AssessmentTier {
     if (percentage >= 75 && mcqGatePassed) return AssessmentTier.JOB_READY;
     return AssessmentTier.EMERGING;
+  }
+
+  private toWeightedAssessmentScore(
+    mcqScore: number,
+    mcqMaxScore: number,
+    textScore: number,
+    textMaxScore: number,
+    mcqWeight: number,
+  ): { score: number; maxScore: number; percentage: number } {
+    const hasMcq = mcqMaxScore > 0;
+    const hasText = textMaxScore > 0;
+    if (!hasMcq && !hasText) {
+      return { score: 0, maxScore: 0, percentage: 0 };
+    }
+
+    const mcqPercentage =
+      mcqMaxScore > 0 ? Math.round((mcqScore / mcqMaxScore) * 100) : 0;
+    const textPercentage =
+      textMaxScore > 0 ? Math.round((textScore / textMaxScore) * 100) : 0;
+    let percentage: number;
+
+    if (hasMcq && hasText) {
+      percentage = Math.round(
+        mcqPercentage * mcqWeight + textPercentage * (1 - mcqWeight),
+      );
+    } else {
+      percentage = hasMcq ? mcqPercentage : textPercentage;
+    }
+
+    return {
+      score: percentage,
+      maxScore: 100,
+      percentage,
+    };
   }
 
   private tierToProfileStatus(tier: AssessmentTier): TalentProfileStatus {
