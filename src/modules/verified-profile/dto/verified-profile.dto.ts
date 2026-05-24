@@ -55,7 +55,8 @@ export class VerifiedProfileResponseDto {
   about: string;
 
   @ApiPropertyOptional({
-    example: 'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
+    example:
+      'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
   })
   aiSummary?: string;
 
@@ -111,7 +112,8 @@ export class VerifiedProfileResponseDto {
   shareUrl: string;
 
   @ApiPropertyOptional({
-    example: 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://skillbridge.com/verified-profiles/abc123',
+    example:
+      'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://skillbridge.com/verified-profiles/abc123',
   })
   qrCodeUrl?: string;
 

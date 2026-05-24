@@ -562,7 +562,107 @@ describe('SkillAssessmentService', () => {
 
     expect(result.percentage).toBeLessThan(70);
     expect(result.passed).toBe(false);
+    expect(result.failed).toBe(false);
     expect(result.validated_level).toBe(VerifiedLevel.JUNIOR);
+  });
+
+  it('returns failed without profile verification when overall is below 50%', async () => {
+    const validTextAnswer =
+      'I would clarify the expected outcome, inspect the available evidence, isolate the most likely cause, and communicate tradeoffs clearly before choosing the next step.';
+    const attempt = Object.assign(new AssessmentAttempt(), {
+      id: 'attempt-1',
+      talent_profile_id: profile.id,
+      assessment_type: AssessmentType.SKILL,
+      started_at: new Date('2026-05-21T10:00:00.000Z'),
+      completed_at: null,
+      generated_questions_json: {
+        context: { verified_level: VerifiedLevel.MID },
+        questions: [
+          {
+            question_id: 'question-mcq-1',
+            question_number: 1,
+            block: 'mcq',
+            question_type: QuestionType.SINGLE_PICK,
+            question_text: 'Which metric best indicates activation?',
+            options: ['Signups', 'First key action', 'Page views'],
+            correct_answer: 'First key action',
+          },
+          {
+            question_id: 'question-text-1',
+            question_number: 2,
+            block: 'long_text',
+            question_type: QuestionType.REQUIRED_TEXT,
+            question_text: 'Describe your approach.',
+            options: null,
+            correct_answer: null,
+          },
+        ],
+      },
+    });
+    attemptRepo.findOne.mockResolvedValue(attempt);
+    questionRepo.findBy.mockResolvedValue([
+      Object.assign(new AssessmentQuestion(), {
+        id: 'question-mcq-1',
+        metadata: {},
+      }),
+      Object.assign(new AssessmentQuestion(), {
+        id: 'question-text-1',
+        metadata: {},
+      }),
+    ]);
+    rubricScoring.scoreAnswers.mockResolvedValue([
+      {
+        question_id: 'question-text-1',
+        rubric: {
+          relevance: 0,
+          reasoning: 0,
+          specificity: 0,
+          completeness: 0,
+          total: 0,
+          feedback: 'Weak.',
+        },
+        raw_score: 0,
+        max_score: 12,
+      },
+    ]);
+
+    const updateMock = jest.fn();
+    talentProfileRepo.manager.transaction.mockImplementation(
+      async (work: (manager: EntityManagerLike) => Promise<unknown>) => {
+        const manager: EntityManagerLike = {
+          save: jest.fn(),
+          update: updateMock,
+          create: jest.fn((_entity: unknown, data: unknown) => data),
+        };
+        return work(manager);
+      },
+    );
+
+    const result = await service.submit(userId, {
+      attempt_id: 'attempt-1',
+      answers: [
+        { question_id: 'question-mcq-1', answer: 'Signups' },
+        { question_id: 'question-text-1', answer: validTextAnswer },
+      ],
+    });
+
+    expect(result.failed).toBe(true);
+    expect(result.status).toBe('failed');
+    expect(result.percentage).toBeLessThan(50);
+    expect(result.validated_level).toBeNull();
+    expect(result.passed).toBe(false);
+    expect(updateMock).toHaveBeenCalledWith(
+      TalentProfile,
+      { id: profile.id },
+      { status: expect.any(String) },
+    );
+    expect(updateMock).not.toHaveBeenCalledWith(
+      TalentProfile,
+      { id: profile.id },
+      expect.objectContaining({
+        skill_assessment_completed_at: expect.any(Date),
+      }),
+    );
   });
 
   it('rejects skill text answers outside the allowed length range', async () => {

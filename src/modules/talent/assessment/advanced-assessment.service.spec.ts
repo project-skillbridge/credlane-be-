@@ -604,30 +604,26 @@ describe('AdvancedAssessmentService', () => {
       expect(result.tier).toBe(AssessmentTier.EMERGING);
     });
 
-    it('places tier at Not Ready below 50% and generates a guidance report', async () => {
+    it('marks sub-50% as failed without profile completion or guidance report', async () => {
       rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(0, 176));
       const result = await service.submit(userId, {
         session_id: 'attempt-1',
         answers: [],
       } as never);
 
+      expect(result.failed).toBe(true);
+      expect(result.status).toBe('failed');
       expect(result.percentage).toBeLessThan(50);
       expect(result.tier).toBe(AssessmentTier.NOT_READY);
-      expect(guidanceReport.generate).toHaveBeenCalledWith(
-        expect.objectContaining({ report_type: 'emerging' }),
-      );
-      expect(result.guidance_report).toBeUndefined();
-      await Promise.resolve();
-      expect(resultRepo.update).toHaveBeenCalledWith(
-        expect.anything(),
+      expect(guidanceReport.generate).not.toHaveBeenCalled();
+      expect(entityManagerUpdate).not.toHaveBeenCalledWith(
+        TalentProfile,
+        { id: profileStore.id },
         expect.objectContaining({
-          guidance_report: expect.objectContaining({
-            report_type: 'emerging',
-            ai_summary: expect.any(String),
-            growth_insight: expect.any(String),
-          }),
+          advanced_assessment_completed_at: expect.any(Date),
         }),
       );
+      expect(notificationDispatch.dispatch).not.toHaveBeenCalled();
     });
 
     it('writes one assessment_scores row per session question (20)', async () => {
@@ -661,7 +657,7 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('sets retake gate (assessment_locked_until) when tier is not job_ready', async () => {
-      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(0, 176));
+      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(100, 176));
 
       await service.submit(userId, makeSubmitDto() as never);
       expect(entityManagerUpdate).toHaveBeenCalledWith(
@@ -1171,6 +1167,7 @@ describe('AdvancedAssessmentService', () => {
       const lockedProfile = makeTalentProfile({
         validated_level: VerifiedLevel.MID,
         personal_assessment_completed_at: new Date(),
+        skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
         advanced_retake_required: true,
         assessment_locked_from: lockedFrom,
         assessment_locked_until: lockedUntil,
@@ -1184,6 +1181,7 @@ describe('AdvancedAssessmentService', () => {
         addOrderBy: jest.fn().mockReturnThis(),
         getOne: jest.fn().mockResolvedValue({
           percentage: 80,
+          claimed_percentage: 80,
         } as AssessmentResult),
       };
 
@@ -1253,10 +1251,11 @@ describe('AdvancedAssessmentService', () => {
       });
     });
 
-    it('allows start when the latest skill result is below the pass threshold', async () => {
+    it('throws 422 when the latest skill result is below the pass threshold', async () => {
       const profile = makeTalentProfile({
         validated_level: VerifiedLevel.MID,
         personal_assessment_completed_at: new Date(),
+        skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
         assessment_locked_until: null,
       });
 
@@ -1290,43 +1289,30 @@ describe('AdvancedAssessmentService', () => {
 
       const skillQuery = makeQuery({
         getOne: jest.fn().mockResolvedValue({
-          percentage: 45,
-          claimed_percentage: 45,
+          percentage: 60,
+          claimed_percentage: 65,
         }),
       });
-      const activeAttemptQuery = makeQuery({
-        getOne: jest.fn().mockResolvedValue(null),
-      });
-      const questionQuery = makeQuery({
-        getMany: jest.fn().mockResolvedValue([]),
-        getRawOne: jest.fn().mockResolvedValue({ max: '30' }),
-      });
-      entityManager.createQueryBuilder.mockImplementation((entity) => {
-        if (entity === AssessmentResult) return skillQuery;
-        if (entity === AssessmentAttempt) return activeAttemptQuery;
-        return questionQuery;
-      });
-
-      questionGeneration.generateQuestions = jest.fn().mockResolvedValue([]);
-      advancedAssessmentAiService.generateQuestions.mockReturnValue({
-        context: { verified_level: VerifiedLevel.MID },
-        questions: makeSessionJson().questions.slice(0, 10),
-      });
+      entityManager.createQueryBuilder.mockReturnValue(skillQuery);
 
       talentProfileRepo.manager.transaction.mockImplementation(
         (work: (em: typeof entityManager) => Promise<unknown>) =>
           work(entityManager),
       );
 
-      await expect(service.start(userId)).rejects.toThrow(
-        ServiceUnavailableException,
-      );
+      await expect(service.start(userId)).rejects.toMatchObject({
+        response: expect.objectContaining({
+          error: 'SKILL_PASS_REQUIRED',
+          message: ErrorMessages.SKILL_ASSESSMENT.PASS_REQUIRED,
+        }),
+      });
     });
 
     it('throws 503 BANK_EXHAUSTED when fewer than 19 base questions can be assembled', async () => {
       const profile = makeTalentProfile({
         validated_level: VerifiedLevel.MID,
         personal_assessment_completed_at: new Date(),
+        skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
         assessment_locked_until: null,
       });
 
@@ -1361,6 +1347,7 @@ describe('AdvancedAssessmentService', () => {
       const skillQuery = makeQuery({
         getOne: jest.fn().mockResolvedValue({
           percentage: 80,
+          claimed_percentage: 80,
         }),
       });
       const activeAttemptQuery = makeQuery({
