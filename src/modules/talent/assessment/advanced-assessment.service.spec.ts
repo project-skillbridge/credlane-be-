@@ -446,10 +446,9 @@ describe('AdvancedAssessmentService', () => {
   // ── submit ──────────────────────────────────────────────────────────────────
 
   describe('submit()', () => {
-    // 5 MCQ + (10+2+2)*12 + 1*8 = 5 + 168 + 8 = 181
-    const ADVANCED_MAX_SCORE = 181;
+    const ADVANCED_MAX_SCORE = 100;
 
-    it('returns the max_score (181) for a complete session', async () => {
+    it('returns weighted max_score (100) for a complete session', async () => {
       // perfect text scoring + all MCQ correct
       rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
       const result = await service.submit(userId, makeSubmitDto() as never);
@@ -534,9 +533,26 @@ describe('AdvancedAssessmentService', () => {
 
       const result = await service.submit(userId, dto as never);
 
-      expect(result.percentage).toBeGreaterThanOrEqual(75);
+      expect(result.percentage).toBeLessThan(75);
       expect(result.tier).toBe(AssessmentTier.EMERGING);
       expect(employerPoolProfileService.upsert).not.toHaveBeenCalled();
+    });
+
+    it('can still be job_ready with high text scores and at least one correct MCQ', async () => {
+      rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
+      const dto = makeSubmitDto();
+      dto.answers = dto.answers.map((answer: Record<string, unknown>) => {
+        if (!String(answer.question_id).startsWith('mcq-')) return answer;
+        return {
+          ...answer,
+          answer: answer.question_id === 'mcq-1' ? 'Option A' : 'Option C',
+        };
+      });
+
+      const result = await service.submit(userId, dto as never);
+
+      expect(result.percentage).toBeGreaterThanOrEqual(75);
+      expect(result.tier).toBe(AssessmentTier.JOB_READY);
     });
 
     it('places tier at Emerging when pct < 75%', async () => {
