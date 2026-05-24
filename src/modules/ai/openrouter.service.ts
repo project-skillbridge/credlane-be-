@@ -4,31 +4,48 @@ import {
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { createAnthropic } from '@ai-sdk/anthropic';
+import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { APICallError, generateObject, zodSchema, LanguageModel } from 'ai';
 import { z } from 'zod';
 import { env } from '../../config/env';
+
+type AiProviderFactory = (modelId: string, options?: unknown) => LanguageModel;
 
 @Injectable()
 export class OpenRouterService {
   private readonly logger = new Logger(OpenRouterService.name);
   private readonly maxRetries = 4;
   private readonly useAnthropic: boolean;
+  private readonly useGemini: boolean;
 
-  private readonly anthropicProvider: ReturnType<typeof createAnthropic> | null;
-  private readonly openRouterProvider: ReturnType<typeof createOpenRouter> | null;
+  private readonly anthropicProvider: AiProviderFactory | null;
+  private readonly googleProvider: AiProviderFactory | null;
+  private readonly openRouterProvider: AiProviderFactory | null;
 
   constructor() {
     this.useAnthropic = !!env.ANTHROPIC_API_KEY;
+    this.useGemini = !this.useAnthropic && !!env.GEMINI_API_KEY;
 
     if (this.useAnthropic) {
       this.logger.log('AI provider: Anthropic');
+       
       this.anthropicProvider = createAnthropic({
         apiKey: env.ANTHROPIC_API_KEY!,
       });
+      this.googleProvider = null;
+      this.openRouterProvider = null;
+    } else if (this.useGemini) {
+      this.logger.log('AI provider: Google Gemini');
+      this.googleProvider = createGoogleGenerativeAI({
+        apiKey: env.GEMINI_API_KEY!,
+      });
+      this.anthropicProvider = null;
       this.openRouterProvider = null;
     } else {
-      this.logger.log('AI provider: OpenRouter (Anthropic key not set)');
+      this.logger.log(
+        'AI provider: OpenRouter (Anthropic/Gemini keys not set)',
+      );
       this.openRouterProvider = createOpenRouter({
         apiKey: env.OPENROUTER_API_KEY ?? '',
         baseURL: env.OPENROUTER_BASE_URL,
@@ -39,12 +56,13 @@ export class OpenRouterService {
           'HTTP-Referer': 'https://skillbridge.hng14.com',
           'X-Title': 'SkillBridge CredLane',
         },
-      });
+      }) as AiProviderFactory;
       this.anthropicProvider = null;
+      this.googleProvider = null;
 
       if (!env.OPENROUTER_API_KEY) {
         this.logger.warn(
-          'Neither ANTHROPIC_API_KEY nor OPENROUTER_API_KEY is configured; AI endpoints will be unavailable',
+          'Neither ANTHROPIC_API_KEY, GEMINI_API_KEY, nor OPENROUTER_API_KEY is configured; AI endpoints will be unavailable',
         );
       }
     }
@@ -53,6 +71,10 @@ export class OpenRouterService {
   private resolveModel(useWebSearch = false): LanguageModel {
     if (this.useAnthropic) {
       return this.anthropicProvider!(env.ANTHROPIC_MODEL);
+    }
+
+    if (this.useGemini) {
+      return this.googleProvider!(env.GEMINI_MODEL);
     }
 
     return this.openRouterProvider!(env.OPENROUTER_MODEL, {
@@ -70,7 +92,7 @@ export class OpenRouterService {
     temperature = 0.2,
     useWebSearch = false,
   ): Promise<T> {
-    if (!this.useAnthropic && !env.OPENROUTER_API_KEY) {
+    if (!this.useAnthropic && !this.useGemini && !env.OPENROUTER_API_KEY) {
       throw new ServiceUnavailableException('AI service is not configured');
     }
 
