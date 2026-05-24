@@ -2,8 +2,17 @@ jest.mock('./advanced-assessment-submit.processor', () => ({
   AdvancedAssessmentSubmitProcessor: jest.fn(),
 }));
 
+jest.mock('../../../shared/runtime/redis-queue', () => ({
+  redisQueueConnection: jest.fn(),
+}));
+
+import { redisQueueConnection } from '../../../shared/runtime/redis-queue';
 import { advancedAssessmentSubmitJobSchema } from './advanced-assessment-submit.types';
 import { AdvancedAssessmentQueueService } from './advanced-assessment-queue.service';
+
+const redisQueueConnectionMock = redisQueueConnection as jest.MockedFunction<
+  typeof redisQueueConnection
+>;
 
 describe('advancedAssessmentSubmitJobSchema', () => {
   it('accepts a valid submit payload', () => {
@@ -32,18 +41,12 @@ describe('advancedAssessmentSubmitJobSchema', () => {
 });
 
 describe('AdvancedAssessmentQueueService', () => {
-  const originalRedisUrl = process.env.REDIS_URL;
-
-  afterEach(() => {
-    if (originalRedisUrl === undefined) {
-      delete process.env.REDIS_URL;
-    } else {
-      process.env.REDIS_URL = originalRedisUrl;
-    }
+  beforeEach(() => {
+    redisQueueConnectionMock.mockReset();
   });
 
   it('enqueue delegates to inline processor when Redis is unset', async () => {
-    delete process.env.REDIS_URL;
+    redisQueueConnectionMock.mockReturnValue(null);
 
     const processJob = jest.fn().mockResolvedValue(undefined);
     const queue = new AdvancedAssessmentQueueService({

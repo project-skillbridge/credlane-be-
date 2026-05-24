@@ -20,6 +20,8 @@ import { RolesGuard } from '../src/modules/auth/guards/roles.guard';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
 import { AdvancedAssessmentController } from '../src/modules/talent/assessment/advanced-assessment.controller';
 import { AdvancedAssessmentService } from '../src/modules/talent/assessment/advanced-assessment.service';
+import { AdvancedAssessmentQueueService } from '../src/modules/talent/assessment/advanced-assessment-queue.service';
+import { AdvancedAssessmentSubmitProcessor } from '../src/modules/talent/assessment/advanced-assessment-submit.processor';
 import { AdvancedAssessmentAiService } from '../src/modules/talent/assessment/advanced-assessment-ai.service';
 import { EmployerPoolProfileService } from '../src/modules/talent/assessment/employer-pool-profile.service';
 import { PersonalAssessmentService } from '../src/modules/talent/assessment/personal-assessment.service';
@@ -188,6 +190,7 @@ function submitBody() {
 
 describe('Advanced assessment (e2e)', () => {
   let app: INestApplication<App>;
+  let submitQueue: AdvancedAssessmentQueueService;
 
   const talentUser = makeTalentUser();
   const employerUser = makeTalentUser({
@@ -317,6 +320,8 @@ describe('Advanced assessment (e2e)', () => {
       controllers: [AdvancedAssessmentController],
       providers: [
         AdvancedAssessmentService,
+        AdvancedAssessmentSubmitProcessor,
+        AdvancedAssessmentQueueService,
         AdvancedAssessmentAiService,
         {
           provide: getRepositoryToken(TalentProfile),
@@ -336,7 +341,12 @@ describe('Advanced assessment (e2e)', () => {
         },
         {
           provide: getRepositoryToken(AssessmentResult),
-          useValue: { save: jest.fn() },
+          useValue: {
+            save: jest.fn().mockImplementation((r) =>
+              Promise.resolve({ ...r, id: 'result-1' }),
+            ),
+            update: jest.fn().mockResolvedValue({ affected: 1 }),
+          },
         },
         {
           provide: getRepositoryToken(TalentQuestionHistory),
@@ -470,6 +480,8 @@ describe('Advanced assessment (e2e)', () => {
       }),
     );
     await app.init();
+    submitQueue = moduleFixture.get(AdvancedAssessmentQueueService);
+    submitQueue.onModuleInit();
   });
 
   afterEach(async () => {
@@ -479,40 +491,19 @@ describe('Advanced assessment (e2e)', () => {
   // ── POST /advanced/submit ──────────────────────────────────────────────────
 
   describe('POST /api/v1/talent/assessment/advanced/submit', () => {
-    it('returns 200 with score, max_score, percentage and tier', async () => {
+    it('returns 200 with processing status then completes the attempt in the background', async () => {
       await request(app.getHttpServer())
         .post('/api/v1/talent/assessment/advanced/submit')
         .send(submitBody())
         .expect(200)
         .expect((res) => {
-          expect(res.body.status).toBe('success');
+          expect(res.body.status).toBe('processing');
           expect(res.body.session_id).toBe(ATTEMPT_ID);
-          expect(res.body.max_score).toBe(100);
-          expect(typeof res.body.percentage).toBe('number');
-          expect(Object.values(AssessmentTier)).toContain(res.body.tier);
-          expect(['high', 'medium', 'low']).toContain(
-            res.body.integrity_confidence,
-          );
+          expect(res.body.score).toBeUndefined();
         });
-    });
 
-    it('includes guidance_report when tier is not job_ready', async () => {
-      await request(app.getHttpServer())
-        .post('/api/v1/talent/assessment/advanced/submit')
-        .send(submitBody())
-        .expect(200)
-        .expect((res) => {
-          if (res.body.tier !== AssessmentTier.JOB_READY) {
-            expect(res.body.guidance_report).toBeDefined();
-            expect(res.body.guidance_report.summary).toBeDefined();
-            expect(
-              Array.isArray(res.body.guidance_report.strength_ratings),
-            ).toBe(true);
-            expect(
-              Array.isArray(res.body.guidance_report.weak_area_ratings),
-            ).toBe(true);
-          }
-        });
+      await submitQueue.awaitIdleForTests();
+      expect(attemptStore.completed_at).toBeInstanceOf(Date);
     });
 
     it('returns 400 when attempt already submitted', async () => {
@@ -547,7 +538,7 @@ describe('Advanced assessment (e2e)', () => {
         .expect(422);
     });
 
-    it('scores unanswered questions as 0 and still returns 200', async () => {
+    it('accepts partial answers and still returns processing', async () => {
       await request(app.getHttpServer())
         .post('/api/v1/talent/assessment/advanced/submit')
         .send({
@@ -560,8 +551,11 @@ describe('Advanced assessment (e2e)', () => {
         })
         .expect(200)
         .expect((res) => {
-          expect(res.body.score).toBeGreaterThanOrEqual(0);
+          expect(res.body.status).toBe('processing');
         });
+
+      await submitQueue.awaitIdleForTests();
+      expect(attemptStore.completed_at).toBeInstanceOf(Date);
     });
 
     it('returns 403 for employer role', async () => {
