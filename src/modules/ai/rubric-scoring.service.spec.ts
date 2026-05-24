@@ -130,4 +130,49 @@ describe('RubricScoringService', () => {
       0.1,
     );
   });
+
+  it('rejects repeated nonsense before calling the AI', async () => {
+    const [scored] = await service.scoreAnswers([
+      {
+        question_id: 'question-1',
+        question_text: 'Explain how you would debug a production issue.',
+        answer: 'asdf asdf asdf asdf asdf asdf asdf asdf',
+      },
+    ]);
+
+    expect(openRouter.chat).not.toHaveBeenCalled();
+    expect(scored.raw_score).toBe(0);
+    expect(scored.max_score).toBe(12);
+    expect(scored.rubric).toMatchObject({
+      total: 0,
+      quality_gate: true,
+      feedback: 'No meaningful answer detected.',
+    });
+  });
+
+  it('rejects low-quality guide rubric answers before calling the AI', async () => {
+    const [scored] = await service.scoreAnswers([
+      {
+        question_id: 'rubric-question',
+        question_text: 'Describe a rollout plan.',
+        answer: '........',
+        grading_rubric: {
+          what_to_evaluate: 'Rollout planning',
+          strong_answer_must_show: ['Risk control', 'Communication'],
+          weak_answer_indicators: ['Generic', 'No ownership'],
+          score_guide: {
+            '4': 'Strong',
+            '3': 'Good',
+            '2': 'Partial',
+            '1': 'Weak',
+          },
+        },
+      },
+    ]);
+
+    expect(openRouter.chat).not.toHaveBeenCalled();
+    expect(scored.raw_score).toBe(0);
+    expect(scored.max_score).toBe(4);
+    expect(scored.rubric.quality_gate).toBe(true);
+  });
 });
