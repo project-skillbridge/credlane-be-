@@ -41,6 +41,7 @@ import {
   SKILL_ASSESSMENT_MAX_ATTEMPTS,
   SKILL_ASSESSMENT_PASS_PERCENTAGE,
 } from '../talent.constants';
+import { meetsSkillQualityBenchmark } from './assessment-quality';
 import {
   AssessmentAnswerBlock,
   textLengthBoundsForBlock,
@@ -111,10 +112,11 @@ export interface SubmitSkillAssessmentResult {
   score: number;
   total: number;
   percentage: number;
-  validated_level: VerifiedLevel;
+  validated_level: VerifiedLevel | null;
   claimed_level: VerifiedLevel;
   downgraded: boolean;
   passed: boolean;
+  failed: boolean;
   guidance_report?: GuidanceReport;
   personalised_message?: string;
 }
@@ -715,18 +717,25 @@ export class SkillAssessmentService {
       );
     }
 
-    const validatedLevel = this.resolveValidatedLevel(
-      claimedPercentage,
-      aboveLevelPercentage,
-      belowLevelPercentage,
-      percentage,
-      profile.claimed_level ?? VerifiedLevel.JUNIOR,
-      primaryMcqGatePassed,
-      aboveProbeMcqGatePassed,
-    );
+    const failed = !meetsSkillQualityBenchmark(percentage);
     const claimed = profile.claimed_level ?? VerifiedLevel.JUNIOR;
-    const downgraded = levelIsLower(validatedLevel, claimed);
+    const validatedLevel = failed
+      ? null
+      : this.resolveValidatedLevel(
+          claimedPercentage,
+          aboveLevelPercentage,
+          belowLevelPercentage,
+          percentage,
+          claimed,
+          primaryMcqGatePassed,
+          aboveProbeMcqGatePassed,
+        );
+    const downgraded =
+      !failed &&
+      validatedLevel !== null &&
+      levelIsLower(validatedLevel, claimed);
     const passed =
+      !failed &&
       claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE &&
       primaryMcqGatePassed;
     const tier = this.resolveSkillTier(percentage);
@@ -738,7 +747,8 @@ export class SkillAssessmentService {
           report_type: 'emerging',
           track: profile.track ?? 'general',
           claimed_level: claimed,
-          validated_level: validatedLevel,
+          validated_level:
+            validatedLevel ?? profile.validated_level ?? VerifiedLevel.JUNIOR,
           percentage,
           strong_competencies: this.extractStrongCompetencies(
             [
@@ -793,19 +803,25 @@ export class SkillAssessmentService {
       });
       await manager.save(AssessmentResult, result);
 
-      await manager.update(
-        TalentProfile,
-        { id: profile.id },
-        {
-          validated_level: validatedLevel,
-          skill_assessment_completed_at: new Date(),
-          status: this.skillTierToProfileStatus(tier, passed),
-        },
-      );
+      if (!failed && validatedLevel) {
+        await manager.update(
+          TalentProfile,
+          { id: profile.id },
+          {
+            validated_level: validatedLevel,
+            skill_assessment_completed_at: new Date(),
+            status: this.skillTierToProfileStatus(tier, passed),
+          },
+        );
+      } else {
+        await manager.update(TalentProfile, { id: profile.id }, {
+          status: TalentProfileStatus.NOT_READY,
+        });
+      }
     });
 
     this.logger.log(
-      `Skill assessment submitted: attempt=${attempt.id} user=${userId} score=${totalScore}/${totalMaxScore} pct=${percentage} validated=${validatedLevel} passed=${passed} downgraded=${downgraded}`,
+      `Skill assessment submitted: attempt=${attempt.id} user=${userId} score=${totalScore}/${totalMaxScore} pct=${percentage} validated=${validatedLevel ?? 'n/a'} failed=${failed} passed=${passed} downgraded=${downgraded}`,
     );
 
     const attemptNumber = await this.resolveSkillAttemptNumber(
@@ -815,8 +831,10 @@ export class SkillAssessmentService {
     );
 
     return {
-      status: 'success',
-      message: SuccessMessages.SKILL_ASSESSMENT.SUBMITTED,
+      status: failed ? 'failed' : 'success',
+      message: failed
+        ? SuccessMessages.SKILL_ASSESSMENT.FAILED
+        : SuccessMessages.SKILL_ASSESSMENT.SUBMITTED,
       session_id: attempt.id,
       attempt_number: attemptNumber,
       score: Math.round(totalScore),
@@ -826,6 +844,7 @@ export class SkillAssessmentService {
       claimed_level: claimed,
       downgraded,
       passed,
+      failed,
       ...(guidanceReport && { guidance_report: guidanceReport }),
       ...(downgraded && {
         personalised_message: SuccessMessages.SKILL_ASSESSMENT.DOWNGRADE_NOTICE,

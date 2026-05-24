@@ -22,6 +22,8 @@ export const SuccessMessages = {
     STARTED: 'Skill assessment session created',
     SESSION_RESUMED: 'Skill assessment session returned',
     SUBMITTED: 'Skill assessment submitted successfully',
+    FAILED:
+      'Your overall score was below 50%. This attempt does not count toward verification. You may retake the skill assessment.',
     DOWNGRADE_NOTICE:
       'Your assessment has been personalised to your verified level.',
   },
@@ -29,6 +31,8 @@ export const SuccessMessages = {
     STARTED: 'Advanced assessment session created',
     SESSION_RESUMED: 'Advanced assessment session returned',
     SUBMITTED: 'Advanced assessment submitted and scored',
+    FAILED:
+      'Your overall score was below 50%. This attempt does not count toward completion. You may retake the advanced assessment.',
     LT2_SUBMITTED: 'Reflection question generated',
     INTEGRITY_WARNED:
       'Integrity warning recorded. One more violation will void this session.',

@@ -72,6 +72,11 @@ import {
   normaliseCompetency,
   sanitiseCompetencyList,
 } from './competency-taxonomy';
+import {
+  meetsAdvancedQualityBenchmark,
+  meetsSkillQualityBenchmark,
+  qualifiesForAdvancedFromSkillResult,
+} from './assessment-quality';
 
 const ADVANCED_ASSESSMENT_DURATION_MINUTES = 90;
 const RETAKE_GATE_DAYS = 14;
@@ -115,6 +120,7 @@ export interface AdvancedAssessmentSubmitResult {
   max_score: number;
   percentage: number;
   tier: AssessmentTier;
+  failed: boolean;
   integrity_confidence: string;
   guidance_report?: GuidanceReport;
   auto_submitted?: boolean;
@@ -222,6 +228,26 @@ export class AdvancedAssessmentService {
           throw new UnprocessableEntityException(
             ErrorMessages.ADVANCED_ASSESSMENT.SKILL_GATE_REQUIRED,
           );
+        }
+
+        if (!profile.skill_assessment_completed_at) {
+          throw new UnprocessableEntityException(
+            ErrorMessages.ADVANCED_ASSESSMENT.SKILL_GATE_REQUIRED,
+          );
+        }
+
+        if (!meetsSkillQualityBenchmark(latestSkillResult.percentage ?? 0)) {
+          throw new UnprocessableEntityException({
+            error: 'SKILL_QUALITY_REQUIRED',
+            message: ErrorMessages.SKILL_ASSESSMENT.QUALITY_REQUIRED,
+          });
+        }
+
+        if (!qualifiesForAdvancedFromSkillResult(latestSkillResult)) {
+          throw new UnprocessableEntityException({
+            error: 'SKILL_PASS_REQUIRED',
+            message: ErrorMessages.SKILL_ASSESSMENT.PASS_REQUIRED,
+          });
         }
 
         this.assertAdvancedRetakeUnlocked(profile);
@@ -547,15 +573,16 @@ export class AdvancedAssessmentService {
       );
     }
 
-    const tier = this.resolveTier(percentage, mcqGatePassed);
+    const failed = !meetsAdvancedQualityBenchmark(percentage);
+    const tier = failed
+      ? AssessmentTier.NOT_READY
+      : this.resolveTier(percentage, mcqGatePassed);
     const integrityConfidence = this.resolveIntegrityConfidence(
       attempt.tab_switch_count,
       attempt.copy_paste_count ?? 0,
       hasAbnormalTiming,
     );
 
-    // Pull real competency labels from the question metadata before they
-    // flow into the guidance prompt and the employer pool profile.
     const strongCompetencies = this.extractCompetencies(
       sessionQuestions,
       scoredTextAnswers,
@@ -569,18 +596,21 @@ export class AdvancedAssessmentService {
       'weak',
     );
 
-    const guidanceInput = {
-      report_type: tier === AssessmentTier.JOB_READY ? 'job_ready' : 'emerging',
-      track: profile.track ?? 'general',
-      claimed_level: profile.claimed_level ?? VerifiedLevel.JUNIOR,
-      validated_level: profile.validated_level ?? VerifiedLevel.JUNIOR,
-      percentage,
-      strong_competencies: strongCompetencies,
-      weak_competencies: weakCompetencies,
-    } satisfies Parameters<GuidanceReportService['generate']>[0];
+    const guidanceInput = failed
+      ? null
+      : ({
+          report_type:
+            tier === AssessmentTier.JOB_READY ? 'job_ready' : 'emerging',
+          track: profile.track ?? 'general',
+          claimed_level: profile.claimed_level ?? VerifiedLevel.JUNIOR,
+          validated_level: profile.validated_level ?? VerifiedLevel.JUNIOR,
+          percentage,
+          strong_competencies: strongCompetencies,
+          weak_competencies: weakCompetencies,
+        } satisfies Parameters<GuidanceReportService['generate']>[0]);
 
     const personalContext =
-      tier === AssessmentTier.JOB_READY
+      !failed && tier === AssessmentTier.JOB_READY
         ? await this.personalAssessmentService.getAiContext(userId)
         : null;
 
@@ -621,32 +651,34 @@ export class AdvancedAssessmentService {
         ? { id: savedResult.id }
         : { attempt_id: attempt.id };
 
-      const profilePatch: Partial<TalentProfile> = {
-        advanced_assessment_completed_at: new Date(),
-        status: this.tierToProfileStatus(tier),
-      };
+      if (!failed) {
+        const profilePatch: Partial<TalentProfile> = {
+          advanced_assessment_completed_at: new Date(),
+          status: this.tierToProfileStatus(tier),
+        };
 
-      if (tier !== AssessmentTier.JOB_READY) {
-        const lockedFrom = new Date();
-        const unlocksAt = new Date(lockedFrom);
-        unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
-        profilePatch.assessment_locked_from = lockedFrom;
-        profilePatch.assessment_locked_until = unlocksAt;
-        profilePatch.advanced_retake_required = true;
-      } else {
-        profilePatch.assessment_locked_from = null;
-        profilePatch.assessment_locked_until = null;
-        profilePatch.advanced_retake_required = false;
+        if (tier !== AssessmentTier.JOB_READY) {
+          const lockedFrom = new Date();
+          const unlocksAt = new Date(lockedFrom);
+          unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
+          profilePatch.assessment_locked_from = lockedFrom;
+          profilePatch.assessment_locked_until = unlocksAt;
+          profilePatch.advanced_retake_required = true;
+        } else {
+          profilePatch.assessment_locked_from = null;
+          profilePatch.assessment_locked_until = null;
+          profilePatch.advanced_retake_required = false;
+        }
+
+        await manager.update(TalentProfile, { id: profile.id }, profilePatch);
       }
-
-      await manager.update(TalentProfile, { id: profile.id }, profilePatch);
     });
 
-    if (resultLookup) {
+    if (resultLookup && guidanceInput) {
       this.generateGuidanceReportAsync(resultLookup, guidanceInput);
     }
 
-    if (tier === AssessmentTier.JOB_READY && personalContext) {
+    if (!failed && tier === AssessmentTier.JOB_READY && personalContext) {
       try {
         const competencyByQuestion = new Map<string, string | null>();
         for (const question of sessionQuestions) {
@@ -677,28 +709,33 @@ export class AdvancedAssessmentService {
     }
 
     this.logger.log(
-      `Advanced assessment submitted: attempt=${attempt.id} user=${userId} score=${totalRawScore}/${maxScore} (${percentage}%) tier=${tier} expired=${isExpired}`,
+      `Advanced assessment submitted: attempt=${attempt.id} user=${userId} score=${totalRawScore}/${maxScore} (${percentage}%) tier=${tier} failed=${failed} expired=${isExpired}`,
     );
 
-    void this.notificationDispatch.dispatch(
-      NotificationType.ADVANCED_ASSESSMENT_SCORE_READY,
-      userId,
-      {
-        score: Math.round(totalRawScore),
-        maxScore,
-        percentage,
-        tier,
-      },
-    );
+    if (!failed) {
+      void this.notificationDispatch.dispatch(
+        NotificationType.ADVANCED_ASSESSMENT_SCORE_READY,
+        userId,
+        {
+          score: Math.round(totalRawScore),
+          maxScore,
+          percentage,
+          tier,
+        },
+      );
+    }
 
     return {
-      status: 'success',
-      message: SuccessMessages.ADVANCED_ASSESSMENT.SUBMITTED,
+      status: failed ? 'failed' : 'success',
+      message: failed
+        ? SuccessMessages.ADVANCED_ASSESSMENT.FAILED
+        : SuccessMessages.ADVANCED_ASSESSMENT.SUBMITTED,
       session_id: attempt.id,
       score: Math.round(totalRawScore),
       max_score: maxScore,
       percentage,
       tier,
+      failed,
       integrity_confidence: integrityConfidence,
       ...(isExpired && { auto_submitted: true }),
     };

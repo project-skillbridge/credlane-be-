@@ -604,30 +604,26 @@ describe('AdvancedAssessmentService', () => {
       expect(result.tier).toBe(AssessmentTier.EMERGING);
     });
 
-    it('places tier at Emerging below 50% and generates a guidance report', async () => {
+    it('marks sub-50% as failed without profile completion or guidance report', async () => {
       rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(0, 176));
       const result = await service.submit(userId, {
         session_id: 'attempt-1',
         answers: [],
       } as never);
 
-      expect(result.percentage).toBeLessThan(75);
-      expect(result.tier).toBe(AssessmentTier.EMERGING);
-      expect(guidanceReport.generate).toHaveBeenCalledWith(
-        expect.objectContaining({ report_type: 'emerging' }),
-      );
-      expect(result.guidance_report).toBeUndefined();
-      await Promise.resolve();
-      expect(resultRepo.update).toHaveBeenCalledWith(
-        expect.anything(),
+      expect(result.failed).toBe(true);
+      expect(result.status).toBe('failed');
+      expect(result.percentage).toBeLessThan(50);
+      expect(result.tier).toBe(AssessmentTier.NOT_READY);
+      expect(guidanceReport.generate).not.toHaveBeenCalled();
+      expect(entityManagerUpdate).not.toHaveBeenCalledWith(
+        TalentProfile,
+        { id: profileStore.id },
         expect.objectContaining({
-          guidance_report: expect.objectContaining({
-            report_type: 'emerging',
-            ai_summary: expect.any(String),
-            growth_insight: expect.any(String),
-          }),
+          advanced_assessment_completed_at: expect.any(Date),
         }),
       );
+      expect(notificationDispatch.dispatch).not.toHaveBeenCalled();
     });
 
     it('writes one assessment_scores row per session question (20)', async () => {
@@ -661,7 +657,7 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('sets retake gate (assessment_locked_until) when tier is not job_ready', async () => {
-      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(0, 176));
+      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(100, 176));
 
       await service.submit(userId, makeSubmitDto() as never);
       expect(entityManagerUpdate).toHaveBeenCalledWith(

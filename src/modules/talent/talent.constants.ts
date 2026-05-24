@@ -63,3 +63,9 @@ export const SKILL_ASSESSMENT_MAX_ATTEMPTS = 3;
 
 /** Minimum claimed-level score (Stage 2) required to confirm level and unlock Stage 3. */
 export const SKILL_ASSESSMENT_PASS_PERCENTAGE = 70;
+
+/** Minimum overall score; below this the skill attempt is a total failure (no level outcome). */
+export const SKILL_ASSESSMENT_QUALITY_MIN_PERCENTAGE = 50;
+
+/** Minimum overall score for advanced; below this the attempt is a total failure. */
+export const ADVANCED_ASSESSMENT_QUALITY_MIN_PERCENTAGE = 50;
