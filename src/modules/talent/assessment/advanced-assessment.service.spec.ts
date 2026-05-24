@@ -525,7 +525,7 @@ describe('AdvancedAssessmentService', () => {
     it('keeps tier emerging when text scores are high but all MCQs are wrong', async () => {
       rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
       const dto = makeSubmitDto();
-      dto.answers = dto.answers.map((answer: Record<string, unknown>) =>
+      dto.answers = dto.answers.map((answer) =>
         String(answer.question_id).startsWith('mcq-')
           ? { ...answer, answer: 'Option C' }
           : answer,
@@ -541,7 +541,7 @@ describe('AdvancedAssessmentService', () => {
     it('can still be job_ready with high text scores and at least one correct MCQ', async () => {
       rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
       const dto = makeSubmitDto();
-      dto.answers = dto.answers.map((answer: Record<string, unknown>) => {
+      dto.answers = dto.answers.map((answer) => {
         if (!String(answer.question_id).startsWith('mcq-')) return answer;
         return {
           ...answer,
@@ -558,7 +558,14 @@ describe('AdvancedAssessmentService', () => {
     it('fails closed when the session has no MCQs', async () => {
       rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
       const loggerErrorSpy = jest
-        .spyOn((service as unknown as { logger: { error: (...args: unknown[]) => void } }).logger, 'error')
+        .spyOn(
+          (
+            service as unknown as {
+              logger: { error: (...args: unknown[]) => void };
+            }
+          ).logger,
+          'error',
+        )
         .mockImplementation(() => undefined);
 
       const sessionNoMcq = makeSessionJson();
@@ -570,8 +577,7 @@ describe('AdvancedAssessmentService', () => {
 
       const dto = makeSubmitDto();
       dto.answers = dto.answers.filter(
-        (answer: Record<string, unknown>) =>
-          !String(answer.question_id).startsWith('mcq-'),
+        (answer) => !String(answer.question_id).startsWith('mcq-'),
       );
 
       const result = await service.submit(userId, dto as never);
@@ -950,11 +956,17 @@ describe('AdvancedAssessmentService', () => {
           entity === AssessmentAttempt &&
           (criteria as Record<string, unknown>).id === 'attempt-1',
       );
-      const [, , patch] = attemptUpdateCall as [unknown, unknown, Record<string, unknown>];
+      const [, , patch] = attemptUpdateCall as [
+        unknown,
+        unknown,
+        Record<string, unknown>,
+      ];
       const updatedJson = patch.generated_questions_json as {
         questions: Array<{ slot_type: string }>;
       };
-      expect(updatedJson.questions.some((q) => q.slot_type === SlotType.REFLECTION)).toBe(true);
+      expect(
+        updatedJson.questions.some((q) => q.slot_type === SlotType.REFLECTION),
+      ).toBe(true);
     });
 
     it('does not call manager.save for the attempt entity when persisting LT-3', async () => {
@@ -977,9 +989,13 @@ describe('AdvancedAssessmentService', () => {
 
       // attemptStore is the same object returned by findOne (mockResolvedValue returns same ref)
       const inMemoryQuestions = (
-        attemptStore.generated_questions_json as { questions: Array<{ slot_type: string }> }
+        attemptStore.generated_questions_json as {
+          questions: Array<{ slot_type: string }>;
+        }
       ).questions;
-      expect(inMemoryQuestions.some((q) => q.slot_type === SlotType.REFLECTION)).toBe(true);
+      expect(
+        inMemoryQuestions.some((q) => q.slot_type === SlotType.REFLECTION),
+      ).toBe(true);
     });
 
     it('throws 403 with probation metadata when profile lock is active', async () => {
@@ -1022,15 +1038,15 @@ describe('AdvancedAssessmentService', () => {
         }),
       );
 
-      await expect(service.getSession(userId, 'attempt-1')).rejects.toMatchObject(
-        {
-          response: expect.objectContaining({
-            error: 'ADVANCED_RETAKE_LOCKED',
-            probation_started_at: lockedFrom.toISOString(),
-            probation_ends_at: lockedUntil.toISOString(),
-          }),
-        },
-      );
+      await expect(
+        service.getSession(userId, 'attempt-1'),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          error: 'ADVANCED_RETAKE_LOCKED',
+          probation_started_at: lockedFrom.toISOString(),
+          probation_ends_at: lockedUntil.toISOString(),
+        }),
+      });
     });
   });
 
