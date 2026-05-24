@@ -10,6 +10,7 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import {
+  ApiAcceptedResponse,
   ApiConflictResponse,
   ApiCookieAuth,
   ApiCreatedResponse,
@@ -138,7 +139,7 @@ export class AdvancedAssessmentController {
   }
 
   @Post('advanced/submit')
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
     summary: 'Submit advanced assessment answers',
     description:
@@ -149,7 +150,7 @@ export class AdvancedAssessmentController {
       'Returns 422 LT2_NOT_SUBMITTED if /lt2-submit was never called. ' +
       'Duplicate submits while a job is in flight are deduped by attempt id.',
   })
-  @ApiOkResponse({
+  @ApiAcceptedResponse({
     description:
       'Submission accepted for background processing (status=processing). Scores and tier appear on dashboard after the worker completes.',
   })

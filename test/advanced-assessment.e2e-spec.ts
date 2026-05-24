@@ -342,9 +342,11 @@ describe('Advanced assessment (e2e)', () => {
         {
           provide: getRepositoryToken(AssessmentResult),
           useValue: {
-            save: jest.fn().mockImplementation((r) =>
-              Promise.resolve({ ...r, id: 'result-1' }),
-            ),
+            save: jest
+              .fn()
+              .mockImplementation((r) =>
+                Promise.resolve({ ...r, id: 'result-1' }),
+              ),
             update: jest.fn().mockResolvedValue({ affected: 1 }),
           },
         },
@@ -491,11 +493,11 @@ describe('Advanced assessment (e2e)', () => {
   // ── POST /advanced/submit ──────────────────────────────────────────────────
 
   describe('POST /api/v1/talent/assessment/advanced/submit', () => {
-    it('returns 200 with processing status then completes the attempt in the background', async () => {
+    it('returns 202 with processing status then completes the attempt in the background', async () => {
       await request(app.getHttpServer())
         .post('/api/v1/talent/assessment/advanced/submit')
         .send(submitBody())
-        .expect(200)
+        .expect(202)
         .expect((res) => {
           expect(res.body.status).toBe('processing');
           expect(res.body.session_id).toBe(ATTEMPT_ID);
@@ -549,7 +551,7 @@ describe('Advanced assessment (e2e)', () => {
             { question_id: LONG_IDS[0], answer: LONG_ANSWER },
           ],
         })
-        .expect(200)
+        .expect(202)
         .expect((res) => {
           expect(res.body.status).toBe('processing');
         });
