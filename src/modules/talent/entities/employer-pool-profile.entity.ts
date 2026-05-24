@@ -44,7 +44,7 @@ export class EmployerPoolProfile {
   @Column({ type: 'varchar', length: 20 })
   verified_level: string;
 
-  @ApiProperty({ description: 'Raw score out of 198' })
+  @ApiProperty({ description: 'Weighted assessment score out of 100' })
   @Column({ type: 'integer' })
   score: number;
 

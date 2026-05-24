@@ -509,7 +509,7 @@ describe('SkillAssessmentService', () => {
       ],
     });
 
-    expect(result.percentage).toBeGreaterThanOrEqual(70);
+    expect(result.percentage).toBeLessThan(70);
     expect(result.passed).toBe(false);
     expect(result.validated_level).toBe(VerifiedLevel.JUNIOR);
   });
