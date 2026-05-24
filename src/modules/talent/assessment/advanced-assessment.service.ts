@@ -540,10 +540,10 @@ export class AdvancedAssessmentService {
     const maxScore = weightedScore.maxScore;
     const percentage = weightedScore.percentage;
 
-    const mcqGatePassed = mcqTotal === 0 || mcqRawScore > 0;
+    const mcqGatePassed = mcqRawScore > 0;
     if (mcqTotal === 0) {
-      this.logger.warn(
-        `Advanced assessment MCQ gate bypassed: no MCQs attempt=${attempt.id} user=${userId}`,
+      this.logger.error(
+        `Advanced assessment MCQ gate failed: no MCQs attempt=${attempt.id} user=${userId}`,
       );
     }
 

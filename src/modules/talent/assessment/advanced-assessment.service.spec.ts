@@ -555,6 +555,40 @@ describe('AdvancedAssessmentService', () => {
       expect(result.tier).toBe(AssessmentTier.JOB_READY);
     });
 
+    it('fails closed when the session has no MCQs', async () => {
+      rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
+      const loggerErrorSpy = jest
+        .spyOn((service as unknown as { logger: { error: (...args: unknown[]) => void } }).logger, 'error')
+        .mockImplementation(() => undefined);
+
+      const sessionNoMcq = makeSessionJson();
+      sessionNoMcq.questions = sessionNoMcq.questions.filter(
+        (question) => question.block !== 'mcq',
+      );
+      attemptStore = makeAttempt({ generated_questions_json: sessionNoMcq });
+      attemptRepo.findOne.mockResolvedValue(attemptStore);
+
+      const dto = makeSubmitDto();
+      dto.answers = dto.answers.filter(
+        (answer: Record<string, unknown>) =>
+          !String(answer.question_id).startsWith('mcq-'),
+      );
+
+      const result = await service.submit(userId, dto as never);
+
+      expect(result.tier).toBe(AssessmentTier.EMERGING);
+      expect(result.percentage).toBeGreaterThanOrEqual(75);
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('MCQ gate failed'),
+      );
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`attempt=${attemptStore.id}`),
+      );
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`user=${userId}`),
+      );
+    });
+
     it('places tier at Emerging when pct < 75%', async () => {
       // Need ~60% of 181 = 109; choose 100/176 text raw → MCQ also high
       rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(115, 176));
