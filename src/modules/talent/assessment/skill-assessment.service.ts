@@ -248,6 +248,17 @@ export class SkillAssessmentService {
             completed_at: new Date(),
             force_submitted: true,
           });
+
+          // Recount after marking stale session — it now counts as completed
+          const updatedCount = await this.countCompletedSkillAttempts(
+            profile.id,
+            manager,
+          );
+          if (updatedCount >= SKILL_ASSESSMENT_MAX_ATTEMPTS) {
+            throw new ForbiddenException(
+              ErrorMessages.SKILL_ASSESSMENT.MAX_ATTEMPTS_REACHED,
+            );
+          }
         } else {
           throw new ConflictException({
             error: 'CONFLICT',
@@ -700,8 +711,11 @@ export class SkillAssessmentService {
     const aboveLevelPercentage = aboveWeighted.percentage;
     const belowLevelPercentage = belowWeighted.percentage;
 
-    const weightedSections = [primaryWeighted, aboveWeighted, belowWeighted]
-      .filter((section) => section.maxScore > 0);
+    const weightedSections = [
+      primaryWeighted,
+      aboveWeighted,
+      belowWeighted,
+    ].filter((section) => section.maxScore > 0);
     const totalScore = weightedSections.reduce(
       (sum, section) => sum + section.score,
       0,
@@ -711,8 +725,7 @@ export class SkillAssessmentService {
       0,
     );
     const percentage = this.toPercentage(totalScore, totalMaxScore);
-    const primaryMcqGatePassed =
-      primaryMcqTotal === 0 || primaryMcqCorrect > 0;
+    const primaryMcqGatePassed = primaryMcqTotal === 0 || primaryMcqCorrect > 0;
     const aboveProbeMcqGatePassed =
       aboveProbeMcqTotal === 0 || aboveProbeMcqCorrect > 0;
 
