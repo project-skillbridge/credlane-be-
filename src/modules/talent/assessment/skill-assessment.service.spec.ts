@@ -16,7 +16,7 @@ import {
 } from '../../assessments/entities';
 import { TalentProfile } from '../entities/talent-profile.entity';
 import { ErrorMessages } from '../../../shared';
-import { SKILL_ASSESSMENT_MAX_ATTEMPTS } from '../talent.constants';
+import { SKILL_ASSESSMENT_MAX_ATTEMPTS, SKILL_ASSESSMENT_SESSION_TIMEOUT_MS } from '../talent.constants';
 import {
   ASSESSMENT_LONG_TEXT_MAX_CHARS,
   ASSESSMENT_LONG_TEXT_MIN_CHARS,
@@ -37,6 +37,7 @@ describe('SkillAssessmentService', () => {
     findOne: jest.Mock;
     create: jest.Mock;
     save: jest.Mock;
+    update: jest.Mock;
   };
   let questionRepo: Record<string, jest.Mock>;
   let rubricScoring: { scoreAnswers: jest.Mock };
@@ -107,6 +108,7 @@ describe('SkillAssessmentService', () => {
       save: jest.fn(async (data) =>
         Object.assign(new AssessmentAttempt(), data, { id: 'attempt-1' }),
       ),
+      update: jest.fn().mockResolvedValue(undefined),
     };
 
     questionRepo = {
@@ -170,6 +172,27 @@ describe('SkillAssessmentService', () => {
       }),
     });
     expect(attemptRepo.save).not.toHaveBeenCalled();
+  });
+
+  it('auto-abandons a stale session and allows a new start', async () => {
+    const staleStartedAt = new Date(
+      Date.now() - SKILL_ASSESSMENT_SESSION_TIMEOUT_MS - 1000,
+    );
+    attemptRepo.count.mockResolvedValue(0);
+    attemptRepo.findOne.mockResolvedValue(
+      Object.assign(new AssessmentAttempt(), {
+        id: 'stale-attempt',
+        started_at: staleStartedAt,
+      }),
+    );
+
+    const result = await service.start(userId);
+
+    expect(attemptRepo.update).toHaveBeenCalledWith('stale-attempt', {
+      completed_at: expect.any(Date),
+      force_submitted: true,
+    });
+    expect(result.session_id).toBe('attempt-1');
   });
 
   it('returns session_id and attempt_number when starting a skill assessment', async () => {
