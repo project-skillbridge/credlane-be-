@@ -416,15 +416,22 @@ export class AdvancedAssessmentService {
       this.assertTextLength(question, answer);
     }
 
-    this.submitQueue.enqueue({
-      userId,
-      sessionId: dto.session_id,
-      answers: dto.answers.map((answer) => ({
-        question_id: answer.question_id,
-        answer: answer.answer,
-        time_spent_seconds: answer.time_spent_seconds,
-      })),
-    });
+    try {
+      await this.submitQueue.enqueue({
+        userId,
+        sessionId: dto.session_id,
+        answers: dto.answers.map((answer) => ({
+          question_id: answer.question_id,
+          answer: answer.answer,
+          time_spent_seconds: answer.time_spent_seconds,
+        })),
+      });
+    } catch {
+      throw new ServiceUnavailableException({
+        error: 'SUBMIT_QUEUE_UNAVAILABLE',
+        message: ErrorMessages.ADVANCED_ASSESSMENT.SUBMIT_QUEUE_UNAVAILABLE,
+      });
+    }
 
     this.logger.log(
       `Advanced assessment submit queued: attempt=${attempt.id} user=${userId}`,
@@ -749,18 +756,16 @@ export class AdvancedAssessmentService {
       `Advanced assessment submitted: attempt=${attempt.id} user=${userId} score=${totalRawScore}/${maxScore} (${percentage}%) tier=${tier} failed=${failed} expired=${isExpired}`,
     );
 
-    if (!failed) {
-      void this.notificationDispatch.dispatch(
-        NotificationType.ADVANCED_ASSESSMENT_SCORE_READY,
-        userId,
-        {
-          score: Math.round(totalRawScore),
-          maxScore,
-          percentage,
-          tier,
-        },
-      );
-    }
+    void this.notificationDispatch.dispatch(
+      NotificationType.ADVANCED_ASSESSMENT_SCORE_READY,
+      userId,
+      {
+        score: Math.round(totalRawScore),
+        maxScore,
+        percentage,
+        tier,
+      },
+    );
 
     if (isExpired) {
       this.logger.log(

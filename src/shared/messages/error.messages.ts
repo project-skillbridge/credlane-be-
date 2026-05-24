@@ -78,6 +78,8 @@ export const ErrorMessages = {
       'The question_id provided does not match the LT-2 (work task) question for this session.',
     LT3_GENERATION_FAILED:
       'We could not generate your reflection question. Please retry in a moment.',
+    SUBMIT_QUEUE_UNAVAILABLE:
+      'Advanced assessment submission is temporarily unavailable. Please retry.',
   },
   ONBOARDING: {
     INVALID_USER: 'Invalid user',

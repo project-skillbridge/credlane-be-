@@ -17,6 +17,7 @@ import { AssessmentResult } from '../../assessments/entities/assessment-result.e
 import { VerifiedLevel } from '../../assessments/entities/assessment-question.entity';
 import { AdvancedAssessmentService } from './advanced-assessment.service';
 import { ErrorMessages } from '../../../shared';
+import { NotificationType } from '../../notifications/notification-type.enum';
 import { IntegrityEventType } from './dto/advanced-assessment.dto';
 import { TalentProfile } from '../entities/talent-profile.entity';
 import { makeTalentProfile } from './personal-assessment.test-fixtures';
@@ -441,7 +442,7 @@ describe('AdvancedAssessmentService', () => {
     };
 
     submitQueue = {
-      enqueue: jest.fn(),
+      enqueue: jest.fn().mockResolvedValue(undefined),
     };
 
     service = new AdvancedAssessmentService(
@@ -556,6 +557,14 @@ describe('AdvancedAssessmentService', () => {
       await expect(
         service.submit(userId, makeSubmitDto() as never),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws 503 when enqueue fails', async () => {
+      submitQueue.enqueue.mockRejectedValueOnce(new Error('redis down'));
+
+      await expect(
+        service.submit(userId, makeSubmitDto() as never),
+      ).rejects.toThrow(ServiceUnavailableException);
     });
   });
 
@@ -735,7 +744,11 @@ describe('AdvancedAssessmentService', () => {
           advanced_assessment_completed_at: expect.any(Date),
         }),
       );
-      expect(notificationDispatch.dispatch).not.toHaveBeenCalled();
+      expect(notificationDispatch.dispatch).toHaveBeenCalledWith(
+        NotificationType.ADVANCED_ASSESSMENT_SCORE_READY,
+        userId,
+        expect.objectContaining({ tier: AssessmentTier.NOT_READY }),
+      );
     });
 
     it('writes one assessment_scores row per session question (20)', async () => {
