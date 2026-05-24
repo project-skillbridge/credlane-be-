@@ -2,14 +2,6 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 
 export class RelaxAdvancedQuestionTrackLevelConstraint1779700000000 implements MigrationInterface {
   public async up(queryRunner: QueryRunner): Promise<void> {
-    // ALTER TYPE ADD VALUE cannot run inside a transaction, so commit
-    // the current one first, add the value, then resume a new transaction.
-    await queryRunner.query(`COMMIT`);
-    await queryRunner.query(`
-      ALTER TYPE assessment_type_enum ADD VALUE IF NOT EXISTS 'personal'
-    `);
-    await queryRunner.query(`BEGIN`);
-
     await queryRunner.query(`
       ALTER TABLE "assessment_questions"
       DROP CONSTRAINT IF EXISTS "CHK_assessment_questions_type_fields"
@@ -65,8 +57,6 @@ export class RelaxAdvancedQuestionTrackLevelConstraint1779700000000 implements M
           AND track IS NOT NULL
           AND verified_level IS NOT NULL
           AND competency IS NOT NULL
-        ) OR (
-          assessment_type = 'personal'
         )
       )
     `);
@@ -91,11 +81,6 @@ export class RelaxAdvancedQuestionTrackLevelConstraint1779700000000 implements M
       UPDATE "assessment_questions"
       SET track = NULL, verified_level = NULL, competency = NULL
       WHERE assessment_type = 'advanced'
-    `);
-
-    await queryRunner.query(`
-      DELETE FROM "assessment_questions"
-      WHERE assessment_type = 'personal'
     `);
 
     await queryRunner.query(`
