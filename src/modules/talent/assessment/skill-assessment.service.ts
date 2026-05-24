@@ -688,8 +688,11 @@ export class SkillAssessmentService {
     const aboveLevelPercentage = aboveWeighted.percentage;
     const belowLevelPercentage = belowWeighted.percentage;
 
-    const weightedSections = [primaryWeighted, aboveWeighted, belowWeighted]
-      .filter((section) => section.maxScore > 0);
+    const weightedSections = [
+      primaryWeighted,
+      aboveWeighted,
+      belowWeighted,
+    ].filter((section) => section.maxScore > 0);
     const totalScore = weightedSections.reduce(
       (sum, section) => sum + section.score,
       0,
@@ -699,8 +702,7 @@ export class SkillAssessmentService {
       0,
     );
     const percentage = this.toPercentage(totalScore, totalMaxScore);
-    const primaryMcqGatePassed =
-      primaryMcqTotal === 0 || primaryMcqCorrect > 0;
+    const primaryMcqGatePassed = primaryMcqTotal === 0 || primaryMcqCorrect > 0;
     const aboveProbeMcqGatePassed =
       aboveProbeMcqTotal === 0 || aboveProbeMcqCorrect > 0;
 
