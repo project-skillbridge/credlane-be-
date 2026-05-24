@@ -175,10 +175,8 @@ export class VerifiedProfileService {
     );
     const scorePercentage = latestAdvancedResult?.percentage ?? undefined;
 
-    const competencyScores =
-      poolProfile?.competency_scores ?? undefined;
-    const strongCompetencies =
-      poolProfile?.strong_competencies ?? undefined;
+    const competencyScores = poolProfile?.competency_scores ?? undefined;
+    const strongCompetencies = poolProfile?.strong_competencies ?? undefined;
 
     const keyStrengths = resolveKeyStrengths(
       competencyScores,

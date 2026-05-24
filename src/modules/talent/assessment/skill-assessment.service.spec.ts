@@ -687,12 +687,12 @@ describe('SkillAssessmentService', () => {
     expect(resolveLevel(95, 70, 0, 92, VerifiedLevel.MID)).toBe(
       VerifiedLevel.SENIOR,
     );
-    expect(
-      resolveLevel(95, 70, 0, 92, VerifiedLevel.MID, true, false),
-    ).toBe(VerifiedLevel.MID);
-    expect(
-      resolveLevel(70, 0, 0, 70, VerifiedLevel.MID, false, true),
-    ).toBe(VerifiedLevel.JUNIOR);
+    expect(resolveLevel(95, 70, 0, 92, VerifiedLevel.MID, true, false)).toBe(
+      VerifiedLevel.MID,
+    );
+    expect(resolveLevel(70, 0, 0, 70, VerifiedLevel.MID, false, true)).toBe(
+      VerifiedLevel.JUNIOR,
+    );
     expect(resolveLevel(95, 50, 0, 90, VerifiedLevel.MID)).toBe(
       VerifiedLevel.MID,
     );

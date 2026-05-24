@@ -62,31 +62,556 @@ type RoleMeta = {
 };
 
 const ROLES: RoleMeta[] = [
-  { code: 'FED', role: 'Frontend Engineer', family: 'Engineering', track: 'frontend_developer', competencies: ['Performance Optimisation', 'Accessibility', 'State Management', 'Component Architecture', 'Release Management', 'Stakeholder Communication'], mcqTypes: ['architecture_trade_offs', 'debugging_judgment', 'incident_response'], longWorkTypes: ['code_review', 'debugging_judgment', 'system_design'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'system_design', 'debugging_judgment'] },
-  { code: 'BED', role: 'Backend Engineer', family: 'Engineering', track: 'backend_developer', competencies: ['API Design', 'Database Performance', 'Incident Response', 'Security', 'Scalability', 'Service Reliability'], mcqTypes: ['architecture_trade_offs', 'debugging_judgment', 'incident_response'], longWorkTypes: ['code_review', 'debugging_judgment', 'system_design'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'system_design', 'debugging_judgment'] },
-  { code: 'MOB', role: 'Mobile Engineer', family: 'Engineering', track: 'mobile_developer', competencies: ['Offline Support', 'App Performance', 'Release Coordination', 'Platform Constraints', 'Crash Triage', 'Store Compliance'], mcqTypes: ['architecture_trade_offs', 'debugging_judgment', 'incident_response'], longWorkTypes: ['code_review', 'debugging_judgment', 'system_design'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'system_design', 'debugging_judgment'] },
-  { code: 'FSD', role: 'Fullstack Engineer', family: 'Engineering', track: 'fullstack_developer', competencies: ['End-to-End Delivery', 'API Integration', 'System Design', 'Cross-Stack Debugging', 'Technical Trade-offs', 'Release Planning'], mcqTypes: ['architecture_trade_offs', 'debugging_judgment', 'incident_response'], longWorkTypes: ['code_review', 'debugging_judgment', 'system_design'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'system_design', 'debugging_judgment'] },
-  { code: 'DEV', role: 'DevOps Engineer', family: 'Engineering', track: 'cloud_devops', competencies: ['CI/CD', 'Observability', 'Incident Response', 'Infrastructure Cost', 'Security Hardening', 'Release Automation'], mcqTypes: ['architecture_trade_offs', 'debugging_judgment', 'incident_response'], longWorkTypes: ['code_review', 'debugging_judgment', 'system_design'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'system_design', 'debugging_judgment'] },
-  { code: 'DTE', role: 'Data Engineer', family: 'Engineering', track: 'data_engineer', competencies: ['Pipeline Reliability', 'Data Quality', 'Schema Evolution', 'Cost Optimisation', 'SLA Management', 'Incident Response'], mcqTypes: ['architecture_trade_offs', 'debugging_judgment', 'incident_response'], longWorkTypes: ['code_review', 'debugging_judgment', 'system_design'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'system_design', 'debugging_judgment'] },
-  { code: 'QAE', role: 'QA Engineer', family: 'Engineering', track: 'quality_assurance', competencies: ['Test Strategy', 'Release Risk', 'Automation Trade-offs', 'Defect Triage', 'Regression Planning', 'Stakeholder Sign-off'], mcqTypes: ['architecture_trade_offs', 'debugging_judgment', 'incident_response'], longWorkTypes: ['code_review', 'debugging_judgment', 'system_design'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'system_design', 'debugging_judgment'] },
-  { code: 'MLE', role: 'ML Engineer', family: 'Engineering', track: 'ml_engineer', competencies: ['Model Deployment', 'Data Drift', 'Evaluation Design', 'Production Monitoring', 'Experimentation', 'Stakeholder Alignment'], mcqTypes: ['architecture_trade_offs', 'debugging_judgment', 'incident_response'], longWorkTypes: ['code_review', 'debugging_judgment', 'system_design'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'system_design', 'debugging_judgment'] },
-  { code: 'CYB', role: 'Cybersecurity Engineer', family: 'Engineering', track: 'cybersecurity', competencies: ['Threat Response', 'Access Control', 'Vulnerability Management', 'Compliance', 'Incident Containment', 'Risk Communication'], mcqTypes: ['architecture_trade_offs', 'debugging_judgment', 'incident_response'], longWorkTypes: ['code_review', 'debugging_judgment', 'system_design'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'system_design', 'debugging_judgment'] },
-  { code: 'PMG', role: 'Product Manager', family: 'Product', track: 'product_manager', competencies: ['Prioritisation', 'Stakeholder Management', 'Roadmap Planning', 'Metrics', 'Discovery', 'Launch Planning'], mcqTypes: ['prioritisation_case', 'stakeholder_conflict', 'metric_judgment'], longWorkTypes: ['product_critique', 'prioritisation_case'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'prioritisation_case', 'stakeholder_conflict'] },
-  { code: 'PDG', role: 'Product Designer', family: 'Design', track: 'product_designer', competencies: ['User Research', 'Accessibility', 'Design Systems', 'Stakeholder Feedback', 'Usability', 'Handoff Quality'], mcqTypes: ['design_critique', 'accessibility_trade_offs', 'stakeholder_pushback'], longWorkTypes: ['design_critique', 'process_walkthrough'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'stakeholder_conflict', 'design_critique'] },
-  { code: 'UXR', role: 'UX Researcher', family: 'Design', track: 'ux_researcher', competencies: ['Research Design', 'Stakeholder Influence', 'Synthesis', 'Recruitment', 'Insight Communication', 'Ethics'], mcqTypes: ['design_critique', 'accessibility_trade_offs', 'stakeholder_pushback'], longWorkTypes: ['design_critique', 'process_walkthrough'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'stakeholder_conflict', 'design_critique'] },
-  { code: 'BRD', role: 'Brand Designer', family: 'Design', track: 'brand_designer', competencies: ['Brand Consistency', 'Client Management', 'Visual Systems', 'Campaign Design', 'Guidelines', 'Stakeholder Feedback'], mcqTypes: ['design_critique', 'accessibility_trade_offs', 'stakeholder_pushback'], longWorkTypes: ['design_critique', 'process_walkthrough'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'stakeholder_conflict', 'design_critique'] },
-  { code: 'GRM', role: 'Growth Marketer', family: 'Marketing', track: 'marketing', competencies: ['Channel Strategy', 'CAC Optimisation', 'Referral Growth', 'Experimentation', 'Budget Allocation', 'Funnel Analysis'], mcqTypes: ['channel_trade_offs', 'budget_judgment', 'data_interpretation'], longWorkTypes: ['campaign_case', 'data_interpretation'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'campaign_case', 'stakeholder_conflict'] },
-  { code: 'CTM', role: 'Content Marketer', family: 'Marketing', track: 'marketing', competencies: ['Content Strategy', 'SEO', 'Editorial Planning', 'Brand Voice', 'Performance Tracking', 'Stakeholder Alignment'], mcqTypes: ['channel_trade_offs', 'budget_judgment', 'data_interpretation'], longWorkTypes: ['campaign_case', 'data_interpretation'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'campaign_case', 'stakeholder_conflict'] },
-  { code: 'SMM', role: 'Social Media Manager', family: 'Marketing', track: 'marketing', competencies: ['Community Management', 'Crisis Response', 'Content Calendar', 'Influencer Relations', 'Brand Safety', 'Engagement Metrics'], mcqTypes: ['channel_trade_offs', 'budget_judgment', 'data_interpretation'], longWorkTypes: ['campaign_case', 'data_interpretation'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'campaign_case', 'stakeholder_conflict'] },
-  { code: 'PFM', role: 'Performance Marketer', family: 'Marketing', track: 'marketing', competencies: ['ROAS Optimisation', 'Attribution', 'Budget Pacing', 'Creative Testing', 'Channel Mix', 'Client Reporting'], mcqTypes: ['channel_trade_offs', 'budget_judgment', 'data_interpretation'], longWorkTypes: ['campaign_case', 'data_interpretation'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'campaign_case', 'stakeholder_conflict'] },
-  { code: 'DTA', role: 'Data Analyst', family: 'Data', track: 'data_analyst', competencies: ['Data Quality', 'Stakeholder Communication', 'Analysis Scope', 'Metric Definition', 'Visualisation', 'Methodology'], mcqTypes: ['methodology_trade_offs', 'stakeholder_communication', 'data_interpretation'], longWorkTypes: ['data_interpretation', 'analysis_case'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'stakeholder_conflict', 'analysis_case'] },
-  { code: 'BIA', role: 'Business Analyst', family: 'Data', track: 'business_analyst', competencies: ['Requirements Clarity', 'Scope Management', 'Process Analysis', 'Stakeholder Facilitation', 'MVP Definition', 'Change Impact'], mcqTypes: ['methodology_trade_offs', 'stakeholder_communication', 'data_interpretation'], longWorkTypes: ['data_interpretation', 'analysis_case'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'stakeholder_conflict', 'analysis_case'] },
-  { code: 'BID', role: 'BI Developer', family: 'Data', track: 'bi_developer', competencies: ['Dashboard Accuracy', 'Data Modelling', 'Self-Service Enablement', 'Performance', 'Governance', 'Stakeholder Support'], mcqTypes: ['methodology_trade_offs', 'stakeholder_communication', 'data_interpretation'], longWorkTypes: ['data_interpretation', 'analysis_case'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'stakeholder_conflict', 'analysis_case'] },
-  { code: 'DSC', role: 'Data Scientist', family: 'Data', track: 'data_scientist', competencies: ['Model Selection', 'Bias Detection', 'Experiment Design', 'Stakeholder Communication', 'Production Readiness', 'Statistical Rigor'], mcqTypes: ['methodology_trade_offs', 'stakeholder_communication', 'data_interpretation'], longWorkTypes: ['data_interpretation', 'analysis_case'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'stakeholder_conflict', 'analysis_case'] },
-  { code: 'OPM', role: 'Operations Manager', family: 'Operations', track: 'operations_manager', competencies: ['Process Efficiency', 'Vendor Management', 'Team Capacity', 'Compliance', 'Escalation', 'Cost Control'], mcqTypes: ['escalation_judgment', 'process_trade_offs', 'prioritisation_case'], longWorkTypes: ['process_design', 'prioritisation_case'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'stakeholder_conflict', 'process_design'] },
-  { code: 'CSM', role: 'Customer Success Manager', family: 'Operations', track: 'customer_success', competencies: ['Churn Prevention', 'Account Management', 'Escalation', 'Renewal Strategy', 'Product Adoption', 'Executive Relationships'], mcqTypes: ['escalation_judgment', 'process_trade_offs', 'prioritisation_case'], longWorkTypes: ['process_design', 'prioritisation_case'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'stakeholder_conflict', 'process_design'] },
-  { code: 'PJM', role: 'Project Manager', family: 'Operations', track: 'project_manager', competencies: ['Scope Control', 'Risk Management', 'Stakeholder Communication', 'Resource Planning', 'Dependency Management', 'Delivery Recovery'], mcqTypes: ['escalation_judgment', 'process_trade_offs', 'prioritisation_case'], longWorkTypes: ['process_design', 'prioritisation_case'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'stakeholder_conflict', 'process_design'] },
-  { code: 'HRO', role: 'HR / People Ops', family: 'Operations', track: 'hr_people_ops', competencies: ['Performance Management', 'Policy Design', 'Conflict Resolution', 'Compensation Equity', 'Hiring Process', 'Compliance'], mcqTypes: ['escalation_judgment', 'process_trade_offs', 'prioritisation_case'], longWorkTypes: ['process_design', 'prioritisation_case'], longScenarioTypes: ['scenario_reasoning'], openTypes: ['scenario_reasoning', 'stakeholder_conflict', 'process_design'] },
+  {
+    code: 'FED',
+    role: 'Frontend Engineer',
+    family: 'Engineering',
+    track: 'frontend_developer',
+    competencies: [
+      'Performance Optimisation',
+      'Accessibility',
+      'State Management',
+      'Component Architecture',
+      'Release Management',
+      'Stakeholder Communication',
+    ],
+    mcqTypes: [
+      'architecture_trade_offs',
+      'debugging_judgment',
+      'incident_response',
+    ],
+    longWorkTypes: ['code_review', 'debugging_judgment', 'system_design'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'system_design', 'debugging_judgment'],
+  },
+  {
+    code: 'BED',
+    role: 'Backend Engineer',
+    family: 'Engineering',
+    track: 'backend_developer',
+    competencies: [
+      'API Design',
+      'Database Performance',
+      'Incident Response',
+      'Security',
+      'Scalability',
+      'Service Reliability',
+    ],
+    mcqTypes: [
+      'architecture_trade_offs',
+      'debugging_judgment',
+      'incident_response',
+    ],
+    longWorkTypes: ['code_review', 'debugging_judgment', 'system_design'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'system_design', 'debugging_judgment'],
+  },
+  {
+    code: 'MOB',
+    role: 'Mobile Engineer',
+    family: 'Engineering',
+    track: 'mobile_developer',
+    competencies: [
+      'Offline Support',
+      'App Performance',
+      'Release Coordination',
+      'Platform Constraints',
+      'Crash Triage',
+      'Store Compliance',
+    ],
+    mcqTypes: [
+      'architecture_trade_offs',
+      'debugging_judgment',
+      'incident_response',
+    ],
+    longWorkTypes: ['code_review', 'debugging_judgment', 'system_design'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'system_design', 'debugging_judgment'],
+  },
+  {
+    code: 'FSD',
+    role: 'Fullstack Engineer',
+    family: 'Engineering',
+    track: 'fullstack_developer',
+    competencies: [
+      'End-to-End Delivery',
+      'API Integration',
+      'System Design',
+      'Cross-Stack Debugging',
+      'Technical Trade-offs',
+      'Release Planning',
+    ],
+    mcqTypes: [
+      'architecture_trade_offs',
+      'debugging_judgment',
+      'incident_response',
+    ],
+    longWorkTypes: ['code_review', 'debugging_judgment', 'system_design'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'system_design', 'debugging_judgment'],
+  },
+  {
+    code: 'DEV',
+    role: 'DevOps Engineer',
+    family: 'Engineering',
+    track: 'cloud_devops',
+    competencies: [
+      'CI/CD',
+      'Observability',
+      'Incident Response',
+      'Infrastructure Cost',
+      'Security Hardening',
+      'Release Automation',
+    ],
+    mcqTypes: [
+      'architecture_trade_offs',
+      'debugging_judgment',
+      'incident_response',
+    ],
+    longWorkTypes: ['code_review', 'debugging_judgment', 'system_design'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'system_design', 'debugging_judgment'],
+  },
+  {
+    code: 'DTE',
+    role: 'Data Engineer',
+    family: 'Engineering',
+    track: 'data_engineer',
+    competencies: [
+      'Pipeline Reliability',
+      'Data Quality',
+      'Schema Evolution',
+      'Cost Optimisation',
+      'SLA Management',
+      'Incident Response',
+    ],
+    mcqTypes: [
+      'architecture_trade_offs',
+      'debugging_judgment',
+      'incident_response',
+    ],
+    longWorkTypes: ['code_review', 'debugging_judgment', 'system_design'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'system_design', 'debugging_judgment'],
+  },
+  {
+    code: 'QAE',
+    role: 'QA Engineer',
+    family: 'Engineering',
+    track: 'quality_assurance',
+    competencies: [
+      'Test Strategy',
+      'Release Risk',
+      'Automation Trade-offs',
+      'Defect Triage',
+      'Regression Planning',
+      'Stakeholder Sign-off',
+    ],
+    mcqTypes: [
+      'architecture_trade_offs',
+      'debugging_judgment',
+      'incident_response',
+    ],
+    longWorkTypes: ['code_review', 'debugging_judgment', 'system_design'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'system_design', 'debugging_judgment'],
+  },
+  {
+    code: 'MLE',
+    role: 'ML Engineer',
+    family: 'Engineering',
+    track: 'ml_engineer',
+    competencies: [
+      'Model Deployment',
+      'Data Drift',
+      'Evaluation Design',
+      'Production Monitoring',
+      'Experimentation',
+      'Stakeholder Alignment',
+    ],
+    mcqTypes: [
+      'architecture_trade_offs',
+      'debugging_judgment',
+      'incident_response',
+    ],
+    longWorkTypes: ['code_review', 'debugging_judgment', 'system_design'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'system_design', 'debugging_judgment'],
+  },
+  {
+    code: 'CYB',
+    role: 'Cybersecurity Engineer',
+    family: 'Engineering',
+    track: 'cybersecurity',
+    competencies: [
+      'Threat Response',
+      'Access Control',
+      'Vulnerability Management',
+      'Compliance',
+      'Incident Containment',
+      'Risk Communication',
+    ],
+    mcqTypes: [
+      'architecture_trade_offs',
+      'debugging_judgment',
+      'incident_response',
+    ],
+    longWorkTypes: ['code_review', 'debugging_judgment', 'system_design'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'system_design', 'debugging_judgment'],
+  },
+  {
+    code: 'PMG',
+    role: 'Product Manager',
+    family: 'Product',
+    track: 'product_manager',
+    competencies: [
+      'Prioritisation',
+      'Stakeholder Management',
+      'Roadmap Planning',
+      'Metrics',
+      'Discovery',
+      'Launch Planning',
+    ],
+    mcqTypes: [
+      'prioritisation_case',
+      'stakeholder_conflict',
+      'metric_judgment',
+    ],
+    longWorkTypes: ['product_critique', 'prioritisation_case'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: [
+      'scenario_reasoning',
+      'prioritisation_case',
+      'stakeholder_conflict',
+    ],
+  },
+  {
+    code: 'PDG',
+    role: 'Product Designer',
+    family: 'Design',
+    track: 'product_designer',
+    competencies: [
+      'User Research',
+      'Accessibility',
+      'Design Systems',
+      'Stakeholder Feedback',
+      'Usability',
+      'Handoff Quality',
+    ],
+    mcqTypes: [
+      'design_critique',
+      'accessibility_trade_offs',
+      'stakeholder_pushback',
+    ],
+    longWorkTypes: ['design_critique', 'process_walkthrough'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: [
+      'scenario_reasoning',
+      'stakeholder_conflict',
+      'design_critique',
+    ],
+  },
+  {
+    code: 'UXR',
+    role: 'UX Researcher',
+    family: 'Design',
+    track: 'ux_researcher',
+    competencies: [
+      'Research Design',
+      'Stakeholder Influence',
+      'Synthesis',
+      'Recruitment',
+      'Insight Communication',
+      'Ethics',
+    ],
+    mcqTypes: [
+      'design_critique',
+      'accessibility_trade_offs',
+      'stakeholder_pushback',
+    ],
+    longWorkTypes: ['design_critique', 'process_walkthrough'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: [
+      'scenario_reasoning',
+      'stakeholder_conflict',
+      'design_critique',
+    ],
+  },
+  {
+    code: 'BRD',
+    role: 'Brand Designer',
+    family: 'Design',
+    track: 'brand_designer',
+    competencies: [
+      'Brand Consistency',
+      'Client Management',
+      'Visual Systems',
+      'Campaign Design',
+      'Guidelines',
+      'Stakeholder Feedback',
+    ],
+    mcqTypes: [
+      'design_critique',
+      'accessibility_trade_offs',
+      'stakeholder_pushback',
+    ],
+    longWorkTypes: ['design_critique', 'process_walkthrough'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: [
+      'scenario_reasoning',
+      'stakeholder_conflict',
+      'design_critique',
+    ],
+  },
+  {
+    code: 'GRM',
+    role: 'Growth Marketer',
+    family: 'Marketing',
+    track: 'marketing',
+    competencies: [
+      'Channel Strategy',
+      'CAC Optimisation',
+      'Referral Growth',
+      'Experimentation',
+      'Budget Allocation',
+      'Funnel Analysis',
+    ],
+    mcqTypes: ['channel_trade_offs', 'budget_judgment', 'data_interpretation'],
+    longWorkTypes: ['campaign_case', 'data_interpretation'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'campaign_case', 'stakeholder_conflict'],
+  },
+  {
+    code: 'CTM',
+    role: 'Content Marketer',
+    family: 'Marketing',
+    track: 'marketing',
+    competencies: [
+      'Content Strategy',
+      'SEO',
+      'Editorial Planning',
+      'Brand Voice',
+      'Performance Tracking',
+      'Stakeholder Alignment',
+    ],
+    mcqTypes: ['channel_trade_offs', 'budget_judgment', 'data_interpretation'],
+    longWorkTypes: ['campaign_case', 'data_interpretation'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'campaign_case', 'stakeholder_conflict'],
+  },
+  {
+    code: 'SMM',
+    role: 'Social Media Manager',
+    family: 'Marketing',
+    track: 'marketing',
+    competencies: [
+      'Community Management',
+      'Crisis Response',
+      'Content Calendar',
+      'Influencer Relations',
+      'Brand Safety',
+      'Engagement Metrics',
+    ],
+    mcqTypes: ['channel_trade_offs', 'budget_judgment', 'data_interpretation'],
+    longWorkTypes: ['campaign_case', 'data_interpretation'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'campaign_case', 'stakeholder_conflict'],
+  },
+  {
+    code: 'PFM',
+    role: 'Performance Marketer',
+    family: 'Marketing',
+    track: 'marketing',
+    competencies: [
+      'ROAS Optimisation',
+      'Attribution',
+      'Budget Pacing',
+      'Creative Testing',
+      'Channel Mix',
+      'Client Reporting',
+    ],
+    mcqTypes: ['channel_trade_offs', 'budget_judgment', 'data_interpretation'],
+    longWorkTypes: ['campaign_case', 'data_interpretation'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'campaign_case', 'stakeholder_conflict'],
+  },
+  {
+    code: 'DTA',
+    role: 'Data Analyst',
+    family: 'Data',
+    track: 'data_analyst',
+    competencies: [
+      'Data Quality',
+      'Stakeholder Communication',
+      'Analysis Scope',
+      'Metric Definition',
+      'Visualisation',
+      'Methodology',
+    ],
+    mcqTypes: [
+      'methodology_trade_offs',
+      'stakeholder_communication',
+      'data_interpretation',
+    ],
+    longWorkTypes: ['data_interpretation', 'analysis_case'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'stakeholder_conflict', 'analysis_case'],
+  },
+  {
+    code: 'BIA',
+    role: 'Business Analyst',
+    family: 'Data',
+    track: 'business_analyst',
+    competencies: [
+      'Requirements Clarity',
+      'Scope Management',
+      'Process Analysis',
+      'Stakeholder Facilitation',
+      'MVP Definition',
+      'Change Impact',
+    ],
+    mcqTypes: [
+      'methodology_trade_offs',
+      'stakeholder_communication',
+      'data_interpretation',
+    ],
+    longWorkTypes: ['data_interpretation', 'analysis_case'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'stakeholder_conflict', 'analysis_case'],
+  },
+  {
+    code: 'BID',
+    role: 'BI Developer',
+    family: 'Data',
+    track: 'bi_developer',
+    competencies: [
+      'Dashboard Accuracy',
+      'Data Modelling',
+      'Self-Service Enablement',
+      'Performance',
+      'Governance',
+      'Stakeholder Support',
+    ],
+    mcqTypes: [
+      'methodology_trade_offs',
+      'stakeholder_communication',
+      'data_interpretation',
+    ],
+    longWorkTypes: ['data_interpretation', 'analysis_case'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'stakeholder_conflict', 'analysis_case'],
+  },
+  {
+    code: 'DSC',
+    role: 'Data Scientist',
+    family: 'Data',
+    track: 'data_scientist',
+    competencies: [
+      'Model Selection',
+      'Bias Detection',
+      'Experiment Design',
+      'Stakeholder Communication',
+      'Production Readiness',
+      'Statistical Rigor',
+    ],
+    mcqTypes: [
+      'methodology_trade_offs',
+      'stakeholder_communication',
+      'data_interpretation',
+    ],
+    longWorkTypes: ['data_interpretation', 'analysis_case'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'stakeholder_conflict', 'analysis_case'],
+  },
+  {
+    code: 'OPM',
+    role: 'Operations Manager',
+    family: 'Operations',
+    track: 'operations_manager',
+    competencies: [
+      'Process Efficiency',
+      'Vendor Management',
+      'Team Capacity',
+      'Compliance',
+      'Escalation',
+      'Cost Control',
+    ],
+    mcqTypes: [
+      'escalation_judgment',
+      'process_trade_offs',
+      'prioritisation_case',
+    ],
+    longWorkTypes: ['process_design', 'prioritisation_case'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'stakeholder_conflict', 'process_design'],
+  },
+  {
+    code: 'CSM',
+    role: 'Customer Success Manager',
+    family: 'Operations',
+    track: 'customer_success',
+    competencies: [
+      'Churn Prevention',
+      'Account Management',
+      'Escalation',
+      'Renewal Strategy',
+      'Product Adoption',
+      'Executive Relationships',
+    ],
+    mcqTypes: [
+      'escalation_judgment',
+      'process_trade_offs',
+      'prioritisation_case',
+    ],
+    longWorkTypes: ['process_design', 'prioritisation_case'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'stakeholder_conflict', 'process_design'],
+  },
+  {
+    code: 'PJM',
+    role: 'Project Manager',
+    family: 'Operations',
+    track: 'project_manager',
+    competencies: [
+      'Scope Control',
+      'Risk Management',
+      'Stakeholder Communication',
+      'Resource Planning',
+      'Dependency Management',
+      'Delivery Recovery',
+    ],
+    mcqTypes: [
+      'escalation_judgment',
+      'process_trade_offs',
+      'prioritisation_case',
+    ],
+    longWorkTypes: ['process_design', 'prioritisation_case'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'stakeholder_conflict', 'process_design'],
+  },
+  {
+    code: 'HRO',
+    role: 'HR / People Ops',
+    family: 'Operations',
+    track: 'hr_people_ops',
+    competencies: [
+      'Performance Management',
+      'Policy Design',
+      'Conflict Resolution',
+      'Compensation Equity',
+      'Hiring Process',
+      'Compliance',
+    ],
+    mcqTypes: [
+      'escalation_judgment',
+      'process_trade_offs',
+      'prioritisation_case',
+    ],
+    longWorkTypes: ['process_design', 'prioritisation_case'],
+    longScenarioTypes: ['scenario_reasoning'],
+    openTypes: ['scenario_reasoning', 'stakeholder_conflict', 'process_design'],
+  },
 ];
 
 type SourceQuestion = Record<string, unknown>;
@@ -97,7 +622,8 @@ function pick<T>(items: readonly T[], index: number): T {
 
 function assertMinimums(): void {
   if (SET.mcq < RUNTIME_MIN.mcq) throw new Error('mcq below runtime minimum');
-  if (SET.open < RUNTIME_MIN.shortText) throw new Error('open below runtime minimum');
+  if (SET.open < RUNTIME_MIN.shortText)
+    throw new Error('open below runtime minimum');
   if (SET.lt1 < RUNTIME_MIN.lt1) throw new Error('lt1 below runtime minimum');
   if (SET.lt2 < RUNTIME_MIN.lt2) throw new Error('lt2 below runtime minimum');
 }
@@ -130,7 +656,12 @@ function inferSignals(
   const type = questionType.toLowerCase();
   const text = scenarioHint.toLowerCase();
 
-  if (role.family === 'Engineering' && (type.includes('scenario') || type.includes('debugging') || type.includes('system_design'))) {
+  if (
+    role.family === 'Engineering' &&
+    (type.includes('scenario') ||
+      type.includes('debugging') ||
+      type.includes('system_design'))
+  ) {
     return {
       focus:
         'How the candidate diagnoses the technical issue, narrows the likely root cause, and makes a practical delivery decision under pressure.',
@@ -155,7 +686,10 @@ function inferSignals(
     };
   }
 
-  if (role.family === 'Product' && (type.includes('scenario') || type.includes('stakeholder'))) {
+  if (
+    role.family === 'Product' &&
+    (type.includes('scenario') || type.includes('stakeholder'))
+  ) {
     return {
       focus:
         'How the candidate frames a product decision, aligns competing stakeholders, and protects the most important business outcome.',
@@ -280,7 +814,10 @@ function inferSignals(
     };
   }
 
-  if (role.family === 'Design' && (type.includes('design_critique') || type.includes('stakeholder'))) {
+  if (
+    role.family === 'Design' &&
+    (type.includes('design_critique') || type.includes('stakeholder'))
+  ) {
     return {
       focus:
         'How the candidate defends design choices with evidence while preserving trust and offering a workable path forward.',
@@ -305,7 +842,10 @@ function inferSignals(
     };
   }
 
-  if (role.family === 'Marketing' && (type.includes('campaign') || type.includes('data_interpretation'))) {
+  if (
+    role.family === 'Marketing' &&
+    (type.includes('campaign') || type.includes('data_interpretation'))
+  ) {
     return {
       focus:
         'How the candidate reasons about growth levers, economics, and channel trade-offs instead of listing disconnected tactics.',
@@ -330,7 +870,12 @@ function inferSignals(
     };
   }
 
-  if (role.family === 'Data' && (type.includes('analysis') || type.includes('data_interpretation') || type.includes('stakeholder'))) {
+  if (
+    role.family === 'Data' &&
+    (type.includes('analysis') ||
+      type.includes('data_interpretation') ||
+      type.includes('stakeholder'))
+  ) {
     return {
       focus:
         'How the candidate handles analytical uncertainty, metric integrity, and stakeholder pressure without overclaiming or collapsing under challenge.',
@@ -484,7 +1029,8 @@ function inferSignals(
     {
       test: /(load time|latency|timeout|slow|render|performance|p99|bundle|cold start)/,
       value: {
-        focus: 'How the candidate diagnoses performance impact, narrows likely causes, and makes a ship-vs-fix decision under pressure.',
+        focus:
+          'How the candidate diagnoses performance impact, narrows likely causes, and makes a ship-vs-fix decision under pressure.',
         strong: [
           'Separates diagnosis from fixing and names the most likely performance bottlenecks first',
           'Prioritises the highest user-impact path instead of trying to optimise everything at once',
@@ -508,7 +1054,8 @@ function inferSignals(
     {
       test: /(breach|credential|phishing|ransomware|vulnerability|iam|waf|security|malware|exfiltrat|tls)/,
       value: {
-        focus: 'How the candidate contains security risk quickly while preserving evidence, communication, and business continuity.',
+        focus:
+          'How the candidate contains security risk quickly while preserving evidence, communication, and business continuity.',
         strong: [
           'Prioritises containment and scope assessment before long-term remediation',
           'Balances technical response with legal, compliance, or customer communication needs',
@@ -532,7 +1079,8 @@ function inferSignals(
     {
       test: /(renewal|client|customer|account|churn|enterprise|sales promised|champion left)/,
       value: {
-        focus: 'How the candidate protects a customer relationship without making delivery promises the team cannot keep.',
+        focus:
+          'How the candidate protects a customer relationship without making delivery promises the team cannot keep.',
         strong: [
           'Uses evidence or usage context before making a commercial or delivery promise',
           'Creates a concrete recovery path with the right internal and external stakeholders',
@@ -556,7 +1104,8 @@ function inferSignals(
     {
       test: /(seo|cac|roas|referral|attribution|campaign|sign-ups|cpc|channel|organic|meta)/,
       value: {
-        focus: 'How the candidate reasons about growth levers, unit economics, and trade-offs instead of listing tactics.',
+        focus:
+          'How the candidate reasons about growth levers, unit economics, and trade-offs instead of listing tactics.',
         strong: [
           'Challenges unrealistic targets or misleading headline metrics instead of accepting them at face value',
           'Prioritises channels or interventions based on economics, constraints, and likely impact',
@@ -580,7 +1129,8 @@ function inferSignals(
     {
       test: /(analysis|dashboard|metric|warehouse|data|sample size|retention|methodology|finance reports|active user)/,
       value: {
-        focus: 'How the candidate handles analytical uncertainty, metric integrity, and stakeholder pressure without overclaiming.',
+        focus:
+          'How the candidate handles analytical uncertainty, metric integrity, and stakeholder pressure without overclaiming.',
         strong: [
           'Clarifies what is known, what is uncertain, and what can be defended right now',
           'Narrows the disagreement to data definition, methodology, or freshness instead of arguing abstractly',
@@ -604,7 +1154,8 @@ function inferSignals(
     {
       test: /(research|testing|usability|design|accessibility|premium|prototype|onboarding flow)/,
       value: {
-        focus: 'How the candidate defends user-centered decisions with evidence while managing senior stakeholder pressure.',
+        focus:
+          'How the candidate defends user-centered decisions with evidence while managing senior stakeholder pressure.',
         strong: [
           'Acknowledges the stakeholder concern before reframing the decision with user or accessibility evidence',
           'Explains the likely impact on completion, trust, or usability rather than relying on personal taste',
@@ -628,7 +1179,8 @@ function inferSignals(
     {
       test: /(scope|roadmap|launch|dependency|timeline|go-live|vendor|sprint|board|steering)/,
       value: {
-        focus: 'How the candidate regains clarity on scope, sequencing, and stakeholder expectations under delivery pressure.',
+        focus:
+          'How the candidate regains clarity on scope, sequencing, and stakeholder expectations under delivery pressure.',
         strong: [
           'Clarifies the real constraint or critical path before renegotiating scope or dates',
           'Sequences decisions and owners instead of treating every item as equally urgent',
@@ -652,7 +1204,8 @@ function inferSignals(
     {
       test: /(manager|attrition|grievance|compensation|policy|team unsafe|calibration|people ops|hr)/,
       value: {
-        focus: 'How the candidate balances fairness, process integrity, and business continuity in a sensitive people issue.',
+        focus:
+          'How the candidate balances fairness, process integrity, and business continuity in a sensitive people issue.',
         strong: [
           'Protects process fairness and immediate people risk at the same time',
           'Separates facts, confidentiality, and business continuity instead of collapsing them together',
@@ -698,8 +1251,7 @@ function inferSignals(
       'Gives a concrete, well-sequenced response that matches the stakes and makes trade-offs explicit.',
     score3:
       'Solid practical response but misses one major decision, stakeholder, or risk dimension.',
-    score2:
-      'Partially relevant but too vague, reactive, or theoretical.',
+    score2: 'Partially relevant but too vague, reactive, or theoretical.',
     score1:
       'Off-topic, purely definitional, or disconnected from the scenario.',
   };
@@ -715,19 +1267,19 @@ function rubric(
   scenarioHint: string,
 ): Record<string, unknown> {
   const signals = inferSignals(role, questionType, scenarioHint);
-  const seniorOpen = format === 'open_ended_scenario' && (level === 'senior' || level === 'expert');
+  const seniorOpen =
+    format === 'open_ended_scenario' &&
+    (level === 'senior' || level === 'expert');
   const strong = seniorOpen
     ? [
         signals.strong[0],
         signals.strong[1],
         signals.strong[2],
-        org ? 'Connects the decision to org-level or revenue impact' : 'States trade-offs instead of generic advice',
+        org
+          ? 'Connects the decision to org-level or revenue impact'
+          : 'States trade-offs instead of generic advice',
       ]
-    : [
-        signals.strong[0],
-        signals.strong[1],
-        signals.strong[2],
-      ];
+    : [signals.strong[0], signals.strong[1], signals.strong[2]];
 
   return {
     what_to_evaluate: signals.focus,
@@ -742,7 +1294,10 @@ function rubric(
   };
 }
 
-function mcqOptions(index: number): { options: Record<string, string>; answer: 'A' | 'B' | 'C' | 'D' } {
+function mcqOptions(index: number): {
+  options: Record<string, string>;
+  answer: 'A' | 'B' | 'C' | 'D';
+} {
   const correct = [
     'Stabilise impact first, communicate an evidence-based timeline, renegotiate scope with stakeholders',
     'Protect users or customers, ship the smallest safe fix, document residual risk with owners',
@@ -751,12 +1306,27 @@ function mcqOptions(index: number): { options: Record<string, string>; answer: '
     'Validate assumptions with data, narrow the decision, propose a reversible next step',
   ];
   const wrong = [
-    ['Commit publicly to the original date while the team works overtime', 'Wait for perfect information before any update', 'Split the team across all requests with no priority order'],
-    ['Hide the issue from external stakeholders', 'Blame another team in writing to leadership', 'Accept scope creep without a timeline change'],
-    ['Prioritise the loudest stakeholder by default', 'Optimise for the easiest task not highest impact', 'Defer all decisions to next quarter'],
+    [
+      'Commit publicly to the original date while the team works overtime',
+      'Wait for perfect information before any update',
+      'Split the team across all requests with no priority order',
+    ],
+    [
+      'Hide the issue from external stakeholders',
+      'Blame another team in writing to leadership',
+      'Accept scope creep without a timeline change',
+    ],
+    [
+      'Prioritise the loudest stakeholder by default',
+      'Optimise for the easiest task not highest impact',
+      'Defer all decisions to next quarter',
+    ],
   ];
   const w = wrong[index % wrong.length];
-  return { options: { A: pick(correct, index), B: w[0], C: w[1], D: w[2] }, answer: 'A' };
+  return {
+    options: { A: pick(correct, index), B: w[0], C: w[1], D: w[2] },
+    answer: 'A',
+  };
 }
 
 function scenariosFor(roleCode: string): RoleScenarioBank {
@@ -765,7 +1335,12 @@ function scenariosFor(roleCode: string): RoleScenarioBank {
   return bank;
 }
 
-function buildMcq(role: RoleMeta, level: Level, index: number, bank: RoleScenarioBank): SourceQuestion {
+function buildMcq(
+  role: RoleMeta,
+  level: Level,
+  index: number,
+  bank: RoleScenarioBank,
+): SourceQuestion {
   const industry = pick(INDUSTRIES, index);
   const competency = pick(role.competencies, index);
   const stem = pick(bank.mcq, index);
@@ -797,7 +1372,12 @@ function buildMcq(role: RoleMeta, level: Level, index: number, bank: RoleScenari
   };
 }
 
-function buildOpen(role: RoleMeta, level: Level, index: number, bank: RoleScenarioBank): SourceQuestion {
+function buildOpen(
+  role: RoleMeta,
+  level: Level,
+  index: number,
+  bank: RoleScenarioBank,
+): SourceQuestion {
   const industry = pick(INDUSTRIES, index + 1);
   const competency = pick(role.competencies, index + 2);
   const stem = pick(bank.open, index);
@@ -819,7 +1399,15 @@ function buildOpen(role: RoleMeta, level: Level, index: number, bank: RoleScenar
     question: `${levelPrefix(level)}${stem} Industry: ${industry}. Role: ${role.role}. Walk through your response with focus on ${competency.toLowerCase()}.`,
     options: null,
     correct_answer: null,
-    grading_rubric: rubric(role, pick(role.openTypes, index), competency, 'open_ended_scenario', level, org, stem),
+    grading_rubric: rubric(
+      role,
+      pick(role.openTypes, index),
+      competency,
+      'open_ended_scenario',
+      level,
+      org,
+      stem,
+    ),
     difficulty_score: difficulty(level, index, org),
     tags: [role.track, level, 'open_ended', industry],
     anti_cheat_seed: 'variant_A',
@@ -851,13 +1439,25 @@ function buildLong(
     assessment_stage: 'advanced_assessment',
     format: 'long_text',
     competency,
-    question_type: lt1 ? pick(role.longScenarioTypes, index) : pick(role.longWorkTypes, index),
+    question_type: lt1
+      ? pick(role.longScenarioTypes, index)
+      : pick(role.longWorkTypes, index),
     industry,
     estimated_time_seconds: 90,
     question: `${levelPrefix(level)}${stem} You are the ${role.role} at a ${industry} company. In one focused paragraph, explain your response with focus on ${competency.toLowerCase()}.`,
     options: null,
     correct_answer: null,
-    grading_rubric: rubric(role, lt1 ? pick(role.longScenarioTypes, index) : pick(role.longWorkTypes, index), competency, 'long_text', level, org, stem),
+    grading_rubric: rubric(
+      role,
+      lt1
+        ? pick(role.longScenarioTypes, index)
+        : pick(role.longWorkTypes, index),
+      competency,
+      'long_text',
+      level,
+      org,
+      stem,
+    ),
     difficulty_score: difficulty(level, index, org),
     tags: [role.track, level, lt1 ? 'lt1' : 'lt2', industry],
     anti_cheat_seed: 'variant_A',
@@ -873,10 +1473,14 @@ function generate(): SourceQuestion[] {
   for (const role of ROLES) {
     const bank = scenariosFor(role.code);
     for (const level of LEVELS) {
-      for (let i = 0; i < SET.mcq; i++) out.push(buildMcq(role, level, i, bank));
-      for (let i = 0; i < SET.open; i++) out.push(buildOpen(role, level, i, bank));
-      for (let i = 0; i < SET.lt1; i++) out.push(buildLong(role, level, i, true, bank));
-      for (let i = 0; i < SET.lt2; i++) out.push(buildLong(role, level, i, false, bank));
+      for (let i = 0; i < SET.mcq; i++)
+        out.push(buildMcq(role, level, i, bank));
+      for (let i = 0; i < SET.open; i++)
+        out.push(buildOpen(role, level, i, bank));
+      for (let i = 0; i < SET.lt1; i++)
+        out.push(buildLong(role, level, i, true, bank));
+      for (let i = 0; i < SET.lt2; i++)
+        out.push(buildLong(role, level, i, false, bank));
     }
   }
 
@@ -916,7 +1520,8 @@ function main(): void {
     runtime_session_needs: RUNTIME_MIN,
     roles: ROLES.length,
     levels: LEVELS,
-    notes: 'Role-specific scenario stems. Sized for ~3 zero-overlap sessions per role+level.',
+    notes:
+      'Role-specific scenario stems. Sized for ~3 zero-overlap sessions per role+level.',
   };
 
   const manifestPath = path.join(

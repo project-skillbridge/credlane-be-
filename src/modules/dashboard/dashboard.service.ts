@@ -134,8 +134,7 @@ export class DashboardService {
       maxScore: result.max_score ?? result.score,
       percentage,
       validatedLevel,
-      passed:
-        !failed && claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE,
+      passed: !failed && claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE,
       failed,
       completedAt: this.toIsoTimestamp(
         profile.skill_assessment_completed_at,

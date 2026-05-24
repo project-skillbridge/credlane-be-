@@ -9,7 +9,9 @@ export function meetsSkillQualityBenchmark(overallPercentage: number): boolean {
   return overallPercentage >= SKILL_ASSESSMENT_QUALITY_MIN_PERCENTAGE;
 }
 
-export function meetsAdvancedQualityBenchmark(overallPercentage: number): boolean {
+export function meetsAdvancedQualityBenchmark(
+  overallPercentage: number,
+): boolean {
   return overallPercentage >= ADVANCED_ASSESSMENT_QUALITY_MIN_PERCENTAGE;
 }
 

@@ -29,7 +29,7 @@ export class OpenRouterService {
 
     if (this.useAnthropic) {
       this.logger.log('AI provider: Anthropic');
-       
+
       this.anthropicProvider = createAnthropic({
         apiKey: env.ANTHROPIC_API_KEY!,
       });

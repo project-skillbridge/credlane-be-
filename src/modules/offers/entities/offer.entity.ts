@@ -48,7 +48,10 @@ export class Offer {
   @Column({ type: 'uuid', nullable: true })
   employer_pool_profile_id: string | null;
 
-  @ManyToOne(() => EmployerPoolProfile, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => EmployerPoolProfile, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
   @JoinColumn({ name: 'employer_pool_profile_id' })
   employer_pool_profile: EmployerPoolProfile | null;
 

@@ -98,15 +98,15 @@ describe('verified-profile.utils', () => {
     });
 
     it('falls back to profileTrack', () => {
-      expect(
-        resolveRoleLabel('data_analyst', null, null, {}),
-      ).toBe('Data Analyst');
+      expect(resolveRoleLabel('data_analyst', null, null, {})).toBe(
+        'Data Analyst',
+      );
     });
 
     it('falls back to profileRoleTrack', () => {
-      expect(
-        resolveRoleLabel(null, 'product_designer', null, {}),
-      ).toBe('Product Designer');
+      expect(resolveRoleLabel(null, 'product_designer', null, {})).toBe(
+        'Product Designer',
+      );
     });
 
     it('returns Talent as last resort', () => {
