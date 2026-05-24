@@ -40,6 +40,7 @@ import { ErrorMessages, SuccessMessages } from '../../../shared';
 import {
   SKILL_ASSESSMENT_MAX_ATTEMPTS,
   SKILL_ASSESSMENT_PASS_PERCENTAGE,
+  SKILL_ASSESSMENT_SESSION_TIMEOUT_MS,
 } from '../talent.constants';
 import {
   AssessmentAnswerBlock,
@@ -238,11 +239,33 @@ export class SkillAssessmentService {
       });
 
       if (activeAttempt) {
-        throw new ConflictException({
-          error: 'CONFLICT',
-          message: ErrorMessages.SKILL_ASSESSMENT.ACTIVE_SESSION_EXISTS,
-          existing_session_id: activeAttempt.id,
-        });
+        const elapsed =
+          Date.now() - new Date(activeAttempt.started_at).getTime();
+
+        if (elapsed >= SKILL_ASSESSMENT_SESSION_TIMEOUT_MS) {
+          // Session is stale — mark it as abandoned so it counts toward max attempts
+          await attemptRepository.update(activeAttempt.id, {
+            completed_at: new Date(),
+            force_submitted: true,
+          });
+
+          // Recount after marking stale session — it now counts as completed
+          const updatedCount = await this.countCompletedSkillAttempts(
+            profile.id,
+            manager,
+          );
+          if (updatedCount >= SKILL_ASSESSMENT_MAX_ATTEMPTS) {
+            throw new ForbiddenException(
+              ErrorMessages.SKILL_ASSESSMENT.MAX_ATTEMPTS_REACHED,
+            );
+          }
+        } else {
+          throw new ConflictException({
+            error: 'CONFLICT',
+            message: ErrorMessages.SKILL_ASSESSMENT.ACTIVE_SESSION_EXISTS,
+            existing_session_id: activeAttempt.id,
+          });
+        }
       }
     }
   }
@@ -688,8 +711,11 @@ export class SkillAssessmentService {
     const aboveLevelPercentage = aboveWeighted.percentage;
     const belowLevelPercentage = belowWeighted.percentage;
 
-    const weightedSections = [primaryWeighted, aboveWeighted, belowWeighted]
-      .filter((section) => section.maxScore > 0);
+    const weightedSections = [
+      primaryWeighted,
+      aboveWeighted,
+      belowWeighted,
+    ].filter((section) => section.maxScore > 0);
     const totalScore = weightedSections.reduce(
       (sum, section) => sum + section.score,
       0,
@@ -699,8 +725,7 @@ export class SkillAssessmentService {
       0,
     );
     const percentage = this.toPercentage(totalScore, totalMaxScore);
-    const primaryMcqGatePassed =
-      primaryMcqTotal === 0 || primaryMcqCorrect > 0;
+    const primaryMcqGatePassed = primaryMcqTotal === 0 || primaryMcqCorrect > 0;
     const aboveProbeMcqGatePassed =
       aboveProbeMcqTotal === 0 || aboveProbeMcqCorrect > 0;
 
