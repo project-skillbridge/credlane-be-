@@ -1063,6 +1063,28 @@ describe('Auth (e2e)', () => {
       });
   });
 
+  it('POST /auth/resend-verification accepts uppercase email for pending users', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(talentRegisterPayload)
+      .expect(201);
+
+    const user = await usersService.findByEmail(talentRegisterPayload.email);
+    const initialOtp = verificationOtpService.peekLatestCode(user!.id);
+
+    await request(app.getHttpServer())
+      .post('/auth/resend-verification')
+      .send({ email: talentRegisterPayload.email.toUpperCase() })
+      .expect(200);
+
+    const resentOtp = verificationOtpService.peekLatestCode(user!.id);
+    expect(resentOtp).toBeDefined();
+    expect(resentOtp).not.toBe(initialOtp);
+    expect(mailService.verificationMessages.at(-1)?.to).toBe(
+      talentRegisterPayload.email,
+    );
+  });
+
   it('POST /auth/resend-verification rejects already verified accounts', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
