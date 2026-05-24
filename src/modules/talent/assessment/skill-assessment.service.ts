@@ -40,6 +40,7 @@ import { ErrorMessages, SuccessMessages } from '../../../shared';
 import {
   SKILL_ASSESSMENT_MAX_ATTEMPTS,
   SKILL_ASSESSMENT_PASS_PERCENTAGE,
+  SKILL_ASSESSMENT_SESSION_TIMEOUT_MS,
 } from '../talent.constants';
 import {
   AssessmentAnswerBlock,
@@ -238,11 +239,22 @@ export class SkillAssessmentService {
       });
 
       if (activeAttempt) {
-        throw new ConflictException({
-          error: 'CONFLICT',
-          message: ErrorMessages.SKILL_ASSESSMENT.ACTIVE_SESSION_EXISTS,
-          existing_session_id: activeAttempt.id,
-        });
+        const elapsed =
+          Date.now() - new Date(activeAttempt.started_at).getTime();
+
+        if (elapsed >= SKILL_ASSESSMENT_SESSION_TIMEOUT_MS) {
+          // Session is stale — mark it as abandoned so it counts toward max attempts
+          await attemptRepository.update(activeAttempt.id, {
+            completed_at: new Date(),
+            force_submitted: true,
+          });
+        } else {
+          throw new ConflictException({
+            error: 'CONFLICT',
+            message: ErrorMessages.SKILL_ASSESSMENT.ACTIVE_SESSION_EXISTS,
+            existing_session_id: activeAttempt.id,
+          });
+        }
       }
     }
   }
