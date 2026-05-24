@@ -154,6 +154,10 @@ export class AdvancedAssessmentController {
     description:
       'Submission accepted for background processing (status=processing). Scores and tier appear on dashboard after the worker completes.',
   })
+  @ApiServiceUnavailableResponse({
+    description:
+      'SUBMIT_QUEUE_UNAVAILABLE when submit queue enqueue fails or is unavailable.',
+  })
   @ApiNotFoundResponse({ description: 'Profile or session not found' })
   @ApiForbiddenResponse({ description: 'Not a talent user' })
   @UsePipes(

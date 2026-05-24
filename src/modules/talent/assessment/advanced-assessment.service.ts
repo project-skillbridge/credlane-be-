@@ -131,6 +131,13 @@ export interface SubmitLt2Result {
   max_seconds_remaining: number;
 }
 
+type ScoreReadyDispatchPayload = {
+  score: number;
+  maxScore: number;
+  percentage: number;
+  tier: AssessmentTier;
+};
+
 type AdvancedAssessmentSessionPayload = {
   context?: {
     verified_level?: unknown;
@@ -473,7 +480,13 @@ export class AdvancedAssessmentService {
       return;
     }
     if (attempt.completed_at) {
-      await this.backfillPendingGuidanceReport(profile, attempt);
+      const result = await this.backfillPendingGuidanceReport(profile, attempt);
+      if (result) {
+        const payload = this.scoreReadyDispatchPayloadFromResult(result);
+        if (payload) {
+          this.dispatchScoreReadyNotification(data.userId, payload);
+        }
+      }
       return;
     }
     if (attempt.force_submitted) {
@@ -756,16 +769,12 @@ export class AdvancedAssessmentService {
       `Advanced assessment submitted: attempt=${attempt.id} user=${userId} score=${totalRawScore}/${maxScore} (${percentage}%) tier=${tier} failed=${failed} expired=${isExpired}`,
     );
 
-    void this.notificationDispatch.dispatch(
-      NotificationType.ADVANCED_ASSESSMENT_SCORE_READY,
-      userId,
-      {
-        score: Math.round(totalRawScore),
-        maxScore,
-        percentage,
-        tier,
-      },
-    );
+    this.dispatchScoreReadyNotification(userId, {
+      score: Math.round(totalRawScore),
+      maxScore,
+      percentage,
+      tier,
+    });
 
     if (isExpired) {
       this.logger.log(
@@ -782,7 +791,7 @@ export class AdvancedAssessmentService {
   private async backfillPendingGuidanceReport(
     profile: TalentProfile,
     attempt: AssessmentAttempt,
-  ): Promise<void> {
+  ): Promise<AssessmentResult | null> {
     const result = await this.resultRepo.findOne({
       where: { attempt_id: attempt.id },
     });
@@ -790,20 +799,20 @@ export class AdvancedAssessmentService {
       this.logger.warn(
         `Guidance backfill skipped: no result for attempt=${attempt.id}`,
       );
-      return;
+      return null;
     }
     if (result.guidance_report != null) {
-      return;
+      return result;
     }
 
     const percentage = result.percentage ?? 0;
     if (!meetsAdvancedQualityBenchmark(percentage)) {
-      return;
+      return result;
     }
 
     const tier = result.tier;
     if (!tier || tier === AssessmentTier.NOT_READY) {
-      return;
+      return result;
     }
 
     const sessionQuestions = this.readSessionQuestions(attempt);
@@ -811,7 +820,7 @@ export class AdvancedAssessmentService {
       this.logger.warn(
         `Guidance backfill skipped: corrupt session attempt=${attempt.id}`,
       );
-      return;
+      return result;
     }
 
     const scoreRows = await this.talentProfileRepo.manager.find(
@@ -851,12 +860,42 @@ export class AdvancedAssessmentService {
       this.logger.log(
         `Guidance report backfilled: attempt=${attempt.id} session=${attempt.id}`,
       );
+      return result;
     } catch (error) {
       this.logger.warn(
         `Guidance report backfill failed: attempt=${attempt.id}: ${String(error)}`,
       );
       throw error;
     }
+  }
+
+  private scoreReadyDispatchPayloadFromResult(
+    result: AssessmentResult,
+  ): ScoreReadyDispatchPayload | null {
+    if (!result.tier) {
+      this.logger.warn(
+        `Score-ready notification skipped: missing tier for attempt=${result.attempt_id}`,
+      );
+      return null;
+    }
+
+    return {
+      score: result.score ?? 0,
+      maxScore: result.max_score ?? 100,
+      percentage: result.percentage ?? 0,
+      tier: result.tier,
+    };
+  }
+
+  private dispatchScoreReadyNotification(
+    userId: string,
+    payload: ScoreReadyDispatchPayload,
+  ): void {
+    void this.notificationDispatch.dispatch(
+      NotificationType.ADVANCED_ASSESSMENT_SCORE_READY,
+      userId,
+      payload,
+    );
   }
 
   private scoredTextAnswersFromAssessmentScores(
