@@ -479,6 +479,7 @@ const mockPasswordResetOtpService = {
   verify: jest.fn().mockResolvedValue(true),
   consume: jest.fn().mockResolvedValue(true),
   countRecentResends: jest.fn().mockResolvedValue(0),
+  countRecentRequests: jest.fn().mockResolvedValue(0),
 };
 
 describe('Auth (e2e)', () => {
@@ -953,6 +954,31 @@ describe('Auth (e2e)', () => {
           },
         });
       });
+  });
+
+  it('POST /auth/verify-email accepts uppercase email for pending users', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(talentRegisterPayload)
+      .expect(201);
+
+    const user = await usersService.findByEmail(talentRegisterPayload.email);
+    const otp = verificationOtpService.peekLatestCode(user!.id);
+
+    const response = await request(app.getHttpServer())
+      .post('/auth/verify-email')
+      .send({ email: talentRegisterPayload.email.toUpperCase(), otp })
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      status_code: 200,
+      data: {
+        user: {
+          email: talentRegisterPayload.email,
+          is_verified: true,
+        },
+      },
+    });
   });
 
   it('POST /auth/verify-email rejects invalid, expired, and reused OTPs', async () => {
