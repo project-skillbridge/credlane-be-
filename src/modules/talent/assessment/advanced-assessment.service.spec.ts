@@ -219,7 +219,7 @@ describe('AdvancedAssessmentService', () => {
     increment: jest.Mock;
     update: jest.Mock;
   };
-  let resultRepo: { update: jest.Mock };
+  let resultRepo: { findOne: jest.Mock; update: jest.Mock };
   let personalAssessmentService: { getAiContext: jest.Mock };
   let advancedAssessmentAiService: { generateQuestions: jest.Mock };
   let rubricScoring: { scoreAnswers: jest.Mock };
@@ -255,7 +255,10 @@ describe('AdvancedAssessmentService', () => {
     attemptStore = makeAttempt();
     attemptData = { current: attemptStore };
     questionRepo = {};
-    resultRepo = { update: jest.fn().mockResolvedValue({ affected: 1 }) };
+    resultRepo = {
+      findOne: jest.fn().mockResolvedValue(null),
+      update: jest.fn().mockResolvedValue({ affected: 1 }),
+    };
     questionGeneration = {};
     entityManagerSaveCalls = [];
     entityManagerFindOne = jest

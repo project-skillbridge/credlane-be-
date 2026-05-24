@@ -466,9 +466,7 @@ export class AdvancedAssessmentService {
       return;
     }
     if (attempt.completed_at) {
-      this.logger.log(
-        `Advanced submit job skipped: attempt already completed session=${data.sessionId}`,
-      );
+      await this.backfillPendingGuidanceReport(profile, attempt);
       return;
     }
     if (attempt.force_submitted) {
@@ -714,10 +712,7 @@ export class AdvancedAssessmentService {
     });
 
     if (resultLookup && guidanceInput) {
-      const guidanceReport = await this.guidanceReport.generate(guidanceInput);
-      await this.resultRepo.update(resultLookup, {
-        guidance_report: { ...guidanceReport },
-      });
+      await this.persistGuidanceReport(resultLookup, guidanceInput);
     }
 
     if (!failed && tier === AssessmentTier.JOB_READY && personalContext) {
@@ -772,6 +767,123 @@ export class AdvancedAssessmentService {
         `Advanced assessment auto-submitted on expired session: attempt=${attempt.id}`,
       );
     }
+  }
+
+  /**
+   * When a BullMQ retry runs after the DB commit succeeded but guidance
+   * generation failed, completed_at blocks a full re-score. Rebuild guidance
+   * from the persisted result + assessment_scores instead.
+   */
+  private async backfillPendingGuidanceReport(
+    profile: TalentProfile,
+    attempt: AssessmentAttempt,
+  ): Promise<void> {
+    const result = await this.resultRepo.findOne({
+      where: { attempt_id: attempt.id },
+    });
+    if (!result) {
+      this.logger.warn(
+        `Guidance backfill skipped: no result for attempt=${attempt.id}`,
+      );
+      return;
+    }
+    if (result.guidance_report != null) {
+      return;
+    }
+
+    const percentage = result.percentage ?? 0;
+    if (!meetsAdvancedQualityBenchmark(percentage)) {
+      return;
+    }
+
+    const tier = result.tier;
+    if (!tier || tier === AssessmentTier.NOT_READY) {
+      return;
+    }
+
+    const sessionQuestions = this.readSessionQuestions(attempt);
+    if (sessionQuestions.length === 0) {
+      this.logger.warn(
+        `Guidance backfill skipped: corrupt session attempt=${attempt.id}`,
+      );
+      return;
+    }
+
+    const scoreRows = await this.talentProfileRepo.manager.find(
+      AssessmentScore,
+      { where: { attempt_id: attempt.id } },
+    );
+    const scoredTextAnswers = this.scoredTextAnswersFromAssessmentScores(
+      scoreRows,
+    );
+    const guidanceInput = {
+      report_type:
+        tier === AssessmentTier.JOB_READY ? 'job_ready' : 'emerging',
+      track: profile.track ?? 'general',
+      claimed_level: profile.claimed_level ?? VerifiedLevel.JUNIOR,
+      validated_level: profile.validated_level ?? VerifiedLevel.JUNIOR,
+      percentage,
+      strong_competencies: this.extractCompetencies(
+        sessionQuestions,
+        scoredTextAnswers,
+        profile.track,
+        'strong',
+      ),
+      weak_competencies: this.extractCompetencies(
+        sessionQuestions,
+        scoredTextAnswers,
+        profile.track,
+        'weak',
+      ),
+    } satisfies Parameters<GuidanceReportService['generate']>[0];
+
+    const resultLookup = result.id
+      ? { id: result.id }
+      : { attempt_id: attempt.id };
+
+    try {
+      await this.persistGuidanceReport(resultLookup, guidanceInput);
+      this.logger.log(
+        `Guidance report backfilled: attempt=${attempt.id} session=${attempt.id}`,
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Guidance report backfill failed: attempt=${attempt.id}: ${String(error)}`,
+      );
+      throw error;
+    }
+  }
+
+  private scoredTextAnswersFromAssessmentScores(
+    scoreRows: AssessmentScore[],
+  ): ScoredTextAnswer[] {
+    return scoreRows
+      .filter(
+        (row) => row.question_type !== AssessmentScoreQuestionType.MCQ,
+      )
+      .map((row) => ({
+        question_id: row.question_id,
+        raw_score: row.raw_score,
+        max_score: row.max_score,
+        rubric: {
+          relevance: 0,
+          reasoning: 0,
+          specificity: 0,
+          completeness: 0,
+          total: row.raw_score,
+          feedback: '',
+        },
+      }));
+  }
+
+  private async persistGuidanceReport(
+    resultLookup: { id: string } | { attempt_id: string },
+    input: Parameters<GuidanceReportService['generate']>[0],
+  ): Promise<void> {
+    const generated = await this.guidanceReport.generate(input);
+    await this.resultRepo.update(resultLookup, {
+      guidance_report: { ...generated },
+    });
   }
 
   private async validateSubmitForEnqueue(
