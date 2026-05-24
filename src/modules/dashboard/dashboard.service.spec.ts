@@ -95,6 +95,7 @@ describe('DashboardService', () => {
 
     await expect(service.getHome(talentUser.id)).resolves.toEqual({
       firstName: 'Casey',
+      avatarUrl: null,
       goal: null,
       profileCompletionPercentage: 0,
       journeyOverview: [
@@ -147,6 +148,7 @@ describe('DashboardService', () => {
 
     await expect(service.getHome(talentUser.id)).resolves.toEqual({
       firstName: 'Casey',
+      avatarUrl: null,
       goal: 'land_first_role',
       profileCompletionPercentage: 56,
       journeyOverview: [
@@ -200,6 +202,7 @@ describe('DashboardService', () => {
 
     await expect(service.getHome(talentUser.id)).resolves.toEqual({
       firstName: 'Casey',
+      avatarUrl: null,
       goal: 'land_first_role',
       profileCompletionPercentage: 64,
       journeyOverview: [
@@ -521,6 +524,7 @@ describe('DashboardService', () => {
 
     await expect(service.getHome(talentUser.id)).resolves.toEqual({
       firstName: 'Jane',
+      avatarUrl: 'https://cdn.example.com/avatar.png',
       goal: 'land_first_role',
       profileCompletionPercentage: 100,
       journeyOverview: [
@@ -752,7 +756,7 @@ describe('DashboardService', () => {
 
     await expect(service.getHome(talentUser.id)).resolves.toMatchObject({
       firstName: 'Jane',
-      profileCompletionPercentage: 84,
+      profileCompletionPercentage: 100,
       performance: {
         skill: {
           score: 8,
@@ -774,6 +778,32 @@ describe('DashboardService', () => {
       },
     });
     expect(queryBuilder.getOne).toHaveBeenCalled();
+  });
+
+  it('returns 100 profile completion when required onboarding is complete without optional avatar or linkedin', async () => {
+    const talentUser = makeUser({
+      first_name: 'Jane',
+      role: UserRole.TALENT,
+      avatar_url: null,
+      onboarding_complete: true,
+    });
+
+    const profile = makeProfile({
+      onboarding_step: 3,
+      track: 'backend_developer',
+      region: 'Lagos',
+      education_level: 'bachelors',
+      linkedin_url: null,
+      personal_assessment_completed_at: null,
+      status: TalentProfileStatus.IN_PROGRESS,
+    });
+
+    (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
+    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+
+    const home = await service.getHome(talentUser.id);
+
+    expect(home.profileCompletionPercentage).toBe(100);
   });
 
   it('includes nested advanced retake metadata on advanced performance', async () => {

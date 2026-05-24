@@ -121,6 +121,11 @@ export function resolveRoleLabel(
   specialization: string | null,
   answers: Record<string, unknown>,
 ): string {
+  const track = profileTrack ?? profileRoleTrack;
+  if (track) {
+    return formatSlugLabel(track);
+  }
+
   const spec =
     specialization ??
     (typeof answers.specialization === 'string'
@@ -129,11 +134,6 @@ export function resolveRoleLabel(
 
   if (spec) {
     return formatSlugLabel(spec);
-  }
-
-  const track = profileTrack ?? profileRoleTrack;
-  if (track) {
-    return formatSlugLabel(track);
   }
 
   return 'Talent';

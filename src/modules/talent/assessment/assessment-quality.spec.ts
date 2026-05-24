@@ -31,5 +31,16 @@ describe('assessment-quality', () => {
         claimed_percentage: 72,
       }),
     ).toBe(true);
+    expect(
+      qualifiesForAdvancedFromSkillResult({
+        percentage: 80,
+        claimed_percentage: null,
+      }),
+    ).toBe(false);
+    expect(
+      qualifiesForAdvancedFromSkillResult({
+        percentage: 80,
+      }),
+    ).toBe(false);
   });
 });

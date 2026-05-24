@@ -1104,6 +1104,7 @@ export class AdvancedAssessmentService {
     percentage: number,
     mcqGatePassed = true,
   ): AssessmentTier {
+    if (percentage < 50) return AssessmentTier.NOT_READY;
     if (percentage >= 75 && mcqGatePassed) return AssessmentTier.JOB_READY;
     return AssessmentTier.EMERGING;
   }

@@ -604,13 +604,18 @@ describe('AdvancedAssessmentService', () => {
       expect(result.tier).toBe(AssessmentTier.EMERGING);
     });
 
+<<<<<<< HEAD
     it('marks sub-50% as failed without profile completion or guidance report', async () => {
+=======
+    it('places tier at Not Ready below 50% and generates a guidance report', async () => {
+>>>>>>> e994ded601ded81aafd1f133ddc0c5bfab3e6697
       rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(0, 176));
       const result = await service.submit(userId, {
         session_id: 'attempt-1',
         answers: [],
       } as never);
 
+<<<<<<< HEAD
       expect(result.failed).toBe(true);
       expect(result.status).toBe('failed');
       expect(result.percentage).toBeLessThan(50);
@@ -619,6 +624,17 @@ describe('AdvancedAssessmentService', () => {
       expect(entityManagerUpdate).not.toHaveBeenCalledWith(
         TalentProfile,
         { id: profileStore.id },
+=======
+      expect(result.percentage).toBeLessThan(50);
+      expect(result.tier).toBe(AssessmentTier.NOT_READY);
+      expect(guidanceReport.generate).toHaveBeenCalledWith(
+        expect.objectContaining({ report_type: 'emerging' }),
+      );
+      expect(result.guidance_report).toBeUndefined();
+      await Promise.resolve();
+      expect(resultRepo.update).toHaveBeenCalledWith(
+        expect.anything(),
+>>>>>>> e994ded601ded81aafd1f133ddc0c5bfab3e6697
         expect.objectContaining({
           advanced_assessment_completed_at: expect.any(Date),
         }),
@@ -813,7 +829,7 @@ describe('AdvancedAssessmentService', () => {
     });
 
     describe('tier boundary cases', () => {
-      it('49% → Emerging', async () => {
+      it('49% → Not Ready', async () => {
         rubricScoring.scoreAnswers.mockResolvedValue(
           makeScoredAnswers(85, 176),
         );
@@ -821,8 +837,8 @@ describe('AdvancedAssessmentService', () => {
           session_id: 'attempt-1',
           answers: [], // 0 MCQ correct → text contributes ~85 + 0 mcq
         } as never);
-        expect(result.percentage).toBeLessThan(75);
-        expect(result.tier).toBe(AssessmentTier.EMERGING);
+        expect(result.percentage).toBeLessThan(50);
+        expect(result.tier).toBe(AssessmentTier.NOT_READY);
       });
 
       it('75% → Job Ready', async () => {

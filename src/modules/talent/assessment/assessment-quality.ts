@@ -19,7 +19,11 @@ export function qualifiesForAdvancedFromSkillResult(
   result: Pick<AssessmentResult, 'percentage' | 'claimed_percentage'>,
 ): boolean {
   const percentage = result.percentage ?? 0;
-  const claimedPercentage = result.claimed_percentage ?? percentage;
+  const claimedPercentage = result.claimed_percentage;
+
+  if (claimedPercentage === null || claimedPercentage === undefined) {
+    return false;
+  }
 
   return (
     meetsSkillQualityBenchmark(percentage) &&

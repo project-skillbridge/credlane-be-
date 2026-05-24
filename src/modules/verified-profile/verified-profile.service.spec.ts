@@ -140,7 +140,7 @@ describe('VerifiedProfileService', () => {
 
       expect(result).toMatchObject({
         fullName: 'Jane Doe',
-        role: 'Frontend Engineer',
+        role: 'Frontend Developer',
         goal: 'Land First Role',
         about: 'Builder of useful products',
         skills: ['react', 'typescript'],
@@ -443,7 +443,7 @@ describe('VerifiedProfileService', () => {
 
       expect(result).toMatchObject({
         fullName: 'Jane Doe',
-        role: 'Api Engineering',
+        role: 'Backend Developer',
         about: 'API specialist',
         verified: true,
         verifiedAt: '2026-05-04T00:00:00.000Z',

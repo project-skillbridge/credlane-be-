@@ -168,6 +168,13 @@ export class DashboardHomeResponseDto {
   firstName: string;
 
   @ApiPropertyOptional({
+    example: 'https://cdn.example.com/avatar.png',
+    nullable: true,
+    description: "The talent's current profile photo URL.",
+  })
+  avatarUrl: string | null;
+
+  @ApiPropertyOptional({
     example: 'Get a remote job',
     nullable: true,
     description: "The talent's stated career goal.",
@@ -239,6 +246,7 @@ export type DashboardPerformance = {
 
 export type DashboardHomeResponse = {
   firstName: string;
+  avatarUrl: string | null;
   goal: string | null;
   profileCompletionPercentage: number;
   journeyOverview: JourneyOverviewItemDto[];
