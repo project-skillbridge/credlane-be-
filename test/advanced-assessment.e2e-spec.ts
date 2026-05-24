@@ -49,6 +49,7 @@ import { AssessmentTier } from '../src/modules/assessments/entities/assessment-r
 import { Lt3GenerationService } from '../src/modules/ai/lt3-generation.service';
 import { QuestionGenerationService } from '../src/modules/ai/question-generation.service';
 import { MailService } from '../src/modules/mail/mail.service';
+import { NotificationDispatchService } from '../src/modules/notifications/notification-dispatch.service';
 import { UserRole } from '../src/modules/users/entities/user.entity';
 import { UsersService } from '../src/modules/users/users.service';
 
@@ -444,6 +445,10 @@ describe('Advanced assessment (e2e)', () => {
           provide: MailService,
           useValue: { sendAssessmentPerformance: jest.fn() },
         },
+        {
+          provide: NotificationDispatchService,
+          useValue: { dispatch: jest.fn().mockResolvedValue(undefined) },
+        },
         { provide: APP_GUARD, useClass: MockJwtAuthGuard },
         { provide: APP_GUARD, useClass: RolesGuard },
         { provide: APP_FILTER, useClass: HttpExceptionFilter },
@@ -482,7 +487,7 @@ describe('Advanced assessment (e2e)', () => {
         .expect((res) => {
           expect(res.body.status).toBe('success');
           expect(res.body.session_id).toBe(ATTEMPT_ID);
-          expect(res.body.max_score).toBe(130);
+          expect(res.body.max_score).toBe(100);
           expect(typeof res.body.percentage).toBe('number');
           expect(Object.values(AssessmentTier)).toContain(res.body.tier);
           expect(['high', 'medium', 'low']).toContain(

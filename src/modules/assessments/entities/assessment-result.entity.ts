@@ -31,7 +31,8 @@ export class AssessmentResult {
   attempt: AssessmentAttempt;
 
   @ApiProperty({
-    description: 'Score out of total questions (e.g., 7/10 or 75/100)',
+    description:
+      'Assessment-level score. For weighted assessments this is out of max_score, usually 100.',
   })
   @Column({ type: 'integer' })
   score: number;

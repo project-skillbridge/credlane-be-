@@ -68,6 +68,8 @@ export class DashboardService {
 
     return {
       firstName: user.first_name,
+      avatarUrl: user.avatar_url,
+      goal: profile?.goal ?? null,
       profileCompletionPercentage: this.calculateProfileCompletion(
         user,
         profile,
@@ -133,7 +135,10 @@ export class DashboardService {
         result.created_at,
       ),
       attemptsUsed,
-      attemptsRemaining: Math.max(0, SKILL_ASSESSMENT_MAX_ATTEMPTS - attemptsUsed),
+      attemptsRemaining: Math.max(
+        0,
+        SKILL_ASSESSMENT_MAX_ATTEMPTS - attemptsUsed,
+      ),
       ...(result.guidance_report != null && {
         guidanceReport: result.guidance_report,
       }),
@@ -194,8 +199,7 @@ export class DashboardService {
     const probationStartedAt =
       profile.assessment_locked_from ??
       new Date(
-        eligibilityTime -
-          ADVANCED_RETAKE_GATE_DAYS * 24 * 60 * 60 * 1000,
+        eligibilityTime - ADVANCED_RETAKE_GATE_DAYS * 24 * 60 * 60 * 1000,
       );
     const countdownSeconds = Math.max(
       0,
@@ -256,6 +260,10 @@ export class DashboardService {
   ): number {
     if (!profile) {
       return 0;
+    }
+
+    if (this.isOnboardingComplete(user, profile)) {
+      return 100;
     }
 
     const onboardingStep = Math.max(

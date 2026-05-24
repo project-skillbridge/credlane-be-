@@ -144,9 +144,9 @@ export class AdvancedAssessmentController {
     description:
       'Scores MCQs immediately (1/0). Passes text answers to the AI rubric layer ' +
       '(short text + LT-1 + LT-2: 4 dims 0\u20133, max 12; LT-3: 2 dims 0\u20134, max 8). ' +
-      'Computes percentage against the fixed session max (186 = 10 + 120 + 48 + 8). ' +
-      '\u226575% \u2192 Job Ready + employer pool profile. 50\u201374% \u2192 Emerging + 14-day retake gate. ' +
-      '<50% \u2192 Not Ready + 14-day retake gate. Writes one assessment_scores row per question. ' +
+      'Computes final percentage with weighted sections: MCQ 30%, text 70%. ' +
+      '\u226575% plus at least one correct MCQ \u2192 Job Ready + employer pool profile; otherwise Emerging + 14-day retake gate. ' +
+      'Writes one assessment_scores row per question. ' +
       'Returns 422 LT2_NOT_SUBMITTED if /lt2-submit was never called for this session. ' +
       'Accepts submissions on expired sessions (auto_submitted=true, unanswered questions scored 0). ' +
       'Guidance report generation runs asynchronously after the result is persisted; poll GET /dashboard/home ' +

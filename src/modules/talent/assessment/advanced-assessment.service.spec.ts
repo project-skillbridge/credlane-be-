@@ -446,10 +446,9 @@ describe('AdvancedAssessmentService', () => {
   // ── submit ──────────────────────────────────────────────────────────────────
 
   describe('submit()', () => {
-    // 5 MCQ + (10+2+2)*12 + 1*8 = 5 + 168 + 8 = 181
-    const ADVANCED_MAX_SCORE = 181;
+    const ADVANCED_MAX_SCORE = 100;
 
-    it('returns the max_score (181) for a complete session', async () => {
+    it('returns weighted max_score (100) for a complete session', async () => {
       // perfect text scoring + all MCQ correct
       rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
       const result = await service.submit(userId, makeSubmitDto() as never);
@@ -523,6 +522,79 @@ describe('AdvancedAssessmentService', () => {
       );
     });
 
+    it('keeps tier emerging when text scores are high but all MCQs are wrong', async () => {
+      rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
+      const dto = makeSubmitDto();
+      dto.answers = dto.answers.map((answer) =>
+        String(answer.question_id).startsWith('mcq-')
+          ? { ...answer, answer: 'Option C' }
+          : answer,
+      );
+
+      const result = await service.submit(userId, dto as never);
+
+      expect(result.percentage).toBeLessThan(75);
+      expect(result.tier).toBe(AssessmentTier.EMERGING);
+      expect(employerPoolProfileService.upsert).not.toHaveBeenCalled();
+    });
+
+    it('can still be job_ready with high text scores and at least one correct MCQ', async () => {
+      rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
+      const dto = makeSubmitDto();
+      dto.answers = dto.answers.map((answer) => {
+        if (!String(answer.question_id).startsWith('mcq-')) return answer;
+        return {
+          ...answer,
+          answer: answer.question_id === 'mcq-1' ? 'Option A' : 'Option C',
+        };
+      });
+
+      const result = await service.submit(userId, dto as never);
+
+      expect(result.percentage).toBeGreaterThanOrEqual(75);
+      expect(result.tier).toBe(AssessmentTier.JOB_READY);
+    });
+
+    it('fails closed when the session has no MCQs', async () => {
+      rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
+      const loggerErrorSpy = jest
+        .spyOn(
+          (
+            service as unknown as {
+              logger: { error: (...args: unknown[]) => void };
+            }
+          ).logger,
+          'error',
+        )
+        .mockImplementation(() => undefined);
+
+      const sessionNoMcq = makeSessionJson();
+      sessionNoMcq.questions = sessionNoMcq.questions.filter(
+        (question) => question.block !== 'mcq',
+      );
+      attemptStore = makeAttempt({ generated_questions_json: sessionNoMcq });
+      attemptRepo.findOne.mockResolvedValue(attemptStore);
+
+      const dto = makeSubmitDto();
+      dto.answers = dto.answers.filter(
+        (answer) => !String(answer.question_id).startsWith('mcq-'),
+      );
+
+      const result = await service.submit(userId, dto as never);
+
+      expect(result.tier).toBe(AssessmentTier.EMERGING);
+      expect(result.percentage).toBeGreaterThanOrEqual(75);
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining('MCQ gate failed'),
+      );
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`attempt=${attemptStore.id}`),
+      );
+      expect(loggerErrorSpy).toHaveBeenCalledWith(
+        expect.stringContaining(`user=${userId}`),
+      );
+    });
+
     it('places tier at Emerging when pct < 75%', async () => {
       // Need ~60% of 181 = 109; choose 100/176 text raw → MCQ also high
       rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(115, 176));
@@ -532,15 +604,15 @@ describe('AdvancedAssessmentService', () => {
       expect(result.tier).toBe(AssessmentTier.EMERGING);
     });
 
-    it('places tier at Emerging below 50% and generates a guidance report', async () => {
+    it('places tier at Not Ready below 50% and generates a guidance report', async () => {
       rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(0, 176));
       const result = await service.submit(userId, {
         session_id: 'attempt-1',
         answers: [],
       } as never);
 
-      expect(result.percentage).toBeLessThan(75);
-      expect(result.tier).toBe(AssessmentTier.EMERGING);
+      expect(result.percentage).toBeLessThan(50);
+      expect(result.tier).toBe(AssessmentTier.NOT_READY);
       expect(guidanceReport.generate).toHaveBeenCalledWith(
         expect.objectContaining({ report_type: 'emerging' }),
       );
@@ -745,7 +817,7 @@ describe('AdvancedAssessmentService', () => {
     });
 
     describe('tier boundary cases', () => {
-      it('49% → Emerging', async () => {
+      it('49% → Not Ready', async () => {
         rubricScoring.scoreAnswers.mockResolvedValue(
           makeScoredAnswers(85, 176),
         );
@@ -753,8 +825,8 @@ describe('AdvancedAssessmentService', () => {
           session_id: 'attempt-1',
           answers: [], // 0 MCQ correct → text contributes ~85 + 0 mcq
         } as never);
-        expect(result.percentage).toBeLessThan(75);
-        expect(result.tier).toBe(AssessmentTier.EMERGING);
+        expect(result.percentage).toBeLessThan(50);
+        expect(result.tier).toBe(AssessmentTier.NOT_READY);
       });
 
       it('75% → Job Ready', async () => {
@@ -884,11 +956,17 @@ describe('AdvancedAssessmentService', () => {
           entity === AssessmentAttempt &&
           (criteria as Record<string, unknown>).id === 'attempt-1',
       );
-      const [, , patch] = attemptUpdateCall as [unknown, unknown, Record<string, unknown>];
+      const [, , patch] = attemptUpdateCall as [
+        unknown,
+        unknown,
+        Record<string, unknown>,
+      ];
       const updatedJson = patch.generated_questions_json as {
         questions: Array<{ slot_type: string }>;
       };
-      expect(updatedJson.questions.some((q) => q.slot_type === SlotType.REFLECTION)).toBe(true);
+      expect(
+        updatedJson.questions.some((q) => q.slot_type === SlotType.REFLECTION),
+      ).toBe(true);
     });
 
     it('does not call manager.save for the attempt entity when persisting LT-3', async () => {
@@ -911,9 +989,13 @@ describe('AdvancedAssessmentService', () => {
 
       // attemptStore is the same object returned by findOne (mockResolvedValue returns same ref)
       const inMemoryQuestions = (
-        attemptStore.generated_questions_json as { questions: Array<{ slot_type: string }> }
+        attemptStore.generated_questions_json as {
+          questions: Array<{ slot_type: string }>;
+        }
       ).questions;
-      expect(inMemoryQuestions.some((q) => q.slot_type === SlotType.REFLECTION)).toBe(true);
+      expect(
+        inMemoryQuestions.some((q) => q.slot_type === SlotType.REFLECTION),
+      ).toBe(true);
     });
 
     it('throws 403 with probation metadata when profile lock is active', async () => {
@@ -956,15 +1038,15 @@ describe('AdvancedAssessmentService', () => {
         }),
       );
 
-      await expect(service.getSession(userId, 'attempt-1')).rejects.toMatchObject(
-        {
-          response: expect.objectContaining({
-            error: 'ADVANCED_RETAKE_LOCKED',
-            probation_started_at: lockedFrom.toISOString(),
-            probation_ends_at: lockedUntil.toISOString(),
-          }),
-        },
-      );
+      await expect(
+        service.getSession(userId, 'attempt-1'),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          error: 'ADVANCED_RETAKE_LOCKED',
+          probation_started_at: lockedFrom.toISOString(),
+          probation_ends_at: lockedUntil.toISOString(),
+        }),
+      });
     });
   });
 

@@ -76,7 +76,7 @@ export function buildFullPersonalAssessmentAnswers(): Record<string, unknown> {
     org_types: ['startup_under_50'],
     student_status: 'no',
     primary_language: 'english',
-    specialization: 'frontend',
+    specialization: 'web_apps',
     claimed_level: VerifiedLevel.MID,
     primary_tool_duration: '1_2_years',
     mentoring_experience: 'yes_informally',
