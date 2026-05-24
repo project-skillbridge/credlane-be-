@@ -54,6 +54,7 @@ const SKILL_ASSESSMENT_MCQ_COUNT = 6;
 const SKILL_ASSESSMENT_TEXT_COUNT = 4;
 const SKILL_PROBE_MCQ_COUNT = 2;
 const SKILL_PROBE_TEXT_COUNT = 2;
+const SKILL_MCQ_SECTION_WEIGHT = 0.4;
 
 type ProbeDirection = 'above' | 'below';
 
@@ -658,27 +659,59 @@ export class SkillAssessmentService {
       }
     }
 
-    const primaryScore = primaryMcqCorrect + primaryText.score;
-    const primaryMaxScore = primaryMcqTotal + primaryText.maxScore;
-    const aboveProbeScore = aboveProbeMcqCorrect + aboveProbeText.score;
     const aboveProbeMaxScore = aboveProbeMcqTotal + aboveProbeText.maxScore;
-    const belowProbeScore = belowProbeMcqCorrect + belowProbeText.score;
-    const belowProbeMaxScore = belowProbeMcqTotal + belowProbeText.maxScore;
-
-    const claimedPercentage = this.toPercentage(primaryScore, primaryMaxScore);
-    const aboveLevelPercentage = this.toPercentage(
-      aboveProbeScore,
-      aboveProbeMaxScore,
+    const primaryWeighted = this.toWeightedSectionScore(
+      primaryMcqCorrect,
+      primaryMcqTotal,
+      primaryText.score,
+      primaryText.maxScore,
+      SKILL_MCQ_SECTION_WEIGHT,
     );
-    const belowLevelPercentage = this.toPercentage(
-      belowProbeScore,
-      belowProbeMaxScore,
+    const aboveWeighted = this.toWeightedSectionScore(
+      aboveProbeMcqCorrect,
+      aboveProbeMcqTotal,
+      aboveProbeText.score,
+      aboveProbeText.maxScore,
+      SKILL_MCQ_SECTION_WEIGHT,
+    );
+    const belowWeighted = this.toWeightedSectionScore(
+      belowProbeMcqCorrect,
+      belowProbeMcqTotal,
+      belowProbeText.score,
+      belowProbeText.maxScore,
+      SKILL_MCQ_SECTION_WEIGHT,
     );
 
-    const totalScore = primaryScore + aboveProbeScore + belowProbeScore;
-    const totalMaxScore =
-      primaryMaxScore + aboveProbeMaxScore + belowProbeMaxScore;
+    const claimedPercentage = primaryWeighted.percentage;
+    const aboveLevelPercentage = aboveWeighted.percentage;
+    const belowLevelPercentage = belowWeighted.percentage;
+
+    const weightedSections = [primaryWeighted, aboveWeighted, belowWeighted]
+      .filter((section) => section.maxScore > 0);
+    const totalScore = weightedSections.reduce(
+      (sum, section) => sum + section.score,
+      0,
+    );
+    const totalMaxScore = weightedSections.reduce(
+      (sum, section) => sum + section.maxScore,
+      0,
+    );
     const percentage = this.toPercentage(totalScore, totalMaxScore);
+    const primaryMcqGatePassed =
+      primaryMcqTotal === 0 || primaryMcqCorrect > 0;
+    const aboveProbeMcqGatePassed =
+      aboveProbeMcqTotal === 0 || aboveProbeMcqCorrect > 0;
+
+    if (primaryMcqTotal === 0) {
+      this.logger.warn(
+        `Skill assessment primary MCQ gate bypassed: no primary MCQs attempt=${attempt.id} user=${userId}`,
+      );
+    }
+    if (aboveProbeMaxScore > 0 && aboveProbeMcqTotal === 0) {
+      this.logger.warn(
+        `Skill assessment above-level MCQ gate bypassed: no above-level MCQs attempt=${attempt.id} user=${userId}`,
+      );
+    }
 
     const validatedLevel = this.resolveValidatedLevel(
       claimedPercentage,
@@ -686,14 +719,18 @@ export class SkillAssessmentService {
       belowLevelPercentage,
       percentage,
       profile.claimed_level ?? VerifiedLevel.JUNIOR,
+      primaryMcqGatePassed,
+      aboveProbeMcqGatePassed,
     );
     const claimed = profile.claimed_level ?? VerifiedLevel.JUNIOR;
     const downgraded = levelIsLower(validatedLevel, claimed);
-    const passed = claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE;
+    const passed =
+      claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE &&
+      primaryMcqGatePassed;
     const tier = this.resolveSkillTier(percentage);
 
     let guidanceReport: GuidanceReport | null = null;
-    if (percentage < SKILL_ASSESSMENT_PASS_PERCENTAGE) {
+    if (!passed) {
       try {
         guidanceReport = await this.guidanceReport.generate({
           report_type: 'emerging',
@@ -1053,6 +1090,38 @@ export class SkillAssessmentService {
     return maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
   }
 
+  private toWeightedSectionScore(
+    mcqScore: number,
+    mcqMaxScore: number,
+    textScore: number,
+    textMaxScore: number,
+    mcqWeight: number,
+  ): { score: number; maxScore: number; percentage: number } {
+    const hasMcq = mcqMaxScore > 0;
+    const hasText = textMaxScore > 0;
+    if (!hasMcq && !hasText) {
+      return { score: 0, maxScore: 0, percentage: 0 };
+    }
+
+    const mcqPercentage = this.toPercentage(mcqScore, mcqMaxScore);
+    const textPercentage = this.toPercentage(textScore, textMaxScore);
+    let percentage: number;
+
+    if (hasMcq && hasText) {
+      percentage = Math.round(
+        mcqPercentage * mcqWeight + textPercentage * (1 - mcqWeight),
+      );
+    } else {
+      percentage = hasMcq ? mcqPercentage : textPercentage;
+    }
+
+    return {
+      score: percentage,
+      maxScore: 100,
+      percentage,
+    };
+  }
+
   private levelAbove(level: VerifiedLevel): VerifiedLevel | null {
     const levels = Object.values(VerifiedLevel);
     const index = levels.indexOf(level);
@@ -1077,6 +1146,8 @@ export class SkillAssessmentService {
     belowLevelPercentage: number,
     overallPercentage: number,
     claimedLevel: VerifiedLevel,
+    primaryMcqGatePassed = true,
+    aboveProbeMcqGatePassed = true,
   ): VerifiedLevel {
     if (overallPercentage < 55) {
       return LEVEL_ORDER[claimedLevel] > LEVEL_ORDER[VerifiedLevel.JUNIOR]
@@ -1087,12 +1158,16 @@ export class SkillAssessmentService {
     if (
       claimedPercentage >= 95 &&
       aboveLevelPercentage >= 70 &&
+      aboveProbeMcqGatePassed &&
       this.levelAbove(claimedLevel)
     ) {
       return this.levelAbove(claimedLevel) as VerifiedLevel;
     }
 
-    if (claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE) {
+    if (
+      claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE &&
+      primaryMcqGatePassed
+    ) {
       return claimedLevel;
     }
 
