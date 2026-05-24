@@ -242,23 +242,39 @@ export const COMPENSATION_CURRENCY = [
 
 export const ONBOARDING_TRACK_TO_ASSESSMENT_TRACK: Record<string, string> = {
   product_designer: 'design_ui_ux',
-  frontend_developer: 'software_engineering',
+  frontend_developer: 'frontend_engineering',
   data_analyst: 'data_analytics',
   cloud_devops: 'devops_cloud',
   product_manager: 'product_management',
-  backend_developer: 'software_engineering',
-  mobile_developer: 'software_engineering',
+  backend_developer: 'backend_engineering',
+  mobile_developer: 'mobile_engineering',
   cybersecurity: 'devops_cloud',
   data_scientist: 'data_analytics',
 };
 
 export const SPECIALIZATIONS_BY_TRACK: Record<string, readonly string[]> = {
-  software_engineering: [
-    'frontend',
-    'backend',
-    'full_stack',
-    'mobile',
-    'embedded',
+  backend_engineering: [
+    'api_design',
+    'microservices',
+    'databases',
+    'distributed_systems',
+    'cloud_native',
+    'other',
+  ],
+  frontend_engineering: [
+    'web_apps',
+    'component_libraries',
+    'accessibility',
+    'performance',
+    'animations',
+    'other',
+  ],
+  mobile_engineering: [
+    'ios',
+    'android',
+    'cross_platform',
+    'react_native',
+    'flutter',
     'other',
   ],
   data_analytics: [
@@ -297,15 +313,34 @@ export const SPECIALIZATIONS_BY_TRACK: Record<string, readonly string[]> = {
 };
 
 export const TOOLS_BY_TRACK: Record<string, readonly string[]> = {
-  software_engineering: [
+  backend_engineering: [
     'git',
-    'github',
-    'vscode',
-    'react',
+    'docker',
+    'postgresql',
+    'redis',
+    'aws',
     'node',
     'python',
-    'docker',
-    'aws',
+    'go',
+    'other',
+  ],
+  frontend_engineering: [
+    'git',
+    'react',
+    'vue',
+    'typescript',
+    'webpack',
+    'figma',
+    'vscode',
+    'other',
+  ],
+  mobile_engineering: [
+    'git',
+    'xcode',
+    'android_studio',
+    'react_native',
+    'flutter',
+    'firebase',
     'other',
   ],
   data_analytics: [

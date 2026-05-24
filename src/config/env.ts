@@ -91,6 +91,9 @@ export const env = createEnv({
 
     ANTHROPIC_API_KEY: z.string().min(1).optional(),
     ANTHROPIC_MODEL: z.string().default('claude-sonnet-4-5'),
+
+    GEMINI_API_KEY: z.string().min(1).optional(),
+    GEMINI_MODEL: z.string().default('gemini-3.5-flash'),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,
