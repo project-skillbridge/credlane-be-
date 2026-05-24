@@ -943,6 +943,7 @@ function makeAssessmentResult(
     score: 8,
     max_score: 10,
     percentage: 80,
+    claimed_percentage: 80,
     tier: null,
     validated_level: null,
     guidance_report: null,
