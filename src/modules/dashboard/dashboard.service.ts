@@ -68,6 +68,7 @@ export class DashboardService {
 
     return {
       firstName: user.first_name,
+      avatarUrl: user.avatar_url,
       goal: profile?.goal ?? null,
       profileCompletionPercentage: this.calculateProfileCompletion(
         user,
