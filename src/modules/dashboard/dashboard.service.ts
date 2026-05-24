@@ -262,6 +262,10 @@ export class DashboardService {
       return 0;
     }
 
+    if (this.isOnboardingComplete(user, profile)) {
+      return 100;
+    }
+
     const onboardingStep = Math.max(
       0,
       Math.min(profile.onboarding_step ?? 0, 3),
