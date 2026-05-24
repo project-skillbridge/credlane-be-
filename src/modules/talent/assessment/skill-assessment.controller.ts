@@ -131,8 +131,10 @@ export class SkillAssessmentController {
   @ApiOperation({
     summary: 'Submit skill assessment answers',
     description:
-      'Scores MCQs immediately, sends text answers to the AI rubric layer, computes weighted section scores (MCQ 40%, text 60%), ' +
-      'writes validated_level to the talent profile, and returns whether the Stage 2 pass gate was met. Returns guidance report based on evaluation.',
+      'Scores MCQs immediately, sends text answers to the AI rubric layer, computes weighted section scores (MCQ 40%, text 60%). ' +
+      'Overall below 50% is a total failure: the attempt is saved, profile status is set to not_ready, and validated_level / skill completion are not updated. ' +
+      'Scores at or above 50% write validated_level, set skill_assessment_completed_at, and update pass status. ' +
+      'Returns a guidance report when the pass gate was not met.',
   })
   @ApiOkResponse({
     description: 'Assessment scored and validated_level written',

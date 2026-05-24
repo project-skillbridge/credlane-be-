@@ -146,6 +146,7 @@ export class AdvancedAssessmentController {
       '(short text + LT-1 + LT-2: 4 dims 0\u20133, max 12; LT-3: 2 dims 0\u20134, max 8). ' +
       'Computes final percentage with weighted sections: MCQ 30%, text 70%. ' +
       '\u226575% plus at least one correct MCQ \u2192 Job Ready + employer pool profile; otherwise Emerging + 14-day retake gate. ' +
+      'Below 50% overall is a total failure (attempt saved, profile not completed, no retake lock). ' +
       'Writes one assessment_scores row per question. ' +
       'Returns 422 LT2_NOT_SUBMITTED if /lt2-submit was never called for this session. ' +
       'Accepts submissions on expired sessions (auto_submitted=true, unanswered questions scored 0). ' +

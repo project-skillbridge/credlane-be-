@@ -9,6 +9,7 @@ import {
 } from 'typeorm';
 
 export enum ScoreThresholdGroup {
+  GENERAL = 'general',
   BELOW_50 = 'below_50',
   BETWEEN_50_75 = 'between_50_75',
   ABOVE_75 = 'above_75',

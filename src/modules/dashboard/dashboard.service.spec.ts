@@ -556,6 +556,7 @@ describe('DashboardService', () => {
           percentage: 80,
           validatedLevel: VerifiedLevel.MID,
           passed: true,
+          failed: false,
           completedAt: '2026-05-02T00:00:00.000Z',
           attemptsUsed: 1,
           attemptsRemaining: 2,
@@ -567,7 +568,7 @@ describe('DashboardService', () => {
     });
   });
 
-  it('keeps skill available and unlocks advanced after a failed skill attempt with retries left', async () => {
+  it('keeps skill available and locks advanced after a sub-50% skill attempt with retries left', async () => {
     const talentUser = makeUser({
       first_name: 'Jane',
       role: UserRole.TALENT,
@@ -582,9 +583,9 @@ describe('DashboardService', () => {
       education_level: 'bachelors',
       claimed_level: VerifiedLevel.MID,
       personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
-      skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
-      validated_level: VerifiedLevel.JUNIOR,
-      status: TalentProfileStatus.IN_PROGRESS,
+      skill_assessment_completed_at: null,
+      validated_level: null,
+      status: TalentProfileStatus.NOT_READY,
     });
 
     (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
@@ -613,13 +614,14 @@ describe('DashboardService', () => {
         }),
         expect.objectContaining({
           key: 'advanced',
-          status: DashboardJourneyStatus.AVAILABLE,
+          status: DashboardJourneyStatus.LOCKED,
         }),
       ]),
     );
     expect(home.performance.skill).toMatchObject({
       percentage: 45,
       passed: false,
+      failed: true,
     });
   });
 
@@ -941,6 +943,7 @@ function makeAssessmentResult(
     score: 8,
     max_score: 10,
     percentage: 80,
+    claimed_percentage: 80,
     tier: null,
     validated_level: null,
     guidance_report: null,
