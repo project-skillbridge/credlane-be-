@@ -443,6 +443,7 @@ export class AdvancedAssessmentService {
     );
 
     let mcqRawScore = 0;
+    let mcqTotal = 0;
     const textInputs: TextAnswerInput[] = [];
     const responsesToSave: Partial<AssessmentResponse>[] = [];
     // Map keyed by question_id so each text answer scored by the AI rubric
@@ -457,6 +458,7 @@ export class AdvancedAssessmentService {
         question.question_type === QuestionType.MULTI_PICK;
 
       if (isMcq) {
+        mcqTotal++;
         const correct = this.scoreMcq(question, submitted?.answer ?? null);
         mcqRawScore += correct ? 1 : 0;
         responsesToSave.push({
@@ -537,7 +539,14 @@ export class AdvancedAssessmentService {
     const percentage =
       maxScore > 0 ? Math.round((totalRawScore / maxScore) * 100) : 0;
 
-    const tier = this.resolveTier(percentage);
+    const mcqGatePassed = mcqTotal === 0 || mcqRawScore > 0;
+    if (mcqTotal === 0) {
+      this.logger.warn(
+        `Advanced assessment MCQ gate bypassed: no MCQs attempt=${attempt.id} user=${userId}`,
+      );
+    }
+
+    const tier = this.resolveTier(percentage, mcqGatePassed);
     const integrityConfidence = this.resolveIntegrityConfidence(
       attempt.tab_switch_count,
       attempt.copy_paste_count ?? 0,
@@ -1046,8 +1055,11 @@ export class AdvancedAssessmentService {
     return userAnswer === correctAnswer;
   }
 
-  private resolveTier(percentage: number): AssessmentTier {
-    if (percentage >= 75) return AssessmentTier.JOB_READY;
+  private resolveTier(
+    percentage: number,
+    mcqGatePassed = true,
+  ): AssessmentTier {
+    if (percentage >= 75 && mcqGatePassed) return AssessmentTier.JOB_READY;
     return AssessmentTier.EMERGING;
   }
 

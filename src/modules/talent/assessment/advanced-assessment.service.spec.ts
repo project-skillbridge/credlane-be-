@@ -523,6 +523,22 @@ describe('AdvancedAssessmentService', () => {
       );
     });
 
+    it('keeps tier emerging when text scores are high but all MCQs are wrong', async () => {
+      rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
+      const dto = makeSubmitDto();
+      dto.answers = dto.answers.map((answer: Record<string, unknown>) =>
+        String(answer.question_id).startsWith('mcq-')
+          ? { ...answer, answer: 'Option C' }
+          : answer,
+      );
+
+      const result = await service.submit(userId, dto as never);
+
+      expect(result.percentage).toBeGreaterThanOrEqual(75);
+      expect(result.tier).toBe(AssessmentTier.EMERGING);
+      expect(employerPoolProfileService.upsert).not.toHaveBeenCalled();
+    });
+
     it('places tier at Emerging when pct < 75%', async () => {
       // Need ~60% of 181 = 109; choose 100/176 text raw → MCQ also high
       rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(115, 176));
