@@ -342,9 +342,10 @@ describe('Advanced assessment (e2e)', () => {
         {
           provide: getRepositoryToken(AssessmentResult),
           useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
             save: jest
               .fn()
-              .mockImplementation((r) =>
+              .mockImplementation((r: Partial<AssessmentResult>) =>
                 Promise.resolve({ ...r, id: 'result-1' }),
               ),
             update: jest.fn().mockResolvedValue({ affected: 1 }),
@@ -404,41 +405,44 @@ describe('Advanced assessment (e2e)', () => {
         {
           provide: GuidanceReportService,
           useValue: {
-            generate: jest.fn().mockImplementation((input) =>
-              Promise.resolve({
-                report_type: input.report_type,
-                ai_summary:
-                  'You demonstrate practical problem solving and clear product intuition. Your growth opportunities currently lie in testing and communication.',
-                growth_insight:
-                  'Your recent assessments show steady progress in structured thinking. Focusing on testing and communication could improve your professional readiness.',
-                summary: 'Keep going.',
-                strength_ratings: [
-                  { item: 'Clear practical problem solving.', rating: 3 },
-                  { item: 'Good product intuition.', rating: 2 },
-                  { item: 'Structured answer flow.', rating: 2 },
-                ],
-                weak_area_ratings: [
-                  { item: 'Needs stronger testing habits.', rating: 2 },
-                  { item: 'Improve technical communication.', rating: 1 },
-                  { item: 'Build confidence under ambiguity.', rating: 1 },
-                ],
-                recommended_resources: [
-                  {
-                    title: 'NestJS Docs',
-                    provider: 'NestJS',
-                    url: 'https://docs.nestjs.com',
-                    tier: 'free',
-                    competency: 'Testing',
-                    reason: 'Track-aligned practice material.',
-                  },
-                ],
-                ...(input.report_type === 'emerging' && {
-                  retake_advice:
-                    'Review core concepts before the 14-day retake.',
-                }),
-                resource_page_url: '/resources',
-              }),
-            ),
+            generate: jest
+              .fn()
+              .mockImplementation(
+                (input: Parameters<GuidanceReportService['generate']>[0]) =>
+                  Promise.resolve({
+                    report_type: input.report_type,
+                    ai_summary:
+                      'You demonstrate practical problem solving and clear product intuition. Your growth opportunities currently lie in testing and communication.',
+                    growth_insight:
+                      'Your recent assessments show steady progress in structured thinking. Focusing on testing and communication could improve your professional readiness.',
+                    summary: 'Keep going.',
+                    strength_ratings: [
+                      { item: 'Clear practical problem solving.', rating: 3 },
+                      { item: 'Good product intuition.', rating: 2 },
+                      { item: 'Structured answer flow.', rating: 2 },
+                    ],
+                    weak_area_ratings: [
+                      { item: 'Needs stronger testing habits.', rating: 2 },
+                      { item: 'Improve technical communication.', rating: 1 },
+                      { item: 'Build confidence under ambiguity.', rating: 1 },
+                    ],
+                    recommended_resources: [
+                      {
+                        title: 'NestJS Docs',
+                        provider: 'NestJS',
+                        url: 'https://docs.nestjs.com',
+                        tier: 'free',
+                        competency: 'Testing',
+                        reason: 'Track-aligned practice material.',
+                      },
+                    ],
+                    ...(input.report_type === 'emerging' && {
+                      retake_advice:
+                        'Review core concepts before the 14-day retake.',
+                    }),
+                    resource_page_url: '/resources',
+                  }),
+              ),
           },
         },
         {

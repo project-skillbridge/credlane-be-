@@ -3,6 +3,7 @@
   "compilerOptions": {
     "target": "es2022",
     "lib": ["es2022"],
+    "rootDir": "..",
     "noEmit": true
   },
   "include": ["./**/*", "../src/**/*"]
