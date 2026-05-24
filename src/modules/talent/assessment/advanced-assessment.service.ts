@@ -2,6 +2,8 @@ import {
   BadRequestException,
   ConflictException,
   ForbiddenException,
+  forwardRef,
+  Inject,
   Injectable,
   Logger,
   NotFoundException,
@@ -46,7 +48,6 @@ import { EmployerPoolProfileService } from './employer-pool-profile.service';
 import {
   GenerateQuestionsInput,
   GeneratedQuestion,
-  GuidanceReport,
   QuestionGradingRubric,
   ScoredTextAnswer,
   TextAnswerInput,
@@ -77,6 +78,8 @@ import {
   meetsSkillQualityBenchmark,
   qualifiesForAdvancedFromSkillResult,
 } from './assessment-quality';
+import { AdvancedAssessmentQueueService } from './advanced-assessment-queue.service';
+import type { AdvancedAssessmentSubmitJobData } from './advanced-assessment-submit.types';
 
 const ADVANCED_ASSESSMENT_DURATION_MINUTES = 90;
 const RETAKE_GATE_DAYS = 14;
@@ -113,17 +116,9 @@ export interface AdvancedAssessmentSessionResult {
 }
 
 export interface AdvancedAssessmentSubmitResult {
-  status: string;
+  status: 'processing';
   message: string;
   session_id: string;
-  score: number;
-  max_score: number;
-  percentage: number;
-  tier: AssessmentTier;
-  failed: boolean;
-  integrity_confidence: string;
-  guidance_report?: GuidanceReport;
-  auto_submitted?: boolean;
 }
 
 export interface SubmitLt2Result {
@@ -175,6 +170,8 @@ export class AdvancedAssessmentService {
     private readonly questionGeneration: QuestionGenerationService,
     private readonly usersService: UsersService,
     private readonly notificationDispatch: NotificationDispatchService,
+    @Inject(forwardRef(() => AdvancedAssessmentQueueService))
+    private readonly submitQueue: AdvancedAssessmentQueueService,
   ) {}
 
   async start(userId: string): Promise<AdvancedAssessmentSessionResult> {
@@ -403,37 +400,82 @@ export class AdvancedAssessmentService {
     userId: string,
     dto: SubmitAdvancedAssessmentDto,
   ): Promise<AdvancedAssessmentSubmitResult> {
+    const { attempt, sessionQuestions } =
+      await this.validateSubmitForEnqueue(userId, dto);
+
+    const answerMap = new Map(
+      dto.answers.map((answer) => [answer.question_id, answer]),
+    );
+    for (const question of sessionQuestions) {
+      const isMcq =
+        question.question_type === QuestionType.SINGLE_PICK ||
+        question.question_type === QuestionType.MULTI_PICK;
+      if (isMcq) continue;
+      const submitted = answerMap.get(question.question_id);
+      const answer = submitted ? String(submitted.answer) : '';
+      this.assertTextLength(question, answer);
+    }
+
+    this.submitQueue.enqueue({
+      userId,
+      sessionId: dto.session_id,
+      answers: dto.answers.map((answer) => ({
+        question_id: answer.question_id,
+        answer: answer.answer,
+        time_spent_seconds: answer.time_spent_seconds,
+      })),
+    });
+
+    this.logger.log(
+      `Advanced assessment submit queued: attempt=${attempt.id} user=${userId}`,
+    );
+
+    return {
+      status: 'processing',
+      message: SuccessMessages.ADVANCED_ASSESSMENT.QUEUED,
+      session_id: attempt.id,
+    };
+  }
+
+  /**
+   * Background worker entry: scoring, persistence, guidance, employer pool,
+   * notifications. Idempotent when the attempt is already completed.
+   */
+  async processSubmitJob(data: AdvancedAssessmentSubmitJobData): Promise<void> {
     const profile = await this.talentProfileRepo.findOne({
-      where: { user_id: userId },
+      where: { user_id: data.userId },
     });
     if (!profile) {
-      throw new NotFoundException(
-        ErrorMessages.ADVANCED_ASSESSMENT.PROFILE_NOT_FOUND,
+      this.logger.warn(
+        `Advanced submit job skipped: profile not found user=${data.userId}`,
       );
+      return;
     }
-    this.assertAdvancedRetakeUnlocked(profile);
 
     const attempt = await this.attemptRepo.findOne({
       where: {
-        id: dto.session_id,
+        id: data.sessionId,
         talent_profile_id: profile.id,
         assessment_type: AssessmentType.ADVANCED,
       },
     });
     if (!attempt) {
-      throw new NotFoundException(
-        ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_NOT_FOUND,
+      this.logger.warn(
+        `Advanced submit job skipped: attempt not found session=${data.sessionId}`,
       );
+      return;
     }
     if (attempt.completed_at) {
-      throw new BadRequestException(
-        ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_ALREADY_SUBMITTED,
+      this.logger.log(
+        `Advanced submit job skipped: attempt already completed session=${data.sessionId}`,
       );
+      return;
     }
     if (attempt.force_submitted) {
-      throw new BadRequestException(
-        ErrorMessages.ADVANCED_ASSESSMENT.SESSION_VOIDED,
+      this.logger.warn(
+        `Advanced submit job skipped: session voided session=${data.sessionId}`,
       );
+      return;
     }
 
     const isExpired = attempt.expires_at
@@ -447,10 +489,6 @@ export class AdvancedAssessmentService {
       );
     }
 
-    // LT-3 must be present in the session payload before final submission.
-    // It only gets there via POST /lt2-submit. If the client tried to skip
-    // it, refuse — partial scoring would silently count LT-3 as 0/8 and
-    // contaminate the tier.
     const hasReflectionSlot = sessionQuestions.some(
       (question) => question.slot_type === SlotType.REFLECTION,
     );
@@ -461,8 +499,10 @@ export class AdvancedAssessmentService {
       });
     }
 
+    const userId = data.userId;
+    const dtoAnswers = data.answers;
     const answerMap = new Map(
-      dto.answers.map((answer) => [answer.question_id, answer]),
+      dtoAnswers.map((answer) => [answer.question_id, answer]),
     );
 
     let mcqRawScore = 0;
@@ -497,7 +537,6 @@ export class AdvancedAssessmentService {
       }
 
       const answer = submitted ? String(submitted.answer) : '';
-      this.assertTextLength(question, answer);
 
       const isLongText = question.block === 'long_text';
       const abnormal =
@@ -675,7 +714,10 @@ export class AdvancedAssessmentService {
     });
 
     if (resultLookup && guidanceInput) {
-      this.generateGuidanceReportAsync(resultLookup, guidanceInput);
+      const guidanceReport = await this.guidanceReport.generate(guidanceInput);
+      await this.resultRepo.update(resultLookup, {
+        guidance_report: { ...guidanceReport },
+      });
     }
 
     if (!failed && tier === AssessmentTier.JOB_READY && personalContext) {
@@ -725,36 +767,71 @@ export class AdvancedAssessmentService {
       );
     }
 
-    return {
-      status: failed ? 'failed' : 'success',
-      message: failed
-        ? SuccessMessages.ADVANCED_ASSESSMENT.FAILED
-        : SuccessMessages.ADVANCED_ASSESSMENT.SUBMITTED,
-      session_id: attempt.id,
-      score: Math.round(totalRawScore),
-      max_score: maxScore,
-      percentage,
-      tier,
-      failed,
-      integrity_confidence: integrityConfidence,
-      ...(isExpired && { auto_submitted: true }),
-    };
+    if (isExpired) {
+      this.logger.log(
+        `Advanced assessment auto-submitted on expired session: attempt=${attempt.id}`,
+      );
+    }
   }
 
-  private generateGuidanceReportAsync(
-    resultLookup: { id: string } | { attempt_id: string },
-    input: Parameters<GuidanceReportService['generate']>[0],
-  ): void {
-    void this.guidanceReport
-      .generate(input)
-      .then((guidanceReport) =>
-        this.resultRepo.update(resultLookup, {
-          guidance_report: { ...guidanceReport },
-        }),
-      )
-      .catch((error) => {
-        this.logger.warn(`Guidance report generation failed: ${String(error)}`);
+  private async validateSubmitForEnqueue(
+    userId: string,
+    dto: SubmitAdvancedAssessmentDto,
+  ): Promise<{
+    attempt: AssessmentAttempt;
+    sessionQuestions: AdvancedAssessmentGeneratedQuestion[];
+  }> {
+    const profile = await this.talentProfileRepo.findOne({
+      where: { user_id: userId },
+    });
+    if (!profile) {
+      throw new NotFoundException(
+        ErrorMessages.ADVANCED_ASSESSMENT.PROFILE_NOT_FOUND,
+      );
+    }
+    this.assertAdvancedRetakeUnlocked(profile);
+
+    const attempt = await this.attemptRepo.findOne({
+      where: {
+        id: dto.session_id,
+        talent_profile_id: profile.id,
+        assessment_type: AssessmentType.ADVANCED,
+      },
+    });
+    if (!attempt) {
+      throw new NotFoundException(
+        ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_NOT_FOUND,
+      );
+    }
+    if (attempt.completed_at) {
+      throw new BadRequestException(
+        ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_ALREADY_SUBMITTED,
+      );
+    }
+    if (attempt.force_submitted) {
+      throw new BadRequestException(
+        ErrorMessages.ADVANCED_ASSESSMENT.SESSION_VOIDED,
+      );
+    }
+
+    const sessionQuestions = this.readSessionQuestions(attempt);
+    if (sessionQuestions.length === 0) {
+      throw new BadRequestException(
+        ErrorMessages.ADVANCED_ASSESSMENT.SESSION_CORRUPT,
+      );
+    }
+
+    const hasReflectionSlot = sessionQuestions.some(
+      (question) => question.slot_type === SlotType.REFLECTION,
+    );
+    if (!hasReflectionSlot) {
+      throw new UnprocessableEntityException({
+        error: 'LT2_NOT_SUBMITTED',
+        message: ErrorMessages.ADVANCED_ASSESSMENT.LT2_NOT_SUBMITTED,
       });
+    }
+
+    return { attempt, sessionQuestions };
   }
 
   /**

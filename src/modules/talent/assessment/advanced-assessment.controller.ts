@@ -142,20 +142,16 @@ export class AdvancedAssessmentController {
   @ApiOperation({
     summary: 'Submit advanced assessment answers',
     description:
-      'Scores MCQs immediately (1/0). Passes text answers to the AI rubric layer ' +
-      '(short text + LT-1 + LT-2: 4 dims 0\u20133, max 12; LT-3: 2 dims 0\u20134, max 8). ' +
-      'Computes final percentage with weighted sections: MCQ 30%, text 70%. ' +
-      '\u226575% plus at least one correct MCQ \u2192 Job Ready + employer pool profile; otherwise Emerging + 14-day retake gate. ' +
-      'Below 50% overall is a total failure (attempt saved, profile not completed, no retake lock). ' +
-      'Writes one assessment_scores row per question. ' +
-      'Returns 422 LT2_NOT_SUBMITTED if /lt2-submit was never called for this session. ' +
-      'Accepts submissions on expired sessions (auto_submitted=true, unanswered questions scored 0). ' +
-      'Guidance report generation runs asynchronously after the result is persisted; poll GET /dashboard/home ' +
-      'for performance.guidanceReport and advancedRetake metadata.',
+      'Validates the session and enqueues background scoring (MCQ + AI rubric, weighted 30/70, tiering, persistence). ' +
+      'Returns immediately with status=processing and session_id. ' +
+      'Poll GET /dashboard/home for performance.advanced (score, tier, guidanceReport when ready). ' +
+      'Optional: GET /session/:id until completed_at is set. ' +
+      'Returns 422 LT2_NOT_SUBMITTED if /lt2-submit was never called. ' +
+      'Duplicate submits while a job is in flight are deduped by attempt id.',
   })
   @ApiOkResponse({
     description:
-      'Assessment scored and tier written. The immediate response does not include guidance_report; dashboard exposes it after background generation completes.',
+      'Submission accepted for background processing (status=processing). Scores and tier appear on dashboard after the worker completes.',
   })
   @ApiNotFoundResponse({ description: 'Profile or session not found' })
   @ApiForbiddenResponse({ description: 'Not a talent user' })
