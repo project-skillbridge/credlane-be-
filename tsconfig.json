@@ -4,8 +4,8 @@
     "moduleResolution": "nodenext",
     "resolvePackageJsonExports": true,
     "resolvePackageJsonImports": true,
-    "target": "ES2023",
-    "lib": ["ES2023"],
+    "target": "esnext",
+    "lib": ["esnext"],
     "types": ["node", "jest"],
     "outDir": "./dist",
     "paths": {
