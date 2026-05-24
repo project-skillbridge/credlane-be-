@@ -161,6 +161,13 @@ export class DashboardHomeResponseDto {
   @ApiProperty({ example: 'Jane' })
   firstName: string;
 
+  @ApiPropertyOptional({
+    example: 'Get a remote job',
+    nullable: true,
+    description: "The talent's stated career goal.",
+  })
+  goal: string | null;
+
   @ApiProperty({ example: 72, minimum: 0, maximum: 100 })
   profileCompletionPercentage: number;
 
@@ -180,7 +187,8 @@ export class DashboardHomeResponseDto {
 
   @ApiProperty({
     example: 3,
-    description: 'Maximum skill assessment attempts allowed before advanced assessment is required.',
+    description:
+      'Maximum skill assessment attempts allowed before advanced assessment is required.',
   })
   skillMaxAttempts: number;
 
@@ -224,6 +232,7 @@ export type DashboardPerformance = {
 
 export type DashboardHomeResponse = {
   firstName: string;
+  goal: string | null;
   profileCompletionPercentage: number;
   journeyOverview: JourneyOverviewItemDto[];
   performance: DashboardPerformance;
