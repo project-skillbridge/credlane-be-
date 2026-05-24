@@ -64,6 +64,8 @@ export interface SkillAssessmentQuestion {
   question_type: QuestionType;
   question_text: string;
   options: string[] | null;
+  minLength?: number;
+  maxLength?: number;
 }
 
 type SkillAssessmentSessionQuestion = SkillAssessmentQuestion & {
@@ -843,10 +845,7 @@ export class SkillAssessmentService {
     const texts = bankQuestions.filter((q) => !this.isPickQuestion(q));
 
     const neededMcqs = Math.max(0, SKILL_ASSESSMENT_MCQ_COUNT - mcqs.length);
-    const neededTexts = Math.max(
-      0,
-      SKILL_ASSESSMENT_TEXT_COUNT - texts.length,
-    );
+    const neededTexts = Math.max(0, SKILL_ASSESSMENT_TEXT_COUNT - texts.length);
 
     if (neededMcqs === 0 && neededTexts === 0) {
       return bankQuestions;
@@ -966,11 +965,16 @@ export class SkillAssessmentService {
   private toPublicSessionQuestions(
     questions: SkillAssessmentSessionQuestion[],
   ): SkillAssessmentQuestion[] {
-    return questions.map(({ correct_answer: _ignored, ...question }) => ({
-      ...question,
-      block:
-        question.block ?? this.blockForQuestionType(question.question_type),
-    }));
+    return questions.map(({ correct_answer: _ignored, ...question }) => {
+      const block =
+        question.block ?? this.blockForQuestionType(question.question_type);
+      const bounds = textLengthBoundsForBlock(block);
+      return {
+        ...question,
+        block,
+        ...(bounds && { minLength: bounds.min, maxLength: bounds.max }),
+      };
+    });
   }
 
   private blockForQuestionType(
