@@ -215,6 +215,7 @@ describe('Dashboard home (e2e)', () => {
         expect(res.body.message).toBe('success');
         expect(res.body.data).toEqual({
           firstName: 'Casey',
+          goal: 'land_first_role',
           profileCompletionPercentage: 100,
           journeyOverview: [
             {

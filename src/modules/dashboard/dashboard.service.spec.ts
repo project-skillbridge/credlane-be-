@@ -95,6 +95,7 @@ describe('DashboardService', () => {
 
     await expect(service.getHome(talentUser.id)).resolves.toEqual({
       firstName: 'Casey',
+      goal: null,
       profileCompletionPercentage: 0,
       journeyOverview: [
         {
@@ -146,6 +147,7 @@ describe('DashboardService', () => {
 
     await expect(service.getHome(talentUser.id)).resolves.toEqual({
       firstName: 'Casey',
+      goal: 'land_first_role',
       profileCompletionPercentage: 56,
       journeyOverview: [
         {
@@ -198,6 +200,7 @@ describe('DashboardService', () => {
 
     await expect(service.getHome(talentUser.id)).resolves.toEqual({
       firstName: 'Casey',
+      goal: 'land_first_role',
       profileCompletionPercentage: 64,
       journeyOverview: [
         {
@@ -518,6 +521,7 @@ describe('DashboardService', () => {
 
     await expect(service.getHome(talentUser.id)).resolves.toEqual({
       firstName: 'Jane',
+      goal: 'land_first_role',
       profileCompletionPercentage: 100,
       journeyOverview: [
         {
