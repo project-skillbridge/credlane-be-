@@ -17,6 +17,7 @@ export interface RubricScore extends RubricDimensions {
   total: number; // sum of dimensions (max 12, or max 8 for LT-3)
   feedback: string; // one-sentence rationale
   pending?: boolean; // true when AI failed and a backfill should re-score this answer
+  quality_gate?: boolean; // true when deterministic validation rejected the answer before AI scoring
 }
 
 export interface QuestionGradingRubric {

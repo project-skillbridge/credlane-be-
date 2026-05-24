@@ -39,6 +39,11 @@ export class RubricScoringService {
   }
 
   private async scoreOne(input: TextAnswerInput): Promise<ScoredTextAnswer> {
+    const lowQualityScore = this.lowQualityScore(input);
+    if (lowQualityScore) {
+      return lowQualityScore;
+    }
+
     if (input.grading_rubric && !input.is_lt3) {
       return this.scoreWithQuestionRubric(input);
     }
@@ -200,6 +205,48 @@ Rules:
       raw_score: 0,
       max_score: maxScore,
     };
+  }
+
+  private lowQualityScore(input: TextAnswerInput): ScoredTextAnswer | null {
+    if (!this.isLowQualityAnswer(input.answer)) return null;
+
+    return {
+      question_id: input.question_id,
+      rubric: {
+        relevance: 0,
+        reasoning: 0,
+        specificity: 0,
+        completeness: 0,
+        total: 0,
+        feedback: 'No meaningful answer detected.',
+        quality_gate: true,
+      },
+      raw_score: 0,
+      max_score: this.maxScoreFor(input),
+    };
+  }
+
+  private maxScoreFor(input: TextAnswerInput): number {
+    if (input.grading_rubric && !input.is_lt3) return MAX_SCORE_GUIDE;
+    return input.is_lt3 ? MAX_SCORE_LT3 : MAX_SCORE_FULL;
+  }
+
+  private isLowQualityAnswer(answer: string): boolean {
+    const normalized = answer.trim().toLowerCase();
+    if (!normalized) return true;
+
+    const alphanumeric = normalized.replace(/[^a-z0-9]/g, '');
+    if (alphanumeric.length < 12) return true;
+    if (/(.)\1{7,}/.test(alphanumeric)) return true;
+
+    const tokens = normalized.match(/[a-z0-9]+/g) ?? [];
+    const meaningfulTokens = tokens.filter((token) => token.length >= 3);
+    if (meaningfulTokens.length < 4) return true;
+
+    const uniqueTokens = new Set(meaningfulTokens);
+    if (uniqueTokens.size <= 2) return true;
+
+    return uniqueTokens.size / meaningfulTokens.length < 0.3;
   }
 
   private clampScore(score: number, maxScore: number): number {
