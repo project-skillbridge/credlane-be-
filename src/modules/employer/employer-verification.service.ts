@@ -141,9 +141,9 @@ export class EmployerVerificationService {
    */
   async isWebsiteResolvable(
     url: string | null | undefined,
-    redirectCount = 0,
+    redirectDepth = 0,
   ): Promise<boolean> {
-    if (redirectCount > EmployerVerificationService.MAX_REDIRECTS) return false;
+    if (redirectDepth > EmployerVerificationService.MAX_REDIRECTS) return false;
     if (!url) return false;
 
     const normalizedUrl = url.match(/^https?:\/\//) ? url : `https://${url}`;
@@ -205,7 +205,7 @@ export class EmployerVerificationService {
         if (location) {
           return this.isWebsiteResolvable(
             new URL(location, parsed).toString(),
-            redirectCount + 1,
+            redirectDepth + 1,
           );
         }
         return false;
@@ -228,7 +228,7 @@ export class EmployerVerificationService {
           if (loc) {
             return this.isWebsiteResolvable(
               new URL(loc, parsed).toString(),
-              redirectCount + 1,
+              redirectDepth + 1,
             );
           }
           return false;
