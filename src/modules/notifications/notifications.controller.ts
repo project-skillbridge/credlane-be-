@@ -53,7 +53,7 @@ export class NotificationsController {
     @CurrentUser('sub') userId: string,
   ): Promise<UnreadCountResponseDto> {
     const unreadCount = await this.notificationsService.countUnread(userId);
-    return { unreadCount };
+    return { unread_count: unreadCount };
   }
 
   @Patch('read-all')

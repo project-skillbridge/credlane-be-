@@ -51,12 +51,12 @@ export interface AuthUser {
   role: UserRole;
   track?: string | null;
   is_verified: boolean;
-  onboardingComplete: boolean;
+  onboarding_complete: boolean;
 }
 
 export interface AuthTokens {
-  accessToken: string;
-  refreshToken: string;
+  access_token: string;
+  refresh_token: string;
 }
 
 export interface AuthSession {
@@ -164,7 +164,7 @@ export class AuthService {
       ? user
       : await this.usersService.markVerified(user.id);
     const tokens = await this.signTokens(verifiedUser);
-    await this.persistRefreshToken(verifiedUser.id, tokens.refreshToken);
+    await this.persistRefreshToken(verifiedUser.id, tokens.refresh_token);
 
     return {
       message: SuccessMessages.AUTH.EMAIL_VERIFIED,
@@ -410,7 +410,7 @@ export class AuthService {
     }
 
     const tokens = await this.signTokens(user);
-    const nextHash = await argon2.hash(tokens.refreshToken);
+    const nextHash = await argon2.hash(tokens.refresh_token);
     const rotated = await this.usersService.rotateRefreshTokenHash(
       user.id,
       user.refreshTokenHash,
@@ -509,7 +509,7 @@ export class AuthService {
 
   /** Post-login redirect based on the user's persisted role. */
   private getPostLoginRedirectPath(user: AuthUser): string {
-    if (!user.onboardingComplete) {
+    if (!user.onboarding_complete) {
       switch (user.role) {
         case UserRole.TALENT:
           return '/talent/onboarding';
@@ -534,7 +534,7 @@ export class AuthService {
 
   private async issueTokens(user: User, message: string): Promise<AuthResult> {
     const tokens = await this.signTokens(user);
-    await this.persistRefreshToken(user.id, tokens.refreshToken);
+    await this.persistRefreshToken(user.id, tokens.refresh_token);
 
     return {
       message,
@@ -550,7 +550,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       role: user.role,
-      onboardingComplete: user.onboarding_complete,
+      onboarding_complete: user.onboarding_complete,
     };
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(
@@ -569,8 +569,8 @@ export class AuthService {
       ),
     ]);
     return {
-      accessToken,
-      refreshToken,
+      access_token: accessToken,
+      refresh_token: refreshToken,
     };
   }
 
@@ -593,7 +593,7 @@ export class AuthService {
       country: user.country,
       role: user.role,
       is_verified: user.is_verified,
-      onboardingComplete: user.onboarding_complete,
+      onboarding_complete: user.onboarding_complete,
     };
   }
 }

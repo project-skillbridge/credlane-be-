@@ -13,7 +13,7 @@ export interface JwtPayload {
   sub: string;
   email: string;
   role: UserRole;
-  onboardingComplete: boolean;
+  onboarding_complete: boolean;
 }
 
 const cookieExtractor = (request: Request): string | null =>
@@ -41,7 +41,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       sub: user.id,
       email: user.email,
       role: user.role,
-      onboardingComplete: user.onboarding_complete,
+      onboarding_complete: user.onboarding_complete,
     };
   }
 }

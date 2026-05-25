@@ -105,9 +105,9 @@ export class NotificationsService {
       title: row.title,
       body: row.body,
       data: row.data,
-      isRead: row.read_at != null,
-      readAt: row.read_at?.toISOString() ?? null,
-      createdAt: row.created_at.toISOString(),
+      is_read: row.read_at != null,
+      read_at: row.read_at?.toISOString() ?? null,
+      created_at: row.created_at.toISOString(),
     };
   }
 }

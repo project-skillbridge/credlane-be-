@@ -67,8 +67,8 @@ export interface SkillAssessmentQuestion {
   question_type: QuestionType;
   question_text: string;
   options: string[] | null;
-  minLength?: number;
-  maxLength?: number;
+  min_length?: number;
+  max_length?: number;
 }
 
 type SkillAssessmentSessionQuestion = SkillAssessmentQuestion & {
@@ -1057,7 +1057,7 @@ export class SkillAssessmentService {
       return {
         ...question,
         block,
-        ...(bounds && { minLength: bounds.min, maxLength: bounds.max }),
+        ...(bounds && { min_length: bounds.min, max_length: bounds.max }),
       };
     });
   }
