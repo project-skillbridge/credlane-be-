@@ -39,3 +39,67 @@ describe('verification email template', () => {
     expect(compactHtml).not.toContain('15 minutes');
   });
 });
+
+describe('job ready matches digest email template', () => {
+  it('renders employer weekly digest copy and discovery CTA', () => {
+    const html = substituteMailTemplate(
+      loadMailTemplateFile('job-ready-matches-digest.html'),
+      {
+        name: 'Jane',
+        matchCount: '2',
+        matchCountSuffix: 'es',
+        summaryLine:
+          '2 new Job Ready candidates match your saved hiring preferences this week.',
+        discoveryUrl: 'https://example.com/employer/discovery/candidates',
+        logoUrl: 'https://example.com/logo.png',
+        supportEmail: 'support@example.com',
+        unsubscribeUrl: 'https://example.com/email-preferences',
+        year: '2026',
+      },
+    );
+
+    const compactHtml = html.replace(/\s+/g, ' ');
+
+    expect(compactHtml).toContain(
+      'New Job Ready candidates match your preferences',
+    );
+    expect(compactHtml).toContain('View matching candidates');
+    expect(compactHtml).toContain(
+      '2 new Job Ready candidates match your saved hiring preferences this week.',
+    );
+    expect(compactHtml).toContain('https://example.com/employer/discovery/candidates');
+  });
+
+  it('renders singular form for one match', () => {
+    const html = substituteMailTemplate(
+      loadMailTemplateFile('job-ready-matches-digest.html'),
+      {
+        name: 'Jane',
+        matchCount: '1',
+        matchCountSuffix: '',
+        summaryLine:
+          '1 new Job Ready candidate matches your saved hiring preferences this week.',
+        discoveryUrl: 'https://example.com/employer/discovery/candidates',
+        logoUrl: 'https://example.com/logo.png',
+        supportEmail: 'support@example.com',
+        unsubscribeUrl: 'https://example.com/email-preferences',
+        year: '2026',
+      },
+    );
+
+    const compactHtml = html.replace(/\s+/g, ' ');
+
+    expect(compactHtml).toContain(
+      'New Job Ready candidates match your preferences',
+    );
+    expect(compactHtml).toContain('View matching candidates');
+    expect(compactHtml).toContain(
+      '1 new Job Ready candidate matches your saved hiring preferences this week.',
+    );
+    expect(compactHtml).toContain(
+      'new Job Ready match for your hiring preferences',
+    );
+    expect(compactHtml).not.toContain('new Job Ready matches for your hiring');
+    expect(compactHtml).toContain('https://example.com/employer/discovery/candidates');
+  });
+});

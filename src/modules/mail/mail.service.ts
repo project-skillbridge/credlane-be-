@@ -5,6 +5,7 @@ import { loadMailTemplateFile, substituteMailTemplate } from './mail-templates';
 import type {
   AdvancedRetakeAvailableEmailPayload,
   AssessmentPerformanceEmailPayload,
+  JobReadyMatchesDigestEmailPayload,
   PasswordResetEmailPayload,
   SendMailOptions,
 } from './mail.types';
@@ -165,6 +166,44 @@ export class MailService {
     return this.send({
       to: params.to,
       subject: 'You can retake your advanced assessment',
+      text,
+      html,
+    });
+  }
+
+  async sendJobReadyMatchesDigest(params: JobReadyMatchesDigestEmailPayload) {
+    const base = env.FRONTEND_URL.replace(/\/$/, '');
+    const logoUrl =
+      env.EMAIL_LOGO_URL ??
+      'https://placehold.co/140x40/1f5f6b/ffffff/png?text=SkillBridge';
+    const discoveryUrl = `${base}/employer/discovery/candidates`;
+    const name = params.recipientFirstName.trim() || 'there';
+    const label = params.matchCount === 1 ? 'candidate' : 'candidates';
+    const verb = params.matchCount === 1 ? 'matches' : 'match';
+    const summaryLine = `${params.matchCount} new Job Ready ${label} ${verb} your saved hiring preferences this week.`;
+
+    const vars: Record<string, string> = {
+      name,
+      matchCount: String(params.matchCount),
+      matchCountSuffix: params.matchCount === 1 ? '' : 'es',
+      summaryLine,
+      discoveryUrl,
+      logoUrl,
+      supportEmail: env.SUPPORT_EMAIL,
+      unsubscribeUrl: `${base}/email-preferences`,
+      year: String(new Date().getFullYear()),
+    };
+
+    const rawHtml = loadMailTemplateFile('job-ready-matches-digest.html');
+    const html = substituteMailTemplate(rawHtml, vars);
+    const text =
+      `Hi ${name},\n\n` +
+      `${summaryLine}\n\n` +
+      `Browse matching candidates: ${discoveryUrl}\n`;
+
+    return this.send({
+      to: params.to,
+      subject: 'New Job Ready candidates match your hiring preferences',
       text,
       html,
     });

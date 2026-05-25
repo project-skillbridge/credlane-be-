@@ -30,3 +30,10 @@ export type AdvancedRetakeAvailableEmailPayload = {
   to: string;
   recipientFirstName: string;
 };
+
+/** Payload for weekly Job Ready candidate digest email (employer). */
+export type JobReadyMatchesDigestEmailPayload = {
+  to: string;
+  recipientFirstName: string;
+  matchCount: number;
+};
