@@ -11,13 +11,13 @@ export class VerifiedProfileDimensionScoreDto {
 
 export class VerifiedProfileSkillProficiencyDto {
   @ApiProperty({ enum: VerifiedLevel, example: VerifiedLevel.MID })
-  validatedLevel: VerifiedLevel;
+  validated_level: VerifiedLevel;
 
   @ApiPropertyOptional({
     example: 82,
     description: 'Latest skill assessment score percentage, when available',
   })
-  skillAssessmentPercentage?: number;
+  skill_assessment_percentage?: number;
 }
 
 export class VerifiedProfileStrengthDto {
@@ -41,7 +41,7 @@ export class VerifiedProfileSkillCategoryDto {
 
 export class VerifiedProfileResponseDto {
   @ApiProperty({ example: 'Jane Doe' })
-  fullName: string;
+  full_name: string;
 
   @ApiProperty({ example: 'Frontend Developer' })
   role: string;
@@ -55,12 +55,13 @@ export class VerifiedProfileResponseDto {
   about: string;
 
   @ApiPropertyOptional({
-    example: 'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
+    example:
+      'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
   })
-  aiSummary?: string;
+  ai_summary?: string;
 
   @ApiPropertyOptional({ example: 'https://example.com/avatar.jpg' })
-  avatarUrl?: string | null;
+  avatar_url?: string | null;
 
   @ApiProperty({ example: true })
   verified: boolean;
@@ -69,7 +70,7 @@ export class VerifiedProfileResponseDto {
   status: string;
 
   @ApiPropertyOptional({ example: 'Mid Level' })
-  seniorityBadge?: string;
+  seniority_badge?: string;
 
   @ApiPropertyOptional({
     type: [String],
@@ -81,45 +82,46 @@ export class VerifiedProfileResponseDto {
     type: [String],
     example: ['React', 'TypeScript'],
   })
-  verifiedSkills?: string[];
+  verified_skills?: string[];
 
   @ApiPropertyOptional({ example: 85 })
-  scorePercentage?: number;
+  score_percentage?: number;
 
   @ApiPropertyOptional({ example: 'Job Ready' })
-  tierLabel?: string;
+  tier_label?: string;
 
   @ApiPropertyOptional({ type: [VerifiedProfileStrengthDto] })
-  keyStrengths?: VerifiedProfileStrengthDto[];
+  key_strengths?: VerifiedProfileStrengthDto[];
 
   @ApiPropertyOptional({ type: [VerifiedProfileSkillCategoryDto] })
-  professionalSkills?: VerifiedProfileSkillCategoryDto[];
+  professional_skills?: VerifiedProfileSkillCategoryDto[];
 
   @ApiPropertyOptional({ type: [VerifiedProfileSkillCategoryDto] })
-  softSkills?: VerifiedProfileSkillCategoryDto[];
+  soft_skills?: VerifiedProfileSkillCategoryDto[];
 
   @ApiPropertyOptional({ type: VerifiedProfileSkillProficiencyDto })
-  skillProficiency?: VerifiedProfileSkillProficiencyDto;
+  skill_proficiency?: VerifiedProfileSkillProficiencyDto;
 
   @ApiPropertyOptional({ type: VerifiedProfileDimensionScoreDto })
-  workplaceReadiness?: VerifiedProfileDimensionScoreDto;
+  workplace_readiness?: VerifiedProfileDimensionScoreDto;
 
   @ApiPropertyOptional({ type: VerifiedProfileDimensionScoreDto })
-  practicalApplication?: VerifiedProfileDimensionScoreDto;
+  practical_application?: VerifiedProfileDimensionScoreDto;
 
   @ApiProperty({ example: 'https://skillbridge.com/verified-profiles/abc123' })
-  shareUrl: string;
+  share_url: string;
 
   @ApiPropertyOptional({
-    example: 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://skillbridge.com/verified-profiles/abc123',
+    example:
+      'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://skillbridge.com/verified-profiles/abc123',
   })
-  qrCodeUrl?: string;
+  qr_code_url?: string;
 
   @ApiProperty({ example: true })
-  isOwner: boolean;
+  is_owner: boolean;
 
   @ApiProperty({ example: '2026-05-03T12:00:00.000Z' })
-  verifiedAt: string;
+  verified_at: string;
 
   @ApiPropertyOptional({
     example: 'job_ready',
