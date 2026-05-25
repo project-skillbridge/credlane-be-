@@ -6,10 +6,12 @@ import { In, Repository } from 'typeorm';
 import {
   BadRequestError,
   ConflictError,
+  ErrorMessages,
   ForbiddenError,
   NotFoundError,
   TooManyRequestsError,
 } from '../../shared';
+import { EMPLOYER_ASSESSMENT_IMPORT_MAX_FILE_BYTES } from './employer-assessments.constants';
 import {
   AssessmentQuestion,
   AssessmentType,
@@ -433,8 +435,8 @@ export class EmployerAssessmentsService {
         "We couldn't read this file. Please use the CredLane template and try again.",
       );
     }
-    if (file.size > 2 * 1024 * 1024) {
-      throw new BadRequestError('File size limit is 2MB.');
+    if (file.size > EMPLOYER_ASSESSMENT_IMPORT_MAX_FILE_BYTES) {
+      throw new BadRequestError(ErrorMessages.ONBOARDING.FILE_TOO_LARGE);
     }
     const lowerName = file.originalname.toLowerCase();
     if (!lowerName.endsWith('.csv') && !lowerName.endsWith('.xlsx')) {

@@ -426,14 +426,14 @@ describe('EmployerAssessmentsService', () => {
       );
     });
 
-    it('should reject files larger than 2MB', () => {
+    it('should reject files larger than 5MB', () => {
       const file = {
         originalname: 'questions.csv',
-        size: 3 * 1024 * 1024,
+        size: 6 * 1024 * 1024,
         buffer: Buffer.from(''),
       } as Express.Multer.File;
 
-      expect(() => service.validateUploadedQuestionFile(file)).toThrow('2MB');
+      expect(() => service.validateUploadedQuestionFile(file)).toThrow('5 MB');
     });
 
     it('should reject unsupported file extensions', () => {

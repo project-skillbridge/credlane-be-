@@ -36,6 +36,7 @@ import { CreateEmployerAssessmentDto } from './dto/create-employer-assessment.dt
 import { ListEmployerAssessmentResultsQueryDto } from './dto/list-employer-assessment-results-query.dto';
 import { SearchAssessmentCandidatesQueryDto } from './dto/search-assessment-candidates-query.dto';
 import { SubmitEmployerAssessmentDto } from './dto/submit-employer-assessment.dto';
+import { EMPLOYER_ASSESSMENT_IMPORT_MAX_FILE_BYTES } from './employer-assessments.constants';
 import { EmployerAssessmentsService } from './employer-assessments.service';
 
 @ApiEmployerAssessmentsTags()
@@ -111,7 +112,7 @@ export class EmployerAssessmentsController {
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
-      limits: { fileSize: 2 * 1024 * 1024 },
+      limits: { fileSize: EMPLOYER_ASSESSMENT_IMPORT_MAX_FILE_BYTES },
     }),
   )
   importQuestions(@UploadedFile() file: Express.Multer.File | undefined) {
