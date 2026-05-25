@@ -68,6 +68,8 @@ export class EmployerService {
         profile.hiring_region = dto.region.trim();
         profile.linkedin_company_page_url =
           dto.linkedinCompanyPageUrl?.trim() ?? null;
+        profile.linkedin_company_url =
+          dto.linkedinCompanyPageUrl?.trim() ?? null;
         profile.hiring_roles = dto.hiringRoles;
         profile.hiring_locations = [dto.region.trim()];
         profile.desired_roles = dto.hiringRoles;
@@ -135,6 +137,7 @@ export class EmployerService {
           company_website: dto.companyWebsite?.trim() || null,
           website_url: dto.companyWebsite?.trim() || null,
           linkedin_company_page_url: dto.linkedinCompanyPageUrl?.trim() || null,
+          linkedin_company_url: dto.linkedinCompanyPageUrl?.trim() || null,
           preferred_experience_levels: dto.preferredExperienceLevels,
         });
 
@@ -152,6 +155,9 @@ export class EmployerService {
       userId,
       SuccessMessages.ONBOARDING.EMPLOYER_COMPLETED,
     );
+
+    // Recompute verification after onboarding (non-blocking)
+    this.verificationService.checkAndUpdateVerification(userId).catch(() => {});
 
     return {
       message: session.message,
