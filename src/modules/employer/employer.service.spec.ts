@@ -1,6 +1,7 @@
 import { NotFoundException } from '@nestjs/common';
 import { EmployerService } from './employer.service';
 import { EmployerProfile } from './entities/employer-profile.entity';
+import { NotFoundError } from '../../shared';
 
 describe('EmployerService', () => {
   const userId = 'employer-user-1';
@@ -11,6 +12,7 @@ describe('EmployerService', () => {
     save: jest.Mock;
   };
   let employerProfileRepository: {
+    findOne: jest.Mock;
     manager: { transaction: jest.Mock };
   };
   let authService: { issueSessionForUser: jest.Mock };
@@ -28,6 +30,7 @@ describe('EmployerService', () => {
       save: jest.fn((_entity, payload) => Promise.resolve(payload)),
     };
     employerProfileRepository = {
+      findOne: jest.fn(),
       manager: {
         transaction: jest.fn((callback) => callback(manager)),
       },
@@ -160,5 +163,68 @@ describe('EmployerService', () => {
         preferred_experience_levels: ['junior'],
       }),
     ).rejects.toThrow('Invalid user');
+  });
+
+  describe('getPublicProfile', () => {
+    it('should return a public profile with is_new_to_platform true for new accounts', async () => {
+      const recentDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000); // 30 days ago
+      employerProfileRepository.findOne.mockResolvedValue({
+        company_name: 'Acme Labs',
+        industry: 'Fintech',
+        company_size: '11-50',
+        company_website: 'https://acme.example',
+        website_url: null,
+        linkedin_company_page_url: 'https://linkedin.com/company/acme',
+        linkedin_company_url: null,
+        region: 'Nigeria',
+        hiring_region: null,
+        is_verified: true,
+        hire_count: 0,
+        user: { createdAt: recentDate },
+      });
+
+      const result = await service.getPublicProfile('employer-user-1');
+
+      expect(result.company_name).toBe('Acme Labs');
+      expect(result.is_verified).toBe(true);
+      expect(result.is_new_to_platform).toBe(true);
+      expect(result.hire_count).toBe(0);
+      expect(result.member_since).toBe(recentDate.toISOString());
+    });
+
+    it('should return is_new_to_platform false for accounts older than 90 days', async () => {
+      const oldDate = new Date(Date.now() - 120 * 24 * 60 * 60 * 1000); // 120 days ago
+      employerProfileRepository.findOne.mockResolvedValue({
+        company_name: 'OldCorp',
+        industry: 'Healthtech',
+        company_size: '51-200',
+        company_website: null,
+        website_url: 'https://oldcorp.example',
+        linkedin_company_page_url: null,
+        linkedin_company_url: 'https://linkedin.com/company/oldcorp',
+        region: null,
+        hiring_region: 'Kenya',
+        is_verified: false,
+        hire_count: 5,
+        user: { createdAt: oldDate },
+      });
+
+      const result = await service.getPublicProfile('employer-user-1');
+
+      expect(result.is_new_to_platform).toBe(false);
+      expect(result.company_website).toBe('https://oldcorp.example');
+      expect(result.linkedin_company_url).toBe(
+        'https://linkedin.com/company/oldcorp',
+      );
+      expect(result.region).toBe('Kenya');
+    });
+
+    it('should throw NotFoundError if employer profile not found', async () => {
+      employerProfileRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.getPublicProfile('nonexistent-user'),
+      ).rejects.toThrow(NotFoundError);
+    });
   });
 });
