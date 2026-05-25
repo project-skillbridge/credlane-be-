@@ -11,6 +11,7 @@ import {
   IsNotEmpty,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -44,6 +45,7 @@ export class EmployerAssessmentQuestionInputDto {
   @ArrayMinSize(2)
   @ArrayMaxSize(4)
   @IsString({ each: true })
+  @Matches(/\S/, { each: true })
   options?: string[];
 
   @ApiProperty()
