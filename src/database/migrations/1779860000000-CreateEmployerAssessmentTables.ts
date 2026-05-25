@@ -50,7 +50,7 @@ export class CreateEmployerAssessmentTables1779860000000 implements MigrationInt
         CONSTRAINT "FK_employer_assessment_questions_assessment" FOREIGN KEY ("assessment_id") REFERENCES "employer_assessments"("id") ON DELETE CASCADE
       );
 
-      CREATE INDEX "IDX_employer_assessment_questions_assessment_order" ON "employer_assessment_questions" ("assessment_id", "position");
+      CREATE UNIQUE INDEX "UQ_employer_assessment_questions_assessment_position" ON "employer_assessment_questions" ("assessment_id", "position");
     `);
 
     await queryRunner.query(`

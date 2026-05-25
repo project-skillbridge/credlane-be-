@@ -18,10 +18,11 @@ export enum EmployerQuestionType {
 }
 
 @Entity('employer_assessment_questions')
-@Index('IDX_employer_assessment_questions_assessment_order', [
-  'assessment_id',
-  'position',
-])
+@Index(
+  'UQ_employer_assessment_questions_assessment_position',
+  ['assessment_id', 'position'],
+  { unique: true },
+)
 export class EmployerAssessmentQuestion {
   @ApiProperty({ format: 'uuid' })
   @PrimaryGeneratedColumn('uuid')
