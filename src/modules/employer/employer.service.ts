@@ -62,6 +62,7 @@ export class EmployerService {
         profile.company_website = dto.companyWebsite?.trim() ?? null;
         profile.hiring_roles = dto.hiringRoles;
         profile.hiring_locations = dto.hiringLocations;
+        profile.linkedin_company_url = dto.linkedinCompanyUrl?.trim() ?? null;
 
         await manager.save(EmployerProfile, profile);
         await this.usersService.markOnboardingCompleteWithManager(
