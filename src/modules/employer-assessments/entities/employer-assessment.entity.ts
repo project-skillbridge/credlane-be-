@@ -1,0 +1,120 @@
+import {
+  Column,
+  CreateDateColumn,
+  Entity,
+  Index,
+  JoinColumn,
+  ManyToOne,
+  OneToMany,
+  PrimaryGeneratedColumn,
+  UpdateDateColumn,
+} from 'typeorm';
+import { ApiProperty } from '@nestjs/swagger';
+import { User } from '../../users/entities/user.entity';
+import { EmployerAssessmentQuestion } from './employer-assessment-question.entity';
+import { EmployerAssessmentInvite } from './employer-assessment-invite.entity';
+import { EmployerAssessmentSubmission } from './employer-assessment-submission.entity';
+
+export enum EmployerAssessmentExperienceLevel {
+  JUNIOR = 'junior',
+  MID = 'mid',
+  SENIOR = 'senior',
+}
+
+export enum EmployerAssessmentQuestionSource {
+  CREDLANE_BANK = 'credlane_bank',
+  COMPANY_QUESTIONS = 'company_questions',
+}
+
+@Entity('employer_assessments')
+@Index('IDX_employer_assessments_employer_active', [
+  'employer_user_id',
+  'is_active',
+])
+@Index('IDX_employer_assessments_share_token', ['share_token'], {
+  unique: true,
+})
+export class EmployerAssessment {
+  @ApiProperty({ format: 'uuid' })
+  @PrimaryGeneratedColumn('uuid')
+  id: string;
+
+  @ApiProperty({ format: 'uuid' })
+  @Column({ type: 'uuid' })
+  employer_user_id: string;
+
+  @ManyToOne(() => User, { onDelete: 'CASCADE' })
+  @JoinColumn({ name: 'employer_user_id' })
+  employer: User;
+
+  @ApiProperty()
+  @Column({ type: 'varchar', length: 255 })
+  title: string;
+
+  @ApiProperty()
+  @Column({ type: 'varchar', length: 100 })
+  role_track: string;
+
+  @ApiProperty({ enum: EmployerAssessmentExperienceLevel })
+  @Column({
+    type: 'enum',
+    enum: EmployerAssessmentExperienceLevel,
+    enumName: 'employer_assessment_experience_level_enum',
+  })
+  experience_level: EmployerAssessmentExperienceLevel;
+
+  @ApiProperty()
+  @Column({ type: 'integer' })
+  time_limit_minutes: number;
+
+  @ApiProperty()
+  @Column({ type: 'integer' })
+  passing_threshold: number;
+
+  @ApiProperty({ enum: EmployerAssessmentQuestionSource })
+  @Column({
+    type: 'enum',
+    enum: EmployerAssessmentQuestionSource,
+    enumName: 'employer_assessment_question_source_enum',
+  })
+  question_source: EmployerAssessmentQuestionSource;
+
+  @ApiProperty()
+  @Column({ type: 'boolean', default: false })
+  share_via_link: boolean;
+
+  @ApiProperty()
+  @Column({ type: 'boolean', default: false })
+  send_to_candidates: boolean;
+
+  @ApiProperty()
+  @Column({ type: 'varchar', length: 64 })
+  share_token: string;
+
+  @ApiProperty()
+  @Column({ type: 'boolean', default: true })
+  is_active: boolean;
+
+  @OneToMany(
+    () => EmployerAssessmentQuestion,
+    (question) => question.assessment,
+  )
+  questions: EmployerAssessmentQuestion[];
+
+  @OneToMany(() => EmployerAssessmentInvite, (invite) => invite.assessment)
+  invites: EmployerAssessmentInvite[];
+
+  @OneToMany(
+    () => EmployerAssessmentSubmission,
+    (submission) => submission.assessment,
+  )
+  submissions: EmployerAssessmentSubmission[];
+
+  @ApiProperty()
+  @CreateDateColumn({ type: 'timestamp with time zone' })
+  created_at: Date;
+
+  @ApiProperty()
+  @UpdateDateColumn({ type: 'timestamp with time zone' })
+  updated_at: Date;
+}

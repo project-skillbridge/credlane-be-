@@ -68,7 +68,10 @@ describe('OffersService', () => {
     const dto = {
       candidateUserId: 'candidate-1',
       roleTitle: 'Frontend Developer',
-      message: 'We would like to offer you a position',
+      roleDescription: 'We would like to offer you a position',
+      compensation: '$80k - $100k',
+      employmentType: 'Full-time',
+      workArrangement: 'Remote',
       expiresInDays: 14,
     };
 
@@ -151,6 +154,80 @@ describe('OffersService', () => {
       await expect(service.createOffer('employer-1', dto)).rejects.toThrow(
         'Monthly offer limit reached',
       );
+    });
+
+    it('should throw ConflictError when a pending or accepted offer already exists', async () => {
+      const pool = {
+        id: 'pool-1',
+        candidate_id: 'candidate-1',
+        tier: 'job_ready',
+      };
+      mockPoolProfileRepo.findOne.mockResolvedValue(pool);
+      mockOfferRepo.findOne.mockResolvedValue({
+        id: 'existing-offer',
+        status: OfferStatus.PENDING,
+      });
+
+      await expect(service.createOffer('employer-1', dto)).rejects.toThrow(
+        'Offer already sent to this candidate',
+      );
+
+      expect(mockOfferRepo.findOne).toHaveBeenCalledWith({
+        where: {
+          employer_user_id: 'employer-1',
+          candidate_user_id: dto.candidateUserId,
+          status: expect.any(Object),
+        },
+      });
+      expect(mockOfferRepo.manager.transaction).not.toHaveBeenCalled();
+    });
+
+    it('should allow a new offer when only declined or expired offers exist', async () => {
+      const pool = {
+        id: 'pool-1',
+        candidate_id: 'candidate-1',
+        tier: 'job_ready',
+      };
+      mockPoolProfileRepo.findOne.mockResolvedValue(pool);
+      mockOfferRepo.findOne.mockResolvedValue(null);
+      mockOfferRepo.manager.transaction.mockImplementation(
+        async (
+          cb: (manager: typeof mockOfferRepo.manager) => Promise<unknown>,
+        ) => {
+          const manager = {
+            count: jest.fn().mockResolvedValue(0),
+            save: jest
+              .fn()
+              .mockResolvedValueOnce({
+                id: 'offer-2',
+                employer_user_id: 'employer-1',
+                candidate_user_id: dto.candidateUserId,
+                role_title: dto.roleTitle,
+                status: OfferStatus.PENDING,
+              })
+              .mockResolvedValueOnce({ id: 'log-2' }),
+          };
+          return cb(manager as unknown as typeof mockOfferRepo.manager);
+        },
+      );
+      mockUserRepo.findOne.mockResolvedValue({
+        id: 'employer-1',
+        first_name: 'Jane',
+        last_name: 'Employer',
+      });
+      mockNotificationDispatch.dispatch.mockResolvedValue(undefined);
+
+      const result = await service.createOffer('employer-1', dto);
+
+      expect(result.id).toBe('offer-2');
+      expect(mockOfferRepo.findOne).toHaveBeenCalledWith({
+        where: {
+          employer_user_id: 'employer-1',
+          candidate_user_id: dto.candidateUserId,
+          status: expect.any(Object),
+        },
+      });
+      expect(mockOfferRepo.manager.transaction).toHaveBeenCalled();
     });
   });
 

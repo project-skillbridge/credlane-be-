@@ -5,6 +5,7 @@ export enum NotificationType {
   OFFER_ACCEPTED = 'offer_accepted',
   OFFER_DECLINED = 'offer_declined',
   CONTACT_REQUEST_RECEIVED = 'contact_request_received',
+  ASSESSMENT_RECEIVED = 'assessment_received',
 }
 
 export const NOTIFICATION_TYPE_VALUES = [
@@ -14,4 +15,5 @@ export const NOTIFICATION_TYPE_VALUES = [
   NotificationType.OFFER_ACCEPTED,
   NotificationType.OFFER_DECLINED,
   NotificationType.CONTACT_REQUEST_RECEIVED,
+  NotificationType.ASSESSMENT_RECEIVED,
 ] as const;

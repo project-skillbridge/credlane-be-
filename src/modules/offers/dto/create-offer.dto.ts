@@ -1,6 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
 import {
+  IsDateString,
   IsInt,
+  IsIn,
   IsNotEmpty,
   IsOptional,
   IsString,
@@ -23,11 +25,43 @@ export class CreateOfferDto {
   @MaxLength(255)
   roleTitle: string;
 
-  @ApiProperty({ description: 'Offer message / description' })
-  @IsNotEmpty()
+  @ApiProperty({ description: 'Role description', maxLength: 500 })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  roleDescription?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'Legacy offer message / description',
+  })
+  @IsOptional()
   @IsString()
   @MaxLength(2000)
-  message: string;
+  message?: string;
+
+  @ApiProperty({ description: 'Compensation or salary range' })
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(255)
+  compensation: string;
+
+  @ApiProperty({
+    enum: ['Full-time', 'Part-time', 'Contract', 'Internship'],
+  })
+  @IsNotEmpty()
+  @IsIn(['Full-time', 'Part-time', 'Contract', 'Internship'])
+  employmentType: string;
+
+  @ApiProperty({ enum: ['Remote', 'Hybrid', 'On-site'] })
+  @IsNotEmpty()
+  @IsIn(['Remote', 'Hybrid', 'On-site'])
+  workArrangement: string;
+
+  @ApiProperty({ required: false, type: String, format: 'date' })
+  @IsOptional()
+  @IsDateString()
+  applicationDeadline?: string;
 
   @ApiProperty({
     required: false,

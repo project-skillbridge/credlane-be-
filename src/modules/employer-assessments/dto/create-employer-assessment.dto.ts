@@ -1,0 +1,114 @@
+import { ApiProperty } from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  IsArray,
+  IsBoolean,
+  IsEnum,
+  IsIn,
+  IsInt,
+  IsNotEmpty,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+  ValidateIf,
+  ValidateNested,
+} from 'class-validator';
+import {
+  EmployerAssessmentExperienceLevel,
+  EmployerAssessmentQuestionSource,
+} from '../entities/employer-assessment.entity';
+import { EmployerQuestionType } from '../entities/employer-assessment-question.entity';
+
+export class EmployerAssessmentQuestionInputDto {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  questionText: string;
+
+  @ApiProperty({ enum: EmployerQuestionType })
+  @IsEnum(EmployerQuestionType)
+  questionType: EmployerQuestionType;
+
+  @ApiProperty({ required: false, type: [String] })
+  @ValidateIf((dto: EmployerAssessmentQuestionInputDto) =>
+    [
+      EmployerQuestionType.MULTIPLE_CHOICE,
+      EmployerQuestionType.TRUE_FALSE,
+    ].includes(dto.questionType),
+  )
+  @IsArray()
+  @ArrayMinSize(2)
+  @ArrayMaxSize(4)
+  @IsString({ each: true })
+  options?: string[];
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  correctAnswer: string;
+}
+
+export class CreateEmployerAssessmentDto {
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(255)
+  title: string;
+
+  @ApiProperty()
+  @IsNotEmpty()
+  @IsString()
+  @MaxLength(100)
+  roleTrack: string;
+
+  @ApiProperty({ enum: EmployerAssessmentExperienceLevel })
+  @IsEnum(EmployerAssessmentExperienceLevel)
+  experienceLevel: EmployerAssessmentExperienceLevel;
+
+  @ApiProperty({ enum: [20, 30, 40, 60] })
+  @Type(() => Number)
+  @IsInt()
+  @IsIn([20, 30, 40, 60])
+  timeLimitMinutes: number;
+
+  @ApiProperty({ minimum: 50, maximum: 90 })
+  @Type(() => Number)
+  @IsInt()
+  @Min(50)
+  @Max(90)
+  passingThreshold: number;
+
+  @ApiProperty({ enum: EmployerAssessmentQuestionSource })
+  @IsEnum(EmployerAssessmentQuestionSource)
+  questionSource: EmployerAssessmentQuestionSource;
+
+  @ApiProperty({ required: false, type: [EmployerAssessmentQuestionInputDto] })
+  @ValidateIf(
+    (dto: CreateEmployerAssessmentDto) =>
+      dto.questionSource === EmployerAssessmentQuestionSource.COMPANY_QUESTIONS,
+  )
+  @IsArray()
+  @ArrayMinSize(5)
+  @ValidateNested({ each: true })
+  @Type(() => EmployerAssessmentQuestionInputDto)
+  questions?: EmployerAssessmentQuestionInputDto[];
+
+  @ApiProperty()
+  @IsBoolean()
+  shareViaLink: boolean;
+
+  @ApiProperty()
+  @IsBoolean()
+  sendToCandidates: boolean;
+
+  @ApiProperty({ required: false, type: [String], format: 'uuid' })
+  @ValidateIf((dto: CreateEmployerAssessmentDto) => dto.sendToCandidates)
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('4', { each: true })
+  candidateUserIds?: string[];
+}
