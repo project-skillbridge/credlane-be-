@@ -359,6 +359,82 @@ describe('OffersService', () => {
     });
   });
 
+  describe('offer status events', () => {
+    it('should publish when a candidate accepts an offer', async () => {
+      const events: Array<{ status: string; offerId: string }> = [];
+      const unsubscribe = service.subscribeEmployerOfferStatus(
+        'employer-1',
+        (event) => events.push(event),
+      );
+
+      const offer = {
+        id: 'offer-1',
+        candidate_user_id: 'candidate-1',
+        employer_user_id: 'employer-1',
+        role_title: 'Dev',
+        status: OfferStatus.PENDING,
+        expires_at: new Date(Date.now() + 86400000),
+      };
+      mockOfferRepo.findOne.mockResolvedValue(offer);
+      mockOfferRepo.update
+        .mockResolvedValueOnce({ affected: 0 })
+        .mockResolvedValueOnce({ affected: 1 });
+      mockUserRepo.findOne.mockResolvedValue({
+        id: 'candidate-1',
+        first_name: 'Bob',
+        last_name: 'Candidate',
+      });
+      mockNotificationDispatch.dispatch.mockResolvedValue(undefined);
+
+      await service.respondToOffer('candidate-1', 'offer-1', 'accept');
+
+      unsubscribe();
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        type: 'offer_status_changed',
+        offerId: 'offer-1',
+        status: OfferStatus.ACCEPTED,
+        candidateName: 'Bob Candidate',
+      });
+    });
+
+    it('should publish when a candidate declines an offer', async () => {
+      const events: unknown[] = [];
+      const unsubscribe = service.subscribeEmployerOfferStatus(
+        'employer-1',
+        (event) => events.push(event),
+      );
+
+      const offer = {
+        id: 'offer-2',
+        candidate_user_id: 'candidate-2',
+        employer_user_id: 'employer-1',
+        role_title: 'Designer',
+        status: OfferStatus.PENDING,
+        expires_at: new Date(Date.now() + 86400000),
+      };
+      mockOfferRepo.findOne.mockResolvedValue(offer);
+      mockOfferRepo.update
+        .mockResolvedValueOnce({ affected: 0 })
+        .mockResolvedValueOnce({ affected: 1 });
+      mockUserRepo.findOne.mockResolvedValue({
+        id: 'candidate-2',
+        first_name: 'Sam',
+        last_name: 'Lee',
+      });
+      mockNotificationDispatch.dispatch.mockResolvedValue(undefined);
+
+      await service.respondToOffer('candidate-2', 'offer-2', 'decline');
+
+      unsubscribe();
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        offerId: 'offer-2',
+        status: OfferStatus.DECLINED,
+      });
+    });
+  });
+
   describe('listEmployerOffers - expiry marking', () => {
     it('should bulk-expire stale PENDING offers before querying', async () => {
       // expireStaleOffers update called first

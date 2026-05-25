@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Subject } from 'rxjs';
 import { Between, In, LessThan, Repository } from 'typeorm';
 import {
   BadRequestError,
@@ -45,6 +46,17 @@ export type EmployerCandidatesOffersResult = {
   totalPages: number;
 };
 
+/** Pushed to employers subscribed on GET /employer/candidates/offers/events. */
+export type OfferStatusChangeEvent = {
+  type: 'offer_status_changed';
+  offerId: string;
+  candidateUserId: string;
+  candidateName: string;
+  roleTitle: string;
+  status: OfferStatus.ACCEPTED | OfferStatus.DECLINED;
+  respondedAt: string;
+};
+
 const CANDIDATES_OFFERS_SUBTAB_STATUSES = [
   OfferStatus.PENDING,
   OfferStatus.DECLINED,
@@ -65,6 +77,10 @@ export type OfferAnalytics = {
 export class OffersService {
   private readonly logger = new Logger(OffersService.name);
   private readonly monthlyCap: number;
+  private readonly offerStatusStreams = new Map<
+    string,
+    Subject<OfferStatusChangeEvent>
+  >();
 
   constructor(
     @InjectRepository(Offer)
@@ -415,7 +431,37 @@ export class OffersService {
       );
     }
 
+    this.publishOfferStatusChange(offer.employer_user_id, {
+      type: 'offer_status_changed',
+      offerId: offer.id,
+      candidateUserId,
+      candidateName: candidateName || 'A candidate',
+      roleTitle: offer.role_title,
+      status: newStatus,
+      respondedAt: respondedAt.toISOString(),
+    });
+
     return offer;
+  }
+
+  subscribeEmployerOfferStatus(
+    employerUserId: string,
+    listener: (event: OfferStatusChangeEvent) => void,
+  ): () => void {
+    let stream = this.offerStatusStreams.get(employerUserId);
+    if (!stream) {
+      stream = new Subject<OfferStatusChangeEvent>();
+      this.offerStatusStreams.set(employerUserId, stream);
+    }
+    const subscription = stream.subscribe(listener);
+    return () => subscription.unsubscribe();
+  }
+
+  private publishOfferStatusChange(
+    employerUserId: string,
+    event: OfferStatusChangeEvent,
+  ): void {
+    this.offerStatusStreams.get(employerUserId)?.next(event);
   }
 
   async getAnalytics(employerUserId: string): Promise<OfferAnalytics> {

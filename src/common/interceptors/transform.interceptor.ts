@@ -3,9 +3,14 @@ import {
   ExecutionContext,
   Injectable,
   NestInterceptor,
+  SetMetadata,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 import { map, Observable } from 'rxjs';
 import { SuccessMessages } from '../../shared';
+
+export const SKIP_API_TRANSFORM_KEY = 'skipApiTransform';
+export const SkipApiTransform = () => SetMetadata(SKIP_API_TRANSFORM_KEY, true);
 
 type MessagePayload = {
   message: string;
@@ -28,10 +33,20 @@ export class TransformInterceptor<T> implements NestInterceptor<
   T,
   ApiResponse<T>
 > {
+  constructor(private readonly reflector: Reflector) {}
+
   intercept(
     context: ExecutionContext,
     next: CallHandler<T>,
   ): Observable<ApiResponse<T>> {
+    const skipTransform = this.reflector.getAllAndOverride<boolean>(
+      SKIP_API_TRANSFORM_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+    if (skipTransform) {
+      return next.handle() as Observable<ApiResponse<T>>;
+    }
+
     const response = context
       .switchToHttp()
       .getResponse<{ statusCode: number }>();
