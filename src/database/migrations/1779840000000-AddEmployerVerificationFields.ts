@@ -11,9 +11,15 @@ export class AddEmployerVerificationFields1779840000000 implements MigrationInte
     await queryRunner.query(
       `ALTER TABLE "employer_profiles" ADD COLUMN IF NOT EXISTS "hire_count" integer NOT NULL DEFAULT 0`,
     );
+    await queryRunner.query(
+      `ALTER TABLE "employer_profiles" ADD CONSTRAINT "CHK_employer_profiles_hire_count_non_negative" CHECK ("hire_count" >= 0)`,
+    );
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
+    await queryRunner.query(
+      `ALTER TABLE "employer_profiles" DROP CONSTRAINT IF EXISTS "CHK_employer_profiles_hire_count_non_negative"`,
+    );
     await queryRunner.query(
       `ALTER TABLE "employer_profiles" DROP COLUMN IF EXISTS "hire_count"`,
     );
