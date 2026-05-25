@@ -12,8 +12,22 @@ import {
   ConflictError,
   ErrorMessages,
   ForbiddenError,
+  NotFoundError,
   SuccessMessages,
 } from '../../shared';
+
+export type EmployerPublicProfile = {
+  company_name: string | null;
+  industry: string | null;
+  company_size: string | null;
+  company_website: string | null;
+  linkedin_company_url: string | null;
+  region: string | null;
+  is_verified: boolean;
+  is_new_to_platform: boolean;
+  hire_count: number;
+  member_since: string;
+};
 
 export type EmployerOnboardingResult = {
   message: string;
@@ -181,6 +195,38 @@ export class EmployerService {
       user: session.data.user,
       profile,
       tokens: session.tokens,
+    };
+  }
+
+  async getPublicProfile(
+    employerUserId: string,
+  ): Promise<EmployerPublicProfile> {
+    const profile = await this.employerProfileRepository.findOne({
+      where: { user_id: employerUserId },
+      relations: ['user'],
+    });
+
+    if (!profile) {
+      throw new NotFoundError('Employer profile not found');
+    }
+
+    const accountAge = Date.now() - new Date(profile.user.createdAt).getTime();
+    const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+    const is_new_to_platform =
+      accountAge < ninetyDaysMs && profile.hire_count === 0;
+
+    return {
+      company_name: profile.company_name,
+      industry: profile.industry,
+      company_size: profile.company_size,
+      company_website: profile.company_website ?? profile.website_url,
+      linkedin_company_url:
+        profile.linkedin_company_page_url ?? profile.linkedin_company_url,
+      region: profile.region ?? profile.hiring_region,
+      is_verified: profile.is_verified,
+      is_new_to_platform,
+      hire_count: profile.hire_count,
+      member_since: profile.user.createdAt.toISOString(),
     };
   }
 }
