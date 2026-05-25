@@ -181,6 +181,10 @@ describe('EmployerVerificationService', () => {
     beforeEach(() => {
       originalFetch = global.fetch;
       jest.restoreAllMocks();
+      // Mock dns.resolve to return a public IP by default
+      jest
+        .spyOn(require('dns/promises'), 'resolve')
+        .mockResolvedValue(['93.184.216.34']);
     });
 
     afterEach(() => {
@@ -188,7 +192,9 @@ describe('EmployerVerificationService', () => {
     });
 
     it('returns true for a successful HEAD response', async () => {
-      global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue({ ok: true, status: 200, headers: new Map() });
 
       expect(await service.isWebsiteResolvable('https://acme.example')).toBe(
         true,
@@ -201,7 +207,9 @@ describe('EmployerVerificationService', () => {
     });
 
     it('prepends https:// when missing', async () => {
-      global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue({ ok: true, status: 200, headers: new Map() });
 
       await service.isWebsiteResolvable('acme.example');
 
@@ -214,8 +222,8 @@ describe('EmployerVerificationService', () => {
     it('falls back to GET on 405', async () => {
       global.fetch = jest
         .fn()
-        .mockResolvedValueOnce({ ok: false, status: 405 })
-        .mockResolvedValueOnce({ ok: true, status: 200 });
+        .mockResolvedValueOnce({ ok: false, status: 405, headers: new Map() })
+        .mockResolvedValueOnce({ ok: true, status: 200, headers: new Map() });
 
       const result = await service.isWebsiteResolvable('https://acme.example');
 
@@ -232,11 +240,42 @@ describe('EmployerVerificationService', () => {
     });
 
     it('returns false for non-ok response', async () => {
-      global.fetch = jest.fn().mockResolvedValue({ ok: false, status: 500 });
+      global.fetch = jest
+        .fn()
+        .mockResolvedValue({ ok: false, status: 500, headers: new Map() });
 
       expect(await service.isWebsiteResolvable('https://acme.example')).toBe(
         false,
       );
+    });
+
+    it('returns false for private/internal IPs (SSRF protection)', async () => {
+      const dnsResolve = require('dns/promises').resolve;
+      dnsResolve.mockResolvedValue(['127.0.0.1']);
+      global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+
+      expect(await service.isWebsiteResolvable('https://evil.example')).toBe(
+        false,
+      );
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('returns false for IP-literal private hosts', async () => {
+      global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+
+      expect(await service.isWebsiteResolvable('https://192.168.1.1')).toBe(
+        false,
+      );
+      expect(global.fetch).not.toHaveBeenCalled();
+    });
+
+    it('returns false for non-standard ports', async () => {
+      global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200 });
+
+      expect(
+        await service.isWebsiteResolvable('https://acme.example:8080'),
+      ).toBe(false);
+      expect(global.fetch).not.toHaveBeenCalled();
     });
   });
 });

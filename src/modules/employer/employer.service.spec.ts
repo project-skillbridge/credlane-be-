@@ -19,6 +19,7 @@ describe('EmployerService', () => {
     markOnboardingCompleteWithManager: jest.Mock;
   };
   let service: EmployerService;
+  let verificationService: { checkAndUpdateVerification: jest.Mock };
 
   beforeEach(() => {
     manager = {
@@ -44,13 +45,14 @@ describe('EmployerService', () => {
         .mockResolvedValue({ id: userId, onboarding_complete: false }),
       markOnboardingCompleteWithManager: jest.fn().mockResolvedValue(undefined),
     };
+    verificationService = {
+      checkAndUpdateVerification: jest.fn().mockResolvedValue(true),
+    };
     service = new EmployerService(
       employerProfileRepository as never,
       authService as never,
       usersService as never,
-      {
-        checkAndUpdateVerification: jest.fn().mockResolvedValue(true),
-      } as never,
+      verificationService as never,
     );
   });
 
@@ -92,6 +94,9 @@ describe('EmployerService', () => {
     );
     expect(usersService.markOnboardingCompleteWithManager).toHaveBeenCalledWith(
       manager,
+      userId,
+    );
+    expect(verificationService.checkAndUpdateVerification).toHaveBeenCalledWith(
       userId,
     );
   });
