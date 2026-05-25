@@ -48,6 +48,9 @@ describe('EmployerService', () => {
       employerProfileRepository as never,
       authService as never,
       usersService as never,
+      {
+        checkAndUpdateVerification: jest.fn().mockResolvedValue(true),
+      } as never,
     );
   });
 

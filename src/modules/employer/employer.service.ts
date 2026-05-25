@@ -7,6 +7,7 @@ import { User } from '../users/entities/user.entity';
 import { CompleteEmployerOnboardingDto } from './dto/complete-employer-onboarding.dto';
 import { SaveEmployerProfileDto } from './dto/save-employer-profile.dto';
 import { EmployerProfile } from './entities/employer-profile.entity';
+import { EmployerVerificationService } from './employer-verification.service';
 import {
   ConflictError,
   ErrorMessages,
@@ -28,6 +29,7 @@ export class EmployerService {
     private readonly employerProfileRepository: Repository<EmployerProfile>,
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
+    private readonly verificationService: EmployerVerificationService,
   ) {}
 
   async saveProfile(
@@ -79,6 +81,9 @@ export class EmployerService {
         );
       },
     );
+
+    // Recompute verification status after profile changes (non-blocking)
+    this.verificationService.checkAndUpdateVerification(userId).catch(() => {});
 
     return {
       status: 'success',

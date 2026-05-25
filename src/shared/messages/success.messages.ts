@@ -31,8 +31,7 @@ export const SuccessMessages = {
     STARTED: 'Advanced assessment session created',
     SESSION_RESUMED: 'Advanced assessment session returned',
     SUBMITTED: 'Advanced assessment submitted and scored',
-    QUEUED:
-      'Advanced assessment submission accepted for processing',
+    QUEUED: 'Advanced assessment submission accepted for processing',
     FAILED:
       'Your overall score was below 50%. This attempt does not count toward completion. You may retake the advanced assessment.',
     LT2_SUBMITTED: 'Reflection question generated',
@@ -69,5 +68,8 @@ export const SuccessMessages = {
     CREATED: 'Offer sent successfully',
     ACCEPTED: 'Offer accepted',
     DECLINED: 'Offer declined',
+  },
+  EMPLOYER_VERIFICATION: {
+    VERIFIED: 'Employer verification complete',
   },
 } as const;
