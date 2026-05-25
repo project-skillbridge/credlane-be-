@@ -47,6 +47,14 @@ export class EmployerProfile {
   @Column({ type: 'text', array: true, nullable: true })
   hiring_locations: string[] | null;
 
+  @ApiProperty({
+    example: ['junior', 'mid'],
+    nullable: true,
+    type: [String],
+  })
+  @Column({ type: 'text', array: true, nullable: true })
+  preferred_experience_levels: string[] | null;
+
   /** Legacy onboarding field (lowercase) */
   @ApiProperty({ example: 'recruiter', nullable: true })
   @Column({ type: 'varchar', length: 50, nullable: true })
@@ -71,6 +79,13 @@ export class EmployerProfile {
   @ApiProperty({ example: 'https://acmelabs.example', nullable: true })
   @Column({ type: 'varchar', length: 500, nullable: true })
   company_website: string | null;
+
+  @ApiProperty({
+    example: 'https://www.linkedin.com/company/acme-labs',
+    nullable: true,
+  })
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  linkedin_company_page_url: string | null;
 
   /** Legacy fields kept for backward compatibility */
   @ApiProperty({ example: 'Acme Labs', nullable: true })
