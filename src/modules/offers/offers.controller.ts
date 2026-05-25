@@ -7,17 +7,35 @@ import {
   Patch,
   Post,
   Query,
+  Req,
+  Res,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiExtraModels,
+  ApiOkResponse,
+  ApiOperation,
+  ApiProduces,
+  ApiTags,
+} from '@nestjs/swagger';
+import type { Request, Response } from 'express';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import { SkipApiTransform } from '../../common/interceptors/transform.interceptor';
 import { UserRole } from '../users/entities/user.entity';
 import { OffersService } from './offers.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { RespondOfferDto } from './dto/respond-offer.dto';
 import { ListOffersQueryDto } from './dto/list-offers-query.dto';
+import {
+  EMPLOYER_OFFERS_SUBTAB_NEXTJS_GUIDE,
+  EmployerCandidatesOffersListDataDto,
+  OfferStatusChangeEventDto,
+} from './dto/employer-candidates-offers.swagger';
+import { Offer } from './entities/offer.entity';
 
 @ApiTags('Offers')
+@ApiExtraModels(EmployerCandidatesOffersListDataDto, OfferStatusChangeEventDto)
 @Controller()
 export class OffersController {
   constructor(private readonly offersService: OffersService) {}
@@ -44,6 +62,125 @@ export class OffersController {
     return this.offersService.listEmployerOffers(employerUserId, query);
   }
 
+  @Get('employer/candidates/offers/events')
+  @Roles(UserRole.EMPLOYER)
+  @ApiBearerAuth('JWT')
+  @SkipApiTransform()
+  @ApiProduces('text/event-stream')
+  @ApiOperation({
+    summary:
+      'SSE — live offer status when a candidate accepts or declines (Next.js: EventSource or fetch stream)',
+    description: `${EMPLOYER_OFFERS_SUBTAB_NEXTJS_GUIDE}
+
+---
+
+**This endpoint only:** \`Content-Type: text/event-stream\`. Response is **not** wrapped in \`status_code\` / \`data\`. Each event is one SSE \`data:\` line containing \`OfferStatusChangeEventDto\` JSON.`,
+  })
+  @ApiOkResponse({
+    description:
+      'Open stream. Example line: data: {"type":"offer_status_changed","status":"declined",...}',
+    content: {
+      'text/event-stream': {
+        schema: {
+          type: 'string',
+          example:
+            'data: {"type":"offer_status_changed","offerId":"…","status":"declined","respondedAt":"2026-05-20T12:00:00.000Z"}\n\n',
+        },
+      },
+    },
+  })
+  streamEmployerOfferStatusEvents(
+    @CurrentUser('sub') employerUserId: string,
+    @Req() req: Request,
+    @Res() res: Response,
+  ): void {
+    res.setHeader('Content-Type', 'text/event-stream');
+    res.setHeader('Cache-Control', 'no-cache');
+    res.setHeader('Connection', 'keep-alive');
+    res.flushHeaders();
+
+    let closed = false;
+    let heartbeat: ReturnType<typeof setInterval> | undefined;
+    let unsubscribe: (() => void) | undefined;
+
+    const cleanup = (): void => {
+      if (closed) {
+        return;
+      }
+      closed = true;
+      if (heartbeat !== undefined) {
+        clearInterval(heartbeat);
+        heartbeat = undefined;
+      }
+      unsubscribe?.();
+      unsubscribe = undefined;
+      if (!res.writableEnded) {
+        res.end();
+      }
+    };
+
+    const writeSse = (chunk: string): boolean => {
+      if (closed || res.writableEnded) {
+        return false;
+      }
+      try {
+        const ok = res.write(chunk);
+        if (!ok) {
+          cleanup();
+        }
+        return ok;
+      } catch {
+        cleanup();
+        return false;
+      }
+    };
+
+    heartbeat = setInterval(() => {
+      writeSse(': heartbeat\n\n');
+    }, 25_000);
+
+    unsubscribe = this.offersService.subscribeEmployerOfferStatus(
+      employerUserId,
+      (event) => {
+        writeSse(`data: ${JSON.stringify(event)}\n\n`);
+      },
+    );
+
+    res.on('error', cleanup);
+    req.on('error', cleanup);
+    req.on('close', cleanup);
+  }
+
+  @Get('employer/candidates/offers')
+  @Roles(UserRole.EMPLOYER)
+  @ApiBearerAuth('JWT')
+  @ApiOperation({
+    summary:
+      'Candidates tab — Offers subtab list (name, track, job title, date sent, status)',
+    description: EMPLOYER_OFFERS_SUBTAB_NEXTJS_GUIDE,
+  })
+  @ApiOkResponse({
+    description: 'Standard API envelope; list payload in `data`.',
+    schema: {
+      properties: {
+        status_code: { type: 'number', example: 200 },
+        message: { type: 'string', example: 'Success' },
+        data: {
+          $ref: '#/components/schemas/EmployerCandidatesOffersListDataDto',
+        },
+      },
+    },
+  })
+  async listEmployerCandidatesOffers(
+    @CurrentUser('sub') employerUserId: string,
+    @Query() query: ListOffersQueryDto,
+  ) {
+    return this.offersService.listEmployerCandidatesOffers(
+      employerUserId,
+      query,
+    );
+  }
+
   @Get('employer/offers/analytics')
   @Roles(UserRole.EMPLOYER)
   @ApiOperation({ summary: 'Get offer analytics for this employer' })
@@ -53,7 +190,16 @@ export class OffersController {
 
   @Get('employer/offers/:offerId')
   @Roles(UserRole.EMPLOYER)
-  @ApiOperation({ summary: 'Get a specific offer sent by this employer' })
+  @ApiBearerAuth('JWT')
+  @ApiOperation({
+    summary: 'View Offer modal — read-only offer detail for employer',
+    description: `${EMPLOYER_OFFERS_SUBTAB_NEXTJS_GUIDE}
+
+---
+
+**This endpoint:** Use \`offerId\` from the subtab list. Render \`role_title\`, \`message\`, \`status\`, dates, and \`candidate\` as read-only (no employer update route).`,
+  })
+  @ApiOkResponse({ type: Offer })
   async getEmployerOffer(
     @CurrentUser('sub') employerUserId: string,
     @Param('offerId', ParseUUIDPipe) offerId: string,
