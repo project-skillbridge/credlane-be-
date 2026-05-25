@@ -1,4 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Subject } from 'rxjs';
 import { Between, In, LessThan, Repository } from 'typeorm';
@@ -6,12 +12,30 @@ import {
   BadRequestError,
   ForbiddenError,
   NotFoundError,
-  TooManyRequestsError,
-} from '../../shared';
+} from '../../shared/errors/app.errors';
 import { EmployerPoolProfile } from '../talent/entities/employer-pool-profile.entity';
 import { User } from '../users/entities/user.entity';
+import type {
+  OfferReceivedPayload,
+  OfferRespondedPayload,
+} from '../notifications/notification-dispatch.service';
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
-import { NotificationType } from '../notifications/notification-type.enum';
+
+/** Narrow port so offers module does not depend on dispatch overload resolution in ESLint. */
+type OffersNotificationPort = {
+  notifyOfferReceived(
+    userId: string,
+    payload: OfferReceivedPayload,
+  ): Promise<void>;
+  notifyOfferAccepted(
+    userId: string,
+    payload: OfferRespondedPayload,
+  ): Promise<void>;
+  notifyOfferDeclined(
+    userId: string,
+    payload: OfferRespondedPayload,
+  ): Promise<void>;
+};
 import { Offer, OfferStatus } from './entities/offer.entity';
 import { OfferDistributionLog } from './entities/offer-distribution-log.entity';
 import { CreateOfferDto } from './dto/create-offer.dto';
@@ -96,7 +120,8 @@ export class OffersService {
     private readonly poolProfileRepo: Repository<EmployerPoolProfile>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
-    private readonly notificationDispatch: NotificationDispatchService,
+    @Inject(NotificationDispatchService)
+    private readonly notificationDispatch: OffersNotificationPort,
   ) {
     this.monthlyCap =
       parseInt(process.env.OFFERS_MONTHLY_CAP ?? '', 10) || DEFAULT_MONTHLY_CAP;
@@ -146,8 +171,9 @@ export class OffersService {
       });
 
       if (monthlyCount >= this.monthlyCap) {
-        throw new TooManyRequestsError(
+        throw new HttpException(
           `Monthly offer limit reached (${this.monthlyCap}). Try again next month.`,
+          HttpStatus.TOO_MANY_REQUESTS,
         );
       }
 
@@ -178,8 +204,7 @@ export class OffersService {
       : 'An employer';
 
     try {
-      await this.notificationDispatch.dispatch(
-        NotificationType.OFFER_RECEIVED,
+      await this.notificationDispatch.notifyOfferReceived(
         dto.candidateUserId,
         {
           offerId: offer.id,
@@ -188,9 +213,9 @@ export class OffersService {
           roleTitle: dto.roleTitle,
         },
       );
-    } catch (error) {
+    } catch (notifyError: unknown) {
       this.logger.error(
-        `Offer notification failed offer=${offer.id}: ${String(error)}`,
+        `Offer notification failed offer=${offer.id}: ${String(notifyError)}`,
       );
     }
 
@@ -378,7 +403,7 @@ export class OffersService {
   async respondToOffer(
     candidateUserId: string,
     offerId: string,
-    action: 'accept' | 'decline',
+    responseAction: 'accept' | 'decline',
   ): Promise<Offer> {
     const offer = await this.offerRepo.findOne({
       where: { id: offerId, candidate_user_id: candidateUserId },
@@ -395,7 +420,9 @@ export class OffersService {
     }
 
     const newStatus =
-      action === 'accept' ? OfferStatus.ACCEPTED : OfferStatus.DECLINED;
+      responseAction === 'accept'
+        ? OfferStatus.ACCEPTED
+        : OfferStatus.DECLINED;
     const respondedAt = new Date();
 
     // Atomic conditional update to prevent race conditions
@@ -429,11 +456,6 @@ export class OffersService {
     offer.responded_at = respondedAt;
 
     // Notify employer
-    const notificationType =
-      action === 'accept'
-        ? NotificationType.OFFER_ACCEPTED
-        : NotificationType.OFFER_DECLINED;
-
     const candidate = await this.userRepo.findOne({
       where: { id: candidateUserId },
     });
@@ -442,20 +464,28 @@ export class OffersService {
       : 'A candidate';
 
     try {
-      await this.notificationDispatch.dispatch(
-        notificationType,
-        offer.employer_user_id,
-        {
-          offerId: offer.id,
-          candidateUserId,
-          candidateName,
-          roleTitle: offer.role_title,
-          action,
-        },
-      );
-    } catch (error) {
+      const respondedPayload = {
+        offerId: offer.id,
+        candidateUserId,
+        candidateName,
+        roleTitle: offer.role_title,
+        action: responseAction,
+      };
+
+      if (responseAction === 'accept') {
+        await this.notificationDispatch.notifyOfferAccepted(
+          offer.employer_user_id,
+          respondedPayload,
+        );
+      } else {
+        await this.notificationDispatch.notifyOfferDeclined(
+          offer.employer_user_id,
+          respondedPayload,
+        );
+      }
+    } catch (notifyError: unknown) {
       this.logger.error(
-        `Offer response notification failed offer=${offer.id}: ${String(error)}`,
+        `Offer response notification failed offer=${offer.id}: ${String(notifyError)}`,
       );
     }
 

@@ -36,7 +36,9 @@ describe('OffersService', () => {
   };
 
   const mockNotificationDispatch = {
-    dispatch: jest.fn(),
+    notifyOfferReceived: jest.fn(),
+    notifyOfferAccepted: jest.fn(),
+    notifyOfferDeclined: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -104,13 +106,13 @@ describe('OffersService', () => {
         first_name: 'Jane',
         last_name: 'Employer',
       });
-      mockNotificationDispatch.dispatch.mockResolvedValue(undefined);
+      mockNotificationDispatch.notifyOfferReceived.mockResolvedValue(undefined);
 
       const result = await service.createOffer('employer-1', dto);
 
       expect(result.id).toBe('offer-1');
       expect(mockOfferRepo.manager.transaction).toHaveBeenCalled();
-      expect(mockNotificationDispatch.dispatch).toHaveBeenCalled();
+      expect(mockNotificationDispatch.notifyOfferReceived).toHaveBeenCalled();
     });
 
     it('should throw NotFoundError if candidate not in pool', async () => {
@@ -175,7 +177,7 @@ describe('OffersService', () => {
         first_name: 'Bob',
         last_name: 'Candidate',
       });
-      mockNotificationDispatch.dispatch.mockResolvedValue(undefined);
+      mockNotificationDispatch.notifyOfferAccepted.mockResolvedValue(undefined);
 
       const result = await service.respondToOffer(
         'candidate-1',
@@ -184,7 +186,7 @@ describe('OffersService', () => {
       );
 
       expect(result.status).toBe(OfferStatus.ACCEPTED);
-      expect(mockNotificationDispatch.dispatch).toHaveBeenCalled();
+      expect(mockNotificationDispatch.notifyOfferAccepted).toHaveBeenCalled();
     });
 
     it('should decline a pending offer', async () => {
@@ -205,7 +207,7 @@ describe('OffersService', () => {
         first_name: 'Bob',
         last_name: 'Candidate',
       });
-      mockNotificationDispatch.dispatch.mockResolvedValue(undefined);
+      mockNotificationDispatch.notifyOfferDeclined.mockResolvedValue(undefined);
 
       const result = await service.respondToOffer(
         'candidate-1',
@@ -407,7 +409,7 @@ describe('OffersService', () => {
         first_name: 'Bob',
         last_name: 'Candidate',
       });
-      mockNotificationDispatch.dispatch.mockResolvedValue(undefined);
+      mockNotificationDispatch.notifyOfferAccepted.mockResolvedValue(undefined);
 
       await service.respondToOffer('candidate-1', 'offer-1', 'accept');
 
@@ -445,7 +447,7 @@ describe('OffersService', () => {
         first_name: 'Sam',
         last_name: 'Lee',
       });
-      mockNotificationDispatch.dispatch.mockResolvedValue(undefined);
+      mockNotificationDispatch.notifyOfferDeclined.mockResolvedValue(undefined);
 
       await service.respondToOffer('candidate-2', 'offer-2', 'decline');
 
