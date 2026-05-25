@@ -239,7 +239,7 @@ export class OffersController {
     @CurrentUser('sub') employerUserId: string,
     @Param('offerId', ParseUUIDPipe) offerId: string,
   ) {
-    return this.offersService.markHireComplete(employerUserId, offerId);
+    return await this.offersService.markHireComplete(employerUserId, offerId);
   }
 
   // ─── Talent endpoints ─────────────────────────────────────────────────────
