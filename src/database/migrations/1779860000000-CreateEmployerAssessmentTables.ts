@@ -83,7 +83,8 @@ export class CreateEmployerAssessmentTables1779860000000 implements MigrationInt
         CONSTRAINT "PK_employer_assessment_submissions" PRIMARY KEY ("id"),
         CONSTRAINT "FK_employer_assessment_submissions_assessment" FOREIGN KEY ("assessment_id") REFERENCES "employer_assessments"("id") ON DELETE CASCADE,
         CONSTRAINT "FK_employer_assessment_submissions_candidate" FOREIGN KEY ("candidate_user_id") REFERENCES "users"("id") ON DELETE CASCADE,
-        CONSTRAINT "CHK_employer_assessment_submissions_score" CHECK ("score" BETWEEN 0 AND 100)
+        CONSTRAINT "CHK_employer_assessment_submissions_score" CHECK ("score" BETWEEN 0 AND 100),
+        CONSTRAINT "CHK_employer_assessment_submissions_time_nonnegative" CHECK ("time_taken_seconds" >= 0)
       );
 
       CREATE INDEX "IDX_employer_assessment_submissions_assessment" ON "employer_assessment_submissions" ("assessment_id");
