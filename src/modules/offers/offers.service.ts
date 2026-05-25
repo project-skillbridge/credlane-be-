@@ -204,15 +204,12 @@ export class OffersService {
       : 'An employer';
 
     try {
-      await this.notificationDispatch.notifyOfferReceived(
-        dto.candidateUserId,
-        {
-          offerId: offer.id,
-          employerUserId,
-          employerName,
-          roleTitle: dto.roleTitle,
-        },
-      );
+      await this.notificationDispatch.notifyOfferReceived(dto.candidateUserId, {
+        offerId: offer.id,
+        employerUserId,
+        employerName,
+        roleTitle: dto.roleTitle,
+      });
     } catch (notifyError: unknown) {
       this.logger.error(
         `Offer notification failed offer=${offer.id}: ${String(notifyError)}`,
@@ -420,9 +417,7 @@ export class OffersService {
     }
 
     const newStatus =
-      responseAction === 'accept'
-        ? OfferStatus.ACCEPTED
-        : OfferStatus.DECLINED;
+      responseAction === 'accept' ? OfferStatus.ACCEPTED : OfferStatus.DECLINED;
     const respondedAt = new Date();
 
     // Atomic conditional update to prevent race conditions

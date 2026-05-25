@@ -35,10 +35,7 @@ import {
 import { Offer } from './entities/offer.entity';
 
 @ApiTags('Offers')
-@ApiExtraModels(
-  EmployerCandidatesOffersListDataDto,
-  OfferStatusChangeEventDto,
-)
+@ApiExtraModels(EmployerCandidatesOffersListDataDto, OfferStatusChangeEventDto)
 @Controller()
 export class OffersController {
   constructor(private readonly offersService: OffersService) {}
@@ -134,7 +131,9 @@ export class OffersController {
       properties: {
         status_code: { type: 'number', example: 200 },
         message: { type: 'string', example: 'Success' },
-        data: { $ref: '#/components/schemas/EmployerCandidatesOffersListDataDto' },
+        data: {
+          $ref: '#/components/schemas/EmployerCandidatesOffersListDataDto',
+        },
       },
     },
   })

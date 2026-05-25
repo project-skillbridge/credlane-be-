@@ -366,7 +366,10 @@ describe('OffersService', () => {
       mockOfferRepo.findAndCount.mockResolvedValue([[], 0]);
       mockOfferRepo.count.mockResolvedValue(0);
 
-      const result = await service.listEmployerCandidatesOffers('employer-1', {});
+      const result = await service.listEmployerCandidatesOffers(
+        'employer-1',
+        {},
+      );
 
       expect(result.emptyStateMessage).toBe(
         'No offers sent yet. Discover candidates and send your first offer.',
@@ -378,7 +381,10 @@ describe('OffersService', () => {
       mockOfferRepo.findAndCount.mockResolvedValue([[], 0]);
       mockOfferRepo.count.mockResolvedValue(3);
 
-      const result = await service.listEmployerCandidatesOffers('employer-1', {});
+      const result = await service.listEmployerCandidatesOffers(
+        'employer-1',
+        {},
+      );
 
       expect(result.emptyStateMessage).toBeNull();
     });
