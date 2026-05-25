@@ -203,7 +203,10 @@ export class EmployerVerificationService {
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get('location');
         if (location) {
-          return this.isWebsiteResolvable(location, redirectCount + 1);
+          return this.isWebsiteResolvable(
+            new URL(location, parsed).toString(),
+            redirectCount + 1,
+          );
         }
         return false;
       }
@@ -222,7 +225,12 @@ export class EmployerVerificationService {
 
         if (getResponse.status >= 300 && getResponse.status < 400) {
           const loc = getResponse.headers.get('location');
-          if (loc) return this.isWebsiteResolvable(loc, redirectCount + 1);
+          if (loc) {
+            return this.isWebsiteResolvable(
+              new URL(loc, parsed).toString(),
+              redirectCount + 1,
+            );
+          }
           return false;
         }
 
