@@ -12,26 +12,33 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import {
-  ApiBearerAuth,
-  ApiBody,
-  ApiConsumes,
-  ApiOperation,
-  ApiTags,
-} from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import type { Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
+import {
+  ApiCreateEmployerAssessment,
+  ApiDeactivateEmployerAssessment,
+  ApiDownloadCsvTemplate,
+  ApiDownloadXlsxTemplate,
+  ApiEmployerAssessmentsTags,
+  ApiGetEmployerAssessment,
+  ApiGetPublicAssessment,
+  ApiImportAssessmentQuestions,
+  ApiListEmployerAssessmentResults,
+  ApiListEmployerAssessments,
+  ApiSearchAssessmentCandidates,
+  ApiSubmitEmployerAssessment,
+} from './docs/employer-assessments.swagger';
 import { CreateEmployerAssessmentDto } from './dto/create-employer-assessment.dto';
 import { ListEmployerAssessmentResultsQueryDto } from './dto/list-employer-assessment-results-query.dto';
 import { SearchAssessmentCandidatesQueryDto } from './dto/search-assessment-candidates-query.dto';
 import { SubmitEmployerAssessmentDto } from './dto/submit-employer-assessment.dto';
 import { EmployerAssessmentsService } from './employer-assessments.service';
 
-@ApiTags('Employer Assessments')
+@ApiEmployerAssessmentsTags()
 @Controller()
 export class EmployerAssessmentsController {
   constructor(
@@ -40,8 +47,7 @@ export class EmployerAssessmentsController {
 
   @Post('employer/assessments')
   @Roles(UserRole.EMPLOYER)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Create and generate a new employer assessment' })
+  @ApiCreateEmployerAssessment()
   createAssessment(
     @CurrentUser('sub') employerUserId: string,
     @Body() dto: CreateEmployerAssessmentDto,
@@ -54,16 +60,14 @@ export class EmployerAssessmentsController {
 
   @Get('employer/assessments')
   @Roles(UserRole.EMPLOYER)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'List assessments for this employer' })
+  @ApiListEmployerAssessments()
   listAssessments(@CurrentUser('sub') employerUserId: string) {
     return this.employerAssessmentsService.listAssessments(employerUserId);
   }
 
   @Get('employer/assessments/candidates')
   @Roles(UserRole.EMPLOYER)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Search shortlisted candidates for direct sending' })
+  @ApiSearchAssessmentCandidates()
   searchCandidates(
     @CurrentUser('sub') employerUserId: string,
     @Query() query: SearchAssessmentCandidatesQueryDto,
@@ -76,8 +80,7 @@ export class EmployerAssessmentsController {
 
   @Get('employer/assessments/template.csv')
   @Roles(UserRole.EMPLOYER)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Download CredLane question template (CSV)' })
+  @ApiDownloadCsvTemplate()
   downloadCsvTemplate(@Res() response: Response) {
     response.setHeader('Content-Type', 'text/csv');
     response.setHeader(
@@ -89,8 +92,7 @@ export class EmployerAssessmentsController {
 
   @Get('employer/assessments/template.xlsx')
   @Roles(UserRole.EMPLOYER)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Download CredLane question template (XLSX)' })
+  @ApiDownloadXlsxTemplate()
   downloadXlsxTemplate(@Res() response: Response) {
     response.setHeader(
       'Content-Type',
@@ -105,19 +107,7 @@ export class EmployerAssessmentsController {
 
   @Post('employer/assessments/import-questions')
   @Roles(UserRole.EMPLOYER)
-  @ApiBearerAuth()
-  @ApiOperation({
-    summary: 'Validate and import company questions from CSV or XLSX',
-  })
-  @ApiConsumes('multipart/form-data')
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        file: { type: 'string', format: 'binary' },
-      },
-    },
-  })
+  @ApiImportAssessmentQuestions()
   @UseInterceptors(
     FileInterceptor('file', {
       storage: memoryStorage(),
@@ -130,8 +120,7 @@ export class EmployerAssessmentsController {
 
   @Get('employer/assessments/:assessmentId')
   @Roles(UserRole.EMPLOYER)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get assessment detail' })
+  @ApiGetEmployerAssessment()
   getAssessment(
     @CurrentUser('sub') employerUserId: string,
     @Param('assessmentId', ParseUUIDPipe) assessmentId: string,
@@ -144,8 +133,7 @@ export class EmployerAssessmentsController {
 
   @Patch('employer/assessments/:assessmentId/deactivate')
   @Roles(UserRole.EMPLOYER)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Deactivate assessment link' })
+  @ApiDeactivateEmployerAssessment()
   deactivateAssessment(
     @CurrentUser('sub') employerUserId: string,
     @Param('assessmentId', ParseUUIDPipe) assessmentId: string,
@@ -158,8 +146,7 @@ export class EmployerAssessmentsController {
 
   @Get('employer/assessments/:assessmentId/results')
   @Roles(UserRole.EMPLOYER)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'List assessment submissions and results' })
+  @ApiListEmployerAssessmentResults()
   listResults(
     @CurrentUser('sub') employerUserId: string,
     @Param('assessmentId', ParseUUIDPipe) assessmentId: string,
@@ -174,15 +161,14 @@ export class EmployerAssessmentsController {
 
   @Get('assessments/link/:token')
   @Public()
-  @ApiOperation({ summary: 'Get public assessment by share token' })
+  @ApiGetPublicAssessment()
   getPublicAssessment(@Param('token') token: string) {
     return this.employerAssessmentsService.getPublicAssessmentByToken(token);
   }
 
   @Post('assessments/link/:token/submissions')
   @Roles(UserRole.TALENT)
-  @ApiBearerAuth()
-  @ApiOperation({ summary: 'Submit an employer assessment as a candidate' })
+  @ApiSubmitEmployerAssessment()
   submitAssessment(
     @CurrentUser('sub') candidateUserId: string,
     @Param('token') token: string,
