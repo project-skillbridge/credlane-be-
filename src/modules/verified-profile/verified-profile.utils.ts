@@ -285,3 +285,98 @@ export function buildQrCodeUrl(shareUrl: string): string | undefined {
   if (!shareUrl) return undefined;
   return `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(shareUrl)}`;
 }
+
+export function compactStrings(values: Array<string | null | undefined>) {
+  const items: string[] = [];
+  const seen = new Set<string>();
+
+  for (const value of values) {
+    const trimmed = value?.trim();
+    if (!trimmed) continue;
+
+    const key = trimmed.toLowerCase();
+    if (seen.has(key)) continue;
+
+    seen.add(key);
+    items.push(trimmed);
+  }
+
+  return items;
+}
+
+export function resolveExperienceLabel(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+
+  switch (value) {
+    case '0_1_yr':
+      return '0-1 yr exp.';
+    case '1_3_yrs':
+      return '1-3 yrs exp.';
+    case '3_5_yrs':
+      return '3-5 yrs exp.';
+    case '5_10_yrs':
+      return '5-10 yrs exp.';
+    case '10_plus_yrs':
+      return '10+ yrs exp.';
+    default:
+      return formatSlugLabel(value);
+  }
+}
+
+export function resolveAvailabilityLabel(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined;
+
+  switch (value) {
+    case 'immediately_available':
+      return 'Immediately Available';
+    case 'on_notice_under_1_month':
+      return 'On Notice Under 1 Month';
+    case 'on_notice_1_3_months':
+      return 'On Notice 1-3 Months';
+    case 'employed_flexible':
+      return 'Employed, Flexible';
+    default:
+      return formatSlugLabel(value);
+  }
+}
+
+export function resolveJobSearchStatusLabel(
+  value: unknown,
+): string | undefined {
+  if (typeof value !== 'string') return undefined;
+
+  switch (value) {
+    case 'actively_looking':
+      return 'Actively Looking';
+    case 'open_to_right_opportunity':
+      return 'Open to Work';
+    case 'just_exploring':
+      return 'Just Exploring';
+    default:
+      return formatSlugLabel(value);
+  }
+}
+
+export function resolveWorkArrangementLabels(value: unknown): string[] {
+  const values = Array.isArray(value) ? value : [value];
+  return compactStrings(
+    values.map((item) => {
+      if (typeof item !== 'string') return undefined;
+
+      switch (item) {
+        case 'fully_remote':
+          return 'Fully Remote';
+        case 'hybrid':
+          return 'Hybrid';
+        case 'in_person_only':
+          return 'In Person';
+        case 'flexible':
+          return 'Flexible';
+        case 'open_to_any':
+          return 'Open to Any';
+        default:
+          return formatSlugLabel(item);
+      }
+    }),
+  );
+}
