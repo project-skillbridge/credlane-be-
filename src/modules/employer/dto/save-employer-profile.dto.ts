@@ -11,7 +11,9 @@ import {
 } from 'class-validator';
 import {
   EMPLOYER_COMPANY_SIZES,
-  EMPLOYER_HIRING_LOCATIONS,
+  EMPLOYER_DESIRED_ROLES,
+  EMPLOYER_HIRING_RANGES,
+  EMPLOYER_PREFERRED_EXPERIENCE_LEVELS,
   EMPLOYER_TYPES,
 } from '../employer.constants';
 
@@ -38,34 +40,67 @@ export class SaveEmployerProfileDto {
   @IsIn(EMPLOYER_COMPANY_SIZES, { message: 'Invalid company size selection' })
   companySize: string;
 
-  @ApiPropertyOptional({ example: 'https://acmelabs.com' })
-  @IsOptional()
+  @ApiProperty({ example: 'https://acmelabs.com' })
   @IsUrl({}, { message: 'Please enter a valid website URL' })
   @MaxLength(500)
-  companyWebsite?: string;
+  companyWebsite: string;
+
+  @ApiProperty({ example: 'Fintech' })
+  @IsString()
+  @MinLength(1, { message: 'industry is required' })
+  @MaxLength(100)
+  industry: string;
+
+  @ApiProperty({ example: 'Nigeria' })
+  @IsString()
+  @MinLength(2, { message: 'region is required' })
+  @MaxLength(100)
+  region: string;
+
+  @ApiPropertyOptional({
+    example: 'https://www.linkedin.com/company/acmelabs',
+  })
+  @IsOptional()
+  @IsUrl({}, { message: 'linkedinCompanyPageUrl must be a valid URL' })
+  @MaxLength(500)
+  linkedinCompanyPageUrl?: string;
 
   @ApiProperty({
-    example: ['Engineering', 'Design'],
+    example: ['frontend_developer', 'backend_developer'],
+    enum: EMPLOYER_DESIRED_ROLES,
     type: [String],
-    description: 'At least one role required; custom values accepted',
+    description: 'At least one role track required',
   })
   @IsArray()
   @ArrayMinSize(1, { message: 'Please select at least one role' })
-  @IsString({ each: true, message: 'Each role must be a string' })
+  @IsIn(EMPLOYER_DESIRED_ROLES, {
+    each: true,
+    message: `Each role must be one of: ${EMPLOYER_DESIRED_ROLES.join(', ')}`,
+  })
   hiringRoles: string[];
 
   @ApiProperty({
-    example: ['Nigeria', 'Remote Worldwide'],
-    enum: EMPLOYER_HIRING_LOCATIONS,
+    example: ['junior', 'mid'],
+    enum: EMPLOYER_PREFERRED_EXPERIENCE_LEVELS,
     isArray: true,
-    description:
-      'Nigeria | Africa | Remote Worldwide | UK | Europe | North America',
+    description: 'Preferred experience levels for discovery defaults',
   })
   @IsArray()
-  @ArrayMinSize(1, { message: 'Please select at least one location' })
-  @IsIn(EMPLOYER_HIRING_LOCATIONS, {
+  @ArrayMinSize(1, { message: 'Please select at least one experience level' })
+  @IsIn(EMPLOYER_PREFERRED_EXPERIENCE_LEVELS, {
     each: true,
-    message: 'Invalid location selection',
+    message: 'Invalid experience level selection',
   })
-  hiringLocations: string[];
+  preferredExperienceLevels: string[];
+
+  @ApiPropertyOptional({
+    example: '6_10',
+    enum: EMPLOYER_HIRING_RANGES,
+    description: 'Approximate number of talents to hire; optional',
+  })
+  @IsOptional()
+  @IsIn(EMPLOYER_HIRING_RANGES, {
+    message: `hiringCount must be one of: ${EMPLOYER_HIRING_RANGES.join(', ')}`,
+  })
+  hiringCount?: string;
 }
