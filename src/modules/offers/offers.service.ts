@@ -38,12 +38,17 @@ export type EmployerCandidatesOfferEntry = {
   status: OfferStatus;
 };
 
+export const EMPLOYER_CANDIDATES_OFFERS_EMPTY_MESSAGE =
+  'No offers sent yet. Discover candidates and send your first offer.';
+
 export type EmployerCandidatesOffersResult = {
   offers: EmployerCandidatesOfferEntry[];
   total: number;
   page: number;
   limit: number;
   totalPages: number;
+  /** Set when the employer has never sent an offer (default subtab list is empty). */
+  emptyStateMessage: string | null;
 };
 
 /** Pushed to employers subscribed on GET /employer/candidates/offers/events. */
@@ -254,13 +259,36 @@ export class OffersService {
       relations: ['candidate', 'employer_pool_profile'],
     });
 
+    const emptyStateMessage = await this.resolveCandidatesOffersEmptyMessage(
+      employerUserId,
+      total,
+      query.status,
+    );
+
     return {
       offers: offers.map((offer) => this.toCandidatesOfferEntry(offer)),
       total,
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+      emptyStateMessage,
     };
+  }
+
+  private async resolveCandidatesOffersEmptyMessage(
+    employerUserId: string,
+    listTotal: number,
+    statusFilter?: string,
+  ): Promise<string | null> {
+    if (listTotal > 0 || statusFilter) {
+      return null;
+    }
+
+    const offersSent = await this.offerRepo.count({
+      where: { employer_user_id: employerUserId },
+    });
+
+    return offersSent === 0 ? EMPLOYER_CANDIDATES_OFFERS_EMPTY_MESSAGE : null;
   }
 
   private toCandidatesOfferEntry(offer: Offer): EmployerCandidatesOfferEntry {

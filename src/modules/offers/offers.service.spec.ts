@@ -313,6 +313,7 @@ describe('OffersService', () => {
         },
       ]);
       expect(result.total).toBe(1);
+      expect(result.emptyStateMessage).toBeNull();
       expect(mockOfferRepo.findAndCount).toHaveBeenCalledWith(
         expect.objectContaining({
           where: expect.objectContaining({
@@ -356,6 +357,28 @@ describe('OffersService', () => {
           },
         }),
       );
+    });
+
+    it('should return empty state message when employer has never sent an offer', async () => {
+      mockOfferRepo.update.mockResolvedValue({ affected: 0 });
+      mockOfferRepo.findAndCount.mockResolvedValue([[], 0]);
+      mockOfferRepo.count.mockResolvedValue(0);
+
+      const result = await service.listEmployerCandidatesOffers('employer-1', {});
+
+      expect(result.emptyStateMessage).toBe(
+        'No offers sent yet. Discover candidates and send your first offer.',
+      );
+    });
+
+    it('should not return empty state message when employer has only non-subtab offers', async () => {
+      mockOfferRepo.update.mockResolvedValue({ affected: 0 });
+      mockOfferRepo.findAndCount.mockResolvedValue([[], 0]);
+      mockOfferRepo.count.mockResolvedValue(3);
+
+      const result = await service.listEmployerCandidatesOffers('employer-1', {});
+
+      expect(result.emptyStateMessage).toBeNull();
     });
   });
 

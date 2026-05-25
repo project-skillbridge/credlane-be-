@@ -16,7 +16,8 @@ Use \`credentials: 'include'\` on fetch when the app and API share a cookie doma
 ### 1) Initial list
 \`GET /employer/candidates/offers\` — optional \`?page=&limit=&status=pending|declined|expired\`.
 Default (no \`status\`) returns pending, declined, and expired (not accepted).
-JSON is wrapped: \`{ status_code, message, data: { offers, total, page, limit, totalPages } }\`.
+JSON is wrapped: \`{ status_code, message, data: { offers, total, page, limit, totalPages, emptyStateMessage } }\`.
+When the employer has never sent an offer, \`emptyStateMessage\` is the copy for the empty state; otherwise \`null\` (render your list or a filtered-empty UI).
 
 ### 2) View Offer modal (read-only)
 \`GET /employer/offers/:offerId\` — full offer + \`candidate\`. No employer PATCH; display only.
@@ -78,6 +79,15 @@ export class EmployerCandidatesOffersListDataDto {
 
   @ApiProperty({ example: 1 })
   totalPages: number;
+
+  @ApiProperty({
+    nullable: true,
+    example:
+      'No offers sent yet. Discover candidates and send your first offer.',
+    description:
+      'Empty-state copy when the employer has never sent an offer; null otherwise.',
+  })
+  emptyStateMessage: string | null;
 }
 
 export class OfferStatusChangeEventDto {
