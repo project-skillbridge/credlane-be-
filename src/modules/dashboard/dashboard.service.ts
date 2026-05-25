@@ -390,7 +390,7 @@ export class DashboardService {
     if (!this.canStartAdvancedAssessment(profile, hasCompletedSkillOnce)) {
       advancedStatus = DashboardJourneyStatus.LOCKED;
     } else if (advancedRetake) {
-      advancedStatus = advancedRetake.ctaEnabled
+      advancedStatus = advancedRetake.cta_enabled
         ? DashboardJourneyStatus.AVAILABLE
         : DashboardJourneyStatus.LOCKED;
     } else if (profile.advanced_assessment_completed_at) {

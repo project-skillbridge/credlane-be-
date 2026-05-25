@@ -139,30 +139,30 @@ describe('VerifiedProfileService', () => {
       const result = await service.getForTalentUser(user.id);
 
       expect(result).toMatchObject({
-        fullName: 'Jane Doe',
+        full_name: 'Jane Doe',
         role: 'Frontend Engineer',
         goal: 'Land First Role',
         about: 'Builder of useful products',
         skills: ['react', 'typescript'],
         verified: true,
         status: TalentProfileStatus.JOB_READY,
-        aiSummary:
+        ai_summary:
           'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
-        skillProficiency: {
-          validatedLevel: VerifiedLevel.MID,
-          skillAssessmentPercentage: 82,
+        skill_proficiency: {
+          validated_level: VerifiedLevel.MID,
+          skill_assessment_percentage: 82,
         },
-        seniorityBadge: 'Mid Level',
-        tierLabel: 'Job Ready',
-        scorePercentage: 80,
-        verifiedAt: '2026-05-03T00:00:00.000Z',
+        seniority_badge: 'Mid Level',
+        tier_label: 'Job Ready',
+        score_percentage: 80,
+        verified_at: '2026-05-03T00:00:00.000Z',
         tier: AssessmentTier.JOB_READY,
-        isOwner: true,
+        is_owner: true,
       });
-      expect(result.keyStrengths).toBeDefined();
-      expect(result.keyStrengths!.length).toBeGreaterThan(0);
-      expect(result.shareUrl).toContain('/verified-profiles/');
-      expect(result.qrCodeUrl).toContain('api.qrserver.com');
+      expect(result.key_strengths).toBeDefined();
+      expect(result.key_strengths!.length).toBeGreaterThan(0);
+      expect(result.share_url).toContain('/verified-profiles/');
+      expect(result.qr_code_url).toContain('api.qrserver.com');
     });
 
     it('rejects non-talent users', async () => {
@@ -237,7 +237,7 @@ describe('VerifiedProfileService', () => {
       );
     });
 
-    it('returns avatarUrl when user has one', async () => {
+    it('returns avatar_url when user has one', async () => {
       const user = makeUser({
         avatar_url: 'https://example.com/avatar.jpg',
       });
@@ -261,7 +261,7 @@ describe('VerifiedProfileService', () => {
       );
 
       const result = await service.getForTalentUser(user.id);
-      expect(result.avatarUrl).toBe('https://example.com/avatar.jpg');
+      expect(result.avatar_url).toBe('https://example.com/avatar.jpg');
     });
 
     it('returns undefined optional fields when data is minimal', async () => {
@@ -297,13 +297,13 @@ describe('VerifiedProfileService', () => {
       expect(result.goal).toBe('');
       expect(result.about).toBe('');
       expect(result.skills).toBeUndefined();
-      expect(result.aiSummary).toBeUndefined();
-      expect(result.keyStrengths).toBeUndefined();
-      expect(result.professionalSkills).toBeUndefined();
-      expect(result.softSkills).toBeUndefined();
-      expect(result.scorePercentage).toBeUndefined();
-      expect(result.seniorityBadge).toBe('Entry Level');
-      expect(result.tierLabel).toBeUndefined();
+      expect(result.ai_summary).toBeUndefined();
+      expect(result.key_strengths).toBeUndefined();
+      expect(result.professional_skills).toBeUndefined();
+      expect(result.soft_skills).toBeUndefined();
+      expect(result.score_percentage).toBeUndefined();
+      expect(result.seniority_badge).toBe('Entry Level');
+      expect(result.tier_label).toBeUndefined();
     });
 
     it('falls back to profile_share_link when no employer pool profile exists', async () => {
@@ -322,8 +322,8 @@ describe('VerifiedProfileService', () => {
       );
 
       const result = await service.getForTalentUser(user.id);
-      expect(result.shareUrl).toContain('legacy-share-link-123');
-      expect(result.qrCodeUrl).toContain('api.qrserver.com');
+      expect(result.share_url).toContain('legacy-share-link-123');
+      expect(result.qr_code_url).toContain('api.qrserver.com');
     });
 
     it('gracefully degrades AI summary when OpenRouter fails', async () => {
@@ -349,10 +349,10 @@ describe('VerifiedProfileService', () => {
       );
 
       const result = await service.getForTalentUser(user.id);
-      expect(result.aiSummary).toBeUndefined();
+      expect(result.ai_summary).toBeUndefined();
     });
 
-    it('returns empty shareUrl when no token or pool link exists', async () => {
+    it('returns empty share_url when no token or pool link exists', async () => {
       const user = makeUser();
       const profile = makeProfile({
         status: TalentProfileStatus.JOB_READY,
@@ -368,8 +368,8 @@ describe('VerifiedProfileService', () => {
       );
 
       const result = await service.getForTalentUser(user.id);
-      expect(result.shareUrl).toBe('');
-      expect(result.qrCodeUrl).toBeUndefined();
+      expect(result.share_url).toBe('');
+      expect(result.qr_code_url).toBeUndefined();
     });
   });
 
@@ -440,15 +440,15 @@ describe('VerifiedProfileService', () => {
       const result = await service.getByShareToken(shareToken);
 
       expect(result).toMatchObject({
-        fullName: 'Jane Doe',
+        full_name: 'Jane Doe',
         role: 'Api Engineering',
         about: 'API specialist',
         verified: true,
-        verifiedAt: '2026-05-04T00:00:00.000Z',
-        skillProficiency: { validatedLevel: VerifiedLevel.MID },
-        isOwner: false,
+        verified_at: '2026-05-04T00:00:00.000Z',
+        skill_proficiency: { validated_level: VerifiedLevel.MID },
+        is_owner: false,
       });
-      expect(result.shareUrl).toContain(shareToken);
+      expect(result.share_url).toContain(shareToken);
     });
 
     it('falls back to profile advanced completion when pool verified_at is missing', async () => {
@@ -486,7 +486,7 @@ describe('VerifiedProfileService', () => {
       await expect(
         service.getByShareToken(shareToken),
       ).resolves.toMatchObject({
-        verifiedAt: '2026-05-03T12:00:00.000Z',
+        verified_at: '2026-05-03T12:00:00.000Z',
         tier: AssessmentTier.JOB_READY,
       });
     });

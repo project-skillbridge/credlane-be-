@@ -934,7 +934,7 @@ describe('Auth (e2e)', () => {
           country: 'Unknown',
           role: talentRegisterPayload.role,
           is_verified: true,
-          onboardingComplete: false,
+          onboarding_complete: false,
         },
       },
     });
