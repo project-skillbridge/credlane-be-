@@ -237,6 +237,75 @@ describe('EmployerAssessmentsService', () => {
     });
   });
 
+  // ─── getAssessment ────────────────────────────────────────────────────────
+
+  describe('getAssessment', () => {
+    it('should return an employer assessment with questions and share URL', async () => {
+      mockUserRepo.findOne.mockResolvedValue({
+        id: 'emp-1',
+        is_verified: true,
+      });
+      mockAssessmentRepo.findOne.mockResolvedValue({
+        id: 'ass-1',
+        employer_user_id: 'emp-1',
+        title: 'Frontend Assessment',
+        share_token: 'token-abc',
+        questions: [
+          {
+            id: 'q-1',
+            position: 1,
+            question_text: 'What is React?',
+            question_type: EmployerQuestionType.SHORT_ANSWER,
+            correct_answer: 'A library',
+          },
+        ],
+      });
+
+      const result = await service.getAssessment('emp-1', 'ass-1');
+
+      expect(result.id).toBe('ass-1');
+      expect(result.title).toBe('Frontend Assessment');
+      expect(result.questions).toHaveLength(1);
+      expect(result.questions[0].question_text).toBe('What is React?');
+      expect(result.shareUrl).toContain('/assessments/token-abc');
+      expect(mockAssessmentRepo.findOne).toHaveBeenCalledWith({
+        where: { id: 'ass-1', employer_user_id: 'emp-1' },
+        relations: ['questions'],
+        order: { questions: { position: 'ASC' } },
+      });
+    });
+
+    it('should scope lookup to the requesting employer and reject wrong-owner access', async () => {
+      mockUserRepo.findOne.mockResolvedValue({
+        id: 'emp-2',
+        is_verified: true,
+      });
+      mockAssessmentRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.getAssessment('emp-2', 'ass-1')).rejects.toThrow(
+        'Assessment not found',
+      );
+
+      expect(mockAssessmentRepo.findOne).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: { id: 'ass-1', employer_user_id: 'emp-2' },
+        }),
+      );
+    });
+
+    it('should throw NotFoundError when assessment does not exist', async () => {
+      mockUserRepo.findOne.mockResolvedValue({
+        id: 'emp-1',
+        is_verified: true,
+      });
+      mockAssessmentRepo.findOne.mockResolvedValue(null);
+
+      await expect(service.getAssessment('emp-1', 'missing-ass')).rejects.toThrow(
+        'Assessment not found',
+      );
+    });
+  });
+
   // ─── getPublicAssessmentByToken ────────────────────────────────────────────
 
   describe('getPublicAssessmentByToken', () => {
@@ -605,6 +674,105 @@ describe('EmployerAssessmentsService', () => {
 
       expect(result.emptyState).toContain('No assessments yet');
       expect(result.assessments).toHaveLength(0);
+    });
+  });
+
+  // ─── searchCandidates ─────────────────────────────────────────────────────
+
+  describe('searchCandidates', () => {
+    const createQueryBuilderMock = () => {
+      const qb = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getCount: jest.fn().mockResolvedValue(2),
+        select: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        offset: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue([
+          {
+            candidateUserId: 'candidate-1',
+            firstName: 'Ada',
+            lastName: 'Lovelace',
+            email: 'ada@example.com',
+          },
+          {
+            candidateUserId: 'candidate-2',
+            firstName: 'Grace',
+            lastName: 'Hopper',
+            email: 'grace@example.com',
+          },
+        ]),
+      };
+      mockSavedCandidateRepo.createQueryBuilder.mockReturnValue(qb);
+      return qb;
+    };
+
+    it('should search shortlisted candidates with ILIKE, ordering, and pagination', async () => {
+      mockUserRepo.findOne.mockResolvedValue({
+        id: 'emp-1',
+        is_verified: true,
+      });
+      const qb = createQueryBuilderMock();
+
+      const result = await service.searchCandidates('emp-1', {
+        search: 'ada',
+        page: 2,
+        limit: 10,
+      });
+
+      expect(result).toEqual({
+        candidates: [
+          {
+            candidateUserId: 'candidate-1',
+            fullName: 'Ada Lovelace',
+            email: 'ada@example.com',
+          },
+          {
+            candidateUserId: 'candidate-2',
+            fullName: 'Grace Hopper',
+            email: 'grace@example.com',
+          },
+        ],
+        total: 2,
+        page: 2,
+        limit: 10,
+        totalPages: 1,
+      });
+      expect(mockSavedCandidateRepo.createQueryBuilder).toHaveBeenCalledWith(
+        'saved',
+      );
+      expect(qb.innerJoin).toHaveBeenCalledWith(
+        User,
+        'u',
+        'u.id = saved.candidate_user_id',
+      );
+      expect(qb.where).toHaveBeenCalledWith(
+        'saved.employer_user_id = :employerUserId',
+        { employerUserId: 'emp-1' },
+      );
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('ILIKE :search'),
+        { search: '%ada%' },
+      );
+      expect(qb.orderBy).toHaveBeenCalledWith('saved.created_at', 'DESC');
+      expect(qb.offset).toHaveBeenCalledWith(10);
+      expect(qb.limit).toHaveBeenCalledWith(10);
+      expect(qb.getCount).toHaveBeenCalledTimes(1);
+      expect(qb.getRawMany).toHaveBeenCalledTimes(1);
+    });
+
+    it('should reject unverified employers before searching candidates', async () => {
+      mockUserRepo.findOne.mockResolvedValue({
+        id: 'emp-1',
+        is_verified: false,
+      });
+
+      await expect(service.searchCandidates('emp-1', {})).rejects.toThrow(
+        'Only verified employers',
+      );
+      expect(mockSavedCandidateRepo.createQueryBuilder).not.toHaveBeenCalled();
     });
   });
 
