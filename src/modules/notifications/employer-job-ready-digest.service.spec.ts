@@ -82,6 +82,8 @@ describe('employer job ready digest matching', () => {
 describe('EmployerJobReadyDigestService', () => {
   let service: EmployerJobReadyDigestService;
   let notificationsService: { create: jest.Mock };
+  let mailService: { sendJobReadyMatchesDigest: jest.Mock };
+  let usersService: { findOneOrNull: jest.Mock };
   let employerProfileRepo: { find: jest.Mock };
   let poolProfileRepo: { createQueryBuilder: jest.Mock };
   let notificationRepo: { createQueryBuilder: jest.Mock };
@@ -93,6 +95,16 @@ describe('EmployerJobReadyDigestService', () => {
 
   beforeEach(() => {
     notificationsService = { create: jest.fn().mockResolvedValue({ id: 'n-1' }) };
+    mailService = {
+      sendJobReadyMatchesDigest: jest.fn().mockResolvedValue({ id: 'email-1' }),
+    };
+    usersService = {
+      findOneOrNull: jest.fn().mockResolvedValue({
+        id: 'emp-1',
+        email: 'employer@example.com',
+        first_name: 'Acme',
+      }),
+    };
     employerProfileRepo = { find: jest.fn() };
     notificationRepo = { createQueryBuilder: jest.fn() };
 
@@ -125,6 +137,8 @@ describe('EmployerJobReadyDigestService', () => {
 
     service = new EmployerJobReadyDigestService(
       notificationsService as never,
+      mailService as never,
+      usersService as never,
       employerProfileRepo as never,
       poolProfileRepo as never,
       notificationRepo as never,
@@ -164,6 +178,31 @@ describe('EmployerJobReadyDigestService', () => {
         candidateUserIds: ['cand-1'],
       },
     });
+    expect(mailService.sendJobReadyMatchesDigest).toHaveBeenCalledTimes(1);
+    expect(mailService.sendJobReadyMatchesDigest).toHaveBeenCalledWith({
+      to: 'employer@example.com',
+      recipientFirstName: 'Acme',
+      matchCount: 1,
+    });
+  });
+
+  it('still creates in-app notification when digest email fails', async () => {
+    employerProfileRepo.find.mockResolvedValue([
+      {
+        user_id: 'emp-1',
+        hiring_roles: ['frontend_developer'],
+        hiring_locations: ['Nigeria'],
+        preferred_experience_levels: ['mid'],
+        desired_roles: null,
+      },
+    ]);
+    mailService.sendJobReadyMatchesDigest.mockRejectedValue(
+      new Error('smtp down'),
+    );
+
+    await service.processWeeklyDigests(referenceDate);
+
+    expect(notificationsService.create).toHaveBeenCalledTimes(1);
   });
 
   it('skips employers without hiring preferences', async () => {
@@ -203,5 +242,6 @@ describe('EmployerJobReadyDigestService', () => {
     await service.processWeeklyDigests(referenceDate);
 
     expect(notificationsService.create).not.toHaveBeenCalled();
+    expect(mailService.sendJobReadyMatchesDigest).not.toHaveBeenCalled();
   });
 });

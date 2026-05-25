@@ -5,6 +5,7 @@ import { loadMailTemplateFile, substituteMailTemplate } from './mail-templates';
 import type {
   AdvancedRetakeAvailableEmailPayload,
   AssessmentPerformanceEmailPayload,
+  JobReadyMatchesDigestEmailPayload,
   PasswordResetEmailPayload,
   SendMailOptions,
 } from './mail.types';
@@ -165,6 +166,32 @@ export class MailService {
     return this.send({
       to: params.to,
       subject: 'You can retake your advanced assessment',
+      text,
+      html,
+    });
+  }
+
+  async sendJobReadyMatchesDigest(params: JobReadyMatchesDigestEmailPayload) {
+    const base = env.FRONTEND_URL.replace(/\/$/, '');
+    const discoveryUrl = `${base}/employer/discovery/candidates`;
+    const name = params.recipientFirstName.trim() || 'there';
+    const label = params.matchCount === 1 ? 'candidate' : 'candidates';
+    const verb = params.matchCount === 1 ? 'matches' : 'match';
+    const summary = `${params.matchCount} new Job Ready ${label} ${verb} your saved hiring preferences this week.`;
+
+    const text =
+      `Hi ${name},\n\n` +
+      `${summary}\n\n` +
+      `Browse matching candidates: ${discoveryUrl}\n`;
+
+    const html =
+      `<p>Hi ${name},</p>` +
+      `<p>${summary}</p>` +
+      `<p><a href="${discoveryUrl}">View matching candidates</a></p>`;
+
+    return this.send({
+      to: params.to,
+      subject: 'New Job Ready candidates match your hiring preferences',
       text,
       html,
     });

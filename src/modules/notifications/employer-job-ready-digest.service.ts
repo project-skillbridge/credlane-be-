@@ -6,9 +6,11 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
+import { MailService } from '../mail/mail.service';
 import { EmployerProfile } from '../employer/entities/employer-profile.entity';
 import { EmployerPoolProfile } from '../talent/entities/employer-pool-profile.entity';
 import { User } from '../users/entities/user.entity';
+import { UsersService } from '../users/users.service';
 import { NotificationType } from './notification-type.enum';
 import { NotificationsService } from './notifications.service';
 import { UserNotification } from './user-notification.entity';
@@ -110,6 +112,8 @@ export class EmployerJobReadyDigestService
 
   constructor(
     private readonly notificationsService: NotificationsService,
+    private readonly mailService: MailService,
+    private readonly usersService: UsersService,
     @InjectRepository(EmployerProfile)
     private readonly employerProfileRepo: Repository<EmployerProfile>,
     @InjectRepository(EmployerPoolProfile)
@@ -133,7 +137,7 @@ export class EmployerJobReadyDigestService
     }
   }
 
-  /** Weekly batch: one in-app notification per employer summarizing new matching Job Ready candidates. */
+  /** Weekly batch: one in-app notification and one email per employer for matching Job Ready candidates. */
   async processWeeklyDigests(referenceDate = new Date()): Promise<void> {
     const digestWeekEnd = referenceDate;
     const digestWeekStart = new Date(
@@ -253,5 +257,32 @@ export class EmployerJobReadyDigestService
         candidateUserIds,
       },
     });
+
+    await this.sendDigestEmail(employer.user_id, matchCount);
+  }
+
+  private async sendDigestEmail(
+    employerUserId: string,
+    matchCount: number,
+  ): Promise<void> {
+    const user = await this.usersService.findOneOrNull(employerUserId);
+    if (!user) {
+      this.logger.warn(
+        `Digest email skipped: user not found user=${employerUserId}`,
+      );
+      return;
+    }
+
+    try {
+      await this.mailService.sendJobReadyMatchesDigest({
+        to: user.email,
+        recipientFirstName: user.first_name,
+        matchCount,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Job Ready digest email failed user=${employerUserId}: ${String(error)}`,
+      );
+    }
   }
 }
