@@ -59,10 +59,18 @@ export class EmployerService {
         profile.employer_type = dto.employerType;
         profile.company_name = dto.companyName.trim();
         profile.company_size = dto.companySize;
-        profile.company_website = dto.companyWebsite?.trim() ?? null;
+        profile.company_website = dto.companyWebsite.trim();
+        profile.website_url = dto.companyWebsite.trim();
+        profile.industry = dto.industry.trim();
+        profile.region = dto.region.trim();
+        profile.hiring_region = dto.region.trim();
+        profile.linkedin_company_page_url =
+          dto.linkedinCompanyPageUrl?.trim() ?? null;
         profile.hiring_roles = dto.hiringRoles;
-        profile.hiring_locations = dto.hiringLocations;
-        profile.linkedin_company_url = dto.linkedinCompanyUrl?.trim() ?? null;
+        profile.hiring_locations = [dto.region.trim()];
+        profile.desired_roles = dto.hiringRoles;
+        profile.preferred_experience_levels = dto.preferredExperienceLevels;
+        profile.hiring_count_range = dto.hiringCount ?? null;
 
         await manager.save(EmployerProfile, profile);
         await this.usersService.markOnboardingCompleteWithManager(
@@ -108,11 +116,21 @@ export class EmployerService {
 
         const nextProfile = manager.create(EmployerProfile, {
           user_id: userId,
+          employer_type: dto.joiningAs,
           joining_as: dto.joiningAs,
+          company_name: dto.companyName.trim(),
+          company_size: dto.companySize,
+          industry: dto.industry.trim(),
           desired_roles: dto.desiredRoles,
+          hiring_roles: dto.desiredRoles,
+          hiring_locations: [dto.region.trim()],
           region: dto.region.trim(),
+          hiring_region: dto.region.trim(),
           hiring_count_range: dto.hiringCountRange,
           company_website: dto.companyWebsite?.trim() || null,
+          website_url: dto.companyWebsite?.trim() || null,
+          linkedin_company_page_url: dto.linkedinCompanyPageUrl?.trim() || null,
+          preferred_experience_levels: dto.preferredExperienceLevels,
         });
 
         const savedProfile = await manager.save(EmployerProfile, nextProfile);
