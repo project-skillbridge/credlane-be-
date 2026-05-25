@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Between, LessThan, Repository } from 'typeorm';
+import { Between, In, LessThan, Repository } from 'typeorm';
 import {
   BadRequestError,
   ForbiddenError,
@@ -25,6 +25,31 @@ export type OfferListResult = {
   limit: number;
   totalPages: number;
 };
+
+/** Candidates tab — Offers subtab row (pending / declined / expired by default). */
+export type EmployerCandidatesOfferEntry = {
+  offerId: string;
+  candidateUserId: string;
+  candidateName: string;
+  roleTrack: string | null;
+  jobTitle: string;
+  dateSent: Date;
+  status: OfferStatus;
+};
+
+export type EmployerCandidatesOffersResult = {
+  offers: EmployerCandidatesOfferEntry[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+};
+
+const CANDIDATES_OFFERS_SUBTAB_STATUSES = [
+  OfferStatus.PENDING,
+  OfferStatus.DECLINED,
+  OfferStatus.EXPIRED,
+] as const;
 
 export type OfferAnalytics = {
   offersThisMonth: number;
@@ -183,6 +208,59 @@ export class OffersService {
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async listEmployerCandidatesOffers(
+    employerUserId: string,
+    query: ListOffersQueryDto,
+  ): Promise<EmployerCandidatesOffersResult> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+
+    await this.expireStaleOffers(employerUserId);
+
+    const where: Record<string, unknown> = {
+      employer_user_id: employerUserId,
+    };
+
+    if (query.status) {
+      where.status = query.status;
+    } else {
+      where.status = In([...CANDIDATES_OFFERS_SUBTAB_STATUSES]);
+    }
+
+    const [offers, total] = await this.offerRepo.findAndCount({
+      where,
+      order: { created_at: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+      relations: ['candidate', 'employer_pool_profile'],
+    });
+
+    return {
+      offers: offers.map((offer) => this.toCandidatesOfferEntry(offer)),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  private toCandidatesOfferEntry(offer: Offer): EmployerCandidatesOfferEntry {
+    const candidate = offer.candidate;
+    const candidateName = candidate
+      ? `${candidate.first_name ?? ''} ${candidate.last_name ?? ''}`.trim()
+      : '';
+
+    return {
+      offerId: offer.id,
+      candidateUserId: offer.candidate_user_id,
+      candidateName: candidateName || 'Unknown candidate',
+      roleTrack: offer.employer_pool_profile?.track ?? null,
+      jobTitle: offer.role_title,
+      dateSent: offer.created_at,
+      status: offer.status,
     };
   }
 

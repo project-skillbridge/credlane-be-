@@ -44,6 +44,22 @@ export class OffersController {
     return this.offersService.listEmployerOffers(employerUserId, query);
   }
 
+  @Get('employer/candidates/offers')
+  @Roles(UserRole.EMPLOYER)
+  @ApiOperation({
+    summary:
+      'Candidates tab — Offers subtab: sent offers with candidate name, track, job title, date sent, and status',
+  })
+  async listEmployerCandidatesOffers(
+    @CurrentUser('sub') employerUserId: string,
+    @Query() query: ListOffersQueryDto,
+  ) {
+    return this.offersService.listEmployerCandidatesOffers(
+      employerUserId,
+      query,
+    );
+  }
+
   @Get('employer/offers/analytics')
   @Roles(UserRole.EMPLOYER)
   @ApiOperation({ summary: 'Get offer analytics for this employer' })

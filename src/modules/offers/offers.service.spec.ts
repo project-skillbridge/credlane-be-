@@ -278,6 +278,87 @@ describe('OffersService', () => {
     });
   });
 
+  describe('listEmployerCandidatesOffers', () => {
+    it('should return subtab rows with candidate name, role track, job title, date sent, and status', async () => {
+      mockOfferRepo.update.mockResolvedValue({ affected: 0 });
+      const sentAt = new Date('2026-05-01T10:00:00.000Z');
+      const row = {
+        id: 'offer-1',
+        candidate_user_id: 'candidate-1',
+        role_title: 'Senior Frontend Engineer',
+        status: OfferStatus.PENDING,
+        created_at: sentAt,
+        candidate: {
+          first_name: 'Ada',
+          last_name: 'Lovelace',
+        },
+        employer_pool_profile: { track: 'frontend_developer' },
+      };
+      mockOfferRepo.findAndCount.mockResolvedValue([[row], 1]);
+
+      const result = await service.listEmployerCandidatesOffers('employer-1', {
+        page: 1,
+        limit: 20,
+      });
+
+      expect(result.offers).toEqual([
+        {
+          offerId: 'offer-1',
+          candidateUserId: 'candidate-1',
+          candidateName: 'Ada Lovelace',
+          roleTrack: 'frontend_developer',
+          jobTitle: 'Senior Frontend Engineer',
+          dateSent: sentAt,
+          status: OfferStatus.PENDING,
+        },
+      ]);
+      expect(result.total).toBe(1);
+      expect(mockOfferRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            employer_user_id: 'employer-1',
+          }),
+          relations: ['candidate', 'employer_pool_profile'],
+        }),
+      );
+    });
+
+    it('should default to pending, declined, and expired (exclude accepted)', async () => {
+      mockOfferRepo.update.mockResolvedValue({ affected: 0 });
+      mockOfferRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.listEmployerCandidatesOffers('employer-1', {});
+
+      const call = mockOfferRepo.findAndCount.mock.calls[0][0] as {
+        where: { status: { _type: string; _value: OfferStatus[] } };
+      };
+      expect(call.where.status._type).toBe('in');
+      expect(call.where.status._value).toEqual([
+        OfferStatus.PENDING,
+        OfferStatus.DECLINED,
+        OfferStatus.EXPIRED,
+      ]);
+    });
+
+    it('should honour an explicit status filter', async () => {
+      mockOfferRepo.update.mockResolvedValue({ affected: 0 });
+      mockOfferRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.listEmployerCandidatesOffers('employer-1', {
+        status: 'declined',
+      });
+
+      expect(mockOfferRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            employer_user_id: 'employer-1',
+            status: 'declined',
+          },
+        }),
+      );
+    });
+  });
+
   describe('listEmployerOffers - expiry marking', () => {
     it('should bulk-expire stale PENDING offers before querying', async () => {
       // expireStaleOffers update called first
