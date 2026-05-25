@@ -92,6 +92,11 @@ const CANDIDATES_OFFERS_SUBTAB_STATUSES = [
   OfferStatus.EXPIRED,
 ] as const;
 
+type OfferStatusStreamEntry = {
+  subject: Subject<OfferStatusChangeEvent>;
+  subscriberCount: number;
+};
+
 export type OfferAnalytics = {
   offersThisMonth: number;
   monthlyCap: number;
@@ -106,10 +111,7 @@ export type OfferAnalytics = {
 export class OffersService {
   private readonly logger = new Logger(OffersService.name);
   private readonly monthlyCap: number;
-  private readonly offerStatusStreams = new Map<
-    string,
-    Subject<OfferStatusChangeEvent>
-  >();
+  private readonly offerStatusStreams = new Map<string, OfferStatusStreamEntry>();
 
   constructor(
     @InjectRepository(Offer)
@@ -501,20 +503,43 @@ export class OffersService {
     employerUserId: string,
     listener: (event: OfferStatusChangeEvent) => void,
   ): () => void {
-    let stream = this.offerStatusStreams.get(employerUserId);
-    if (!stream) {
-      stream = new Subject<OfferStatusChangeEvent>();
-      this.offerStatusStreams.set(employerUserId, stream);
+    let entry = this.offerStatusStreams.get(employerUserId);
+    if (!entry) {
+      entry = {
+        subject: new Subject<OfferStatusChangeEvent>(),
+        subscriberCount: 0,
+      };
+      this.offerStatusStreams.set(employerUserId, entry);
     }
-    const subscription = stream.subscribe(listener);
-    return () => subscription.unsubscribe();
+    entry.subscriberCount += 1;
+
+    const subscription = entry.subject.subscribe(listener);
+    let released = false;
+
+    return () => {
+      if (released) {
+        return;
+      }
+      released = true;
+      subscription.unsubscribe();
+
+      const current = this.offerStatusStreams.get(employerUserId);
+      if (!current) {
+        return;
+      }
+      current.subscriberCount -= 1;
+      if (current.subscriberCount <= 0) {
+        current.subject.complete();
+        this.offerStatusStreams.delete(employerUserId);
+      }
+    };
   }
 
   private publishOfferStatusChange(
     employerUserId: string,
     event: OfferStatusChangeEvent,
   ): void {
-    this.offerStatusStreams.get(employerUserId)?.next(event);
+    this.offerStatusStreams.get(employerUserId)?.subject.next(event);
   }
 
   async getAnalytics(employerUserId: string): Promise<OfferAnalytics> {

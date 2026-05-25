@@ -464,6 +464,21 @@ describe('OffersService', () => {
         status: OfferStatus.DECLINED,
       });
     });
+
+    it('should allow idempotent unsubscribe and drop stream when last listener leaves', () => {
+      const unsubscribe = service.subscribeEmployerOfferStatus(
+        'employer-1',
+        jest.fn(),
+      );
+
+      unsubscribe();
+      unsubscribe();
+
+      const streams = (
+        service as unknown as { offerStatusStreams: Map<string, unknown> }
+      ).offerStatusStreams;
+      expect(streams.has('employer-1')).toBe(false);
+    });
   });
 
   describe('listEmployerOffers - expiry marking', () => {

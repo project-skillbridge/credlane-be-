@@ -31,20 +31,20 @@ export type ApiResponse<T> = {
 @Injectable()
 export class TransformInterceptor<T> implements NestInterceptor<
   T,
-  ApiResponse<T>
+  ApiResponse<T> | T
 > {
   constructor(private readonly reflector: Reflector) {}
 
   intercept(
     context: ExecutionContext,
     next: CallHandler<T>,
-  ): Observable<ApiResponse<T>> {
+  ): Observable<ApiResponse<T> | T> {
     const skipTransform = this.reflector.getAllAndOverride<boolean>(
       SKIP_API_TRANSFORM_KEY,
       [context.getHandler(), context.getClass()],
     );
     if (skipTransform) {
-      return next.handle() as Observable<ApiResponse<T>>;
+      return next.handle();
     }
 
     const response = context

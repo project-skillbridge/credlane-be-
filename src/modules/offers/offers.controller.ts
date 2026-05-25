@@ -99,22 +99,56 @@ export class OffersController {
     res.setHeader('Connection', 'keep-alive');
     res.flushHeaders();
 
-    const heartbeat = setInterval(() => {
-      res.write(': heartbeat\n\n');
+    let closed = false;
+    let heartbeat: ReturnType<typeof setInterval> | undefined;
+    let unsubscribe: (() => void) | undefined;
+
+    const cleanup = (): void => {
+      if (closed) {
+        return;
+      }
+      closed = true;
+      if (heartbeat !== undefined) {
+        clearInterval(heartbeat);
+        heartbeat = undefined;
+      }
+      unsubscribe?.();
+      unsubscribe = undefined;
+      if (!res.writableEnded) {
+        res.end();
+      }
+    };
+
+    const writeSse = (chunk: string): boolean => {
+      if (closed || res.writableEnded) {
+        return false;
+      }
+      try {
+        const ok = res.write(chunk);
+        if (!ok) {
+          cleanup();
+        }
+        return ok;
+      } catch {
+        cleanup();
+        return false;
+      }
+    };
+
+    heartbeat = setInterval(() => {
+      writeSse(': heartbeat\n\n');
     }, 25_000);
 
-    const unsubscribe = this.offersService.subscribeEmployerOfferStatus(
+    unsubscribe = this.offersService.subscribeEmployerOfferStatus(
       employerUserId,
       (event) => {
-        res.write(`data: ${JSON.stringify(event)}\n\n`);
+        writeSse(`data: ${JSON.stringify(event)}\n\n`);
       },
     );
 
-    req.on('close', () => {
-      clearInterval(heartbeat);
-      unsubscribe();
-      res.end();
-    });
+    res.on('error', cleanup);
+    req.on('error', cleanup);
+    req.on('close', cleanup);
   }
 
   @Get('employer/candidates/offers')
