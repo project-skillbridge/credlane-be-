@@ -54,11 +54,11 @@ export type OfferListResult = {
 /** Candidates tab — Offers subtab row (pending / declined / expired by default). */
 export type EmployerCandidatesOfferEntry = {
   offerId: string;
-  candidateUserId: string;
-  candidateName: string;
-  roleTrack: string | null;
-  jobTitle: string;
-  dateSent: Date;
+  candidate_user_id: string;
+  candidate_name: string;
+  role_track: string | null;
+  job_title: string;
+  date_sent: Date;
   status: OfferStatus;
 };
 
@@ -323,11 +323,11 @@ export class OffersService {
 
     return {
       offerId: offer.id,
-      candidateUserId: offer.candidate_user_id,
-      candidateName: candidateName || 'Unknown candidate',
-      roleTrack: offer.employer_pool_profile?.track ?? null,
-      jobTitle: offer.role_title,
-      dateSent: offer.created_at,
+      candidate_user_id: offer.candidate_user_id,
+      candidate_name: candidateName || 'Unknown candidate',
+      role_track: offer.employer_pool_profile?.track ?? null,
+      job_title: offer.role_title,
+      date_sent: offer.created_at,
       status: offer.status,
     };
   }
