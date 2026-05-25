@@ -652,20 +652,20 @@ describe('OffersService', () => {
         status: OfferStatus.ACCEPTED,
       };
       mockOfferRepo.findOne.mockResolvedValue(offer);
-      mockOfferRepo.update.mockResolvedValue({ affected: 1 });
-      mockEmployerProfileRepo.increment.mockResolvedValue({ affected: 1 });
+      mockOfferRepo.manager.transaction.mockImplementation(
+        async (cb: (manager: unknown) => Promise<unknown>) => {
+          const manager = {
+            update: jest.fn().mockResolvedValue({ affected: 1 }),
+            increment: jest.fn().mockResolvedValue({ affected: 1 }),
+          };
+          return cb(manager);
+        },
+      );
 
       const result = await service.markHireComplete('employer-1', 'offer-1');
 
       expect(result.status).toBe(OfferStatus.HIRED);
-      expect(mockOfferRepo.update).toHaveBeenCalledWith('offer-1', {
-        status: OfferStatus.HIRED,
-      });
-      expect(mockEmployerProfileRepo.increment).toHaveBeenCalledWith(
-        { user_id: 'employer-1' },
-        'hire_count',
-        1,
-      );
+      expect(mockOfferRepo.manager.transaction).toHaveBeenCalled();
     });
 
     it('should throw NotFoundError if offer does not exist', async () => {

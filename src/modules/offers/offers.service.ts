@@ -671,15 +671,28 @@ export class OffersService {
       throw new BadRequestError('Only accepted offers can be marked as hired');
     }
 
-    await this.offerRepo.update(offer.id, { status: OfferStatus.HIRED });
+    await this.offerRepo.manager.transaction(async (manager) => {
+      const result = await manager.update(
+        Offer,
+        { id: offer.id, status: OfferStatus.ACCEPTED },
+        { status: OfferStatus.HIRED },
+      );
+
+      if (!result.affected || result.affected === 0) {
+        throw new BadRequestError(
+          'Only accepted offers can be marked as hired',
+        );
+      }
+
+      await manager.increment(
+        EmployerProfile,
+        { user_id: employerUserId },
+        'hire_count',
+        1,
+      );
+    });
+
     offer.status = OfferStatus.HIRED;
-
-    await this.employerProfileRepo.increment(
-      { user_id: employerUserId },
-      'hire_count',
-      1,
-    );
-
     return offer;
   }
 
