@@ -33,6 +33,7 @@ import {
 import { User, UserRole } from '../src/modules/users/entities/user.entity';
 import { UsersService } from '../src/modules/users/users.service';
 import { DashboardJourneyStatus } from '../src/modules/dashboard/dto/dashboard-home.dto';
+import { NotificationDispatchService } from '../src/modules/notifications/notification-dispatch.service';
 
 type AuthUser = {
   sub: string;
@@ -184,6 +185,12 @@ describe('Dashboard home (e2e)', () => {
               ),
           },
         },
+        {
+          provide: NotificationDispatchService,
+          useValue: {
+            notifyAdvancedRetakeIfEligible: jest.fn().mockResolvedValue(null),
+          },
+        },
         { provide: APP_GUARD, useClass: MockJwtAuthGuard },
         { provide: APP_GUARD, useClass: RolesGuard },
         { provide: APP_FILTER, useClass: HttpExceptionFilter },
@@ -215,6 +222,7 @@ describe('Dashboard home (e2e)', () => {
         expect(res.body.message).toBe('success');
         expect(res.body.data).toEqual({
           first_name: 'Casey',
+          avatar_url: 'https://cdn.example.com/avatar.png',
           goal: 'land_first_role',
           profile_completion_percentage: 100,
           journey_overview: [
@@ -247,6 +255,8 @@ describe('Dashboard home (e2e)', () => {
               validated_level: VerifiedLevel.MID,
               passed: true,
               completed_at: '2026-05-02T00:00:00.000Z',
+              attempts_used: 0,
+              attempts_remaining: 3,
             },
             advanced: {
               score: 88,
@@ -258,6 +268,8 @@ describe('Dashboard home (e2e)', () => {
               completed_at: '2026-05-03T00:00:00.000Z',
             },
           },
+          skill_attempts_used: 0,
+          skill_max_attempts: 3,
         });
       });
   });

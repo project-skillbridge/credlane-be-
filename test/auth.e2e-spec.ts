@@ -182,6 +182,11 @@ class InMemoryUsersService {
     return user;
   }
 
+  async updatePassword(id: string, passwordHash: string): Promise<void> {
+    const user = await this.findOne(id);
+    user.password = passwordHash;
+  }
+
   // ── OAuth helpers ──────────────────────────────────────────────────────
   // A simple list of { provider, provider_id, user } records
   private readonly oauthAccounts: Array<{
@@ -479,6 +484,7 @@ const mockPasswordResetOtpService = {
   verify: jest.fn().mockResolvedValue(true),
   consume: jest.fn().mockResolvedValue(true),
   countRecentResends: jest.fn().mockResolvedValue(0),
+  countRecentRequests: jest.fn().mockResolvedValue(0),
 };
 
 describe('Auth (e2e)', () => {
@@ -701,6 +707,38 @@ describe('Auth (e2e)', () => {
     expect(mockPasswordResetOtpService.issue).toHaveBeenCalled();
     expect(mailService.passwordResetMessages).toHaveLength(1);
     expect(mailService.passwordResetMessages[0]?.otp).toBeDefined();
+  });
+
+  it('password reset flow accepts uppercase email through request, verify, and reset', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(talentRegisterPayload)
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/auth/forgot-password')
+      .send({ email: talentRegisterPayload.email.toUpperCase() })
+      .expect(200);
+
+    await passwordResetQueue.awaitIdleForTests();
+    expect(mailService.passwordResetMessages.at(-1)?.to).toBe(
+      talentRegisterPayload.email,
+    );
+
+    await request(app.getHttpServer())
+      .post('/auth/verify-reset-otp')
+      .send({ email: talentRegisterPayload.email.toUpperCase(), otp: '123456' })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .post('/auth/reset-password')
+      .send({
+        email: talentRegisterPayload.email.toUpperCase(),
+        otp: '123456',
+        password: 'NewPassword123!',
+        confirmPassword: 'NewPassword123!',
+      })
+      .expect(200);
   });
 
   it('POST /auth/forgot-password returns 429 after 5 requests in the same minute from the same client', async () => {
@@ -955,6 +993,31 @@ describe('Auth (e2e)', () => {
       });
   });
 
+  it('POST /auth/verify-email accepts uppercase email for pending users', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(talentRegisterPayload)
+      .expect(201);
+
+    const user = await usersService.findByEmail(talentRegisterPayload.email);
+    const otp = verificationOtpService.peekLatestCode(user!.id);
+
+    const response = await request(app.getHttpServer())
+      .post('/auth/verify-email')
+      .send({ email: talentRegisterPayload.email.toUpperCase(), otp })
+      .expect(200);
+
+    expect(response.body).toMatchObject({
+      status_code: 200,
+      data: {
+        user: {
+          email: talentRegisterPayload.email,
+          is_verified: true,
+        },
+      },
+    });
+  });
+
   it('POST /auth/verify-email rejects invalid, expired, and reused OTPs', async () => {
     await request(app.getHttpServer())
       .post('/auth/register')
@@ -1035,6 +1098,28 @@ describe('Auth (e2e)', () => {
           message: 'Too many requests. Please wait before trying again.',
         });
       });
+  });
+
+  it('POST /auth/resend-verification accepts uppercase email for pending users', async () => {
+    await request(app.getHttpServer())
+      .post('/auth/register')
+      .send(talentRegisterPayload)
+      .expect(201);
+
+    const user = await usersService.findByEmail(talentRegisterPayload.email);
+    const initialOtp = verificationOtpService.peekLatestCode(user!.id);
+
+    await request(app.getHttpServer())
+      .post('/auth/resend-verification')
+      .send({ email: talentRegisterPayload.email.toUpperCase() })
+      .expect(200);
+
+    const resentOtp = verificationOtpService.peekLatestCode(user!.id);
+    expect(resentOtp).toBeDefined();
+    expect(resentOtp).not.toBe(initialOtp);
+    expect(mailService.verificationMessages.at(-1)?.to).toBe(
+      talentRegisterPayload.email,
+    );
   });
 
   it('POST /auth/resend-verification rejects already verified accounts', async () => {

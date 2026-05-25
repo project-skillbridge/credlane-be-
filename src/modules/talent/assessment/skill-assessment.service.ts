@@ -40,7 +40,9 @@ import { ErrorMessages, SuccessMessages } from '../../../shared';
 import {
   SKILL_ASSESSMENT_MAX_ATTEMPTS,
   SKILL_ASSESSMENT_PASS_PERCENTAGE,
+  SKILL_ASSESSMENT_SESSION_TIMEOUT_MS,
 } from '../talent.constants';
+import { meetsSkillQualityBenchmark } from './assessment-quality';
 import {
   AssessmentAnswerBlock,
   textLengthBoundsForBlock,
@@ -54,6 +56,7 @@ const SKILL_ASSESSMENT_MCQ_COUNT = 6;
 const SKILL_ASSESSMENT_TEXT_COUNT = 4;
 const SKILL_PROBE_MCQ_COUNT = 2;
 const SKILL_PROBE_TEXT_COUNT = 2;
+const SKILL_MCQ_SECTION_WEIGHT = 0.4;
 
 type ProbeDirection = 'above' | 'below';
 
@@ -110,10 +113,11 @@ export interface SubmitSkillAssessmentResult {
   score: number;
   total: number;
   percentage: number;
-  validated_level: VerifiedLevel;
+  validated_level: VerifiedLevel | null;
   claimed_level: VerifiedLevel;
   downgraded: boolean;
   passed: boolean;
+  failed: boolean;
   guidance_report?: GuidanceReport;
   personalised_message?: string;
 }
@@ -237,11 +241,33 @@ export class SkillAssessmentService {
       });
 
       if (activeAttempt) {
-        throw new ConflictException({
-          error: 'CONFLICT',
-          message: ErrorMessages.SKILL_ASSESSMENT.ACTIVE_SESSION_EXISTS,
-          existing_session_id: activeAttempt.id,
-        });
+        const elapsed =
+          Date.now() - new Date(activeAttempt.started_at).getTime();
+
+        if (elapsed >= SKILL_ASSESSMENT_SESSION_TIMEOUT_MS) {
+          // Session is stale — mark it as abandoned so it counts toward max attempts
+          await attemptRepository.update(activeAttempt.id, {
+            completed_at: new Date(),
+            force_submitted: true,
+          });
+
+          // Recount after marking stale session — it now counts as completed
+          const updatedCount = await this.countCompletedSkillAttempts(
+            profile.id,
+            manager,
+          );
+          if (updatedCount >= SKILL_ASSESSMENT_MAX_ATTEMPTS) {
+            throw new ForbiddenException(
+              ErrorMessages.SKILL_ASSESSMENT.MAX_ATTEMPTS_REACHED,
+            );
+          }
+        } else {
+          throw new ConflictException({
+            error: 'CONFLICT',
+            message: ErrorMessages.SKILL_ASSESSMENT.ACTIVE_SESSION_EXISTS,
+            existing_session_id: activeAttempt.id,
+          });
+        }
       }
     }
   }
@@ -660,48 +686,94 @@ export class SkillAssessmentService {
       }
     }
 
-    const primaryScore = primaryMcqCorrect + primaryText.score;
-    const primaryMaxScore = primaryMcqTotal + primaryText.maxScore;
-    const aboveProbeScore = aboveProbeMcqCorrect + aboveProbeText.score;
     const aboveProbeMaxScore = aboveProbeMcqTotal + aboveProbeText.maxScore;
-    const belowProbeScore = belowProbeMcqCorrect + belowProbeText.score;
-    const belowProbeMaxScore = belowProbeMcqTotal + belowProbeText.maxScore;
-
-    const claimedPercentage = this.toPercentage(primaryScore, primaryMaxScore);
-    const aboveLevelPercentage = this.toPercentage(
-      aboveProbeScore,
-      aboveProbeMaxScore,
+    const primaryWeighted = this.toWeightedSectionScore(
+      primaryMcqCorrect,
+      primaryMcqTotal,
+      primaryText.score,
+      primaryText.maxScore,
+      SKILL_MCQ_SECTION_WEIGHT,
     );
-    const belowLevelPercentage = this.toPercentage(
-      belowProbeScore,
-      belowProbeMaxScore,
+    const aboveWeighted = this.toWeightedSectionScore(
+      aboveProbeMcqCorrect,
+      aboveProbeMcqTotal,
+      aboveProbeText.score,
+      aboveProbeText.maxScore,
+      SKILL_MCQ_SECTION_WEIGHT,
+    );
+    const belowWeighted = this.toWeightedSectionScore(
+      belowProbeMcqCorrect,
+      belowProbeMcqTotal,
+      belowProbeText.score,
+      belowProbeText.maxScore,
+      SKILL_MCQ_SECTION_WEIGHT,
     );
 
-    const totalScore = primaryScore + aboveProbeScore + belowProbeScore;
-    const totalMaxScore =
-      primaryMaxScore + aboveProbeMaxScore + belowProbeMaxScore;
+    const claimedPercentage = primaryWeighted.percentage;
+    const aboveLevelPercentage = aboveWeighted.percentage;
+    const belowLevelPercentage = belowWeighted.percentage;
+
+    const weightedSections = [
+      primaryWeighted,
+      aboveWeighted,
+      belowWeighted,
+    ].filter((section) => section.maxScore > 0);
+    const totalScore = weightedSections.reduce(
+      (sum, section) => sum + section.score,
+      0,
+    );
+    const totalMaxScore = weightedSections.reduce(
+      (sum, section) => sum + section.maxScore,
+      0,
+    );
     const percentage = this.toPercentage(totalScore, totalMaxScore);
+    const primaryMcqGatePassed = primaryMcqTotal === 0 || primaryMcqCorrect > 0;
+    const aboveProbeMcqGatePassed =
+      aboveProbeMcqTotal === 0 || aboveProbeMcqCorrect > 0;
 
-    const validatedLevel = this.resolveValidatedLevel(
-      claimedPercentage,
-      aboveLevelPercentage,
-      belowLevelPercentage,
-      percentage,
-      profile.claimed_level ?? VerifiedLevel.JUNIOR,
-    );
+    if (primaryMcqTotal === 0) {
+      this.logger.warn(
+        `Skill assessment primary MCQ gate bypassed: no primary MCQs attempt=${attempt.id} user=${userId}`,
+      );
+    }
+    if (aboveProbeMaxScore > 0 && aboveProbeMcqTotal === 0) {
+      this.logger.warn(
+        `Skill assessment above-level MCQ gate bypassed: no above-level MCQs attempt=${attempt.id} user=${userId}`,
+      );
+    }
+
+    const failed = !meetsSkillQualityBenchmark(percentage);
     const claimed = profile.claimed_level ?? VerifiedLevel.JUNIOR;
-    const downgraded = levelIsLower(validatedLevel, claimed);
-    const passed = claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE;
+    const validatedLevel = failed
+      ? null
+      : this.resolveValidatedLevel(
+          claimedPercentage,
+          aboveLevelPercentage,
+          belowLevelPercentage,
+          percentage,
+          claimed,
+          primaryMcqGatePassed,
+          aboveProbeMcqGatePassed,
+        );
+    const downgraded =
+      !failed &&
+      validatedLevel !== null &&
+      levelIsLower(validatedLevel, claimed);
+    const passed =
+      !failed &&
+      claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE &&
+      primaryMcqGatePassed;
     const tier = this.resolveSkillTier(percentage);
 
     let guidanceReport: GuidanceReport | null = null;
-    if (percentage < SKILL_ASSESSMENT_PASS_PERCENTAGE) {
+    if (!passed) {
       try {
         guidanceReport = await this.guidanceReport.generate({
           report_type: 'emerging',
           track: profile.track ?? 'general',
           claimed_level: claimed,
-          validated_level: validatedLevel,
+          validated_level:
+            validatedLevel ?? profile.validated_level ?? VerifiedLevel.JUNIOR,
           percentage,
           strong_competencies: this.extractStrongCompetencies(
             [
@@ -756,19 +828,29 @@ export class SkillAssessmentService {
       });
       await manager.save(AssessmentResult, result);
 
-      await manager.update(
-        TalentProfile,
-        { id: profile.id },
-        {
-          validated_level: validatedLevel,
-          skill_assessment_completed_at: new Date(),
-          status: this.skillTierToProfileStatus(tier, passed),
-        },
-      );
+      if (!failed && validatedLevel) {
+        await manager.update(
+          TalentProfile,
+          { id: profile.id },
+          {
+            validated_level: validatedLevel,
+            skill_assessment_completed_at: new Date(),
+            status: this.skillTierToProfileStatus(tier, passed),
+          },
+        );
+      } else {
+        await manager.update(
+          TalentProfile,
+          { id: profile.id },
+          {
+            status: TalentProfileStatus.NOT_READY,
+          },
+        );
+      }
     });
 
     this.logger.log(
-      `Skill assessment submitted: attempt=${attempt.id} user=${userId} score=${totalScore}/${totalMaxScore} pct=${percentage} validated=${validatedLevel} passed=${passed} downgraded=${downgraded}`,
+      `Skill assessment submitted: attempt=${attempt.id} user=${userId} score=${totalScore}/${totalMaxScore} pct=${percentage} validated=${validatedLevel ?? 'n/a'} failed=${failed} passed=${passed} downgraded=${downgraded}`,
     );
 
     const attemptNumber = await this.resolveSkillAttemptNumber(
@@ -778,8 +860,10 @@ export class SkillAssessmentService {
     );
 
     return {
-      status: 'success',
-      message: SuccessMessages.SKILL_ASSESSMENT.SUBMITTED,
+      status: failed ? 'failed' : 'success',
+      message: failed
+        ? SuccessMessages.SKILL_ASSESSMENT.FAILED
+        : SuccessMessages.SKILL_ASSESSMENT.SUBMITTED,
       session_id: attempt.id,
       attempt_number: attemptNumber,
       score: Math.round(totalScore),
@@ -789,6 +873,7 @@ export class SkillAssessmentService {
       claimed_level: claimed,
       downgraded,
       passed,
+      failed,
       ...(guidanceReport && { guidance_report: guidanceReport }),
       ...(downgraded && {
         personalised_message: SuccessMessages.SKILL_ASSESSMENT.DOWNGRADE_NOTICE,
@@ -1057,6 +1142,38 @@ export class SkillAssessmentService {
     return maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
   }
 
+  private toWeightedSectionScore(
+    mcqScore: number,
+    mcqMaxScore: number,
+    textScore: number,
+    textMaxScore: number,
+    mcqWeight: number,
+  ): { score: number; maxScore: number; percentage: number } {
+    const hasMcq = mcqMaxScore > 0;
+    const hasText = textMaxScore > 0;
+    if (!hasMcq && !hasText) {
+      return { score: 0, maxScore: 0, percentage: 0 };
+    }
+
+    const mcqPercentage = this.toPercentage(mcqScore, mcqMaxScore);
+    const textPercentage = this.toPercentage(textScore, textMaxScore);
+    let percentage: number;
+
+    if (hasMcq && hasText) {
+      percentage = Math.round(
+        mcqPercentage * mcqWeight + textPercentage * (1 - mcqWeight),
+      );
+    } else {
+      percentage = hasMcq ? mcqPercentage : textPercentage;
+    }
+
+    return {
+      score: percentage,
+      maxScore: 100,
+      percentage,
+    };
+  }
+
   private levelAbove(level: VerifiedLevel): VerifiedLevel | null {
     const levels = Object.values(VerifiedLevel);
     const index = levels.indexOf(level);
@@ -1081,6 +1198,8 @@ export class SkillAssessmentService {
     belowLevelPercentage: number,
     overallPercentage: number,
     claimedLevel: VerifiedLevel,
+    primaryMcqGatePassed = true,
+    aboveProbeMcqGatePassed = true,
   ): VerifiedLevel {
     if (overallPercentage < 55) {
       return LEVEL_ORDER[claimedLevel] > LEVEL_ORDER[VerifiedLevel.JUNIOR]
@@ -1091,12 +1210,16 @@ export class SkillAssessmentService {
     if (
       claimedPercentage >= 95 &&
       aboveLevelPercentage >= 70 &&
+      aboveProbeMcqGatePassed &&
       this.levelAbove(claimedLevel)
     ) {
       return this.levelAbove(claimedLevel) as VerifiedLevel;
     }
 
-    if (claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE) {
+    if (
+      claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE &&
+      primaryMcqGatePassed
+    ) {
       return claimedLevel;
     }
 

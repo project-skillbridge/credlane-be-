@@ -121,6 +121,11 @@ export function resolveRoleLabel(
   specialization: string | null,
   answers: Record<string, unknown>,
 ): string {
+  const track = profileTrack ?? profileRoleTrack;
+  if (track) {
+    return formatSlugLabel(track);
+  }
+
   const spec =
     specialization ??
     (typeof answers.specialization === 'string'
@@ -129,11 +134,6 @@ export function resolveRoleLabel(
 
   if (spec) {
     return formatSlugLabel(spec);
-  }
-
-  const track = profileTrack ?? profileRoleTrack;
-  if (track) {
-    return formatSlugLabel(track);
   }
 
   return 'Talent';
@@ -188,7 +188,9 @@ export function resolveSeniorityBadge(
   return SENIORITY_LABELS[validatedLevel] ?? formatSlugLabel(validatedLevel);
 }
 
-export function resolveTierLabel(tier: string | null | undefined): string | undefined {
+export function resolveTierLabel(
+  tier: string | null | undefined,
+): string | undefined {
   if (!tier) return undefined;
   switch (tier) {
     case 'job_ready':
@@ -206,7 +208,11 @@ export function resolveKeyStrengths(
   competencyScores: Record<string, number> | null | undefined,
   strongCompetencies: string[] | null | undefined,
 ): { competency: string; label: string; percentage: number }[] | undefined {
-  if (!competencyScores || !strongCompetencies || strongCompetencies.length === 0) {
+  if (
+    !competencyScores ||
+    !strongCompetencies ||
+    strongCompetencies.length === 0
+  ) {
     return undefined;
   }
 
@@ -261,9 +267,7 @@ export function categorizeCompetencies(
 
   return {
     professionalSkills:
-      professional.length > 0
-        ? professional.sort(sortByPercentage)
-        : undefined,
+      professional.length > 0 ? professional.sort(sortByPercentage) : undefined,
     softSkills: soft.length > 0 ? soft.sort(sortByPercentage) : undefined,
   };
 }

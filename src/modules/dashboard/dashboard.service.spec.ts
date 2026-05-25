@@ -95,6 +95,7 @@ describe('DashboardService', () => {
 
     await expect(service.getHome(talentUser.id)).resolves.toEqual({
       first_name: 'Casey',
+      avatar_url: null,
       goal: null,
       profile_completion_percentage: 0,
       journey_overview: [
@@ -147,6 +148,7 @@ describe('DashboardService', () => {
 
     await expect(service.getHome(talentUser.id)).resolves.toEqual({
       first_name: 'Casey',
+      avatar_url: null,
       goal: 'land_first_role',
       profile_completion_percentage: 56,
       journey_overview: [
@@ -200,6 +202,7 @@ describe('DashboardService', () => {
 
     await expect(service.getHome(talentUser.id)).resolves.toEqual({
       first_name: 'Casey',
+      avatar_url: null,
       goal: 'land_first_role',
       profile_completion_percentage: 64,
       journey_overview: [
@@ -521,6 +524,7 @@ describe('DashboardService', () => {
 
     await expect(service.getHome(talentUser.id)).resolves.toEqual({
       first_name: 'Jane',
+      avatar_url: 'https://cdn.example.com/avatar.png',
       goal: 'land_first_role',
       profile_completion_percentage: 100,
       journey_overview: [
@@ -552,6 +556,7 @@ describe('DashboardService', () => {
           percentage: 80,
           validated_level: VerifiedLevel.MID,
           passed: true,
+          failed: false,
           completed_at: '2026-05-02T00:00:00.000Z',
           attempts_used: 1,
           attempts_remaining: 2,
@@ -563,7 +568,7 @@ describe('DashboardService', () => {
     });
   });
 
-  it('keeps skill available and unlocks advanced after a failed skill attempt with retries left', async () => {
+  it('keeps skill available and locks advanced after a sub-50% skill attempt with retries left', async () => {
     const talentUser = makeUser({
       first_name: 'Jane',
       role: UserRole.TALENT,
@@ -578,9 +583,9 @@ describe('DashboardService', () => {
       education_level: 'bachelors',
       claimed_level: VerifiedLevel.MID,
       personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
-      skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
-      validated_level: VerifiedLevel.JUNIOR,
-      status: TalentProfileStatus.IN_PROGRESS,
+      skill_assessment_completed_at: null,
+      validated_level: null,
+      status: TalentProfileStatus.NOT_READY,
     });
 
     (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
@@ -609,13 +614,14 @@ describe('DashboardService', () => {
         }),
         expect.objectContaining({
           key: 'advanced',
-          status: DashboardJourneyStatus.AVAILABLE,
+          status: DashboardJourneyStatus.LOCKED,
         }),
       ]),
     );
     expect(home.performance.skill).toMatchObject({
       percentage: 45,
       passed: false,
+      failed: true,
     });
   });
 
@@ -750,7 +756,7 @@ describe('DashboardService', () => {
 
     await expect(service.getHome(talentUser.id)).resolves.toMatchObject({
       first_name: 'Jane',
-      profile_completion_percentage: 84,
+      profile_completion_percentage: 100,
       performance: {
         skill: {
           score: 8,
@@ -772,6 +778,32 @@ describe('DashboardService', () => {
       },
     });
     expect(queryBuilder.getOne).toHaveBeenCalled();
+  });
+
+  it('returns 100 profile completion when required onboarding is complete without optional avatar or linkedin', async () => {
+    const talentUser = makeUser({
+      first_name: 'Jane',
+      role: UserRole.TALENT,
+      avatar_url: null,
+      onboarding_complete: true,
+    });
+
+    const profile = makeProfile({
+      onboarding_step: 3,
+      track: 'backend_developer',
+      region: 'Lagos',
+      education_level: 'bachelors',
+      linkedin_url: null,
+      personal_assessment_completed_at: null,
+      status: TalentProfileStatus.IN_PROGRESS,
+    });
+
+    (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
+    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+
+    const home = await service.getHome(talentUser.id);
+
+    expect(home.profile_completion_percentage).toBe(100);
   });
 
   it('includes nested advanced retake metadata on advanced performance', async () => {
@@ -829,9 +861,9 @@ describe('DashboardService', () => {
       eligibility_date: eligibility_date.toISOString(),
       cta_enabled: false,
     });
-    expect(home.performance.advanced?.retake?.countdown_seconds).toBeGreaterThan(
-      0,
-    );
+    expect(
+      home.performance.advanced?.retake?.countdown_seconds,
+    ).toBeGreaterThan(0);
   });
 
   it('rejects non-talent users', async () => {
@@ -911,6 +943,7 @@ function makeAssessmentResult(
     score: 8,
     max_score: 10,
     percentage: 80,
+    claimed_percentage: 80,
     tier: null,
     validated_level: null,
     guidance_report: null,

@@ -81,32 +81,45 @@ describe('verified-profile.utils', () => {
   });
 
   describe('resolveRoleLabel', () => {
-    it('prioritizes specialization from personal answers', () => {
+    it('prioritizes the saved profile track over stale personal-answer specialization', () => {
       expect(
         resolveRoleLabel('backend_developer', null, null, {
           specialization: 'frontend_engineer',
         }),
-      ).toBe('Frontend Engineer');
+      ).toBe('Backend Developer');
     });
 
-    it('uses poolProfile specialization over personal answers', () => {
+    it('prioritizes the saved profile track over pool profile specialization', () => {
       expect(
         resolveRoleLabel('backend_developer', null, 'api_engineering', {
           specialization: 'frontend_engineer',
         }),
-      ).toBe('Api Engineering');
+      ).toBe('Backend Developer');
     });
 
     it('falls back to profileTrack', () => {
-      expect(
-        resolveRoleLabel('data_analyst', null, null, {}),
-      ).toBe('Data Analyst');
+      expect(resolveRoleLabel('data_analyst', null, null, {})).toBe(
+        'Data Analyst',
+      );
     });
 
     it('falls back to profileRoleTrack', () => {
+      expect(resolveRoleLabel(null, 'product_designer', null, {})).toBe(
+        'Product Designer',
+      );
+    });
+
+    it('uses specialization only when no saved track exists', () => {
       expect(
-        resolveRoleLabel(null, 'product_designer', null, {}),
-      ).toBe('Product Designer');
+        resolveRoleLabel(null, null, 'api_engineering', {
+          specialization: 'frontend_engineer',
+        }),
+      ).toBe('Api Engineering');
+      expect(
+        resolveRoleLabel(null, null, null, {
+          specialization: 'frontend_engineer',
+        }),
+      ).toBe('Frontend Engineer');
     });
 
     it('returns Talent as last resort', () => {

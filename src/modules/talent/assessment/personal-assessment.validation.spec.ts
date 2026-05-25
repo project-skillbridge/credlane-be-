@@ -57,7 +57,7 @@ describe('validateSectionAnswers', () => {
     const result = validateSectionAnswers(
       2,
       {
-        specialization: 'frontend',
+        specialization: 'web_apps',
         claimed_level: 'mid',
         primary_tool_duration: '1_2_years',
         mentoring_experience: 'yes_informally',
@@ -76,7 +76,7 @@ describe('validateSectionAnswers', () => {
       validateSectionAnswers(
         2,
         {
-          specialization: 'frontend',
+          specialization: 'web_apps',
           primary_tool_duration: '1_2_years',
           mentoring_experience: 'yes_informally',
           shipped_deliverable: 'yes_multiple',
@@ -97,7 +97,7 @@ describe('validateSectionAnswers', () => {
     try {
       validateSectionAnswers(
         2,
-        { specialization: 'frontend' },
+        { specialization: 'web_apps' },
         profileWithoutTrack,
       );
       fail('expected UnprocessableEntityException');

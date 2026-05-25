@@ -19,7 +19,10 @@ export class ResourceGenerationService {
     thresholdGroup: string,
   ): Promise<AiResourcesPayload> {
     let focusGuide: string;
-    if (thresholdGroup === 'below_50') {
+    if (thresholdGroup === 'general') {
+      focusGuide =
+        'The candidate has not yet completed an assessment. Provide a well-rounded mix of beginner-to-intermediate resources covering fundamentals, best practices, and practical project-building tutorials to help them get started and grow in their track.';
+    } else if (thresholdGroup === 'below_50') {
       focusGuide =
         'The candidate scored below 50%. Focus heavily on foundational, beginner-friendly topics, basic setup guides, tutorials, and fundamental concepts to help them build a strong base.';
     } else if (thresholdGroup === 'between_50_75') {

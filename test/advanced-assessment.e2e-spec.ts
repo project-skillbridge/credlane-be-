@@ -20,6 +20,8 @@ import { RolesGuard } from '../src/modules/auth/guards/roles.guard';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
 import { AdvancedAssessmentController } from '../src/modules/talent/assessment/advanced-assessment.controller';
 import { AdvancedAssessmentService } from '../src/modules/talent/assessment/advanced-assessment.service';
+import { AdvancedAssessmentQueueService } from '../src/modules/talent/assessment/advanced-assessment-queue.service';
+import { AdvancedAssessmentSubmitProcessor } from '../src/modules/talent/assessment/advanced-assessment-submit.processor';
 import { AdvancedAssessmentAiService } from '../src/modules/talent/assessment/advanced-assessment-ai.service';
 import { EmployerPoolProfileService } from '../src/modules/talent/assessment/employer-pool-profile.service';
 import { PersonalAssessmentService } from '../src/modules/talent/assessment/personal-assessment.service';
@@ -49,6 +51,7 @@ import { AssessmentTier } from '../src/modules/assessments/entities/assessment-r
 import { Lt3GenerationService } from '../src/modules/ai/lt3-generation.service';
 import { QuestionGenerationService } from '../src/modules/ai/question-generation.service';
 import { MailService } from '../src/modules/mail/mail.service';
+import { NotificationDispatchService } from '../src/modules/notifications/notification-dispatch.service';
 import { UserRole } from '../src/modules/users/entities/user.entity';
 import { UsersService } from '../src/modules/users/users.service';
 
@@ -187,6 +190,7 @@ function submitBody() {
 
 describe('Advanced assessment (e2e)', () => {
   let app: INestApplication<App>;
+  let submitQueue: AdvancedAssessmentQueueService;
 
   const talentUser = makeTalentUser();
   const employerUser = makeTalentUser({
@@ -316,6 +320,8 @@ describe('Advanced assessment (e2e)', () => {
       controllers: [AdvancedAssessmentController],
       providers: [
         AdvancedAssessmentService,
+        AdvancedAssessmentSubmitProcessor,
+        AdvancedAssessmentQueueService,
         AdvancedAssessmentAiService,
         {
           provide: getRepositoryToken(TalentProfile),
@@ -335,7 +341,15 @@ describe('Advanced assessment (e2e)', () => {
         },
         {
           provide: getRepositoryToken(AssessmentResult),
-          useValue: { save: jest.fn() },
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            save: jest
+              .fn()
+              .mockImplementation((r: Partial<AssessmentResult>) =>
+                Promise.resolve({ ...r, id: 'result-1' }),
+              ),
+            update: jest.fn().mockResolvedValue({ affected: 1 }),
+          },
         },
         {
           provide: getRepositoryToken(TalentQuestionHistory),
@@ -391,41 +405,44 @@ describe('Advanced assessment (e2e)', () => {
         {
           provide: GuidanceReportService,
           useValue: {
-            generate: jest.fn().mockImplementation((input) =>
-              Promise.resolve({
-                report_type: input.report_type,
-                ai_summary:
-                  'You demonstrate practical problem solving and clear product intuition. Your growth opportunities currently lie in testing and communication.',
-                growth_insight:
-                  'Your recent assessments show steady progress in structured thinking. Focusing on testing and communication could improve your professional readiness.',
-                summary: 'Keep going.',
-                strength_ratings: [
-                  { item: 'Clear practical problem solving.', rating: 3 },
-                  { item: 'Good product intuition.', rating: 2 },
-                  { item: 'Structured answer flow.', rating: 2 },
-                ],
-                weak_area_ratings: [
-                  { item: 'Needs stronger testing habits.', rating: 2 },
-                  { item: 'Improve technical communication.', rating: 1 },
-                  { item: 'Build confidence under ambiguity.', rating: 1 },
-                ],
-                recommended_resources: [
-                  {
-                    title: 'NestJS Docs',
-                    provider: 'NestJS',
-                    url: 'https://docs.nestjs.com',
-                    tier: 'free',
-                    competency: 'Testing',
-                    reason: 'Track-aligned practice material.',
-                  },
-                ],
-                ...(input.report_type === 'emerging' && {
-                  retake_advice:
-                    'Review core concepts before the 14-day retake.',
-                }),
-                resource_page_url: '/resources',
-              }),
-            ),
+            generate: jest
+              .fn()
+              .mockImplementation(
+                (input: Parameters<GuidanceReportService['generate']>[0]) =>
+                  Promise.resolve({
+                    report_type: input.report_type,
+                    ai_summary:
+                      'You demonstrate practical problem solving and clear product intuition. Your growth opportunities currently lie in testing and communication.',
+                    growth_insight:
+                      'Your recent assessments show steady progress in structured thinking. Focusing on testing and communication could improve your professional readiness.',
+                    summary: 'Keep going.',
+                    strength_ratings: [
+                      { item: 'Clear practical problem solving.', rating: 3 },
+                      { item: 'Good product intuition.', rating: 2 },
+                      { item: 'Structured answer flow.', rating: 2 },
+                    ],
+                    weak_area_ratings: [
+                      { item: 'Needs stronger testing habits.', rating: 2 },
+                      { item: 'Improve technical communication.', rating: 1 },
+                      { item: 'Build confidence under ambiguity.', rating: 1 },
+                    ],
+                    recommended_resources: [
+                      {
+                        title: 'NestJS Docs',
+                        provider: 'NestJS',
+                        url: 'https://docs.nestjs.com',
+                        tier: 'free',
+                        competency: 'Testing',
+                        reason: 'Track-aligned practice material.',
+                      },
+                    ],
+                    ...(input.report_type === 'emerging' && {
+                      retake_advice:
+                        'Review core concepts before the 14-day retake.',
+                    }),
+                    resource_page_url: '/resources',
+                  }),
+              ),
           },
         },
         {
@@ -443,6 +460,10 @@ describe('Advanced assessment (e2e)', () => {
         {
           provide: MailService,
           useValue: { sendAssessmentPerformance: jest.fn() },
+        },
+        {
+          provide: NotificationDispatchService,
+          useValue: { dispatch: jest.fn().mockResolvedValue(undefined) },
         },
         { provide: APP_GUARD, useClass: MockJwtAuthGuard },
         { provide: APP_GUARD, useClass: RolesGuard },
@@ -465,6 +486,8 @@ describe('Advanced assessment (e2e)', () => {
       }),
     );
     await app.init();
+    submitQueue = moduleFixture.get(AdvancedAssessmentQueueService);
+    submitQueue.onModuleInit();
   });
 
   afterEach(async () => {
@@ -474,40 +497,19 @@ describe('Advanced assessment (e2e)', () => {
   // ── POST /advanced/submit ──────────────────────────────────────────────────
 
   describe('POST /api/v1/talent/assessment/advanced/submit', () => {
-    it('returns 200 with score, max_score, percentage and tier', async () => {
+    it('returns 202 with processing status then completes the attempt in the background', async () => {
       await request(app.getHttpServer())
         .post('/api/v1/talent/assessment/advanced/submit')
         .send(submitBody())
-        .expect(200)
+        .expect(202)
         .expect((res) => {
-          expect(res.body.status).toBe('success');
+          expect(res.body.status).toBe('processing');
           expect(res.body.session_id).toBe(ATTEMPT_ID);
-          expect(res.body.max_score).toBe(130);
-          expect(typeof res.body.percentage).toBe('number');
-          expect(Object.values(AssessmentTier)).toContain(res.body.tier);
-          expect(['high', 'medium', 'low']).toContain(
-            res.body.integrity_confidence,
-          );
+          expect(res.body.score).toBeUndefined();
         });
-    });
 
-    it('includes guidance_report when tier is not job_ready', async () => {
-      await request(app.getHttpServer())
-        .post('/api/v1/talent/assessment/advanced/submit')
-        .send(submitBody())
-        .expect(200)
-        .expect((res) => {
-          if (res.body.tier !== AssessmentTier.JOB_READY) {
-            expect(res.body.guidance_report).toBeDefined();
-            expect(res.body.guidance_report.summary).toBeDefined();
-            expect(
-              Array.isArray(res.body.guidance_report.strength_ratings),
-            ).toBe(true);
-            expect(
-              Array.isArray(res.body.guidance_report.weak_area_ratings),
-            ).toBe(true);
-          }
-        });
+      await submitQueue.awaitIdleForTests();
+      expect(attemptStore.completed_at).toBeInstanceOf(Date);
     });
 
     it('returns 400 when attempt already submitted', async () => {
@@ -542,7 +544,7 @@ describe('Advanced assessment (e2e)', () => {
         .expect(422);
     });
 
-    it('scores unanswered questions as 0 and still returns 200', async () => {
+    it('accepts partial answers and still returns processing', async () => {
       await request(app.getHttpServer())
         .post('/api/v1/talent/assessment/advanced/submit')
         .send({
@@ -553,10 +555,13 @@ describe('Advanced assessment (e2e)', () => {
             { question_id: LONG_IDS[0], answer: LONG_ANSWER },
           ],
         })
-        .expect(200)
+        .expect(202)
         .expect((res) => {
-          expect(res.body.score).toBeGreaterThanOrEqual(0);
+          expect(res.body.status).toBe('processing');
         });
+
+      await submitQueue.awaitIdleForTests();
+      expect(attemptStore.completed_at).toBeInstanceOf(Date);
     });
 
     it('returns 403 for employer role', async () => {

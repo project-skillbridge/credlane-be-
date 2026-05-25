@@ -140,7 +140,7 @@ describe('VerifiedProfileService', () => {
 
       expect(result).toMatchObject({
         full_name: 'Jane Doe',
-        role: 'Frontend Engineer',
+        role: 'Frontend Developer',
         goal: 'Land First Role',
         about: 'Builder of useful products',
         skills: ['react', 'typescript'],
@@ -432,7 +432,9 @@ describe('VerifiedProfileService', () => {
       (usersService.findOne as jest.Mock).mockResolvedValue(user);
       (resultQueryBuilder.getOne as jest.Mock).mockImplementation(() => {
         if (lastAssessmentType === AssessmentType.ADVANCED) {
-          return Promise.resolve(makeResult({ tier: AssessmentTier.JOB_READY }));
+          return Promise.resolve(
+            makeResult({ tier: AssessmentTier.JOB_READY }),
+          );
         }
         return Promise.resolve(null);
       });

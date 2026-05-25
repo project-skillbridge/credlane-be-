@@ -42,6 +42,12 @@ export class DashboardSkillPerformanceDto {
   passed: boolean;
 
   @ApiProperty({
+    description:
+      'True when overall score was below 50% (attempt does not count toward verification)',
+  })
+  failed: boolean;
+
+  @ApiProperty({
     format: 'date-time',
     example: '2026-05-02T00:00:00.000Z',
   })
@@ -162,6 +168,13 @@ export class DashboardHomeResponseDto {
   first_name: string;
 
   @ApiPropertyOptional({
+    example: 'https://cdn.example.com/avatar.png',
+    nullable: true,
+    description: "The talent's current profile photo URL.",
+  })
+  avatar_url: string | null;
+
+  @ApiPropertyOptional({
     example: 'Get a remote job',
     nullable: true,
     description: "The talent's stated career goal.",
@@ -207,6 +220,7 @@ export type DashboardSkillPerformance = {
   percentage: number;
   validated_level: VerifiedLevel;
   passed: boolean;
+  failed: boolean;
   completed_at: string;
   attempts_used: number;
   attempts_remaining: number;
@@ -232,6 +246,7 @@ export type DashboardPerformance = {
 
 export type DashboardHomeResponse = {
   first_name: string;
+  avatar_url: string | null;
   goal: string | null;
   profile_completion_percentage: number;
   journey_overview: JourneyOverviewItemDto[];

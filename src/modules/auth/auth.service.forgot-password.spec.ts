@@ -82,8 +82,8 @@ describe('AuthService.forgotPassword — per-account rate limiting', () => {
     await service.forgotPassword({ email: existingUser.email });
     const after = Date.now();
 
-    const [_userId, since] = passwordResetOtpService.countRecentRequests
-      .mock.calls[0] as [string, Date];
+    const [_userId, since] = passwordResetOtpService.countRecentRequests.mock
+      .calls[0] as [string, Date];
 
     expect(_userId).toBe(existingUser.id);
     // since should be approximately now - 1 hour
