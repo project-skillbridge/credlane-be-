@@ -541,6 +541,26 @@ describe('EmployerAssessmentsService', () => {
       expect(result.questions[0].correctAnswer).toBe('2');
     });
 
+    it('should validate and import a valid XLSX file', () => {
+      const xlsx = service.getTemplateXlsx();
+      const file = {
+        originalname: 'questions.xlsx',
+        size: xlsx.length,
+        buffer: xlsx,
+      } as Express.Multer.File;
+
+      const result = service.validateUploadedQuestionFile(file);
+
+      expect(result.status).toBe('success');
+      expect(result.questionCount).toBeGreaterThan(0);
+      expect(result.questions[0].questionText).toBe(
+        'Which option best answers the question?',
+      );
+      expect(result.questions[0].questionType).toBe(
+        EmployerQuestionType.MULTIPLE_CHOICE,
+      );
+    });
+
     it('should flag missing columns', () => {
       const csv = 'Question Text,Question Type\n"Q1","Multiple Choice"\n';
 
@@ -663,6 +683,39 @@ describe('EmployerAssessmentsService', () => {
   // ─── listAssessments ───────────────────────────────────────────────────────
 
   describe('listAssessments', () => {
+    it('should return assessments and no empty state when assessments exist', async () => {
+      mockUserRepo.findOne.mockResolvedValue({
+        id: 'emp-1',
+        is_verified: true,
+      });
+      mockAssessmentRepo.find.mockResolvedValue([
+        {
+          id: 'ass-1',
+          employer_user_id: 'emp-1',
+          title: 'Frontend Assessment',
+          created_at: new Date('2026-05-01T00:00:00.000Z'),
+          questions: [{ id: 'q-1', position: 1 }],
+        },
+        {
+          id: 'ass-2',
+          employer_user_id: 'emp-1',
+          title: 'Backend Assessment',
+          created_at: new Date('2026-05-02T00:00:00.000Z'),
+          questions: [{ id: 'q-2', position: 1 }],
+        },
+      ]);
+
+      const result = await service.listAssessments('emp-1');
+
+      expect(result.assessments).toHaveLength(2);
+      expect(result.emptyState).toBeNull();
+      expect(mockAssessmentRepo.find).toHaveBeenCalledWith({
+        where: { employer_user_id: 'emp-1' },
+        order: { created_at: 'DESC' },
+        relations: ['questions'],
+      });
+    });
+
     it('should return empty state when no assessments exist', async () => {
       mockUserRepo.findOne.mockResolvedValue({
         id: 'emp-1',
