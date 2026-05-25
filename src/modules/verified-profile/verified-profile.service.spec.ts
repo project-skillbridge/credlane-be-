@@ -443,7 +443,7 @@ describe('VerifiedProfileService', () => {
 
       expect(result).toMatchObject({
         full_name: 'Jane Doe',
-        role: 'Api Engineering',
+        role: 'Backend Developer',
         about: 'API specialist',
         verified: true,
         verified_at: '2026-05-04T00:00:00.000Z',
@@ -485,9 +485,7 @@ describe('VerifiedProfileService', () => {
         return Promise.resolve(null);
       });
 
-      await expect(
-        service.getByShareToken(shareToken),
-      ).resolves.toMatchObject({
+      await expect(service.getByShareToken(shareToken)).resolves.toMatchObject({
         verified_at: '2026-05-03T12:00:00.000Z',
         tier: AssessmentTier.JOB_READY,
       });
