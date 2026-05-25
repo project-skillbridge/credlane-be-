@@ -173,21 +173,33 @@ export class MailService {
 
   async sendJobReadyMatchesDigest(params: JobReadyMatchesDigestEmailPayload) {
     const base = env.FRONTEND_URL.replace(/\/$/, '');
+    const logoUrl =
+      env.EMAIL_LOGO_URL ??
+      'https://placehold.co/140x40/1f5f6b/ffffff/png?text=SkillBridge';
     const discoveryUrl = `${base}/employer/discovery/candidates`;
     const name = params.recipientFirstName.trim() || 'there';
     const label = params.matchCount === 1 ? 'candidate' : 'candidates';
     const verb = params.matchCount === 1 ? 'matches' : 'match';
-    const summary = `${params.matchCount} new Job Ready ${label} ${verb} your saved hiring preferences this week.`;
+    const summaryLine = `${params.matchCount} new Job Ready ${label} ${verb} your saved hiring preferences this week.`;
 
+    const vars: Record<string, string> = {
+      name,
+      matchCount: String(params.matchCount),
+      matchCountSuffix: params.matchCount === 1 ? '' : 'es',
+      summaryLine,
+      discoveryUrl,
+      logoUrl,
+      supportEmail: env.SUPPORT_EMAIL,
+      unsubscribeUrl: `${base}/email-preferences`,
+      year: String(new Date().getFullYear()),
+    };
+
+    const rawHtml = loadMailTemplateFile('job-ready-matches-digest.html');
+    const html = substituteMailTemplate(rawHtml, vars);
     const text =
       `Hi ${name},\n\n` +
-      `${summary}\n\n` +
+      `${summaryLine}\n\n` +
       `Browse matching candidates: ${discoveryUrl}\n`;
-
-    const html =
-      `<p>Hi ${name},</p>` +
-      `<p>${summary}</p>` +
-      `<p><a href="${discoveryUrl}">View matching candidates</a></p>`;
 
     return this.send({
       to: params.to,
