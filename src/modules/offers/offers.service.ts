@@ -10,6 +10,7 @@ import { Subject } from 'rxjs';
 import { Between, In, LessThan, Repository } from 'typeorm';
 import {
   BadRequestError,
+  ConflictError,
   ForbiddenError,
   NotFoundError,
 } from '../../shared/errors/app.errors';
@@ -148,6 +149,17 @@ export class OffersService {
       );
     }
 
+    const existingOffer = await this.offerRepo.findOne({
+      where: {
+        employer_user_id: employerUserId,
+        candidate_user_id: dto.candidateUserId,
+        status: In([OfferStatus.PENDING, OfferStatus.ACCEPTED]),
+      },
+    });
+    if (existingOffer) {
+      throw new ConflictError('Offer already sent to this candidate');
+    }
+
     // Enforce send-cap atomically via transaction
     const expiresInDays = dto.expiresInDays ?? 14;
     const expiresAt = new Date();
@@ -184,7 +196,12 @@ export class OffersService {
         candidate_user_id: dto.candidateUserId,
         employer_pool_profile_id: poolProfile.id,
         role_title: dto.roleTitle,
-        message: dto.message,
+        message: dto.message ?? '',
+        role_description: dto.roleDescription ?? null,
+        compensation: dto.compensation,
+        employment_type: dto.employmentType,
+        work_arrangement: dto.workArrangement,
+        application_deadline: dto.applicationDeadline ?? null,
         status: OfferStatus.PENDING,
         expires_at: expiresAt,
       } as Partial<Offer>);

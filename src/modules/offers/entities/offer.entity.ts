@@ -63,6 +63,26 @@ export class Offer {
   @Column({ type: 'text' })
   message: string;
 
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ type: 'text', nullable: true })
+  role_description: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  compensation: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  employment_type: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  work_arrangement: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ type: 'date', nullable: true })
+  application_deadline: string | null;
+
   @ApiProperty({ enum: OfferStatus })
   @Column({
     type: 'enum',
