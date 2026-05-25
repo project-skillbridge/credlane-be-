@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { QueryFailedError } from 'typeorm';
 import { EmployerAssessmentsService } from './employer-assessments.service';
 import {
   EmployerAssessment,
@@ -122,10 +123,21 @@ describe('EmployerAssessmentsService', () => {
         id: 'emp-1',
         is_verified: true,
       });
-      mockAssessmentRepo.count.mockResolvedValue(0);
+      const lockQueryBuilder = {
+        setLock: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue({
+          id: 'emp-1',
+          is_verified: true,
+        }),
+      };
       mockAssessmentRepo.manager.transaction.mockImplementation(
         async (cb: (manager: unknown) => Promise<unknown>) => {
           const manager = {
+            getRepository: jest.fn().mockReturnValue({
+              createQueryBuilder: jest.fn().mockReturnValue(lockQueryBuilder),
+            }),
+            count: jest.fn().mockResolvedValue(0),
             save: jest
               .fn()
               .mockResolvedValueOnce({
@@ -145,6 +157,13 @@ describe('EmployerAssessmentsService', () => {
 
       expect(result.id).toBe('assessment-1');
       expect(result.shareUrl).toContain('abc123');
+      expect(lockQueryBuilder.setLock).toHaveBeenCalledWith(
+        'pessimistic_write',
+      );
+      expect(lockQueryBuilder.where).toHaveBeenCalledWith(
+        'user.id = :userId',
+        { userId: 'emp-1' },
+      );
     });
 
     it('should reject when less than 5 company questions are provided', async () => {
@@ -169,7 +188,25 @@ describe('EmployerAssessmentsService', () => {
         id: 'emp-1',
         is_verified: true,
       });
-      mockAssessmentRepo.count.mockResolvedValue(3);
+      mockAssessmentRepo.manager.transaction.mockImplementation(
+        async (cb: (manager: unknown) => Promise<unknown>) => {
+          const manager = {
+            getRepository: jest.fn().mockReturnValue({
+              createQueryBuilder: jest.fn().mockReturnValue({
+                setLock: jest.fn().mockReturnThis(),
+                where: jest.fn().mockReturnThis(),
+                getOne: jest.fn().mockResolvedValue({
+                  id: 'emp-1',
+                  is_verified: true,
+                }),
+              }),
+            }),
+            count: jest.fn().mockResolvedValue(3),
+            save: jest.fn(),
+          };
+          return cb(manager);
+        },
+      );
 
       await expect(service.createAssessment('emp-1', baseDto)).rejects.toThrow(
         'active assessment limit',
@@ -191,6 +228,25 @@ describe('EmployerAssessmentsService', () => {
       await expect(service.createAssessment('emp-1', dto)).rejects.toThrow(
         'Select at least one delivery mode',
       );
+    });
+
+    it('should reject duplicate candidate ids before creating invites', async () => {
+      mockUserRepo.findOne.mockResolvedValue({
+        id: 'emp-1',
+        is_verified: true,
+      });
+
+      await expect(
+        service.createAssessment('emp-1', {
+          ...baseDto,
+          sendToCandidates: true,
+          candidateUserIds: [
+            '7b4f68b2-e1f4-4e91-b14b-1b26fca0b817',
+            '7b4f68b2-e1f4-4e91-b14b-1b26fca0b817',
+          ],
+        }),
+      ).rejects.toThrow('duplicate entries');
+      expect(mockAssessmentRepo.manager.transaction).not.toHaveBeenCalled();
     });
 
     it('should reject unverified employers', async () => {
@@ -460,6 +516,26 @@ describe('EmployerAssessmentsService', () => {
       mockSubmissionRepo.findOne.mockResolvedValue({
         id: 'existing-sub',
       });
+
+      await expect(
+        service.submitAssessment('candidate-1', 'token-abc', {
+          timeTakenSeconds: 300,
+          deliveryMode: EmployerAssessmentDeliveryMode.LINK,
+          answers: {},
+        }),
+      ).rejects.toThrow('already submitted');
+    });
+
+    it('should translate concurrent duplicate submissions to ConflictError', async () => {
+      mockAssessmentRepo.findOne.mockResolvedValue(assessment);
+      mockSubmissionRepo.findOne.mockResolvedValue(null);
+      mockSubmissionRepo.save.mockRejectedValue(
+        new QueryFailedError(
+          'INSERT INTO employer_assessment_submissions',
+          [],
+          { code: '23505' },
+        ),
+      );
 
       await expect(
         service.submitAssessment('candidate-1', 'token-abc', {
@@ -871,6 +947,28 @@ describe('EmployerAssessmentsService', () => {
       // Columns A through G should be present in cell refs
       expect(content).toContain('r="A1"');
       expect(content).toContain('r="G1"');
+    });
+  });
+
+  describe('XLSX sheet relationship resolution', () => {
+    it('should ignore unsafe relationship ids and use the default sheet', () => {
+      const resolveFirstSheetPath = (
+        service as unknown as {
+          resolveFirstSheetPath: (
+            workbookXml: string | undefined,
+            relsXml: string | undefined,
+          ) => string;
+        }
+      ).resolveFirstSheetPath.bind(service);
+
+      const workbookXml =
+        '<workbook><sheets><sheet name="Questions" sheetId="1" r:id="rId1.*"/></sheets></workbook>';
+      const relsXml =
+        '<Relationships><Relationship Id="rId1" Target="worksheets/sheet1.xml"/></Relationships>';
+
+      expect(resolveFirstSheetPath(workbookXml, relsXml)).toBe(
+        'xl/worksheets/sheet1.xml',
+      );
     });
   });
 });
