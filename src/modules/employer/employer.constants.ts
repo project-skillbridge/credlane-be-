@@ -60,3 +60,9 @@ export const EMPLOYER_HIRING_LOCATIONS = [
   'Europe',
   'North America',
 ] as const;
+
+export const EMPLOYER_PREFERRED_EXPERIENCE_LEVELS = [
+  'junior',
+  'mid',
+  'senior',
+] as const;
