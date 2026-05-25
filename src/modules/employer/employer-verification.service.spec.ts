@@ -181,10 +181,11 @@ describe('EmployerVerificationService', () => {
     beforeEach(() => {
       originalFetch = global.fetch;
       jest.restoreAllMocks();
-      // Mock dns.resolve to return a public IP by default
+      // Mock dns.resolve4/resolve6 to return a public IP by default
       jest
-        .spyOn(require('dns/promises'), 'resolve')
+        .spyOn(require('dns/promises'), 'resolve4')
         .mockResolvedValue(['93.184.216.34']);
+      jest.spyOn(require('dns/promises'), 'resolve6').mockResolvedValue([]);
     });
 
     afterEach(() => {
@@ -250,8 +251,8 @@ describe('EmployerVerificationService', () => {
     });
 
     it('returns false for private/internal IPs (SSRF protection)', async () => {
-      const dnsResolve = require('dns/promises').resolve;
-      dnsResolve.mockResolvedValue(['127.0.0.1']);
+      const dnsResolve4 = require('dns/promises').resolve4;
+      dnsResolve4.mockResolvedValue(['127.0.0.1']);
       global.fetch = jest.fn().mockResolvedValue({ ok: true, status: 200 });
 
       expect(await service.isWebsiteResolvable('https://evil.example')).toBe(

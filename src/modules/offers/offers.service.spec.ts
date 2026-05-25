@@ -118,6 +118,19 @@ describe('OffersService', () => {
       expect(mockNotificationDispatch.notifyOfferReceived).toHaveBeenCalled();
     });
 
+    it('should throw ForbiddenError if employer is not verified', async () => {
+      mockVerificationService.assertEmployerVerified.mockRejectedValue(
+        new ForbiddenError(
+          'Complete your company profile to access this feature.',
+        ),
+      );
+
+      await expect(service.createOffer('employer-1', dto)).rejects.toThrow(
+        'Complete your company profile to access this feature.',
+      );
+      expect(mockPoolProfileRepo.findOne).not.toHaveBeenCalled();
+    });
+
     it('should throw NotFoundError if candidate not in pool', async () => {
       mockPoolProfileRepo.findOne.mockResolvedValue(null);
 

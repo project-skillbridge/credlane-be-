@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuthResult, AuthService } from '../auth/auth.service';
@@ -24,6 +24,8 @@ export type EmployerOnboardingResult = {
 
 @Injectable()
 export class EmployerService {
+  private readonly logger = new Logger(EmployerService.name);
+
   constructor(
     @InjectRepository(EmployerProfile)
     private readonly employerProfileRepository: Repository<EmployerProfile>,
@@ -85,7 +87,14 @@ export class EmployerService {
     );
 
     // Recompute verification status after profile changes (non-blocking)
-    this.verificationService.checkAndUpdateVerification(userId).catch(() => {});
+    this.verificationService
+      .checkAndUpdateVerification(userId)
+      .catch((err) =>
+        this.logger.error(
+          `Verification recompute failed for user ${userId}`,
+          err,
+        ),
+      );
 
     return {
       status: 'success',
@@ -157,7 +166,14 @@ export class EmployerService {
     );
 
     // Recompute verification after onboarding (non-blocking)
-    this.verificationService.checkAndUpdateVerification(userId).catch(() => {});
+    this.verificationService
+      .checkAndUpdateVerification(userId)
+      .catch((err) =>
+        this.logger.error(
+          `Verification recompute failed for user ${userId}`,
+          err,
+        ),
+      );
 
     return {
       message: session.message,

@@ -120,10 +120,30 @@ export class EmployerVerificationService {
   }
 
   /**
+   * Throws ForbiddenError if the employer is not verified.
+   * Use as a gate before privileged actions (offers, contact requests).
+   */
+  async assertEmployerVerified(employerUserId: string): Promise<void> {
+    const verified = await this.getVerificationStatus(employerUserId);
+    if (!verified) {
+      throw new ForbiddenError(
+        ErrorMessages.EMPLOYER_VERIFICATION.NOT_VERIFIED,
+      );
+    }
+  }
+
+  private static readonly MAX_REDIRECTS = 5;
+
+  /**
+>>>>>>> e78deca (fix: adress codeRabbit's reviews)
    * Checks if a URL is resolvable via HEAD (fallback GET on 405).
    * Hardened against SSRF: rejects private/internal IPs and non-standard ports.
    */
-  async isWebsiteResolvable(url: string | null | undefined): Promise<boolean> {
+  async isWebsiteResolvable(
+    url: string | null | undefined,
+    redirectCount = 0,
+  ): Promise<boolean> {
+    if (redirectCount > EmployerVerificationService.MAX_REDIRECTS) return false;
     if (!url) return false;
 
     const normalizedUrl = url.match(/^https?:\/\//) ? url : `https://${url}`;
@@ -153,10 +173,15 @@ export class EmployerVerificationService {
     if (net.isIP(parsed.hostname)) {
       if (isBlockedIp(parsed.hostname)) return false;
     } else {
-      // Resolve hostname and check all IPs
+      // Resolve hostname and check all IPs (IPv4 + IPv6)
       try {
-        const addresses = await dns.resolve(parsed.hostname);
-        if (addresses.some((addr) => isBlockedIp(addr))) return false;
+        const [v4Addresses, v6Addresses] = await Promise.all([
+          dns.resolve4(parsed.hostname).catch(() => [] as string[]),
+          dns.resolve6(parsed.hostname).catch(() => [] as string[]),
+        ]);
+        const allAddresses = [...v4Addresses, ...v6Addresses];
+        if (allAddresses.length === 0) return false;
+        if (allAddresses.some((addr) => isBlockedIp(addr))) return false;
       } catch {
         return false;
       }
@@ -178,7 +203,7 @@ export class EmployerVerificationService {
       if (response.status >= 300 && response.status < 400) {
         const location = response.headers.get('location');
         if (location) {
-          return this.isWebsiteResolvable(location);
+          return this.isWebsiteResolvable(location, redirectCount + 1);
         }
         return false;
       }
@@ -197,7 +222,7 @@ export class EmployerVerificationService {
 
         if (getResponse.status >= 300 && getResponse.status < 400) {
           const loc = getResponse.headers.get('location');
-          if (loc) return this.isWebsiteResolvable(loc);
+          if (loc) return this.isWebsiteResolvable(loc, redirectCount + 1);
           return false;
         }
 

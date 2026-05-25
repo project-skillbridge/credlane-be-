@@ -163,6 +163,21 @@ describe('EmployerDiscoveryService', () => {
   });
 
   describe('contactCandidate', () => {
+    it('should throw ForbiddenError if employer is not verified', async () => {
+      mockVerificationService.assertEmployerVerified.mockRejectedValue(
+        new ForbiddenError(
+          'Complete your company profile to access this feature.',
+        ),
+      );
+
+      await expect(
+        service.contactCandidate('employer-1', 'user-1', 'Hello'),
+      ).rejects.toThrow(
+        'Complete your company profile to access this feature.',
+      );
+      expect(mockPoolProfileRepo.findOne).not.toHaveBeenCalled();
+    });
+
     it('should create contact request and trigger notification', async () => {
       const pool = { id: 'pool-1', candidate_id: 'user-1', tier: 'job_ready' };
       mockPoolProfileRepo.findOne.mockResolvedValue(pool);
