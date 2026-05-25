@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -68,4 +69,16 @@ export class SaveEmployerProfileDto {
     message: 'Invalid location selection',
   })
   hiringLocations: string[];
+
+  @ApiPropertyOptional({ example: 'https://linkedin.com/company/acme' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  @Matches(
+    /^https?:\/\/(www\.)?linkedin\.com\/company\/[a-zA-Z0-9_%-]+\/?(\?.*)?$/i,
+    {
+      message: 'Please enter a valid LinkedIn company page URL',
+    },
+  )
+  linkedinCompanyUrl?: string;
 }
