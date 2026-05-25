@@ -94,11 +94,11 @@ describe('DashboardService', () => {
     (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(null);
 
     await expect(service.getHome(talentUser.id)).resolves.toEqual({
-      firstName: 'Casey',
-      avatarUrl: null,
+      first_name: 'Casey',
+      avatar_url: null,
       goal: null,
-      profileCompletionPercentage: 0,
-      journeyOverview: [
+      profile_completion_percentage: 0,
+      journey_overview: [
         {
           key: 'onboarding',
           title: 'Onboarding',
@@ -121,8 +121,8 @@ describe('DashboardService', () => {
         },
       ],
       performance: { skill: null, advanced: null },
-      skillAttemptsUsed: 0,
-      skillMaxAttempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
+      skill_attempts_used: 0,
+      skill_max_attempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
     });
   });
 
@@ -147,11 +147,11 @@ describe('DashboardService', () => {
     (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
 
     await expect(service.getHome(talentUser.id)).resolves.toEqual({
-      firstName: 'Casey',
-      avatarUrl: null,
+      first_name: 'Casey',
+      avatar_url: null,
       goal: 'land_first_role',
-      profileCompletionPercentage: 56,
-      journeyOverview: [
+      profile_completion_percentage: 56,
+      journey_overview: [
         {
           key: 'onboarding',
           title: 'Onboarding',
@@ -174,8 +174,8 @@ describe('DashboardService', () => {
         },
       ],
       performance: { skill: null, advanced: null },
-      skillAttemptsUsed: 0,
-      skillMaxAttempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
+      skill_attempts_used: 0,
+      skill_max_attempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
     });
   });
 
@@ -201,11 +201,11 @@ describe('DashboardService', () => {
     (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
 
     await expect(service.getHome(talentUser.id)).resolves.toEqual({
-      firstName: 'Casey',
-      avatarUrl: null,
+      first_name: 'Casey',
+      avatar_url: null,
       goal: 'land_first_role',
-      profileCompletionPercentage: 64,
-      journeyOverview: [
+      profile_completion_percentage: 64,
+      journey_overview: [
         {
           key: 'onboarding',
           title: 'Onboarding',
@@ -228,8 +228,8 @@ describe('DashboardService', () => {
         },
       ],
       performance: { skill: null, advanced: null },
-      skillAttemptsUsed: 0,
-      skillMaxAttempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
+      skill_attempts_used: 0,
+      skill_max_attempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
     });
   });
 
@@ -260,7 +260,7 @@ describe('DashboardService', () => {
     );
 
     const home = await service.getHome(talentUser.id);
-    const skillJourney = home.journeyOverview.find(
+    const skillJourney = home.journey_overview.find(
       (item) => item.key === 'skill',
     );
 
@@ -295,7 +295,7 @@ describe('DashboardService', () => {
 
     const home = await service.getHome(talentUser.id);
 
-    expect(home.journeyOverview).toEqual(
+    expect(home.journey_overview).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           key: 'skill',
@@ -331,7 +331,7 @@ describe('DashboardService', () => {
     (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
 
     const home = await service.getHome(talentUser.id);
-    const skillJourney = home.journeyOverview.find(
+    const skillJourney = home.journey_overview.find(
       (item) => item.key === 'skill',
     );
 
@@ -365,7 +365,7 @@ describe('DashboardService', () => {
     );
 
     const home = await service.getHome(talentUser.id);
-    const skillJourney = home.journeyOverview.find(
+    const skillJourney = home.journey_overview.find(
       (item) => item.key === 'skill',
     );
 
@@ -378,8 +378,8 @@ describe('DashboardService', () => {
       role: UserRole.TALENT,
       onboarding_complete: true,
     });
-    const probationStartDate = new Date('2026-05-03T00:00:00.000Z');
-    const eligibilityDate = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    const probation_start_date = new Date('2026-05-03T00:00:00.000Z');
+    const eligibility_date = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
 
     const profile = makeProfile({
       onboarding_step: 3,
@@ -392,8 +392,8 @@ describe('DashboardService', () => {
       skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
       advanced_assessment_completed_at: new Date(),
       advanced_retake_required: true,
-      assessment_locked_from: probationStartDate,
-      assessment_locked_until: eligibilityDate,
+      assessment_locked_from: probation_start_date,
+      assessment_locked_until: eligibility_date,
       status: TalentProfileStatus.EMERGING,
     });
 
@@ -412,23 +412,23 @@ describe('DashboardService', () => {
     });
 
     const home = await service.getHome(talentUser.id);
-    const skillJourney = home.journeyOverview.find(
+    const skillJourney = home.journey_overview.find(
       (item) => item.key === 'skill',
     );
-    const advancedJourney = home.journeyOverview.find(
+    const advancedJourney = home.journey_overview.find(
       (item) => item.key === 'advanced',
     );
 
     expect(skillJourney?.status).toBe(DashboardJourneyStatus.COMPLETED);
     expect(advancedJourney?.status).toBe(DashboardJourneyStatus.LOCKED);
-    expect(home.advancedRetake).toMatchObject({
-      probationStartDate: probationStartDate.toISOString(),
-      probationEndDate: eligibilityDate.toISOString(),
-      eligibilityDate: eligibilityDate.toISOString(),
-      ctaEnabled: false,
-      daysRemaining: 3,
+    expect(home.advanced_retake).toMatchObject({
+      probation_start_date: probation_start_date.toISOString(),
+      probation_end_date: eligibility_date.toISOString(),
+      eligibility_date: eligibility_date.toISOString(),
+      cta_enabled: false,
+      days_remaining: 3,
     });
-    expect(home.advancedRetake?.countdownSeconds).toBeGreaterThan(0);
+    expect(home.advanced_retake?.countdown_seconds).toBeGreaterThan(0);
   });
 
   it('shows advanced retake metadata as available after the probation countdown elapses', async () => {
@@ -437,8 +437,8 @@ describe('DashboardService', () => {
       role: UserRole.TALENT,
       onboarding_complete: true,
     });
-    const probationStartDate = new Date('2026-05-03T00:00:00.000Z');
-    const eligibilityDate = new Date(Date.now() - 1000);
+    const probation_start_date = new Date('2026-05-03T00:00:00.000Z');
+    const eligibility_date = new Date(Date.now() - 1000);
 
     const profile = makeProfile({
       onboarding_step: 3,
@@ -449,8 +449,8 @@ describe('DashboardService', () => {
       advanced_assessment_completed_at: new Date('2026-05-03T00:00:00.000Z'),
       validated_level: VerifiedLevel.MID,
       advanced_retake_required: true,
-      assessment_locked_from: probationStartDate,
-      assessment_locked_until: eligibilityDate,
+      assessment_locked_from: probation_start_date,
+      assessment_locked_until: eligibility_date,
       status: TalentProfileStatus.EMERGING,
     });
 
@@ -469,18 +469,18 @@ describe('DashboardService', () => {
     });
 
     const home = await service.getHome(talentUser.id);
-    const advancedJourney = home.journeyOverview.find(
+    const advancedJourney = home.journey_overview.find(
       (item) => item.key === 'advanced',
     );
 
     expect(advancedJourney?.status).toBe(DashboardJourneyStatus.AVAILABLE);
-    expect(home.advancedRetake).toMatchObject({
-      probationStartDate: probationStartDate.toISOString(),
-      probationEndDate: eligibilityDate.toISOString(),
-      eligibilityDate: eligibilityDate.toISOString(),
-      ctaEnabled: true,
-      countdownSeconds: 0,
-      daysRemaining: 0,
+    expect(home.advanced_retake).toMatchObject({
+      probation_start_date: probation_start_date.toISOString(),
+      probation_end_date: eligibility_date.toISOString(),
+      eligibility_date: eligibility_date.toISOString(),
+      cta_enabled: true,
+      countdown_seconds: 0,
+      days_remaining: 0,
     });
   });
 
@@ -523,11 +523,11 @@ describe('DashboardService', () => {
     });
 
     await expect(service.getHome(talentUser.id)).resolves.toEqual({
-      firstName: 'Jane',
-      avatarUrl: 'https://cdn.example.com/avatar.png',
+      first_name: 'Jane',
+      avatar_url: 'https://cdn.example.com/avatar.png',
       goal: 'land_first_role',
-      profileCompletionPercentage: 100,
-      journeyOverview: [
+      profile_completion_percentage: 100,
+      journey_overview: [
         {
           key: 'onboarding',
           title: 'Onboarding',
@@ -552,19 +552,19 @@ describe('DashboardService', () => {
       performance: {
         skill: {
           score: 8,
-          maxScore: 10,
+          max_score: 10,
           percentage: 80,
-          validatedLevel: VerifiedLevel.MID,
+          validated_level: VerifiedLevel.MID,
           passed: true,
           failed: false,
-          completedAt: '2026-05-02T00:00:00.000Z',
-          attemptsUsed: 1,
-          attemptsRemaining: 2,
+          completed_at: '2026-05-02T00:00:00.000Z',
+          attempts_used: 1,
+          attempts_remaining: 2,
         },
         advanced: null,
       },
-      skillAttemptsUsed: 1,
-      skillMaxAttempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
+      skill_attempts_used: 1,
+      skill_max_attempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
     });
   });
 
@@ -606,7 +606,7 @@ describe('DashboardService', () => {
 
     const home = await service.getHome(talentUser.id);
 
-    expect(home.journeyOverview).toEqual(
+    expect(home.journey_overview).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
           key: 'skill',
@@ -625,7 +625,7 @@ describe('DashboardService', () => {
     });
   });
 
-  it('returns attemptsUsed and attemptsRemaining based on completed attempt count', async () => {
+  it('returns attempts_used and attempts_remaining based on completed attempt count', async () => {
     const talentUser = makeUser({
       first_name: 'Jane',
       role: UserRole.TALENT,
@@ -660,12 +660,12 @@ describe('DashboardService', () => {
     const home = await service.getHome(talentUser.id);
 
     expect(home.performance.skill).toMatchObject({
-      attemptsUsed: 2,
-      attemptsRemaining: 1,
+      attempts_used: 2,
+      attempts_remaining: 1,
     });
   });
 
-  it('returns attemptsRemaining as 0 when all three skill attempts are exhausted', async () => {
+  it('returns attempts_remaining as 0 when all three skill attempts are exhausted', async () => {
     const talentUser = makeUser({
       first_name: 'Jane',
       role: UserRole.TALENT,
@@ -702,8 +702,8 @@ describe('DashboardService', () => {
     const home = await service.getHome(talentUser.id);
 
     expect(home.performance.skill).toMatchObject({
-      attemptsUsed: SKILL_ASSESSMENT_MAX_ATTEMPTS,
-      attemptsRemaining: 0,
+      attempts_used: SKILL_ASSESSMENT_MAX_ATTEMPTS,
+      attempts_remaining: 0,
     });
   });
 
@@ -755,25 +755,25 @@ describe('DashboardService', () => {
     });
 
     await expect(service.getHome(talentUser.id)).resolves.toMatchObject({
-      firstName: 'Jane',
-      profileCompletionPercentage: 100,
+      first_name: 'Jane',
+      profile_completion_percentage: 100,
       performance: {
         skill: {
           score: 8,
-          maxScore: 10,
+          max_score: 10,
           percentage: 80,
-          validatedLevel: VerifiedLevel.MID,
+          validated_level: VerifiedLevel.MID,
           passed: true,
-          completedAt: '2026-05-02T00:00:00.000Z',
+          completed_at: '2026-05-02T00:00:00.000Z',
         },
         advanced: {
           score: 88,
-          maxScore: 110,
+          max_score: 110,
           percentage: 80,
           tier: AssessmentTier.JOB_READY,
-          tierLabel: 'Job Ready',
-          integrityConfidence: 'high',
-          completedAt: '2026-05-03T00:00:00.000Z',
+          tier_label: 'Job Ready',
+          integrity_confidence: 'high',
+          completed_at: '2026-05-03T00:00:00.000Z',
         },
       },
     });
@@ -803,7 +803,7 @@ describe('DashboardService', () => {
 
     const home = await service.getHome(talentUser.id);
 
-    expect(home.profileCompletionPercentage).toBe(100);
+    expect(home.profile_completion_percentage).toBe(100);
   });
 
   it('includes nested advanced retake metadata on advanced performance', async () => {
@@ -812,8 +812,8 @@ describe('DashboardService', () => {
       role: UserRole.TALENT,
       onboarding_complete: true,
     });
-    const probationStartDate = new Date('2026-05-03T00:00:00.000Z');
-    const eligibilityDate = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
+    const probation_start_date = new Date('2026-05-03T00:00:00.000Z');
+    const eligibility_date = new Date(Date.now() + 2 * 24 * 60 * 60 * 1000);
 
     const profile = makeProfile({
       onboarding_step: 3,
@@ -823,8 +823,8 @@ describe('DashboardService', () => {
       advanced_assessment_completed_at: new Date('2026-05-03T00:00:00.000Z'),
       validated_level: VerifiedLevel.MID,
       advanced_retake_required: true,
-      assessment_locked_from: probationStartDate,
-      assessment_locked_until: eligibilityDate,
+      assessment_locked_from: probation_start_date,
+      assessment_locked_until: eligibility_date,
       status: TalentProfileStatus.EMERGING,
     });
 
@@ -856,14 +856,14 @@ describe('DashboardService', () => {
     const home = await service.getHome(talentUser.id);
 
     expect(home.performance.advanced?.retake).toMatchObject({
-      probationStartDate: probationStartDate.toISOString(),
-      probationEndDate: eligibilityDate.toISOString(),
-      eligibilityDate: eligibilityDate.toISOString(),
-      ctaEnabled: false,
+      probation_start_date: probation_start_date.toISOString(),
+      probation_end_date: eligibility_date.toISOString(),
+      eligibility_date: eligibility_date.toISOString(),
+      cta_enabled: false,
     });
-    expect(home.performance.advanced?.retake?.countdownSeconds).toBeGreaterThan(
-      0,
-    );
+    expect(
+      home.performance.advanced?.retake?.countdown_seconds,
+    ).toBeGreaterThan(0);
   });
 
   it('rejects non-talent users', async () => {

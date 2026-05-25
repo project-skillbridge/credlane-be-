@@ -27,13 +27,13 @@ export class DashboardSkillPerformanceDto {
   score: number;
 
   @ApiProperty({ example: 10 })
-  maxScore: number;
+  max_score: number;
 
   @ApiProperty({ example: 80, minimum: 0, maximum: 100 })
   percentage: number;
 
   @ApiProperty({ enum: VerifiedLevel, example: VerifiedLevel.MID })
-  validatedLevel: VerifiedLevel;
+  validated_level: VerifiedLevel;
 
   @ApiProperty({
     description:
@@ -51,20 +51,20 @@ export class DashboardSkillPerformanceDto {
     format: 'date-time',
     example: '2026-05-02T00:00:00.000Z',
   })
-  completedAt: string;
+  completed_at: string;
 
   @ApiProperty({ example: 1, description: 'Number of skill attempts used' })
-  attemptsUsed: number;
+  attempts_used: number;
 
   @ApiProperty({ example: 2, description: 'Skill attempts remaining (max 3)' })
-  attemptsRemaining: number;
+  attempts_remaining: number;
 
   @ApiPropertyOptional({
     nullable: true,
     description:
       'AI guidance report. Emerging reports include retake_advice; Job Ready reports are strengths-focused and omit retake_advice.',
   })
-  guidanceReport?: Record<string, unknown> | null;
+  guidance_report?: Record<string, unknown> | null;
 }
 
 export class DashboardRetakeDto {
@@ -72,37 +72,37 @@ export class DashboardRetakeDto {
     format: 'date-time',
     example: '2026-05-03T00:00:00.000Z',
   })
-  probationStartDate: string;
+  probation_start_date: string;
 
   @ApiProperty({
     format: 'date-time',
     example: '2026-05-17T00:00:00.000Z',
   })
-  probationEndDate: string;
+  probation_end_date: string;
 
   @ApiProperty({
     format: 'date-time',
     example: '2026-05-17T00:00:00.000Z',
   })
-  eligibilityDate: string;
+  eligibility_date: string;
 
   @ApiProperty({
     description:
       'Whether the advanced assessment retake CTA can be enabled. False while the 14-day gate is active.',
   })
-  ctaEnabled: boolean;
+  cta_enabled: boolean;
 
   @ApiProperty({
     description: 'Seconds until eligibility. Zero once the gate has elapsed.',
     example: 86400,
   })
-  countdownSeconds: number;
+  countdown_seconds: number;
 
   @ApiProperty({
     description: 'Calendar days remaining, rounded up. Zero once eligible.',
     example: 1,
   })
-  daysRemaining: number;
+  days_remaining: number;
 }
 
 export class DashboardAdvancedPerformanceDto {
@@ -110,7 +110,7 @@ export class DashboardAdvancedPerformanceDto {
   score: number;
 
   @ApiProperty({ example: 110 })
-  maxScore: number;
+  max_score: number;
 
   @ApiProperty({ example: 80, minimum: 0, maximum: 100 })
   percentage: number;
@@ -119,26 +119,26 @@ export class DashboardAdvancedPerformanceDto {
   tier: AssessmentTier;
 
   @ApiProperty({ example: 'Job Ready' })
-  tierLabel: string;
+  tier_label: string;
 
   @ApiProperty({
     example: 'high',
     description: 'Integrity confidence from the scored attempt',
   })
-  integrityConfidence: string;
+  integrity_confidence: string;
 
   @ApiProperty({
     format: 'date-time',
     example: '2026-05-03T00:00:00.000Z',
   })
-  completedAt: string;
+  completed_at: string;
 
   @ApiPropertyOptional({
     nullable: true,
     description:
       'AI guidance report generated asynchronously after advanced submit. Emerging reports include retake_advice; Job Ready reports omit it.',
   })
-  guidanceReport?: Record<string, unknown> | null;
+  guidance_report?: Record<string, unknown> | null;
 
   @ApiPropertyOptional({
     type: () => DashboardRetakeDto,
@@ -165,14 +165,14 @@ export class DashboardPerformanceDto {
 
 export class DashboardHomeResponseDto {
   @ApiProperty({ example: 'Jane' })
-  firstName: string;
+  first_name: string;
 
   @ApiPropertyOptional({
     example: 'https://cdn.example.com/avatar.png',
     nullable: true,
     description: "The talent's current profile photo URL.",
   })
-  avatarUrl: string | null;
+  avatar_url: string | null;
 
   @ApiPropertyOptional({
     example: 'Get a remote job',
@@ -182,10 +182,10 @@ export class DashboardHomeResponseDto {
   goal: string | null;
 
   @ApiProperty({ example: 72, minimum: 0, maximum: 100 })
-  profileCompletionPercentage: number;
+  profile_completion_percentage: number;
 
   @ApiProperty({ type: [JourneyOverviewItemDto] })
-  journeyOverview: JourneyOverviewItemDto[];
+  journey_overview: JourneyOverviewItemDto[];
 
   @ApiProperty({ type: DashboardPerformanceDto })
   performance: DashboardPerformanceDto;
@@ -194,16 +194,16 @@ export class DashboardHomeResponseDto {
     example: 1,
     minimum: 0,
     description:
-      'Number of completed skill assessment attempts for the current user. Use with skillMaxAttempts to display e.g. "1/3".',
+      'Number of completed skill assessment attempts for the current user. Use with skill_max_attempts to display e.g. "1/3".',
   })
-  skillAttemptsUsed: number;
+  skill_attempts_used: number;
 
   @ApiProperty({
     example: 3,
     description:
       'Maximum skill assessment attempts allowed before advanced assessment is required.',
   })
-  skillMaxAttempts: number;
+  skill_max_attempts: number;
 
   @ApiPropertyOptional({
     type: () => DashboardRetakeDto,
@@ -211,31 +211,31 @@ export class DashboardHomeResponseDto {
     description:
       'Top-level advanced retake metadata. Present only when assessment_locked_until is marked as an advanced retake gate.',
   })
-  advancedRetake?: DashboardRetakeDto | null;
+  advanced_retake?: DashboardRetakeDto | null;
 }
 
 export type DashboardSkillPerformance = {
   score: number;
-  maxScore: number;
+  max_score: number;
   percentage: number;
-  validatedLevel: VerifiedLevel;
+  validated_level: VerifiedLevel;
   passed: boolean;
   failed: boolean;
-  completedAt: string;
-  attemptsUsed: number;
-  attemptsRemaining: number;
-  guidanceReport?: Record<string, unknown> | null;
+  completed_at: string;
+  attempts_used: number;
+  attempts_remaining: number;
+  guidance_report?: Record<string, unknown> | null;
 };
 
 export type DashboardAdvancedPerformance = {
   score: number;
-  maxScore: number;
+  max_score: number;
   percentage: number;
   tier: AssessmentTier;
-  tierLabel: string;
-  integrityConfidence: string;
-  completedAt: string;
-  guidanceReport?: Record<string, unknown> | null;
+  tier_label: string;
+  integrity_confidence: string;
+  completed_at: string;
+  guidance_report?: Record<string, unknown> | null;
   retake?: DashboardRetake | null;
 };
 
@@ -245,22 +245,22 @@ export type DashboardPerformance = {
 };
 
 export type DashboardHomeResponse = {
-  firstName: string;
-  avatarUrl: string | null;
+  first_name: string;
+  avatar_url: string | null;
   goal: string | null;
-  profileCompletionPercentage: number;
-  journeyOverview: JourneyOverviewItemDto[];
+  profile_completion_percentage: number;
+  journey_overview: JourneyOverviewItemDto[];
   performance: DashboardPerformance;
-  skillAttemptsUsed: number;
-  skillMaxAttempts: number;
-  advancedRetake?: DashboardRetake | null;
+  skill_attempts_used: number;
+  skill_max_attempts: number;
+  advanced_retake?: DashboardRetake | null;
 };
 
 export type DashboardRetake = {
-  probationStartDate: string;
-  probationEndDate: string;
-  eligibilityDate: string;
-  ctaEnabled: boolean;
-  countdownSeconds: number;
-  daysRemaining: number;
+  probation_start_date: string;
+  probation_end_date: string;
+  eligibility_date: string;
+  cta_enabled: boolean;
+  countdown_seconds: number;
+  days_remaining: number;
 };

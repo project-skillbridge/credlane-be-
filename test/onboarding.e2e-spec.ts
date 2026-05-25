@@ -332,7 +332,7 @@ const accessCookieHeaderFor = async (
       sub: user.id,
       email: user.email,
       role: user.role,
-      onboardingComplete: user.onboarding_complete,
+      onboarding_complete: user.onboarding_complete,
     },
     {
       secret: env.JWT_ACCESS_SECRET,
@@ -460,7 +460,7 @@ describe('Onboarding (e2e)', () => {
       message: 'Talent onboarding completed',
       user: {
         role: UserRole.TALENT,
-        onboardingComplete: true,
+        onboarding_complete: true,
       },
       profile: {
         user_id: user.id,
@@ -547,7 +547,7 @@ describe('Onboarding (e2e)', () => {
       message: 'Employer onboarding completed',
       user: {
         role: UserRole.EMPLOYER,
-        onboardingComplete: true,
+        onboarding_complete: true,
       },
       profile: {
         user_id: user.id,

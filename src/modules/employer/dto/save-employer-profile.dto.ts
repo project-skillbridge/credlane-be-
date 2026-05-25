@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   IsUrl,
+  Matches,
   MaxLength,
   MinLength,
 } from 'class-validator';
@@ -61,7 +62,9 @@ export class SaveEmployerProfileDto {
     example: 'https://www.linkedin.com/company/acmelabs',
   })
   @IsOptional()
-  @IsUrl({}, { message: 'linkedinCompanyPageUrl must be a valid URL' })
+  @Matches(/^https?:\/\/(www\.)?linkedin\.com\/company\/[A-Za-z0-9\-_]+\/?$/, {
+    message: 'linkedinCompanyPageUrl must be a valid LinkedIn company page URL',
+  })
   @MaxLength(500)
   linkedinCompanyPageUrl?: string;
 

@@ -39,7 +39,7 @@ type AuthUser = {
   sub: string;
   email: string;
   role: UserRole;
-  onboardingComplete: boolean;
+  onboarding_complete: boolean;
 };
 
 @Injectable()
@@ -48,7 +48,7 @@ class MockJwtAuthGuard implements CanActivate {
     sub: 'talent-user',
     email: 'talent@example.com',
     role: UserRole.TALENT,
-    onboardingComplete: false,
+    onboarding_complete: false,
   };
 
   canActivate(context: ExecutionContext): boolean {
@@ -211,7 +211,7 @@ describe('Dashboard home (e2e)', () => {
       sub: talentUser.id,
       email: talentUser.email,
       role: UserRole.TALENT,
-      onboardingComplete: true,
+      onboarding_complete: true,
     };
 
     return request(app.getHttpServer())
@@ -221,11 +221,11 @@ describe('Dashboard home (e2e)', () => {
         expect(res.body.status_code).toBe(200);
         expect(res.body.message).toBe('success');
         expect(res.body.data).toEqual({
-          firstName: 'Casey',
-          avatarUrl: 'https://cdn.example.com/avatar.png',
+          first_name: 'Casey',
+          avatar_url: 'https://cdn.example.com/avatar.png',
           goal: 'land_first_role',
-          profileCompletionPercentage: 100,
-          journeyOverview: [
+          profile_completion_percentage: 100,
+          journey_overview: [
             {
               key: 'onboarding',
               title: 'Onboarding',
@@ -250,26 +250,26 @@ describe('Dashboard home (e2e)', () => {
           performance: {
             skill: {
               score: 8,
-              maxScore: 10,
+              max_score: 10,
               percentage: 80,
-              validatedLevel: VerifiedLevel.MID,
+              validated_level: VerifiedLevel.MID,
               passed: true,
-              completedAt: '2026-05-02T00:00:00.000Z',
-              attemptsUsed: 0,
-              attemptsRemaining: 3,
+              completed_at: '2026-05-02T00:00:00.000Z',
+              attempts_used: 0,
+              attempts_remaining: 3,
             },
             advanced: {
               score: 88,
-              maxScore: 110,
+              max_score: 110,
               percentage: 80,
               tier: AssessmentTier.JOB_READY,
-              tierLabel: 'Job Ready',
-              integrityConfidence: 'high',
-              completedAt: '2026-05-03T00:00:00.000Z',
+              tier_label: 'Job Ready',
+              integrity_confidence: 'high',
+              completed_at: '2026-05-03T00:00:00.000Z',
             },
           },
-          skillAttemptsUsed: 0,
-          skillMaxAttempts: 3,
+          skill_attempts_used: 0,
+          skill_max_attempts: 3,
         });
       });
   });
@@ -279,7 +279,7 @@ describe('Dashboard home (e2e)', () => {
       sub: employerUser.id,
       email: employerUser.email,
       role: UserRole.EMPLOYER,
-      onboardingComplete: true,
+      onboarding_complete: true,
     };
 
     return request(app.getHttpServer())
@@ -320,7 +320,7 @@ describe('Dashboard home (e2e)', () => {
       sub: talentUser.id,
       email: talentUser.email,
       role: UserRole.TALENT,
-      onboardingComplete: true,
+      onboarding_complete: true,
     };
 
     try {
@@ -328,13 +328,13 @@ describe('Dashboard home (e2e)', () => {
         .get('/api/v1/dashboard/home')
         .expect(200)
         .expect((res) => {
-          expect(res.body.data.advancedRetake).toEqual({
-            probationStartDate: probationStartDate.toISOString(),
-            probationEndDate: eligibilityDate.toISOString(),
-            eligibilityDate: eligibilityDate.toISOString(),
-            countdownSeconds: 3 * 24 * 60 * 60,
-            daysRemaining: 3,
-            ctaEnabled: false,
+          expect(res.body.data.advanced_retake).toEqual({
+            probation_start_date: probationStartDate.toISOString(),
+            probation_end_date: eligibilityDate.toISOString(),
+            eligibility_date: eligibilityDate.toISOString(),
+            countdown_seconds: 3 * 24 * 60 * 60,
+            days_remaining: 3,
+            cta_enabled: false,
           });
         });
     } finally {

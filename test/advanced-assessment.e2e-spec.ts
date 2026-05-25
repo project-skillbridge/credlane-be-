@@ -61,7 +61,7 @@ type AuthUser = {
   sub: string;
   email: string;
   role: UserRole;
-  onboardingComplete: boolean;
+  onboarding_complete: boolean;
 };
 
 @Injectable()
@@ -70,7 +70,7 @@ class MockJwtAuthGuard implements CanActivate {
     sub: 'talent-user-1',
     email: 'talent@example.com',
     role: UserRole.TALENT,
-    onboardingComplete: true,
+    onboarding_complete: true,
   };
 
   canActivate(context: ExecutionContext): boolean {
@@ -214,7 +214,7 @@ describe('Advanced assessment (e2e)', () => {
       sub: talentUser.id,
       email: talentUser.email,
       role: UserRole.TALENT,
-      onboardingComplete: true,
+      onboarding_complete: true,
     };
 
     const entityManager = {
@@ -569,7 +569,7 @@ describe('Advanced assessment (e2e)', () => {
         sub: employerUser.id,
         email: employerUser.email,
         role: UserRole.EMPLOYER,
-        onboardingComplete: true,
+        onboarding_complete: true,
       };
 
       await request(app.getHttpServer())
@@ -629,7 +629,7 @@ describe('Advanced assessment (e2e)', () => {
         sub: employerUser.id,
         email: employerUser.email,
         role: UserRole.EMPLOYER,
-        onboardingComplete: true,
+        onboarding_complete: true,
       };
 
       await request(app.getHttpServer())

@@ -407,8 +407,10 @@ export class AdvancedAssessmentService {
     userId: string,
     dto: SubmitAdvancedAssessmentDto,
   ): Promise<AdvancedAssessmentSubmitResult> {
-    const { attempt, sessionQuestions } =
-      await this.validateSubmitForEnqueue(userId, dto);
+    const { attempt, sessionQuestions } = await this.validateSubmitForEnqueue(
+      userId,
+      dto,
+    );
 
     const answerMap = new Map(
       dto.answers.map((answer) => [answer.question_id, answer]),
@@ -827,12 +829,10 @@ export class AdvancedAssessmentService {
       AssessmentScore,
       { where: { attempt_id: attempt.id } },
     );
-    const scoredTextAnswers = this.scoredTextAnswersFromAssessmentScores(
-      scoreRows,
-    );
+    const scoredTextAnswers =
+      this.scoredTextAnswersFromAssessmentScores(scoreRows);
     const guidanceInput = {
-      report_type:
-        tier === AssessmentTier.JOB_READY ? 'job_ready' : 'emerging',
+      report_type: tier === AssessmentTier.JOB_READY ? 'job_ready' : 'emerging',
       track: profile.track ?? 'general',
       claimed_level: profile.claimed_level ?? VerifiedLevel.JUNIOR,
       validated_level: profile.validated_level ?? VerifiedLevel.JUNIOR,
@@ -902,9 +902,7 @@ export class AdvancedAssessmentService {
     scoreRows: AssessmentScore[],
   ): ScoredTextAnswer[] {
     return scoreRows
-      .filter(
-        (row) => row.question_type !== AssessmentScoreQuestionType.MCQ,
-      )
+      .filter((row) => row.question_type !== AssessmentScoreQuestionType.MCQ)
       .map((row) => ({
         question_id: row.question_id,
         raw_score: row.raw_score,

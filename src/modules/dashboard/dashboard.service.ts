@@ -71,20 +71,20 @@ export class DashboardService {
     );
 
     return {
-      firstName: user.first_name,
-      avatarUrl: user.avatar_url,
+      first_name: user.first_name,
+      avatar_url: user.avatar_url,
       goal: profile?.goal ?? null,
-      profileCompletionPercentage: this.calculateProfileCompletion(
+      profile_completion_percentage: this.calculateProfileCompletion(
         user,
         profile,
       ),
-      journeyOverview: this.buildJourneyOverview(
+      journey_overview: this.buildJourneyOverview(
         onboardingComplete,
         assessmentStatuses,
       ),
       performance,
-      skillAttemptsUsed: assessmentStatuses.completedSkillAttempts,
-      skillMaxAttempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
+      skill_attempts_used: assessmentStatuses.completedSkillAttempts,
+      skill_max_attempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
       ...this.withAdvancedRetake(profile),
     };
   }
@@ -132,22 +132,22 @@ export class DashboardService {
 
     return {
       score: result.score,
-      maxScore: result.max_score ?? result.score,
+      max_score: result.max_score ?? result.score,
       percentage,
-      validatedLevel,
+      validated_level: validatedLevel,
       passed: !failed && claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE,
       failed,
-      completedAt: this.toIsoTimestamp(
+      completed_at: this.toIsoTimestamp(
         profile.skill_assessment_completed_at,
         result.created_at,
       ),
-      attemptsUsed,
-      attemptsRemaining: Math.max(
+      attempts_used: attemptsUsed,
+      attempts_remaining: Math.max(
         0,
         SKILL_ASSESSMENT_MAX_ATTEMPTS - attemptsUsed,
       ),
       ...(result.guidance_report != null && {
-        guidanceReport: result.guidance_report,
+        guidance_report: result.guidance_report,
       }),
     };
   }
@@ -161,27 +161,27 @@ export class DashboardService {
 
     return {
       score: result.score,
-      maxScore: result.max_score ?? result.score,
+      max_score: result.max_score ?? result.score,
       percentage,
       tier,
-      tierLabel: this.formatTierLabel(tier),
-      integrityConfidence: result.integrity_confidence ?? 'high',
-      completedAt: this.toIsoTimestamp(
+      tier_label: this.formatTierLabel(tier),
+      integrity_confidence: result.integrity_confidence ?? 'high',
+      completed_at: this.toIsoTimestamp(
         profile.advanced_assessment_completed_at,
         result.created_at,
       ),
       ...(result.guidance_report != null && {
-        guidanceReport: result.guidance_report,
+        guidance_report: result.guidance_report,
       }),
       ...this.withNestedRetake(profile),
     };
   }
 
   private withAdvancedRetake(profile: TalentProfile | null): {
-    advancedRetake?: DashboardRetake;
+    advanced_retake?: DashboardRetake;
   } {
     const retake = this.buildAdvancedRetake(profile);
-    return retake ? { advancedRetake: retake } : {};
+    return retake ? { advanced_retake: retake } : {};
   }
 
   private withNestedRetake(profile: TalentProfile): {
@@ -214,12 +214,12 @@ export class DashboardService {
     );
 
     return {
-      probationStartDate: probationStartedAt.toISOString(),
-      probationEndDate: profile.assessment_locked_until.toISOString(),
-      eligibilityDate: profile.assessment_locked_until.toISOString(),
-      ctaEnabled: countdownSeconds === 0,
-      countdownSeconds,
-      daysRemaining:
+      probation_start_date: probationStartedAt.toISOString(),
+      probation_end_date: profile.assessment_locked_until.toISOString(),
+      eligibility_date: profile.assessment_locked_until.toISOString(),
+      cta_enabled: countdownSeconds === 0,
+      countdown_seconds: countdownSeconds,
+      days_remaining:
         countdownSeconds === 0
           ? 0
           : Math.ceil(countdownSeconds / (24 * 60 * 60)),
@@ -408,7 +408,7 @@ export class DashboardService {
     ) {
       advancedStatus = DashboardJourneyStatus.LOCKED;
     } else if (advancedRetake) {
-      advancedStatus = advancedRetake.ctaEnabled
+      advancedStatus = advancedRetake.cta_enabled
         ? DashboardJourneyStatus.AVAILABLE
         : DashboardJourneyStatus.LOCKED;
     } else if (profile.advanced_assessment_completed_at) {

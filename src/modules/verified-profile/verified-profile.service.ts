@@ -155,9 +155,9 @@ export class VerifiedProfileService {
     const skillProficiency =
       validatedLevel != null
         ? {
-            validatedLevel,
+            validated_level: validatedLevel,
             ...(latestSkillResult?.percentage != null && {
-              skillAssessmentPercentage: latestSkillResult.percentage,
+              skill_assessment_percentage: latestSkillResult.percentage,
             }),
           }
         : undefined;
@@ -203,7 +203,7 @@ export class VerifiedProfileService {
     }
 
     return {
-      fullName: `${user.first_name} ${user.last_name}`.trim(),
+      full_name: `${user.first_name} ${user.last_name}`.trim(),
       role: resolveRoleLabel(
         profile.track,
         profile.role_track,
@@ -212,28 +212,30 @@ export class VerifiedProfileService {
       ),
       goal: resolveGoalLabel(profile.goal),
       about: profile.bio?.trim() ?? '',
-      ...(aiSummary && { aiSummary }),
-      avatarUrl: user.avatar_url,
+      ...(aiSummary && { ai_summary: aiSummary }),
+      avatar_url: user.avatar_url,
       verified: true,
       status: profile.status,
-      ...(seniorityBadge && { seniorityBadge }),
+      ...(seniorityBadge && { seniority_badge: seniorityBadge }),
       ...(skills && { skills }),
-      ...(tierLabel && { tierLabel }),
-      ...(scorePercentage !== undefined && { scorePercentage }),
-      ...(keyStrengths && { keyStrengths }),
-      ...(professionalSkills && { professionalSkills }),
-      ...(softSkills && { softSkills }),
-      ...(skillProficiency && { skillProficiency }),
+      ...(tierLabel && { tier_label: tierLabel }),
+      ...(scorePercentage !== undefined && {
+        score_percentage: scorePercentage,
+      }),
+      ...(keyStrengths && { key_strengths: keyStrengths }),
+      ...(professionalSkills && { professional_skills: professionalSkills }),
+      ...(softSkills && { soft_skills: softSkills }),
+      ...(skillProficiency && { skill_proficiency: skillProficiency }),
       ...(blockScores.workplaceReadiness && {
-        workplaceReadiness: blockScores.workplaceReadiness,
+        workplace_readiness: blockScores.workplaceReadiness,
       }),
       ...(blockScores.practicalApplication && {
-        practicalApplication: blockScores.practicalApplication,
+        practical_application: blockScores.practicalApplication,
       }),
-      shareUrl,
-      ...(qrCodeUrl && { qrCodeUrl }),
-      isOwner: isOwner ?? false,
-      verifiedAt: verifiedAt.toISOString(),
+      share_url: shareUrl,
+      ...(qrCodeUrl && { qr_code_url: qrCodeUrl }),
+      is_owner: isOwner ?? false,
+      verified_at: verifiedAt.toISOString(),
       ...(latestAdvancedResult?.tier && { tier: latestAdvancedResult.tier }),
     };
   }

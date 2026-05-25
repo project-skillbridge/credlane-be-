@@ -92,6 +92,27 @@ export class NotificationDispatchService
     }
   }
 
+  async notifyOfferReceived(
+    userId: string,
+    payload: OfferReceivedPayload,
+  ): Promise<void> {
+    return this.dispatch(NotificationType.OFFER_RECEIVED, userId, payload);
+  }
+
+  async notifyOfferAccepted(
+    userId: string,
+    payload: OfferRespondedPayload,
+  ): Promise<void> {
+    return this.dispatch(NotificationType.OFFER_ACCEPTED, userId, payload);
+  }
+
+  async notifyOfferDeclined(
+    userId: string,
+    payload: OfferRespondedPayload,
+  ): Promise<void> {
+    return this.dispatch(NotificationType.OFFER_DECLINED, userId, payload);
+  }
+
   async dispatch(
     type: NotificationType.ADVANCED_ASSESSMENT_SCORE_READY,
     userId: string,

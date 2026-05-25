@@ -26,16 +26,16 @@ export const buildAuthCookieOptions = (maxAge: number): CookieOptions => ({
 
 export const setAuthCookies = (
   response: Response,
-  tokens: { accessToken: string; refreshToken: string },
+  tokens: { access_token: string; refresh_token: string },
 ): void => {
   response.cookie(
     ACCESS_TOKEN_COOKIE,
-    tokens.accessToken,
+    tokens.access_token,
     buildAuthCookieOptions(parseDurationToMs(env.JWT_ACCESS_EXPIRES_IN)),
   );
   response.cookie(
     REFRESH_TOKEN_COOKIE,
-    tokens.refreshToken,
+    tokens.refresh_token,
     buildAuthCookieOptions(parseDurationToMs(env.JWT_REFRESH_EXPIRES_IN)),
   );
 };

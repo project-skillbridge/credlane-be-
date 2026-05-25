@@ -1,17 +1,42 @@
-import { Injectable, Logger } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
+import { Subject } from 'rxjs';
 import { Between, In, LessThan, Repository } from 'typeorm';
 import {
   BadRequestError,
   ConflictError,
   ForbiddenError,
   NotFoundError,
-  TooManyRequestsError,
-} from '../../shared';
+} from '../../shared/errors/app.errors';
 import { EmployerPoolProfile } from '../talent/entities/employer-pool-profile.entity';
 import { User } from '../users/entities/user.entity';
+import type {
+  OfferReceivedPayload,
+  OfferRespondedPayload,
+} from '../notifications/notification-dispatch.service';
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
-import { NotificationType } from '../notifications/notification-type.enum';
+
+/** Narrow port so offers module does not depend on dispatch overload resolution in ESLint. */
+type OffersNotificationPort = {
+  notifyOfferReceived(
+    userId: string,
+    payload: OfferReceivedPayload,
+  ): Promise<void>;
+  notifyOfferAccepted(
+    userId: string,
+    payload: OfferRespondedPayload,
+  ): Promise<void>;
+  notifyOfferDeclined(
+    userId: string,
+    payload: OfferRespondedPayload,
+  ): Promise<void>;
+};
 import { Offer, OfferStatus } from './entities/offer.entity';
 import { OfferDistributionLog } from './entities/offer-distribution-log.entity';
 import { CreateOfferDto } from './dto/create-offer.dto';
@@ -25,6 +50,52 @@ export type OfferListResult = {
   page: number;
   limit: number;
   totalPages: number;
+};
+
+/** Candidates tab — Offers subtab row (pending / declined / expired by default). */
+export type EmployerCandidatesOfferEntry = {
+  offer_id: string;
+  candidate_user_id: string;
+  candidate_name: string;
+  role_track: string | null;
+  job_title: string;
+  date_sent: Date;
+  status: OfferStatus;
+};
+
+export const EMPLOYER_CANDIDATES_OFFERS_EMPTY_MESSAGE =
+  'No offers sent yet. Discover candidates and send your first offer.';
+
+export type EmployerCandidatesOffersResult = {
+  offers: EmployerCandidatesOfferEntry[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  /** Set when the employer has never sent an offer (default subtab list is empty). */
+  emptyStateMessage: string | null;
+};
+
+/** Pushed to employers subscribed on GET /employer/candidates/offers/events. */
+export type OfferStatusChangeEvent = {
+  type: 'offer_status_changed';
+  offerId: string;
+  candidateUserId: string;
+  candidateName: string;
+  roleTitle: string;
+  status: OfferStatus.ACCEPTED | OfferStatus.DECLINED;
+  respondedAt: string;
+};
+
+const CANDIDATES_OFFERS_SUBTAB_STATUSES = [
+  OfferStatus.PENDING,
+  OfferStatus.DECLINED,
+  OfferStatus.EXPIRED,
+] as const;
+
+type OfferStatusStreamEntry = {
+  subject: Subject<OfferStatusChangeEvent>;
+  subscriberCount: number;
 };
 
 export type OfferAnalytics = {
@@ -41,6 +112,7 @@ export type OfferAnalytics = {
 export class OffersService {
   private readonly logger = new Logger(OffersService.name);
   private readonly monthlyCap: number;
+  private readonly offerStatusStreams = new Map<string, OfferStatusStreamEntry>();
 
   constructor(
     @InjectRepository(Offer)
@@ -51,7 +123,8 @@ export class OffersService {
     private readonly poolProfileRepo: Repository<EmployerPoolProfile>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
-    private readonly notificationDispatch: NotificationDispatchService,
+    @Inject(NotificationDispatchService)
+    private readonly notificationDispatch: OffersNotificationPort,
   ) {
     this.monthlyCap =
       parseInt(process.env.OFFERS_MONTHLY_CAP ?? '', 10) || DEFAULT_MONTHLY_CAP;
@@ -112,8 +185,9 @@ export class OffersService {
       });
 
       if (monthlyCount >= this.monthlyCap) {
-        throw new TooManyRequestsError(
+        throw new HttpException(
           `Monthly offer limit reached (${this.monthlyCap}). Try again next month.`,
+          HttpStatus.TOO_MANY_REQUESTS,
         );
       }
 
@@ -149,19 +223,15 @@ export class OffersService {
       : 'An employer';
 
     try {
-      await this.notificationDispatch.dispatch(
-        NotificationType.OFFER_RECEIVED,
-        dto.candidateUserId,
-        {
-          offerId: offer.id,
-          employerUserId,
-          employerName,
-          roleTitle: dto.roleTitle,
-        },
-      );
-    } catch (error) {
+      await this.notificationDispatch.notifyOfferReceived(dto.candidateUserId, {
+        offerId: offer.id,
+        employerUserId,
+        employerName,
+        roleTitle: dto.roleTitle,
+      });
+    } catch (notifyError: unknown) {
       this.logger.error(
-        `Offer notification failed offer=${offer.id}: ${String(error)}`,
+        `Offer notification failed offer=${offer.id}: ${String(notifyError)}`,
       );
     }
 
@@ -200,6 +270,82 @@ export class OffersService {
       page,
       limit,
       totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async listEmployerCandidatesOffers(
+    employerUserId: string,
+    query: ListOffersQueryDto,
+  ): Promise<EmployerCandidatesOffersResult> {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 20;
+
+    await this.expireStaleOffers(employerUserId);
+
+    const where: Record<string, unknown> = {
+      employer_user_id: employerUserId,
+    };
+
+    if (query.status) {
+      where.status = query.status;
+    } else {
+      where.status = In([...CANDIDATES_OFFERS_SUBTAB_STATUSES]);
+    }
+
+    const [offers, total] = await this.offerRepo.findAndCount({
+      where,
+      order: { created_at: 'DESC' },
+      skip: (page - 1) * limit,
+      take: limit,
+      relations: ['candidate', 'employer_pool_profile'],
+    });
+
+    const emptyStateMessage = await this.resolveCandidatesOffersEmptyMessage(
+      employerUserId,
+      total,
+      query.status,
+    );
+
+    return {
+      offers: offers.map((offer) => this.toCandidatesOfferEntry(offer)),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      emptyStateMessage,
+    };
+  }
+
+  private async resolveCandidatesOffersEmptyMessage(
+    employerUserId: string,
+    listTotal: number,
+    statusFilter?: string,
+  ): Promise<string | null> {
+    if (listTotal > 0 || statusFilter) {
+      return null;
+    }
+
+    const offersSent = await this.offerRepo.count({
+      where: { employer_user_id: employerUserId },
+    });
+
+    return offersSent === 0 ? EMPLOYER_CANDIDATES_OFFERS_EMPTY_MESSAGE : null;
+  }
+
+  private toCandidatesOfferEntry(offer: Offer): EmployerCandidatesOfferEntry {
+    const candidate = offer.candidate;
+    const candidateName = candidate
+      ? `${candidate.first_name ?? ''} ${candidate.last_name ?? ''}`.trim()
+      : '';
+
+    return {
+      offer_id: offer.id,
+      candidate_user_id: offer.candidate_user_id,
+      candidate_name: candidateName || 'Unknown candidate',
+      role_track: offer.employer_pool_profile?.track ?? null,
+      job_title: offer.role_title,
+      date_sent: offer.created_at,
+      status: offer.status,
     };
   }
 
@@ -273,7 +419,7 @@ export class OffersService {
   async respondToOffer(
     candidateUserId: string,
     offerId: string,
-    action: 'accept' | 'decline',
+    responseAction: 'accept' | 'decline',
   ): Promise<Offer> {
     const offer = await this.offerRepo.findOne({
       where: { id: offerId, candidate_user_id: candidateUserId },
@@ -290,7 +436,7 @@ export class OffersService {
     }
 
     const newStatus =
-      action === 'accept' ? OfferStatus.ACCEPTED : OfferStatus.DECLINED;
+      responseAction === 'accept' ? OfferStatus.ACCEPTED : OfferStatus.DECLINED;
     const respondedAt = new Date();
 
     // Atomic conditional update to prevent race conditions
@@ -324,11 +470,6 @@ export class OffersService {
     offer.responded_at = respondedAt;
 
     // Notify employer
-    const notificationType =
-      action === 'accept'
-        ? NotificationType.OFFER_ACCEPTED
-        : NotificationType.OFFER_DECLINED;
-
     const candidate = await this.userRepo.findOne({
       where: { id: candidateUserId },
     });
@@ -337,24 +478,85 @@ export class OffersService {
       : 'A candidate';
 
     try {
-      await this.notificationDispatch.dispatch(
-        notificationType,
-        offer.employer_user_id,
-        {
-          offerId: offer.id,
-          candidateUserId,
-          candidateName,
-          roleTitle: offer.role_title,
-          action,
-        },
-      );
-    } catch (error) {
+      const respondedPayload = {
+        offerId: offer.id,
+        candidateUserId,
+        candidateName,
+        roleTitle: offer.role_title,
+        action: responseAction,
+      };
+
+      if (responseAction === 'accept') {
+        await this.notificationDispatch.notifyOfferAccepted(
+          offer.employer_user_id,
+          respondedPayload,
+        );
+      } else {
+        await this.notificationDispatch.notifyOfferDeclined(
+          offer.employer_user_id,
+          respondedPayload,
+        );
+      }
+    } catch (notifyError: unknown) {
       this.logger.error(
-        `Offer response notification failed offer=${offer.id}: ${String(error)}`,
+        `Offer response notification failed offer=${offer.id}: ${String(notifyError)}`,
       );
     }
 
+    this.publishOfferStatusChange(offer.employer_user_id, {
+      type: 'offer_status_changed',
+      offerId: offer.id,
+      candidateUserId,
+      candidateName: candidateName || 'A candidate',
+      roleTitle: offer.role_title,
+      status: newStatus,
+      respondedAt: respondedAt.toISOString(),
+    });
+
     return offer;
+  }
+
+  subscribeEmployerOfferStatus(
+    employerUserId: string,
+    listener: (event: OfferStatusChangeEvent) => void,
+  ): () => void {
+    let entry = this.offerStatusStreams.get(employerUserId);
+    if (!entry) {
+      entry = {
+        subject: new Subject<OfferStatusChangeEvent>(),
+        subscriberCount: 0,
+      };
+      this.offerStatusStreams.set(employerUserId, entry);
+    }
+    entry.subscriberCount += 1;
+
+    const subscription = entry.subject.subscribe(listener);
+    let released = false;
+
+    return () => {
+      if (released) {
+        return;
+      }
+      released = true;
+      subscription.unsubscribe();
+
+      const current = this.offerStatusStreams.get(employerUserId);
+      if (!current) {
+        return;
+      }
+      current.subscriberCount -= 1;
+      if (current.subscriberCount <= 0) {
+        current.subject.complete();
+        this.offerStatusStreams.delete(employerUserId);
+      }
+    };
+  }
+
+  private publishOfferStatusChange(
+    employerUserId: string,
+    event: OfferStatusChangeEvent,
+  ): void {
+    this.offerStatusStreams.get(employerUserId)?.subject.next(event);
   }
 
   async getAnalytics(employerUserId: string): Promise<OfferAnalytics> {
