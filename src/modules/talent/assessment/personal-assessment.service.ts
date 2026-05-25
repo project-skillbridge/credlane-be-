@@ -399,6 +399,11 @@ export class PersonalAssessmentService {
       .slice(0, GENERATED_PERSONAL_ASSESSMENT_MAX_QUESTIONS)
       .map(({ question, prompt, helperText }) =>
         this.toGeneratedPersonalQuestion(question, prompt, helperText, profile),
+      )
+      .sort(
+        (a, b) =>
+          a.sourceSection - b.sourceSection ||
+          a.sourceQuestionNumber - b.sourceQuestionNumber,
       );
 
     return {

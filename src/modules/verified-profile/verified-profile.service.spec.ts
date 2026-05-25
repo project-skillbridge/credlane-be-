@@ -432,7 +432,9 @@ describe('VerifiedProfileService', () => {
       (usersService.findOne as jest.Mock).mockResolvedValue(user);
       (resultQueryBuilder.getOne as jest.Mock).mockImplementation(() => {
         if (lastAssessmentType === AssessmentType.ADVANCED) {
-          return Promise.resolve(makeResult({ tier: AssessmentTier.JOB_READY }));
+          return Promise.resolve(
+            makeResult({ tier: AssessmentTier.JOB_READY }),
+          );
         }
         return Promise.resolve(null);
       });
@@ -483,9 +485,7 @@ describe('VerifiedProfileService', () => {
         return Promise.resolve(null);
       });
 
-      await expect(
-        service.getByShareToken(shareToken),
-      ).resolves.toMatchObject({
+      await expect(service.getByShareToken(shareToken)).resolves.toMatchObject({
         verifiedAt: '2026-05-03T12:00:00.000Z',
         tier: AssessmentTier.JOB_READY,
       });

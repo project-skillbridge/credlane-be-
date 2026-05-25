@@ -44,6 +44,8 @@ export const ErrorMessages = {
       'Assessment attempt has no questions; please start a new session',
     PASS_REQUIRED:
       'You need a score of 70% or higher on your claimed level in the skill assessment before starting the advanced assessment',
+    QUALITY_REQUIRED:
+      'You need an overall score of at least 50% on a completed skill assessment before starting the advanced assessment',
     MAX_ATTEMPTS_REACHED:
       'You have used all three skill assessment attempts. Complete the advanced assessment to unlock further skill retakes.',
     ACTIVE_SESSION_EXISTS: 'Active skill assessment session already exists',
@@ -67,6 +69,8 @@ export const ErrorMessages = {
     SESSION_EXPIRED: 'Assessment session has expired',
     RETAKE_LOCKED: (unlocksAt: string) =>
       `Advanced assessment is locked until ${unlocksAt}. Retakes are available after a 14-day gate.`,
+    SKILL_QUALITY_REQUIRED:
+      'Complete the skill assessment with an overall score of at least 50% before starting the advanced assessment',
     SESSION_VOIDED:
       'Assessment session has been voided due to integrity violations. A 14-day retake gate has started.',
     LT2_NOT_SUBMITTED: 'Complete the previous question to continue.',
@@ -74,6 +78,8 @@ export const ErrorMessages = {
       'The question_id provided does not match the LT-2 (work task) question for this session.',
     LT3_GENERATION_FAILED:
       'We could not generate your reflection question. Please retry in a moment.',
+    SUBMIT_QUEUE_UNAVAILABLE:
+      'Advanced assessment submission is temporarily unavailable. Please retry.',
   },
   ONBOARDING: {
     INVALID_USER: 'Invalid user',

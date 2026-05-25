@@ -5,7 +5,14 @@ import { AssessmentQuestion } from '../../modules/assessments/entities/assessmen
 import { QuestionImportService } from '../import/question-import.service';
 import { Seeder } from './seeder.interface';
 
-const BANKS_DIR = path.join(__dirname, '..', '..', '..', 'data', 'question-banks');
+const BANKS_DIR = path.join(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  'data',
+  'question-banks',
+);
 
 const DEFAULT_SEED_FILES = [
   path.join(BANKS_DIR, 'seed-skill.json'),

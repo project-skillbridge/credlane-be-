@@ -18,6 +18,8 @@ import { PersonalAssessmentService } from './assessment/personal-assessment.serv
 import { AdvancedAssessmentAiService } from './assessment/advanced-assessment-ai.service';
 import { AdvancedAssessmentController } from './assessment/advanced-assessment.controller';
 import { AdvancedAssessmentService } from './assessment/advanced-assessment.service';
+import { AdvancedAssessmentQueueService } from './assessment/advanced-assessment-queue.service';
+import { AdvancedAssessmentSubmitProcessor } from './assessment/advanced-assessment-submit.processor';
 import { EmployerPoolProfileService } from './assessment/employer-pool-profile.service';
 import { SkillAssessmentController } from './assessment/skill-assessment.controller';
 import { SkillAssessmentService } from './assessment/skill-assessment.service';
@@ -54,6 +56,8 @@ import { TalentService } from './talent.service';
     SkillAssessmentService,
     AdvancedAssessmentAiService,
     AdvancedAssessmentService,
+    AdvancedAssessmentSubmitProcessor,
+    AdvancedAssessmentQueueService,
     EmployerPoolProfileService,
   ],
 })

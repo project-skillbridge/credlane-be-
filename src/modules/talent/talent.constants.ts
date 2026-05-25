@@ -61,5 +61,14 @@ export type TalentEducationLevel = (typeof TALENT_EDUCATION_LEVELS)[number];
 /** Maximum completed skill assessment attempts before advanced assessment is done. */
 export const SKILL_ASSESSMENT_MAX_ATTEMPTS = 3;
 
+/** How long (ms) before an incomplete skill session is considered abandoned. */
+export const SKILL_ASSESSMENT_SESSION_TIMEOUT_MS = 2 * 60 * 60 * 1000; // 2 hours
+
 /** Minimum claimed-level score (Stage 2) required to confirm level and unlock Stage 3. */
 export const SKILL_ASSESSMENT_PASS_PERCENTAGE = 70;
+
+/** Minimum overall score; below this the skill attempt is a total failure (no level outcome). */
+export const SKILL_ASSESSMENT_QUALITY_MIN_PERCENTAGE = 50;
+
+/** Minimum overall score for advanced; below this the attempt is a total failure. */
+export const ADVANCED_ASSESSMENT_QUALITY_MIN_PERCENTAGE = 50;

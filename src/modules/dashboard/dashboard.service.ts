@@ -30,6 +30,10 @@ import {
   SKILL_ASSESSMENT_MAX_ATTEMPTS,
   SKILL_ASSESSMENT_PASS_PERCENTAGE,
 } from '../talent/talent.constants';
+import {
+  meetsSkillQualityBenchmark,
+  qualifiesForAdvancedFromSkillResult,
+} from '../talent/assessment/assessment-quality';
 
 const ADVANCED_RETAKE_GATE_DAYS = 14;
 
@@ -124,12 +128,15 @@ export class DashboardService {
     const validatedLevel =
       result.validated_level ?? profile.validated_level ?? VerifiedLevel.JUNIOR;
 
+    const failed = !meetsSkillQualityBenchmark(percentage);
+
     return {
       score: result.score,
       maxScore: result.max_score ?? result.score,
       percentage,
       validatedLevel,
-      passed: claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE,
+      passed: !failed && claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE,
+      failed,
       completedAt: this.toIsoTimestamp(
         profile.skill_assessment_completed_at,
         result.created_at,
@@ -392,7 +399,13 @@ export class DashboardService {
 
     let advancedStatus: DashboardJourneyStatus;
     const advancedRetake = this.buildAdvancedRetake(profile);
-    if (!this.canStartAdvancedAssessment(profile, hasCompletedSkillOnce)) {
+    if (
+      !this.canStartAdvancedAssessment(
+        profile,
+        hasCompletedSkillOnce,
+        latestSkillResult,
+      )
+    ) {
       advancedStatus = DashboardJourneyStatus.LOCKED;
     } else if (advancedRetake) {
       advancedStatus = advancedRetake.ctaEnabled
@@ -400,8 +413,14 @@ export class DashboardService {
         : DashboardJourneyStatus.LOCKED;
     } else if (profile.advanced_assessment_completed_at) {
       advancedStatus = DashboardJourneyStatus.COMPLETED;
-    } else {
+    } else if (
+      latestSkillResult &&
+      qualifiesForAdvancedFromSkillResult(latestSkillResult) &&
+      profile.skill_assessment_completed_at
+    ) {
       advancedStatus = DashboardJourneyStatus.AVAILABLE;
+    } else {
+      advancedStatus = DashboardJourneyStatus.LOCKED;
     }
 
     return {
@@ -435,11 +454,15 @@ export class DashboardService {
   private canStartAdvancedAssessment(
     profile: TalentProfile,
     hasCompletedSkillOnce: boolean,
+    latestSkillResult: AssessmentResult | null,
   ): boolean {
     return Boolean(
       this.hasCompletedPersonalAssessment(profile) &&
       profile.validated_level &&
-      hasCompletedSkillOnce,
+      profile.skill_assessment_completed_at &&
+      hasCompletedSkillOnce &&
+      latestSkillResult &&
+      qualifiesForAdvancedFromSkillResult(latestSkillResult),
     );
   }
 }
