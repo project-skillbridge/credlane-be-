@@ -12,11 +12,30 @@ import { EmployerPoolProfile } from '../talent/entities/employer-pool-profile.en
 import { User } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 import { NotificationType } from './notification-type.enum';
-import { NotificationsService } from './notifications.service';
+import {
+  isNotificationDuplicateError,
+  NotificationsService,
+} from './notifications.service';
 import { UserNotification } from './user-notification.entity';
 
 const WEEKLY_DIGEST_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
 const REMOTE_WORLDWIDE = 'remote worldwide';
+
+/** Stable dedupe key (YYYY-MM-DD UTC) for the rolling digest window start. */
+export function stableDigestWeekStartKey(referenceDate: Date): string {
+  const weekStart = new Date(
+    referenceDate.getTime() - WEEKLY_DIGEST_INTERVAL_MS,
+  );
+  return new Date(
+    Date.UTC(
+      weekStart.getUTCFullYear(),
+      weekStart.getUTCMonth(),
+      weekStart.getUTCDate(),
+    ),
+  )
+    .toISOString()
+    .slice(0, 10);
+}
 
 export type EmployerHiringPreferences = {
   hiringRoles: string[];
@@ -98,7 +117,7 @@ function locationMatchesPreferences(
     return (
       location.includes(pref) ||
       countryLower.includes(pref) ||
-      pref.includes(countryLower)
+      (countryLower.length > 0 && pref.includes(countryLower))
     );
   });
 }
@@ -143,7 +162,7 @@ export class EmployerJobReadyDigestService
     const digestWeekStart = new Date(
       digestWeekEnd.getTime() - WEEKLY_DIGEST_INTERVAL_MS,
     );
-    const digestWeekStartIso = digestWeekStart.toISOString();
+    const digestWeekStartIso = stableDigestWeekStartKey(referenceDate);
 
     const employers = await this.employerProfileRepo.find();
     const configuredEmployers = employers.filter(hasConfiguredHiringPreferences);
@@ -189,7 +208,7 @@ export class EmployerJobReadyDigestService
       .createQueryBuilder('pool')
       .innerJoin(User, 'u', 'u.id = pool.candidate_id')
       .where('pool.tier = :tier', { tier: 'job_ready' })
-      .andWhere('pool.verified_at BETWEEN :start AND :end', {
+      .andWhere('pool.verified_at >= :start AND pool.verified_at < :end', {
         start: digestWeekStart,
         end: digestWeekEnd,
       })
@@ -245,18 +264,25 @@ export class EmployerJobReadyDigestService
     const label = matchCount === 1 ? 'candidate' : 'candidates';
     const verb = matchCount === 1 ? 'matches' : 'match';
 
-    await this.notificationsService.create({
-      userId: employer.user_id,
-      type: NotificationType.JOB_READY_MATCHES_AVAILABLE,
-      title: 'New Job Ready candidates match your preferences',
-      body: `${matchCount} new Job Ready ${label} ${verb} your hiring preferences this week.`,
-      data: {
-        digestWeekStart,
-        digestWeekEnd,
-        matchCount,
-        candidateUserIds,
-      },
-    });
+    try {
+      await this.notificationsService.create({
+        userId: employer.user_id,
+        type: NotificationType.JOB_READY_MATCHES_AVAILABLE,
+        title: 'New Job Ready candidates match your preferences',
+        body: `${matchCount} new Job Ready ${label} ${verb} your hiring preferences this week.`,
+        data: {
+          digestWeekStart,
+          digestWeekEnd,
+          matchCount,
+          candidateUserIds,
+        },
+      });
+    } catch (error) {
+      if (isNotificationDuplicateError(error)) {
+        return;
+      }
+      throw error;
+    }
 
     await this.sendDigestEmail(employer.user_id, matchCount);
   }

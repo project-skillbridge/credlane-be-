@@ -100,6 +100,8 @@ export class OffersController {
     res.flushHeaders();
 
     let closed = false;
+    let backpressure = false;
+    const pendingChunks: string[] = [];
     let heartbeat: ReturnType<typeof setInterval> | undefined;
     let unsubscribe: (() => void) | undefined;
 
@@ -108,6 +110,7 @@ export class OffersController {
         return;
       }
       closed = true;
+      pendingChunks.length = 0;
       if (heartbeat !== undefined) {
         clearInterval(heartbeat);
         heartbeat = undefined;
@@ -119,14 +122,36 @@ export class OffersController {
       }
     };
 
+    const flushPendingChunks = (): void => {
+      while (
+        !closed &&
+        !res.writableEnded &&
+        !backpressure &&
+        pendingChunks.length > 0
+      ) {
+        const chunk = pendingChunks.shift()!;
+        if (!writeSse(chunk)) {
+          break;
+        }
+      }
+    };
+
     const writeSse = (chunk: string): boolean => {
       if (closed || res.writableEnded) {
+        return false;
+      }
+      if (backpressure) {
+        pendingChunks.push(chunk);
         return false;
       }
       try {
         const ok = res.write(chunk);
         if (!ok) {
-          cleanup();
+          backpressure = true;
+          res.once('drain', () => {
+            backpressure = false;
+            flushPendingChunks();
+          });
         }
         return ok;
       } catch {
