@@ -27,13 +27,13 @@ export class SaveEmployerProfileDto {
     description: 'Founder | Recruiter | Agency',
   })
   @IsIn(EMPLOYER_TYPES, { message: 'Invalid employer type selection' })
-  employerType: string;
+  employer_type: string;
 
   @ApiProperty({ example: 'Acme Labs' })
   @IsString()
-  @MinLength(1, { message: 'companyName is required' })
+  @MinLength(1, { message: 'company_name is required' })
   @MaxLength(255)
-  companyName: string;
+  company_name: string;
 
   @ApiProperty({
     example: '11-50',
@@ -41,12 +41,12 @@ export class SaveEmployerProfileDto {
     description: '1-10 | 11-50 | 51-200 | 201-500 | 500+',
   })
   @IsIn(EMPLOYER_COMPANY_SIZES, { message: 'Invalid company size selection' })
-  companySize: string;
+  company_size: string;
 
   @ApiProperty({ example: 'https://acmelabs.com' })
   @IsUrl({}, { message: 'Please enter a valid website URL' })
   @MaxLength(500)
-  companyWebsite: string;
+  company_website: string;
 
   @ApiProperty({ example: 'Fintech' })
   @IsString()
@@ -68,7 +68,7 @@ export class SaveEmployerProfileDto {
     message: LINKEDIN_COMPANY_PAGE_ERROR,
   })
   @MaxLength(500)
-  linkedinCompanyPageUrl?: string;
+  linkedin_company_page_url?: string;
 
   @ApiProperty({
     example: ['frontend_developer', 'backend_developer'],
@@ -82,7 +82,7 @@ export class SaveEmployerProfileDto {
     each: true,
     message: `Each role must be one of: ${EMPLOYER_DESIRED_ROLES.join(', ')}`,
   })
-  hiringRoles: string[];
+  hiring_roles: string[];
 
   @ApiProperty({
     example: ['junior', 'mid'],
@@ -96,7 +96,7 @@ export class SaveEmployerProfileDto {
     each: true,
     message: 'Invalid experience level selection',
   })
-  preferredExperienceLevels: string[];
+  preferred_experience_levels: string[];
 
   @ApiPropertyOptional({
     example: '6_10',
@@ -105,7 +105,7 @@ export class SaveEmployerProfileDto {
   })
   @IsOptional()
   @IsIn(EMPLOYER_HIRING_RANGES, {
-    message: `hiringCount must be one of: ${EMPLOYER_HIRING_RANGES.join(', ')}`,
+    message: `hiring_count must be one of: ${EMPLOYER_HIRING_RANGES.join(', ')}`,
   })
-  hiringCount?: string;
+  hiring_count?: string;
 }

@@ -305,10 +305,10 @@ describe('EmployerDiscoveryService', () => {
       });
 
       expect(result.total).toBe(1);
-      expect(result.candidates[0].userId).toBe('user-1');
-      expect(result.candidates[0].fullName).toBe('Alice Dev');
-      expect(result.candidates[0].isSaved).toBe(true);
-      expect(result.totalPages).toBe(1);
+      expect(result.candidates[0].user_id).toBe('user-1');
+      expect(result.candidates[0].full_name).toBe('Alice Dev');
+      expect(result.candidates[0].is_saved).toBe(true);
+      expect(result.total_pages).toBe(1);
     });
 
     it('should return empty results when no candidates match', async () => {
@@ -331,7 +331,7 @@ describe('EmployerDiscoveryService', () => {
       await service.discoverCandidates('employer-1', {
         page: 1,
         limit: 20,
-        roleTrack: 'backend_developer',
+        role_track: 'backend_developer',
       });
 
       expect(poolQb.andWhere).toHaveBeenCalledWith('pool.track = :roleTrack', {
@@ -398,8 +398,8 @@ describe('EmployerDiscoveryService', () => {
         limit: 20,
       });
 
-      expect(result.candidates[0].isSaved).toBe(false);
-      expect(result.candidates[0].fullName).toBe('Bob');
+      expect(result.candidates[0].is_saved).toBe(false);
+      expect(result.candidates[0].full_name).toBe('Bob');
     });
   });
 });

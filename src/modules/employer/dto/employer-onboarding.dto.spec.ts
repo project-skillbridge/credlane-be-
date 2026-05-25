@@ -6,16 +6,16 @@ import { CompleteEmployerOnboardingDto } from './complete-employer-onboarding.dt
 describe('Employer onboarding DTOs', () => {
   it('requires the doc-aligned fields on the profile onboarding payload', async () => {
     const dto = plainToInstance(SaveEmployerProfileDto, {
-      employerType: 'Recruiter',
-      companyName: 'Acme Labs',
-      companySize: '11-50',
-      companyWebsite: 'https://acme.example',
+      employer_type: 'Recruiter',
+      company_name: 'Acme Labs',
+      company_size: '11-50',
+      company_website: 'https://acme.example',
       industry: 'Fintech',
       region: 'Nigeria',
-      hiringRoles: ['frontend_developer'],
-      preferredExperienceLevels: ['junior', 'mid'],
-      hiringCount: '6_10',
-      linkedinCompanyPageUrl: 'https://www.linkedin.com/company/acme-labs',
+      hiring_roles: ['frontend_developer'],
+      preferred_experience_levels: ['junior', 'mid'],
+      hiring_count: '6_10',
+      linkedin_company_page_url: 'https://www.linkedin.com/company/acme-labs',
     });
 
     await expect(validate(dto)).resolves.toHaveLength(0);
@@ -23,33 +23,33 @@ describe('Employer onboarding DTOs', () => {
 
   it('rejects profile onboarding without preferred experience levels', async () => {
     const dto = plainToInstance(SaveEmployerProfileDto, {
-      employerType: 'Recruiter',
-      companyName: 'Acme Labs',
-      companySize: '11-50',
-      companyWebsite: 'https://acme.example',
+      employer_type: 'Recruiter',
+      company_name: 'Acme Labs',
+      company_size: '11-50',
+      company_website: 'https://acme.example',
       industry: 'Fintech',
       region: 'Nigeria',
-      hiringRoles: ['frontend_developer'],
+      hiring_roles: ['frontend_developer'],
     });
 
     const errors = await validate(dto);
 
-    expect(errors.some((error) => error.property === 'preferredExperienceLevels')).toBe(
-      true,
-    );
+    expect(
+      errors.some((error) => error.property === 'preferred_experience_levels'),
+    ).toBe(true);
   });
 
   it('validates the legacy onboarding route with the expanded doc fields', async () => {
     const dto = plainToInstance(CompleteEmployerOnboardingDto, {
-      joiningAs: 'recruiter',
-      companyName: 'Acme Labs',
-      companySize: '11-50',
+      joining_as: 'recruiter',
+      company_name: 'Acme Labs',
+      company_size: '11-50',
       industry: 'Fintech',
-      desiredRoles: ['backend_developer'],
-      preferredExperienceLevels: ['senior'],
+      desired_roles: ['backend_developer'],
+      preferred_experience_levels: ['senior'],
       region: 'Kenya',
-      hiringCountRange: '1_5',
-      companyWebsite: 'https://acme.example',
+      hiring_count_range: '1_5',
+      company_website: 'https://acme.example',
     });
 
     await expect(validate(dto)).resolves.toHaveLength(0);

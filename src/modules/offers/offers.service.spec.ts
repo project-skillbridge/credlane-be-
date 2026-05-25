@@ -79,13 +79,13 @@ describe('OffersService', () => {
 
   describe('createOffer', () => {
     const dto = {
-      candidateUserId: 'candidate-1',
-      roleTitle: 'Frontend Developer',
+      candidate_user_id: 'candidate-1',
+      role_title: 'Frontend Developer',
       roleDescription: 'We would like to offer you a position',
       compensation: '$80k - $100k',
       employmentType: 'Full-time',
       workArrangement: 'Remote',
-      expiresInDays: 14,
+      expires_in_days: 14,
     };
 
     it('should create an offer for a job_ready candidate', async () => {
@@ -106,8 +106,8 @@ describe('OffersService', () => {
               .mockResolvedValueOnce({
                 id: 'offer-1',
                 employer_user_id: 'employer-1',
-                candidate_user_id: dto.candidateUserId,
-                role_title: dto.roleTitle,
+                candidate_user_id: dto.candidate_user_id,
+                role_title: dto.role_title,
                 status: OfferStatus.PENDING,
               })
               .mockResolvedValueOnce({ id: 'log-1' }),
@@ -201,7 +201,7 @@ describe('OffersService', () => {
       expect(mockOfferRepo.findOne).toHaveBeenCalledWith({
         where: {
           employer_user_id: 'employer-1',
-          candidate_user_id: dto.candidateUserId,
+          candidate_user_id: dto.candidate_user_id,
           status: expect.any(Object),
         },
       });
@@ -227,8 +227,8 @@ describe('OffersService', () => {
               .mockResolvedValueOnce({
                 id: 'offer-2',
                 employer_user_id: 'employer-1',
-                candidate_user_id: dto.candidateUserId,
-                role_title: dto.roleTitle,
+                candidate_user_id: dto.candidate_user_id,
+                role_title: dto.role_title,
                 status: OfferStatus.PENDING,
               })
               .mockResolvedValueOnce({ id: 'log-2' }),
@@ -249,7 +249,7 @@ describe('OffersService', () => {
       expect(mockOfferRepo.findOne).toHaveBeenCalledWith({
         where: {
           employer_user_id: 'employer-1',
-          candidate_user_id: dto.candidateUserId,
+          candidate_user_id: dto.candidate_user_id,
           status: expect.any(Object),
         },
       });
@@ -372,11 +372,11 @@ describe('OffersService', () => {
 
       const result = await service.getAnalytics('employer-1');
 
-      expect(result.offersThisMonth).toBe(5);
-      expect(result.acceptedCount).toBe(3);
-      expect(result.declinedCount).toBe(1);
-      expect(result.pendingCount).toBe(2);
-      expect(result.expiredCount).toBe(0);
+      expect(result.offers_this_month).toBe(5);
+      expect(result.accepted_count).toBe(3);
+      expect(result.declined_count).toBe(1);
+      expect(result.pending_count).toBe(2);
+      expect(result.expired_count).toBe(0);
       expect(result.remaining).toBe(45);
     });
   });

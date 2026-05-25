@@ -12,16 +12,16 @@ import { NotificationType } from '../notifications/notification-type.enum';
 import { EmployerVerificationService } from '../employer/employer-verification.service';
 
 export type CandidateCard = {
-  userId: string;
-  fullName: string;
-  roleTrack: string | null;
+  user_id: string;
+  full_name: string;
+  role_track: string | null;
   tier: string;
   availability: string | null;
-  verifiedAt: Date;
+  verified_at: Date;
   score: number;
-  strongCompetencies: string[] | null;
-  shareToken: string | null;
-  isSaved: boolean;
+  strong_competencies: string[] | null;
+  share_token: string | null;
+  is_saved: boolean;
 };
 
 export type DiscoveryListResult = {
@@ -29,7 +29,7 @@ export type DiscoveryListResult = {
   total: number;
   page: number;
   limit: number;
-  totalPages: number;
+  total_pages: number;
 };
 
 type CandidateRawRow = {
@@ -81,8 +81,8 @@ export class EmployerDiscoveryService {
       .innerJoin(User, 'u', 'u.id = pool.candidate_id')
       .where('pool.tier = :tier', { tier: 'job_ready' });
 
-    if (query.roleTrack) {
-      qb.andWhere('pool.track = :roleTrack', { roleTrack: query.roleTrack });
+    if (query.role_track) {
+      qb.andWhere('pool.track = :roleTrack', { roleTrack: query.role_track });
     }
 
     if (query.availability) {
@@ -125,16 +125,16 @@ export class EmployerDiscoveryService {
     const savedMap = await this.getSavedMap(employerUserId, candidateIds);
 
     const candidates: CandidateCard[] = rawResults.map((r) => ({
-      userId: r.userId,
-      fullName: `${r.firstName ?? ''} ${r.lastName ?? ''}`.trim(),
-      roleTrack: r.roleTrack,
+      user_id: r.userId,
+      full_name: `${r.firstName ?? ''} ${r.lastName ?? ''}`.trim(),
+      role_track: r.roleTrack,
       tier: r.tier,
       availability: r.availability,
-      verifiedAt: r.verifiedAt,
+      verified_at: r.verifiedAt,
       score: r.score,
-      strongCompetencies: r.strongCompetencies,
-      shareToken: r.shareToken,
-      isSaved: savedMap.has(r.userId),
+      strong_competencies: r.strongCompetencies,
+      share_token: r.shareToken,
+      is_saved: savedMap.has(r.userId),
     }));
 
     return {
@@ -142,7 +142,7 @@ export class EmployerDiscoveryService {
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
+      total_pages: Math.ceil(total / limit),
     };
   }
 
@@ -262,16 +262,16 @@ export class EmployerDiscoveryService {
       .getRawMany();
 
     const candidates: CandidateCard[] = rawResults.map((r) => ({
-      userId: r.userId,
-      fullName: `${r.firstName ?? ''} ${r.lastName ?? ''}`.trim(),
-      roleTrack: r.roleTrack,
+      user_id: r.userId,
+      full_name: `${r.firstName ?? ''} ${r.lastName ?? ''}`.trim(),
+      role_track: r.roleTrack,
       tier: r.tier,
       availability: r.availability,
-      verifiedAt: r.verifiedAt,
+      verified_at: r.verifiedAt,
       score: r.score,
-      strongCompetencies: r.strongCompetencies,
-      shareToken: r.shareToken,
-      isSaved: true,
+      strong_competencies: r.strongCompetencies,
+      share_token: r.shareToken,
+      is_saved: true,
     }));
 
     return {
@@ -279,7 +279,7 @@ export class EmployerDiscoveryService {
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
+      total_pages: Math.ceil(total / limit),
     };
   }
 

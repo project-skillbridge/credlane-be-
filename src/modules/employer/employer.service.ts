@@ -60,23 +60,23 @@ export class EmployerService {
           profile = manager.create(EmployerProfile, { user_id: userId });
         }
 
-        profile.employer_type = dto.employerType;
-        profile.company_name = dto.companyName.trim();
-        profile.company_size = dto.companySize;
-        profile.company_website = dto.companyWebsite.trim();
-        profile.website_url = dto.companyWebsite.trim();
+        profile.employer_type = dto.employer_type;
+        profile.company_name = dto.company_name.trim();
+        profile.company_size = dto.company_size;
+        profile.company_website = dto.company_website.trim();
+        profile.website_url = dto.company_website.trim();
         profile.industry = dto.industry.trim();
         profile.region = dto.region.trim();
         profile.hiring_region = dto.region.trim();
         profile.linkedin_company_page_url =
-          dto.linkedinCompanyPageUrl?.trim() ?? null;
+          dto.linkedin_company_page_url?.trim() ?? null;
         profile.linkedin_company_url =
-          dto.linkedinCompanyPageUrl?.trim() ?? null;
-        profile.hiring_roles = dto.hiringRoles;
+          dto.linkedin_company_page_url?.trim() ?? null;
+        profile.hiring_roles = dto.hiring_roles;
         profile.hiring_locations = [dto.region.trim()];
-        profile.desired_roles = dto.hiringRoles;
-        profile.preferred_experience_levels = dto.preferredExperienceLevels;
-        profile.hiring_count_range = dto.hiringCount ?? null;
+        profile.desired_roles = dto.hiring_roles;
+        profile.preferred_experience_levels = dto.preferred_experience_levels;
+        profile.hiring_count_range = dto.hiring_count ?? null;
 
         await manager.save(EmployerProfile, profile);
         await this.usersService.markOnboardingCompleteWithManager(
@@ -132,22 +132,23 @@ export class EmployerService {
 
         const nextProfile = manager.create(EmployerProfile, {
           user_id: userId,
-          employer_type: dto.joiningAs,
-          joining_as: dto.joiningAs,
-          company_name: dto.companyName.trim(),
-          company_size: dto.companySize,
+          employer_type: dto.joining_as,
+          joining_as: dto.joining_as,
+          company_name: dto.company_name.trim(),
+          company_size: dto.company_size,
           industry: dto.industry.trim(),
-          desired_roles: dto.desiredRoles,
-          hiring_roles: dto.desiredRoles,
+          desired_roles: dto.desired_roles,
+          hiring_roles: dto.desired_roles,
           hiring_locations: [dto.region.trim()],
           region: dto.region.trim(),
           hiring_region: dto.region.trim(),
-          hiring_count_range: dto.hiringCountRange,
-          company_website: dto.companyWebsite?.trim() || null,
-          website_url: dto.companyWebsite?.trim() || null,
-          linkedin_company_page_url: dto.linkedinCompanyPageUrl?.trim() || null,
-          linkedin_company_url: dto.linkedinCompanyPageUrl?.trim() || null,
-          preferred_experience_levels: dto.preferredExperienceLevels,
+          hiring_count_range: dto.hiring_count_range,
+          company_website: dto.company_website?.trim() || null,
+          website_url: dto.company_website?.trim() || null,
+          linkedin_company_page_url:
+            dto.linkedin_company_page_url?.trim() || null,
+          linkedin_company_url: dto.linkedin_company_page_url?.trim() || null,
+          preferred_experience_levels: dto.preferred_experience_levels,
         });
 
         const savedProfile = await manager.save(EmployerProfile, nextProfile);
