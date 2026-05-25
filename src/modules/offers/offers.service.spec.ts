@@ -305,12 +305,12 @@ describe('OffersService', () => {
 
       expect(result.offers).toEqual([
         {
-          offerId: 'offer-1',
-          candidateUserId: 'candidate-1',
-          candidateName: 'Ada Lovelace',
-          roleTrack: 'frontend_developer',
-          jobTitle: 'Senior Frontend Engineer',
-          dateSent: sentAt,
+          offer_id: 'offer-1',
+          candidate_user_id: 'candidate-1',
+          candidate_name: 'Ada Lovelace',
+          role_track: 'frontend_developer',
+          job_title: 'Senior Frontend Engineer',
+          date_sent: sentAt,
           status: OfferStatus.PENDING,
         },
       ]);

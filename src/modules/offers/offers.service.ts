@@ -53,7 +53,7 @@ export type OfferListResult = {
 
 /** Candidates tab — Offers subtab row (pending / declined / expired by default). */
 export type EmployerCandidatesOfferEntry = {
-  offerId: string;
+  offer_id: string;
   candidate_user_id: string;
   candidate_name: string;
   role_track: string | null;
@@ -322,7 +322,7 @@ export class OffersService {
       : '';
 
     return {
-      offerId: offer.id,
+      offer_id: offer.id,
       candidate_user_id: offer.candidate_user_id,
       candidate_name: candidateName || 'Unknown candidate',
       role_track: offer.employer_pool_profile?.track ?? null,
