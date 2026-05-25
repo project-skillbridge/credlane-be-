@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsDateString,
   IsInt,
@@ -25,7 +25,7 @@ export class CreateOfferDto {
   @MaxLength(255)
   roleTitle: string;
 
-  @ApiProperty({ description: 'Role description', maxLength: 500 })
+  @ApiPropertyOptional({ description: 'Role description', maxLength: 500 })
   @IsOptional()
   @IsString()
   @MaxLength(500)
