@@ -128,4 +128,10 @@ export const ErrorMessages = {
     CANNOT_RESPOND: 'Cannot respond to an offer that is not pending',
     OFFER_EXPIRED: 'This offer has expired',
   },
+  EMPLOYER_VERIFICATION: {
+    NOT_VERIFIED:
+      'Complete your company profile to start contacting candidates.',
+    WEBSITE_NOT_RESOLVABLE:
+      'Company website could not be reached. Please check the URL.',
+  },
 } as const;

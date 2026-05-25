@@ -112,6 +112,18 @@ export class EmployerProfile {
   @Column({ type: 'varchar', length: 100, nullable: true })
   hiring_region: string | null;
 
+  @ApiProperty({ example: 'https://linkedin.com/company/acme', nullable: true })
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  linkedin_company_url: string | null;
+
+  @ApiProperty({ default: false })
+  @Column({ type: 'boolean', default: false })
+  is_verified: boolean;
+
+  @ApiProperty({ default: 0 })
+  @Column({ type: 'int', default: 0 })
+  hire_count: number;
+
   @ApiProperty()
   @CreateDateColumn({ name: 'created_at', type: 'timestamp with time zone' })
   created_at: Date;
