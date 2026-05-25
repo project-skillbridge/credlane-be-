@@ -70,12 +70,12 @@ export class SaveEmployerProfileDto {
   })
   hiringLocations: string[];
 
-  @ApiPropertyOptional({ example: 'https://linkedin.com/company/acme' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(500)
-  @Matches(
-    /^https?:\/\/(www\.)?linkedin\.com\/company\/[a-zA-Z0-9_%-]+\/?(\?.*)?$/i,
+  `@ApiPropertyOptional`({ example: 'https://linkedin.com/company/acme' })
+  `@IsOptional`()
+  `@IsString`()
+  `@MaxLength`(500)
+  `@Matches`(
+    /^\s*https?:\/\/(www\.)?linkedin\.com\/company\/[a-zA-Z0-9_%-]+\/?(\?.*)?\s*$/i,
     {
       message: 'Please enter a valid LinkedIn company page URL',
     },
