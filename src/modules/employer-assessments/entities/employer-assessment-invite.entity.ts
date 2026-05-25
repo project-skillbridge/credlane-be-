@@ -19,6 +19,11 @@ export enum EmployerAssessmentDeliveryMode {
 @Entity('employer_assessment_invites')
 @Index('IDX_employer_assessment_invites_assessment', ['assessment_id'])
 @Index('IDX_employer_assessment_invites_candidate', ['candidate_user_id'])
+@Index(
+  'UQ_employer_assessment_invites_assessment_candidate',
+  ['assessment_id', 'candidate_user_id'],
+  { unique: true },
+)
 export class EmployerAssessmentInvite {
   @ApiProperty({ format: 'uuid' })
   @PrimaryGeneratedColumn('uuid')

@@ -62,7 +62,8 @@ export class CreateEmployerAssessmentTables1779860000000 implements MigrationInt
         "sent_at" timestamp with time zone NOT NULL DEFAULT now(),
         CONSTRAINT "PK_employer_assessment_invites" PRIMARY KEY ("id"),
         CONSTRAINT "FK_employer_assessment_invites_assessment" FOREIGN KEY ("assessment_id") REFERENCES "employer_assessments"("id") ON DELETE CASCADE,
-        CONSTRAINT "FK_employer_assessment_invites_candidate" FOREIGN KEY ("candidate_user_id") REFERENCES "users"("id") ON DELETE CASCADE
+        CONSTRAINT "FK_employer_assessment_invites_candidate" FOREIGN KEY ("candidate_user_id") REFERENCES "users"("id") ON DELETE CASCADE,
+        CONSTRAINT "UQ_employer_assessment_invites_assessment_candidate" UNIQUE ("assessment_id", "candidate_user_id")
       );
 
       CREATE INDEX "IDX_employer_assessment_invites_assessment" ON "employer_assessment_invites" ("assessment_id");
