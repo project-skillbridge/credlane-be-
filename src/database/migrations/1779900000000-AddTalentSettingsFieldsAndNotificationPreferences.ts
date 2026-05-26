@@ -20,6 +20,11 @@ export class AddTalentSettingsFieldsAndNotificationPreferences1779900000000
     await queryRunner.query(
       `ALTER TABLE "talent_profiles" ADD COLUMN IF NOT EXISTS "availability_status" varchar(50) NOT NULL DEFAULT 'open_to_opportunities'`,
     );
+    await queryRunner.query(`
+      ALTER TABLE "talent_profiles"
+      ADD CONSTRAINT "CHK_talent_profiles_availability_status"
+      CHECK ("availability_status" IN ('actively_looking', 'open_to_opportunities', 'not_looking'))
+    `);
 
     await queryRunner.createTable(
       new Table({
@@ -56,6 +61,32 @@ export class AddTalentSettingsFieldsAndNotificationPreferences1779900000000
       }),
       true,
     );
+    await queryRunner.query(`
+      ALTER TABLE "user_notification_preferences"
+      ADD CONSTRAINT "FK_user_notification_preferences_user_id"
+      FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE CASCADE
+    `);
+    await queryRunner.query(`
+      ALTER TABLE "user_notification_preferences"
+      ADD CONSTRAINT "CHK_user_notification_preferences_channel"
+      CHECK ("channel" IN ('email', 'in_app'))
+    `);
+    await queryRunner.query(`
+      ALTER TABLE "user_notification_preferences"
+      ADD CONSTRAINT "CHK_user_notification_preferences_type"
+      CHECK (
+        "type" IN (
+          'advanced_assessment_score_ready',
+          'advanced_retake_available',
+          'offer_received',
+          'offer_accepted',
+          'offer_declined',
+          'contact_request_received',
+          'assessment_received',
+          'job_ready_matches_available'
+        )
+      )
+    `);
 
     await queryRunner.createIndex(
       'user_notification_preferences',
@@ -72,7 +103,19 @@ export class AddTalentSettingsFieldsAndNotificationPreferences1779900000000
       'user_notification_preferences',
       'UQ_user_notification_preferences_user_channel_type',
     );
+    await queryRunner.query(
+      `ALTER TABLE IF EXISTS "user_notification_preferences" DROP CONSTRAINT IF EXISTS "CHK_user_notification_preferences_type"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE IF EXISTS "user_notification_preferences" DROP CONSTRAINT IF EXISTS "CHK_user_notification_preferences_channel"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE IF EXISTS "user_notification_preferences" DROP CONSTRAINT IF EXISTS "FK_user_notification_preferences_user_id"`,
+    );
     await queryRunner.dropTable('user_notification_preferences');
+    await queryRunner.query(
+      `ALTER TABLE IF EXISTS "talent_profiles" DROP CONSTRAINT IF EXISTS "CHK_talent_profiles_availability_status"`,
+    );
     await queryRunner.query(
       `ALTER TABLE "talent_profiles" DROP COLUMN IF EXISTS "availability_status"`,
     );

@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   InternalServerErrorException,
   Logger,
@@ -143,10 +144,18 @@ export class TalentService {
     await this.talentProfileRepository.manager.transaction(async (manager) => {
       const userPatch: Partial<User> = {};
       if (dto.first_name !== undefined) {
-        userPatch.first_name = dto.first_name.trim();
+        const firstName = dto.first_name.trim();
+        if (!firstName) {
+          throw new BadRequestException('first_name must not be empty');
+        }
+        userPatch.first_name = firstName;
       }
       if (dto.last_name !== undefined) {
-        userPatch.last_name = dto.last_name.trim();
+        const lastName = dto.last_name.trim();
+        if (!lastName) {
+          throw new BadRequestException('last_name must not be empty');
+        }
+        userPatch.last_name = lastName;
       }
       if (Object.keys(userPatch).length > 0) {
         await manager.update(User, { id: userId }, userPatch);
@@ -200,20 +209,47 @@ export class TalentService {
   }
 
   async updateAvailability(userId: string, dto: UpdateTalentAvailabilityDto) {
-    const profile = await this.findOrCreateProfile(userId);
-    profile.availability_status = dto.availability_status;
-    profile.is_published =
-      dto.availability_status !== TalentAvailabilityStatus.NOT_LOOKING;
-    if (!profile.is_published) {
-      profile.published_at = null;
-    } else if (!profile.published_at) {
-      profile.published_at = new Date();
-    }
-    const saved = await this.talentProfileRepository.save(profile);
+    const saved = await this.talentProfileRepository.manager.transaction(
+      async (manager) => {
+        let profile = await manager.findOne(TalentProfile, {
+          where: { user_id: userId },
+        });
+        if (!profile) {
+          profile = manager.create(TalentProfile, {
+            user_id: userId,
+            role_track: null,
+            role_tracks: null,
+            goal: null,
+            region: null,
+            education_level: null,
+            linkedin_url: null,
+            onboarding_step: 0,
+            status: TalentProfileStatus.NOT_STARTED,
+            bio: null,
+            profile_share_link: null,
+            is_published: false,
+            published_at: null,
+          });
+        }
 
-    await this.employerPoolProfileRepository.update(
-      { talent_profile_id: saved.id },
-      { availability: dto.availability_status },
+        profile.availability_status = dto.availability_status;
+        profile.is_published =
+          dto.availability_status !== TalentAvailabilityStatus.NOT_LOOKING;
+        if (!profile.is_published) {
+          profile.published_at = null;
+        } else if (!profile.published_at) {
+          profile.published_at = new Date();
+        }
+        const savedProfile = await manager.save(TalentProfile, profile);
+
+        await manager.update(
+          EmployerPoolProfile,
+          { talent_profile_id: savedProfile.id },
+          { availability: dto.availability_status },
+        );
+
+        return savedProfile;
+      },
     );
 
     return {

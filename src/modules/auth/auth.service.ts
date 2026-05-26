@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   HttpException,
   HttpStatus,
@@ -402,9 +403,12 @@ export class AuthService {
 
   async deleteAccount(
     userId: string,
-    _dto: DeleteAccountDto,
+    dto: DeleteAccountDto,
     metadata: AccountDeletionMetadata = {},
   ): Promise<{ status: 'success'; message: string }> {
+    if (dto.confirmation !== 'DELETE') {
+      throw new BadRequestException('Type DELETE to confirm account deletion');
+    }
     await this.usersService.softDeleteAccountWithAudit(userId, metadata);
     return { status: 'success', message: 'Account deleted' };
   }
