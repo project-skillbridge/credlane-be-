@@ -107,9 +107,22 @@ describe('EmployerDiscoveryService', () => {
         track: 'frontend_developer',
       };
       mockPoolProfileRepo.findOne.mockResolvedValue(pool);
+      mockOfferRepo.createQueryBuilder.mockReturnValue(
+        createOfferQb([
+          {
+            offer_candidate_user_id: 'user-1',
+            offer_status: 'pending',
+          },
+        ]),
+      );
 
       const result = await service.getCandidateProfile('employer-1', 'user-1');
-      expect(result).toEqual(pool);
+      expect(result.id).toBe(pool.id);
+      expect(result.candidate_id).toBe(pool.candidate_id);
+      expect(result.tier).toBe(pool.tier);
+      expect(result.track).toBe(pool.track);
+      expect(result.offer_sent).toBe(true);
+      expect(result.offer_status).toBe('pending');
     });
 
     it('should throw NotFoundError if candidate not in pool', async () => {

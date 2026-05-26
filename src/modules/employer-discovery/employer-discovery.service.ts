@@ -162,7 +162,7 @@ export class EmployerDiscoveryService {
       total_pages: Math.ceil(total / limit),
       empty_state_message:
         total === 0
-          ? 'No candidates match your current filters. Try adjusting your selection.'
+          ? 'No saved candidates in this list. Try saving candidates or checking another list.'
           : null,
     };
   }

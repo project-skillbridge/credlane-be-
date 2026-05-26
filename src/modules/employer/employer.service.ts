@@ -168,22 +168,34 @@ export class EmployerService {
       profile.employer_type = dto.employer_type;
     }
     if (dto.company_name !== undefined) {
-      profile.company_name = dto.company_name.trim();
+      const companyName = this.trimNonEmpty(dto.company_name);
+      if (companyName) {
+        profile.company_name = companyName;
+      }
     }
     if (dto.company_size !== undefined) {
       profile.company_size = dto.company_size;
     }
     if (dto.company_website !== undefined) {
-      profile.company_website = dto.company_website.trim();
-      profile.website_url = dto.company_website.trim();
+      const companyWebsite = this.trimNonEmpty(dto.company_website);
+      if (companyWebsite) {
+        profile.company_website = companyWebsite;
+        profile.website_url = companyWebsite;
+      }
     }
     if (dto.industry !== undefined) {
-      profile.industry = dto.industry.trim();
+      const industry = this.trimNonEmpty(dto.industry);
+      if (industry) {
+        profile.industry = industry;
+      }
     }
     if (dto.region !== undefined) {
-      profile.region = dto.region.trim();
-      profile.hiring_region = dto.region.trim();
-      profile.hiring_locations = [dto.region.trim()];
+      const region = this.trimNonEmpty(dto.region);
+      if (region) {
+        profile.region = region;
+        profile.hiring_region = region;
+        profile.hiring_locations = [region];
+      }
     }
     if (dto.linkedin_company_page_url !== undefined) {
       profile.linkedin_company_page_url =
@@ -201,6 +213,11 @@ export class EmployerService {
     if (dto.hiring_count !== undefined) {
       profile.hiring_count_range = dto.hiring_count ?? null;
     }
+  }
+
+  private trimNonEmpty(value: string): string | undefined {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
   }
 
   async completeOnboarding(

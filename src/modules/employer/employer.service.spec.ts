@@ -13,7 +13,7 @@ describe('EmployerService', () => {
   };
   let employerProfileRepository: {
     findOne: jest.Mock;
-    manager: { transaction: jest.Mock };
+    manager: { transaction: jest.Mock; save: jest.Mock };
   };
   let authService: { issueSessionForUser: jest.Mock };
   let usersService: {
@@ -33,6 +33,7 @@ describe('EmployerService', () => {
       findOne: jest.fn(),
       manager: {
         transaction: jest.fn((callback) => callback(manager)),
+        save: jest.fn((_entity, payload) => Promise.resolve(payload)),
       },
     };
     authService = {
@@ -163,6 +164,37 @@ describe('EmployerService', () => {
         preferred_experience_levels: ['junior'],
       }),
     ).rejects.toThrow('Invalid user');
+  });
+
+  it('does not overwrite profile settings with whitespace-only strings', async () => {
+    const existing = Object.assign(new EmployerProfile(), {
+      user_id: userId,
+      company_name: 'Acme Labs',
+      company_website: 'https://acme.example',
+      website_url: 'https://acme.example',
+      industry: 'Fintech',
+      region: 'Nigeria',
+      hiring_region: 'Nigeria',
+      hiring_locations: ['Nigeria'],
+    });
+    employerProfileRepository.findOne.mockResolvedValue(existing);
+
+    const result = await service.updateProfile(userId, {
+      company_name: '   ',
+      company_website: '   ',
+      industry: '   ',
+      region: '   ',
+    });
+
+    expect(result.profile).toMatchObject({
+      company_name: 'Acme Labs',
+      company_website: 'https://acme.example',
+      website_url: 'https://acme.example',
+      industry: 'Fintech',
+      region: 'Nigeria',
+      hiring_region: 'Nigeria',
+      hiring_locations: ['Nigeria'],
+    });
   });
 
   describe('getPublicProfile', () => {
