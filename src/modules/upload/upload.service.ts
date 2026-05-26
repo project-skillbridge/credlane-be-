@@ -51,6 +51,28 @@ export class UploadService {
     return this.buildPublicUrl(key);
   }
 
+  async uploadResume(file: Express.Multer.File): Promise<string> {
+    if (!this.s3 || !env.AWS_S3_BUCKET || !env.AWS_REGION) {
+      throw new ServiceUnavailableException(
+        'File upload is not configured on this server',
+      );
+    }
+
+    const ext = file.originalname.split('.').pop() ?? 'pdf';
+    const key = `resumes/${randomUUID()}.${ext}`;
+
+    await this.s3.send(
+      new PutObjectCommand({
+        Bucket: env.AWS_S3_BUCKET,
+        Key: key,
+        Body: file.buffer,
+        ContentType: file.mimetype,
+      }),
+    );
+
+    return this.buildPublicUrl(key);
+  }
+
   private buildPublicUrl(key: string): string {
     if (env.AWS_PUBLIC_URL) {
       return `${env.AWS_PUBLIC_URL.replace(/\/$/, '')}/${key}`;

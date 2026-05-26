@@ -11,6 +11,12 @@ import { AuthResult, AuthService } from '../auth/auth.service';
 import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
 import { UploadService } from '../upload/upload.service';
+import { EmployerPoolProfile } from './entities/employer-pool-profile.entity';
+import {
+  NotificationPreferenceChannel,
+  UserNotificationPreference,
+} from '../notifications/user-notification-preference.entity';
+import { NotificationType } from '../notifications/notification-type.enum';
 import { CompleteTalentOnboardingDto } from './dto/complete-talent-onboarding.dto';
 import { SetGoalDto } from './dto/set-goal.dto';
 import { SetTracksDto } from './dto/set-tracks.dto';
@@ -20,8 +26,14 @@ import { SaveTrackBody } from './dto/save-track.dto';
 import { SaveTalentProfileDto } from './dto/save-talent-profile.dto';
 import {
   TalentProfile,
+  TalentAvailabilityStatus,
   TalentProfileStatus,
 } from './entities/talent-profile.entity';
+import {
+  UpdateCommunicationPreferencesDto,
+  UpdateTalentAvailabilityDto,
+  UpdateTalentSettingsProfileDto,
+} from './dto/settings.dto';
 import {
   ConflictError,
   ErrorMessages,
@@ -48,6 +60,10 @@ export class TalentService {
   constructor(
     @InjectRepository(TalentProfile)
     private readonly talentProfileRepository: Repository<TalentProfile>,
+    @InjectRepository(EmployerPoolProfile)
+    private readonly employerPoolProfileRepository: Repository<EmployerPoolProfile>,
+    @InjectRepository(UserNotificationPreference)
+    private readonly notificationPreferenceRepository: Repository<UserNotificationPreference>,
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
     private readonly uploadService: UploadService,
@@ -76,6 +92,271 @@ export class TalentService {
       published_at: null,
     });
     return this.talentProfileRepository.save(created);
+  }
+
+  async getSettings(userId: string) {
+    const user = await this.usersService.findOne(userId);
+    const profile = await this.findOrCreateProfile(userId);
+    const communication_preferences =
+      await this.getCommunicationPreferences(userId);
+
+    return {
+      user: {
+        id: user.id,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        full_name: user.fullname,
+        avatar_url: user.avatar_url,
+        role: user.role,
+      },
+      profile: {
+        id: profile.id,
+        role_track: profile.track ?? profile.role_track,
+        role_label: this.toRoleLabel(profile.track ?? profile.role_track),
+        linkedin_url: profile.linkedin_url,
+        bio: profile.bio,
+        personal_website: profile.personal_website,
+        resume_url: profile.resume_url,
+        availability_status: profile.availability_status,
+        is_published: profile.is_published,
+        status: profile.status,
+        profile_verified: profile.profile_verified,
+      },
+      communication_preferences,
+      account: {
+        password_set: true,
+        active_sessions: [
+          {
+            label: 'Current session',
+            is_current: true,
+          },
+        ],
+      },
+    };
+  }
+
+  async updateSettingsProfile(
+    userId: string,
+    dto: UpdateTalentSettingsProfileDto,
+  ) {
+    await this.talentProfileRepository.manager.transaction(async (manager) => {
+      const userPatch: Partial<User> = {};
+      if (dto.first_name !== undefined) {
+        userPatch.first_name = dto.first_name.trim();
+      }
+      if (dto.last_name !== undefined) {
+        userPatch.last_name = dto.last_name.trim();
+      }
+      if (Object.keys(userPatch).length > 0) {
+        await manager.update(User, { id: userId }, userPatch);
+      }
+
+      let profile = await manager.findOne(TalentProfile, {
+        where: { user_id: userId },
+      });
+      if (!profile) {
+        profile = manager.create(TalentProfile, {
+          user_id: userId,
+          status: TalentProfileStatus.NOT_STARTED,
+          is_published: false,
+        });
+      }
+
+      if (dto.role_track !== undefined) {
+        profile.track = dto.role_track;
+        profile.role_track = dto.role_track;
+      }
+      if (dto.linkedin_url !== undefined) {
+        profile.linkedin_url = dto.linkedin_url.trim();
+      }
+      if (dto.bio !== undefined) {
+        profile.bio = dto.bio.trim();
+      }
+      if (dto.personal_website !== undefined) {
+        profile.personal_website = dto.personal_website.trim();
+      }
+
+      await manager.save(TalentProfile, profile);
+    });
+
+    return {
+      status: 'success',
+      message: 'Settings profile updated',
+      data: await this.getSettings(userId),
+    };
+  }
+
+  async updateResume(userId: string, file: Express.Multer.File) {
+    const resumeUrl = await this.uploadService.uploadResume(file);
+    const profile = await this.findOrCreateProfile(userId);
+    profile.resume_url = resumeUrl;
+    await this.talentProfileRepository.save(profile);
+    return {
+      status: 'success',
+      message: 'Resume uploaded',
+      resume_url: resumeUrl,
+    };
+  }
+
+  async updateAvailability(userId: string, dto: UpdateTalentAvailabilityDto) {
+    const profile = await this.findOrCreateProfile(userId);
+    profile.availability_status = dto.availability_status;
+    profile.is_published =
+      dto.availability_status !== TalentAvailabilityStatus.NOT_LOOKING;
+    if (!profile.is_published) {
+      profile.published_at = null;
+    } else if (!profile.published_at) {
+      profile.published_at = new Date();
+    }
+    const saved = await this.talentProfileRepository.save(profile);
+
+    await this.employerPoolProfileRepository.update(
+      { talent_profile_id: saved.id },
+      { availability: dto.availability_status },
+    );
+
+    return {
+      status: 'success',
+      message: 'Availability updated',
+      availability_status: saved.availability_status,
+      is_published: saved.is_published,
+    };
+  }
+
+  async getCommunicationPreferences(userId: string) {
+    const preferences = await this.notificationPreferenceRepository.find({
+      where: { user_id: userId },
+    });
+    const values = this.defaultCommunicationPreferences();
+
+    for (const preference of preferences) {
+      const key = this.notificationTypeToPreferenceKey(preference.type);
+      if (!key) continue;
+      values[preference.channel][key] = preference.enabled;
+    }
+
+    return values;
+  }
+
+  async updateCommunicationPreferences(
+    userId: string,
+    dto: UpdateCommunicationPreferencesDto,
+  ) {
+    const entries: Array<{
+      channel: NotificationPreferenceChannel;
+      key: keyof ReturnType<TalentService['defaultPreferenceGroup']>;
+      enabled: boolean;
+    }> = [];
+
+    for (const channel of [
+      NotificationPreferenceChannel.EMAIL,
+      NotificationPreferenceChannel.IN_APP,
+    ] as const) {
+      const group = dto[channel];
+      if (!group) continue;
+      const typedGroup = group as Partial<
+        Record<keyof ReturnType<TalentService['defaultPreferenceGroup']>, boolean>
+      >;
+
+      for (const key of Object.keys(typedGroup) as Array<
+        keyof ReturnType<TalentService['defaultPreferenceGroup']>
+      >) {
+        const enabled = typedGroup[key];
+        if (enabled === undefined) continue;
+        entries.push({
+          channel,
+          key,
+          enabled,
+        });
+      }
+    }
+
+    await this.notificationPreferenceRepository.manager.transaction(
+      async (manager) => {
+        for (const entry of entries) {
+          const type = this.preferenceKeyToNotificationType(entry.key);
+          await manager.upsert(
+            UserNotificationPreference,
+            {
+              user_id: userId,
+              channel: entry.channel,
+              type,
+              enabled: entry.enabled,
+            },
+            ['user_id', 'channel', 'type'],
+          );
+        }
+      },
+    );
+
+    return {
+      status: 'success',
+      message: 'Communication preferences updated',
+      communication_preferences:
+        await this.getCommunicationPreferences(userId),
+    };
+  }
+
+  async unsubscribeEmailNotifications(userId: string) {
+    return this.updateCommunicationPreferences(userId, {
+      email: {
+        new_offers: false,
+        assessment_reminders: false,
+        retake_window_open: false,
+      },
+    });
+  }
+
+  private defaultCommunicationPreferences() {
+    return {
+      email: this.defaultPreferenceGroup(),
+      in_app: this.defaultPreferenceGroup(),
+    };
+  }
+
+  private defaultPreferenceGroup() {
+    return {
+      new_offers: true,
+      assessment_reminders: true,
+      retake_window_open: true,
+    };
+  }
+
+  private preferenceKeyToNotificationType(
+    key: keyof ReturnType<TalentService['defaultPreferenceGroup']>,
+  ): NotificationType {
+    const map = {
+      new_offers: NotificationType.OFFER_RECEIVED,
+      assessment_reminders: NotificationType.ASSESSMENT_RECEIVED,
+      retake_window_open: NotificationType.ADVANCED_RETAKE_AVAILABLE,
+    } satisfies Record<
+      keyof ReturnType<TalentService['defaultPreferenceGroup']>,
+      NotificationType
+    >;
+    return map[key];
+  }
+
+  private notificationTypeToPreferenceKey(
+    type: NotificationType,
+  ): keyof ReturnType<TalentService['defaultPreferenceGroup']> | null {
+    const map: Partial<
+      Record<NotificationType, keyof ReturnType<TalentService['defaultPreferenceGroup']>>
+    > = {
+      [NotificationType.OFFER_RECEIVED]: 'new_offers',
+      [NotificationType.ASSESSMENT_RECEIVED]: 'assessment_reminders',
+      [NotificationType.ADVANCED_RETAKE_AVAILABLE]: 'retake_window_open',
+    };
+    return map[type] ?? null;
+  }
+
+  private toRoleLabel(roleTrack: string | null): string | null {
+    if (!roleTrack) return null;
+    return roleTrack
+      .split('_')
+      .filter(Boolean)
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(' ');
   }
 
   async updateUserAvatar(userId: string, avatarUrl: string): Promise<void> {

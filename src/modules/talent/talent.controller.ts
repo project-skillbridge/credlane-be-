@@ -38,11 +38,32 @@ import { SetProfileDto } from './dto/set-profile.dto';
 import { SaveGoalDto } from './dto/save-goal.dto';
 import { SaveTrackDto } from './dto/save-track.dto';
 import { SaveTalentProfileDto } from './dto/save-talent-profile.dto';
+import {
+  UpdateCommunicationPreferencesDto,
+  UpdateTalentAvailabilityDto,
+  UpdateTalentSettingsProfileDto,
+} from './dto/settings.dto';
+import {
+  ApiGetCommunicationPreferences,
+  ApiGetTalentSettings,
+  ApiUnsubscribeEmailNotifications,
+  ApiUpdateCommunicationPreferences,
+  ApiUpdateTalentAvailability,
+  ApiUpdateTalentSettingsProfile,
+  ApiUploadTalentSettingsResume,
+} from './docs/talent-settings.swagger';
 import { TalentService } from './talent.service';
 import { ErrorMessages, SuccessMessages } from '../../shared';
 
 const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const ALLOWED_RESUME_MIME_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'text/plain',
+];
 const MAX_FILE_BYTES = 5 * 1024 * 1024; // 5 MB
+const MAX_RESUME_BYTES = 10 * 1024 * 1024; // 10 MB
 
 @ApiTags('talent')
 @ApiCookieAuth()
@@ -53,6 +74,105 @@ export class TalentController {
     private readonly talentService: TalentService,
     private readonly uploadService: UploadService,
   ) {}
+
+  @Get('settings')
+  @ApiGetTalentSettings()
+  async getSettings(@CurrentUser('sub') userId: string) {
+    return this.talentService.getSettings(userId);
+  }
+
+  @Patch('settings/profile')
+  @HttpCode(HttpStatus.OK)
+  @ApiUpdateTalentSettingsProfile()
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+    }),
+  )
+  async updateSettingsProfile(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: UpdateTalentSettingsProfileDto,
+  ) {
+    return this.talentService.updateSettingsProfile(userId, dto);
+  }
+
+  @Post('settings/resume')
+  @HttpCode(HttpStatus.OK)
+  @ApiUploadTalentSettingsResume()
+  @UseInterceptors(
+    FileInterceptor('file', {
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_RESUME_BYTES },
+      fileFilter: (_req, file, cb) => {
+        if (ALLOWED_RESUME_MIME_TYPES.includes(file.mimetype)) {
+          cb(null, true);
+        } else {
+          cb(new BadRequestException('Invalid resume file type'), false);
+        }
+      },
+    }),
+  )
+  async uploadSettingsResume(
+    @CurrentUser('sub') userId: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    if (!file) {
+      throw new BadRequestException(ErrorMessages.ONBOARDING.NO_FILE);
+    }
+    return this.talentService.updateResume(userId, file);
+  }
+
+  @Patch('settings/availability')
+  @HttpCode(HttpStatus.OK)
+  @ApiUpdateTalentAvailability()
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+    }),
+  )
+  async updateSettingsAvailability(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: UpdateTalentAvailabilityDto,
+  ) {
+    return this.talentService.updateAvailability(userId, dto);
+  }
+
+  @Get('settings/communication-preferences')
+  @ApiGetCommunicationPreferences()
+  async getCommunicationPreferences(@CurrentUser('sub') userId: string) {
+    return {
+      communication_preferences:
+        await this.talentService.getCommunicationPreferences(userId),
+    };
+  }
+
+  @Patch('settings/communication-preferences')
+  @HttpCode(HttpStatus.OK)
+  @ApiUpdateCommunicationPreferences()
+  @UsePipes(
+    new ValidationPipe({
+      whitelist: true,
+      transform: true,
+      errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
+    }),
+  )
+  async updateCommunicationPreferences(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: UpdateCommunicationPreferencesDto,
+  ) {
+    return this.talentService.updateCommunicationPreferences(userId, dto);
+  }
+
+  @Patch('settings/communication-preferences/email/unsubscribe')
+  @HttpCode(HttpStatus.OK)
+  @ApiUnsubscribeEmailNotifications()
+  async unsubscribeEmailNotifications(@CurrentUser('sub') userId: string) {
+    return this.talentService.unsubscribeEmailNotifications(userId);
+  }
 
   @Get('onboarding')
   @ApiOperation({

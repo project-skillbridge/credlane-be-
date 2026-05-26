@@ -24,6 +24,7 @@ import { EmployerPoolProfileService } from './assessment/employer-pool-profile.s
 import { SkillAssessmentController } from './assessment/skill-assessment.controller';
 import { SkillAssessmentService } from './assessment/skill-assessment.service';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { UserNotificationPreference } from '../notifications/user-notification-preference.entity';
 import { TalentController } from './talent.controller';
 import { TalentService } from './talent.service';
 
@@ -38,6 +39,7 @@ import { TalentService } from './talent.service';
       AssessmentResult,
       AssessmentScore,
       TalentQuestionHistory,
+      UserNotificationPreference,
     ]),
     UsersModule,
     AuthModule,
