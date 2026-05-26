@@ -232,6 +232,16 @@ export class OffersController {
     return this.offersService.getOfferForEmployer(employerUserId, offerId);
   }
 
+  @Patch('employer/offers/:offerId/hire-complete')
+  @Roles(UserRole.EMPLOYER)
+  @ApiOperation({ summary: 'Mark an accepted offer as hire complete' })
+  async markHireComplete(
+    @CurrentUser('sub') employerUserId: string,
+    @Param('offerId', ParseUUIDPipe) offerId: string,
+  ) {
+    return await this.offersService.markHireComplete(employerUserId, offerId);
+  }
+
   // ─── Talent endpoints ─────────────────────────────────────────────────────
 
   @Get('talent/offers')

@@ -16,6 +16,8 @@ import {
   EMPLOYER_HIRING_RANGES,
   EMPLOYER_JOINING_AS,
   EMPLOYER_PREFERRED_EXPERIENCE_LEVELS,
+  LINKEDIN_COMPANY_PAGE_ERROR,
+  LINKEDIN_COMPANY_URL_REGEX,
 } from '../employer.constants';
 
 export class CompleteEmployerOnboardingDto {
@@ -25,22 +27,22 @@ export class CompleteEmployerOnboardingDto {
     description: 'How the employer identifies — recruiter, founder, or agency',
   })
   @IsIn(EMPLOYER_JOINING_AS, {
-    message: `joiningAs must be one of: ${EMPLOYER_JOINING_AS.join(', ')}`,
+    message: `joining_as must be one of: ${EMPLOYER_JOINING_AS.join(', ')}`,
   })
-  joiningAs: string;
+  joining_as: string;
 
   @ApiProperty({ example: 'Acme Labs' })
   @IsString()
-  @MinLength(1, { message: 'companyName is required' })
+  @MinLength(1, { message: 'company_name is required' })
   @MaxLength(255)
-  companyName: string;
+  company_name: string;
 
   @ApiProperty({
     example: '11-50',
     enum: EMPLOYER_COMPANY_SIZES,
   })
   @IsIn(EMPLOYER_COMPANY_SIZES, { message: 'Invalid company size selection' })
-  companySize: string;
+  company_size: string;
 
   @ApiProperty({ example: 'Fintech' })
   @IsString()
@@ -60,7 +62,7 @@ export class CompleteEmployerOnboardingDto {
     each: true,
     message: `Each role must be one of: ${EMPLOYER_DESIRED_ROLES.join(', ')}`,
   })
-  desiredRoles: string[];
+  desired_roles: string[];
 
   @ApiProperty({
     example: ['junior', 'mid'],
@@ -74,7 +76,7 @@ export class CompleteEmployerOnboardingDto {
     each: true,
     message: 'Invalid experience level selection',
   })
-  preferredExperienceLevels: string[];
+  preferred_experience_levels: string[];
 
   @ApiProperty({
     example: 'Nigeria',
@@ -92,27 +94,27 @@ export class CompleteEmployerOnboardingDto {
       'Approximate number of talents to hire: 1_5 | 6_10 | 11_25 | 26_50 | 51_plus',
   })
   @IsIn(EMPLOYER_HIRING_RANGES, {
-    message: `hiringCountRange must be one of: ${EMPLOYER_HIRING_RANGES.join(', ')}`,
+    message: `hiring_count_range must be one of: ${EMPLOYER_HIRING_RANGES.join(', ')}`,
   })
-  hiringCountRange: string;
+  hiring_count_range: string;
 
   @ApiPropertyOptional({
     example: 'https://acmelabs.com',
     description: 'Company website URL',
   })
   @IsOptional()
-  @IsUrl({}, { message: 'companyWebsite must be a valid URL' })
+  @IsUrl({}, { message: 'company_website must be a valid URL' })
   @MaxLength(500)
-  companyWebsite?: string;
+  company_website?: string;
 
   @ApiPropertyOptional({
     example: 'https://www.linkedin.com/company/acmelabs',
     description: 'LinkedIn company page URL',
   })
   @IsOptional()
-  @Matches(/^https?:\/\/(www\.)?linkedin\.com\/company\/[A-Za-z0-9\-_]+\/?$/, {
-    message: 'linkedinCompanyPageUrl must be a valid LinkedIn company page URL',
+  @Matches(LINKEDIN_COMPANY_URL_REGEX, {
+    message: LINKEDIN_COMPANY_PAGE_ERROR,
   })
   @MaxLength(500)
-  linkedinCompanyPageUrl?: string;
+  linkedin_company_page_url?: string;
 }

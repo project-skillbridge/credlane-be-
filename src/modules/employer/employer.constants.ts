@@ -66,3 +66,13 @@ export const EMPLOYER_PREFERRED_EXPERIENCE_LEVELS = [
   'mid',
   'senior',
 ] as const;
+
+/** Shared LinkedIn company page URL validation. */
+export const LINKEDIN_COMPANY_URL_REGEX = new RegExp(
+  /^https?:\/\/(www\.)?linkedin\.com\/company\/[A-Za-z0-9\-_]+(?:\/)?(?:[/?#].*)?$/
+    .source,
+  'i',
+);
+
+export const LINKEDIN_COMPANY_PAGE_ERROR =
+  'linkedin_company_page_url must be a valid LinkedIn company page URL';
