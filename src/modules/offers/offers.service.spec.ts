@@ -6,6 +6,8 @@ import { OfferDistributionLog } from './entities/offer-distribution-log.entity';
 import { EmployerPoolProfile } from '../talent/entities/employer-pool-profile.entity';
 import { User } from '../users/entities/user.entity';
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
+import { EmployerVerificationService } from '../employer/employer-verification.service';
+import { ForbiddenError } from '../../shared';
 
 describe('OffersService', () => {
   let service: OffersService;
@@ -41,6 +43,10 @@ describe('OffersService', () => {
     notifyOfferDeclined: jest.fn(),
   };
 
+  const mockVerificationService = {
+    assertEmployerVerified: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -59,11 +65,16 @@ describe('OffersService', () => {
           provide: NotificationDispatchService,
           useValue: mockNotificationDispatch,
         },
+        {
+          provide: EmployerVerificationService,
+          useValue: mockVerificationService,
+        },
       ],
     }).compile();
 
     service = module.get<OffersService>(OffersService);
     jest.clearAllMocks();
+    mockVerificationService.assertEmployerVerified.mockResolvedValue(undefined);
   });
 
   describe('createOffer', () => {

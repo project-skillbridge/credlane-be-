@@ -9,6 +9,7 @@ import { EmployerSavedCandidate } from './entities/employer-saved-candidate.enti
 import { DiscoveryCandidatesQueryDto } from './dto/discovery-candidates-query.dto';
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
 import { NotificationType } from '../notifications/notification-type.enum';
+import { EmployerVerificationService } from '../employer/employer-verification.service';
 
 export type CandidateCard = {
   userId: string;
@@ -64,6 +65,7 @@ export class EmployerDiscoveryService {
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     private readonly notificationDispatch: NotificationDispatchService,
+    private readonly verificationService: EmployerVerificationService,
   ) {}
 
   async discoverCandidates(
@@ -286,6 +288,8 @@ export class EmployerDiscoveryService {
     candidateUserId: string,
     message: string,
   ): Promise<{ status: string; message: string }> {
+    await this.verificationService.assertEmployerVerified(employerUserId);
+
     const poolProfile = await this.poolProfileRepo.findOne({
       where: { candidate_id: candidateUserId },
     });

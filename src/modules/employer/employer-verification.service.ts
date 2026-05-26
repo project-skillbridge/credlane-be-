@@ -5,6 +5,8 @@ import * as dns from 'dns/promises';
 import * as net from 'net';
 import { EmployerProfile } from './entities/employer-profile.entity';
 import { User } from '../users/entities/user.entity';
+import { ForbiddenError } from '../../shared';
+import { ErrorMessages } from '../../shared/messages/error.messages';
 
 /** IP ranges that must never be reached by server-side fetches. */
 const BLOCKED_CIDRS: Array<{ prefix: bigint; mask: bigint }> = [
@@ -135,7 +137,6 @@ export class EmployerVerificationService {
   private static readonly MAX_REDIRECTS = 5;
 
   /**
->>>>>>> e78deca (fix: adress codeRabbit's reviews)
    * Checks if a URL is resolvable via HEAD (fallback GET on 405).
    * Hardened against SSRF: rejects private/internal IPs and non-standard ports.
    */

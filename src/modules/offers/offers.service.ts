@@ -21,6 +21,7 @@ import type {
   OfferRespondedPayload,
 } from '../notifications/notification-dispatch.service';
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
+import { EmployerVerificationService } from '../employer/employer-verification.service';
 
 /** Narrow port so offers module does not depend on dispatch overload resolution in ESLint. */
 type OffersNotificationPort = {
@@ -112,7 +113,10 @@ export type OfferAnalytics = {
 export class OffersService {
   private readonly logger = new Logger(OffersService.name);
   private readonly monthlyCap: number;
-  private readonly offerStatusStreams = new Map<string, OfferStatusStreamEntry>();
+  private readonly offerStatusStreams = new Map<
+    string,
+    OfferStatusStreamEntry
+  >();
 
   constructor(
     @InjectRepository(Offer)
@@ -125,6 +129,7 @@ export class OffersService {
     private readonly userRepo: Repository<User>,
     @Inject(NotificationDispatchService)
     private readonly notificationDispatch: OffersNotificationPort,
+    private readonly verificationService: EmployerVerificationService,
   ) {
     this.monthlyCap =
       parseInt(process.env.OFFERS_MONTHLY_CAP ?? '', 10) || DEFAULT_MONTHLY_CAP;
@@ -134,6 +139,8 @@ export class OffersService {
     employerUserId: string,
     dto: CreateOfferDto,
   ): Promise<Offer> {
+    await this.verificationService.assertEmployerVerified(employerUserId);
+
     // Validate candidate is Job Ready
     const poolProfile = await this.poolProfileRepo.findOne({
       where: { candidate_id: dto.candidateUserId },

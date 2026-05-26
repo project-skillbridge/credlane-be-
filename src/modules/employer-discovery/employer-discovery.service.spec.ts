@@ -6,6 +6,8 @@ import { EmployerSavedCandidate } from './entities/employer-saved-candidate.enti
 import { EmployerContactRequest } from './entities/employer-contact-request.entity';
 import { User } from '../users/entities/user.entity';
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
+import { EmployerVerificationService } from '../employer/employer-verification.service';
+import { ForbiddenError } from '../../shared';
 
 describe('EmployerDiscoveryService', () => {
   let service: EmployerDiscoveryService;
@@ -34,6 +36,10 @@ describe('EmployerDiscoveryService', () => {
     dispatch: jest.fn(),
   };
 
+  const mockVerificationService = {
+    assertEmployerVerified: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -58,11 +64,16 @@ describe('EmployerDiscoveryService', () => {
           provide: NotificationDispatchService,
           useValue: mockNotificationDispatch,
         },
+        {
+          provide: EmployerVerificationService,
+          useValue: mockVerificationService,
+        },
       ],
     }).compile();
 
     service = module.get<EmployerDiscoveryService>(EmployerDiscoveryService);
     jest.clearAllMocks();
+    mockVerificationService.assertEmployerVerified.mockResolvedValue(undefined);
   });
 
   describe('getCandidateProfile', () => {
