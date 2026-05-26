@@ -29,7 +29,7 @@ export class CreateOfferDto {
   @IsOptional()
   @IsString()
   @MaxLength(500)
-  roleDescription?: string;
+  role_description?: string;
 
   @ApiProperty({
     required: false,
@@ -51,17 +51,17 @@ export class CreateOfferDto {
   })
   @IsNotEmpty()
   @IsIn(['Full-time', 'Part-time', 'Contract', 'Internship'])
-  employmentType: string;
+  employment_type: string;
 
   @ApiProperty({ enum: ['Remote', 'Hybrid', 'On-site'] })
   @IsNotEmpty()
   @IsIn(['Remote', 'Hybrid', 'On-site'])
-  workArrangement: string;
+  work_arrangement: string;
 
   @ApiProperty({ required: false, type: String, format: 'date' })
   @IsOptional()
   @IsDateString()
-  applicationDeadline?: string;
+  application_deadline?: string;
 
   @ApiProperty({
     required: false,

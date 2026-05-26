@@ -278,5 +278,21 @@ describe('EmployerVerificationService', () => {
       ).toBe(false);
       expect(global.fetch).not.toHaveBeenCalled();
     });
+
+    it('stops at MAX_REDIRECTS when redirect chain is too long', async () => {
+      const redirectResponse = {
+        ok: false,
+        status: 302,
+        headers: new Map([['location', 'https://acme.example/next']]),
+      };
+      // Return MAX_REDIRECTS + 1 redirects (more than allowed)
+      global.fetch = jest.fn().mockResolvedValue(redirectResponse);
+
+      const result = await service.isWebsiteResolvable('https://acme.example');
+
+      expect(result).toBe(false);
+      // With MAX_REDIRECTS=5 and >=, it should attempt at depths 0..4 (5 calls)
+      expect(global.fetch).toHaveBeenCalledTimes(5);
+    });
   });
 });

@@ -92,10 +92,10 @@ describe('OffersService', () => {
     const dto = {
       candidate_user_id: 'candidate-1',
       role_title: 'Frontend Developer',
-      roleDescription: 'We would like to offer you a position',
+      role_description: 'We would like to offer you a position',
       compensation: '$80k - $100k',
-      employmentType: 'Full-time',
-      workArrangement: 'Remote',
+      employment_type: 'Full-time',
+      work_arrangement: 'Remote',
       expires_in_days: 14,
     };
 
@@ -652,13 +652,14 @@ describe('OffersService', () => {
         status: OfferStatus.ACCEPTED,
       };
       mockOfferRepo.findOne.mockResolvedValue(offer);
+
+      const mockManager = {
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+        increment: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
       mockOfferRepo.manager.transaction.mockImplementation(
         async (cb: (manager: unknown) => Promise<unknown>) => {
-          const manager = {
-            update: jest.fn().mockResolvedValue({ affected: 1 }),
-            increment: jest.fn().mockResolvedValue({ affected: 1 }),
-          };
-          return cb(manager);
+          return cb(mockManager);
         },
       );
 
@@ -666,6 +667,17 @@ describe('OffersService', () => {
 
       expect(result.status).toBe(OfferStatus.HIRED);
       expect(mockOfferRepo.manager.transaction).toHaveBeenCalled();
+      expect(mockManager.update).toHaveBeenCalledWith(
+        Offer,
+        { id: 'offer-1', status: OfferStatus.ACCEPTED },
+        { status: OfferStatus.HIRED },
+      );
+      expect(mockManager.increment).toHaveBeenCalledWith(
+        EmployerProfile,
+        { user_id: 'employer-1' },
+        'hire_count',
+        1,
+      );
     });
 
     it('should throw NotFoundError if offer does not exist', async () => {

@@ -144,7 +144,8 @@ export class EmployerVerificationService {
     url: string | null | undefined,
     redirectDepth = 0,
   ): Promise<boolean> {
-    if (redirectDepth > EmployerVerificationService.MAX_REDIRECTS) return false;
+    if (redirectDepth >= EmployerVerificationService.MAX_REDIRECTS)
+      return false;
     if (!url) return false;
 
     const normalizedUrl = url.match(/^https?:\/\//) ? url : `https://${url}`;
