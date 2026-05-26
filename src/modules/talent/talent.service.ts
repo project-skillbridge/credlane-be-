@@ -149,11 +149,11 @@ export class TalentService {
       }
 
       profile.region = dto.region ?? null;
-      profile.education_level = dto.educationLevel ?? null;
-      profile.linkedin_url = dto.linkedinProfile ?? null;
+      profile.education_level = dto.education_level ?? null;
+      profile.linkedin_url = dto.linkedin_url ?? null;
       profile.onboarding_step = 3;
       profile.profile_verified =
-        !!dto.region && !!dto.educationLevel && !!dto.linkedinProfile;
+        !!dto.region && !!dto.education_level && !!dto.linkedin_url;
 
       await manager.save(TalentProfile, profile);
 
