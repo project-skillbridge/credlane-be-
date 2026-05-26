@@ -2,7 +2,7 @@ import { randomBytes } from 'crypto';
 import { inflateRawSync } from 'zlib';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { EntityManager, In, QueryFailedError, Repository } from 'typeorm';
 import {
   BadRequestError,
   ConflictError,
@@ -27,6 +27,7 @@ import {
   EmployerAssessmentQuestionInputDto,
 } from './dto/create-employer-assessment.dto';
 import { ListEmployerAssessmentResultsQueryDto } from './dto/list-employer-assessment-results-query.dto';
+import { PublicEmployerAssessmentResponseDto } from './dto/employer-assessment-response.dto';
 import { SearchAssessmentCandidatesQueryDto } from './dto/search-assessment-candidates-query.dto';
 import { SubmitEmployerAssessmentDto } from './dto/submit-employer-assessment.dto';
 import {
@@ -56,6 +57,14 @@ const TEMPLATE_COLUMNS = [
   'Correct Answer',
 ];
 const XLSX_COLUMN_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+function isPostgresUniqueViolation(error: unknown): boolean {
+  if (!(error instanceof QueryFailedError)) return false;
+  const code =
+    (error as QueryFailedError & { code?: string }).code ??
+    (error.driverError as { code?: string } | undefined)?.code;
+  return code === '23505';
+}
 
 export type QuestionImportValidationResult = {
   status: 'success';
@@ -95,13 +104,11 @@ export class EmployerAssessmentsService {
       throw new BadRequestError('Select at least one delivery mode');
     }
 
-    const activeCount = await this.assessmentRepo.count({
-      where: { employer_user_id: employerUserId, is_active: true },
-    });
-    if (activeCount >= ACTIVE_ASSESSMENT_LIMIT) {
-      throw new TooManyRequestsError(
-        'You have reached your active assessment limit. Deactivate an existing assessment to create a new one.',
-      );
+    const candidateUserIds = dto.sendToCandidates
+      ? (dto.candidateUserIds ?? [])
+      : [];
+    if (new Set(candidateUserIds).size !== candidateUserIds.length) {
+      throw new BadRequestError('Candidate list contains duplicate entries');
     }
 
     const questions =
@@ -121,6 +128,17 @@ export class EmployerAssessmentsService {
 
     const assessment = await this.assessmentRepo.manager.transaction(
       async (manager) => {
+        await this.lockEmployerForAssessmentCreation(manager, employerUserId);
+
+        const activeCount = await manager.count(EmployerAssessment, {
+          where: { employer_user_id: employerUserId, is_active: true },
+        });
+        if (activeCount >= ACTIVE_ASSESSMENT_LIMIT) {
+          throw new TooManyRequestsError(
+            'You have reached your active assessment limit. Deactivate an existing assessment to create a new one.',
+          );
+        }
+
         const created = await manager.save(EmployerAssessment, {
           employer_user_id: employerUserId,
           title: dto.title.trim(),
@@ -150,7 +168,7 @@ export class EmployerAssessmentsService {
         if (dto.sendToCandidates) {
           await manager.save(
             EmployerAssessmentInvite,
-            (dto.candidateUserIds ?? []).map((candidateUserId) => ({
+            candidateUserIds.map((candidateUserId) => ({
               assessment_id: created.id,
               candidate_user_id: candidateUserId,
               delivery_mode: EmployerAssessmentDeliveryMode.DIRECT,
@@ -163,7 +181,7 @@ export class EmployerAssessmentsService {
     );
 
     if (dto.sendToCandidates) {
-      await this.notifyCandidates(assessment, dto.candidateUserIds ?? []);
+      await this.notifyCandidates(assessment, candidateUserIds);
     }
 
     return Object.assign(assessment, {
@@ -223,11 +241,9 @@ export class EmployerAssessmentsService {
     return { status: 'success', message: 'Assessment link deactivated' };
   }
 
-  async getPublicAssessmentByToken(token: string): Promise<
-    Omit<EmployerAssessment, 'questions'> & {
-      questions: Omit<EmployerAssessmentQuestion, 'correct_answer'>[];
-    }
-  > {
+  async getPublicAssessmentByToken(
+    token: string,
+  ): Promise<PublicEmployerAssessmentResponseDto> {
     const assessment = await this.assessmentRepo.findOne({
       where: { share_token: token },
       relations: ['questions'],
@@ -241,12 +257,20 @@ export class EmployerAssessmentsService {
         'This assessment is no longer accepting submissions.',
       );
     }
-    // Strip correct answers so candidates cannot see them
     return {
-      ...assessment,
-      questions: assessment.questions.map(
-        ({ correct_answer: _correctAnswer, ...question }) => question,
-      ),
+      id: assessment.id,
+      title: assessment.title,
+      role_track: assessment.role_track,
+      experience_level: assessment.experience_level,
+      time_limit_minutes: assessment.time_limit_minutes,
+      passing_threshold: assessment.passing_threshold,
+      questions: assessment.questions.map((question) => ({
+        id: question.id,
+        position: question.position,
+        question_text: question.question_text,
+        question_type: question.question_type,
+        options: question.options,
+      })),
     };
   }
 
@@ -285,15 +309,22 @@ export class EmployerAssessmentsService {
     const score = this.computeScore(assessment.questions, dto.answers ?? {});
     const passed = score >= assessment.passing_threshold;
 
-    return this.submissionRepo.save({
-      assessment_id: assessment.id,
-      candidate_user_id: candidateUserId,
-      score,
-      passed,
-      time_taken_seconds: dto.timeTakenSeconds,
-      delivery_mode: dto.deliveryMode,
-      answers: dto.answers ?? null,
-    } as Partial<EmployerAssessmentSubmission>);
+    try {
+      return await this.submissionRepo.save({
+        assessment_id: assessment.id,
+        candidate_user_id: candidateUserId,
+        score,
+        passed,
+        time_taken_seconds: dto.timeTakenSeconds,
+        delivery_mode: dto.deliveryMode,
+        answers: dto.answers ?? null,
+      } as Partial<EmployerAssessmentSubmission>);
+    } catch (error: unknown) {
+      if (isPostgresUniqueViolation(error)) {
+        throw new ConflictError('You have already submitted this assessment.');
+      }
+      throw error;
+    }
   }
 
   private computeScore(
@@ -534,6 +565,25 @@ export class EmployerAssessmentsService {
     }
   }
 
+  private async lockEmployerForAssessmentCreation(
+    manager: EntityManager,
+    userId: string,
+  ): Promise<void> {
+    const user = await manager
+      .getRepository(User)
+      .createQueryBuilder('user')
+      .setLock('pessimistic_write')
+      .where('user.id = :userId', { userId })
+      .getOne();
+
+    if (!user) {
+      throw new NotFoundError('Employer not found');
+    }
+    if (!user.is_verified) {
+      throw new ForbiddenError('Only verified employers can use assessments');
+    }
+  }
+
   private async buildQuestionsFromCredLaneBank(
     dto: CreateEmployerAssessmentDto,
   ): Promise<EmployerAssessmentQuestionInputDto[]> {
@@ -753,8 +803,11 @@ export class EmployerAssessmentsService {
     if (!workbookXml || !relsXml) {
       return 'xl/worksheets/sheet1.xml';
     }
-    const relationshipId =
+    const workbookRelationshipId =
       workbookXml.match(/<sheet\b[^>]*r:id="([^"]+)"/)?.[1] ?? 'rId1';
+    const relationshipId = /^rId\d+$/.test(workbookRelationshipId)
+      ? workbookRelationshipId
+      : 'rId1';
     const relationshipMatch = relsXml.match(
       new RegExp(
         `<Relationship[^>]*Id="${relationshipId}"[^>]*Target="([^"]+)"`,

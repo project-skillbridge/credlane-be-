@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Subject } from 'rxjs';
-import { Between, In, LessThan, Repository } from 'typeorm';
+import { Between, In, LessThan, QueryFailedError, Repository } from 'typeorm';
 import {
   BadRequestError,
   ConflictError,
@@ -43,6 +43,17 @@ import { CreateOfferDto } from './dto/create-offer.dto';
 import { ListOffersQueryDto } from './dto/list-offers-query.dto';
 
 const DEFAULT_MONTHLY_CAP = 50;
+const ACTIVE_OFFER_UNIQUE_INDEX = 'UQ_offers_active_employer_candidate';
+
+function isActiveOfferUniqueViolation(error: unknown): boolean {
+  if (!(error instanceof QueryFailedError)) return false;
+  const code =
+    (error as QueryFailedError & { code?: string }).code ??
+    (error.driverError as { code?: string } | undefined)?.code;
+  const constraint = (error.driverError as { constraint?: string } | undefined)
+    ?.constraint;
+  return code === '23505' && constraint === ACTIVE_OFFER_UNIQUE_INDEX;
+}
 
 export type OfferListResult = {
   offers: Offer[];
@@ -165,54 +176,61 @@ export class OffersService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + expiresInDays);
 
-    const offer = await this.offerRepo.manager.transaction(async (manager) => {
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const endOfMonth = new Date(
-        now.getFullYear(),
-        now.getMonth() + 1,
-        0,
-        23,
-        59,
-        59,
-        999,
-      );
-      const monthlyCount = await manager.count(OfferDistributionLog, {
-        where: {
-          employer_user_id: employerUserId,
-          sent_at: Between(startOfMonth, endOfMonth),
-        },
-      });
-
-      if (monthlyCount >= this.monthlyCap) {
-        throw new HttpException(
-          `Monthly offer limit reached (${this.monthlyCap}). Try again next month.`,
-          HttpStatus.TOO_MANY_REQUESTS,
+    const offer = await this.offerRepo.manager
+      .transaction(async (manager) => {
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(
+          now.getFullYear(),
+          now.getMonth() + 1,
+          0,
+          23,
+          59,
+          59,
+          999,
         );
-      }
+        const monthlyCount = await manager.count(OfferDistributionLog, {
+          where: {
+            employer_user_id: employerUserId,
+            sent_at: Between(startOfMonth, endOfMonth),
+          },
+        });
 
-      const created = await manager.save(Offer, {
-        employer_user_id: employerUserId,
-        candidate_user_id: dto.candidateUserId,
-        employer_pool_profile_id: poolProfile.id,
-        role_title: dto.roleTitle,
-        message: dto.message ?? '',
-        role_description: dto.roleDescription ?? null,
-        compensation: dto.compensation,
-        employment_type: dto.employmentType,
-        work_arrangement: dto.workArrangement,
-        application_deadline: dto.applicationDeadline ?? null,
-        status: OfferStatus.PENDING,
-        expires_at: expiresAt,
-      } as Partial<Offer>);
+        if (monthlyCount >= this.monthlyCap) {
+          throw new HttpException(
+            `Monthly offer limit reached (${this.monthlyCap}). Try again next month.`,
+            HttpStatus.TOO_MANY_REQUESTS,
+          );
+        }
 
-      await manager.save(OfferDistributionLog, {
-        employer_user_id: employerUserId,
-        offer_id: created.id,
-      } as Partial<OfferDistributionLog>);
+        const created = await manager.save(Offer, {
+          employer_user_id: employerUserId,
+          candidate_user_id: dto.candidateUserId,
+          employer_pool_profile_id: poolProfile.id,
+          role_title: dto.roleTitle,
+          message: dto.message ?? '',
+          role_description: dto.roleDescription ?? null,
+          compensation: dto.compensation,
+          employment_type: dto.employmentType,
+          work_arrangement: dto.workArrangement,
+          application_deadline: dto.applicationDeadline ?? null,
+          status: OfferStatus.PENDING,
+          expires_at: expiresAt,
+        } as Partial<Offer>);
 
-      return created;
-    });
+        await manager.save(OfferDistributionLog, {
+          employer_user_id: employerUserId,
+          offer_id: created.id,
+        } as Partial<OfferDistributionLog>);
+
+        return created;
+      })
+      .catch((error: unknown) => {
+        if (isActiveOfferUniqueViolation(error)) {
+          throw new ConflictError('Offer already sent to this candidate');
+        }
+        throw error;
+      });
 
     // Notify candidate
     const employer = await this.userRepo.findOne({
