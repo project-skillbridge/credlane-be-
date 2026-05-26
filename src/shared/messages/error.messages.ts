@@ -14,6 +14,10 @@ export const ErrorMessages = {
     GOOGLE_AUTH_FAILED: 'Google authentication failed',
     INVALID_OAUTH_SIGNUP_ROLE: 'Invalid OAuth signup role',
     OAUTH_SIGNUP_ROLE_REQUIRED: 'OAuth signup role required',
+    WRONG_CURRENT_PASSWORD: 'Current password is incorrect',
+    SAME_PASSWORD: 'New password must differ from the current password',
+    OAUTH_ACCOUNT_NO_PASSWORD:
+      'This account uses social login and has no password to change',
   },
   USER: {
     EMAIL_ALREADY_REGISTERED: 'Email already registered',

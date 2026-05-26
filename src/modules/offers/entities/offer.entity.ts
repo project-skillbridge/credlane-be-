@@ -24,6 +24,13 @@ export enum OfferStatus {
 @Index('IDX_offers_employer', ['employer_user_id'])
 @Index('IDX_offers_candidate', ['candidate_user_id'])
 @Index('IDX_offers_status', ['status'])
+@Index('UQ_offers_active_employer_candidate', [
+  'employer_user_id',
+  'candidate_user_id',
+], {
+  unique: true,
+  where: `"status" IN ('pending', 'accepted')`,
+})
 export class Offer {
   @ApiProperty({ format: 'uuid' })
   @PrimaryGeneratedColumn('uuid')

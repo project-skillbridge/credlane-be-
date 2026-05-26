@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { In, QueryFailedError } from 'typeorm';
 import { OffersService } from './offers.service';
 import { Offer, OfferStatus } from './entities/offer.entity';
 import { OfferDistributionLog } from './entities/offer-distribution-log.entity';
@@ -213,7 +214,7 @@ describe('OffersService', () => {
         where: {
           employer_user_id: 'employer-1',
           candidate_user_id: dto.candidate_user_id,
-          status: expect.any(Object),
+          status: In([OfferStatus.PENDING, OfferStatus.ACCEPTED]),
         },
       });
       expect(mockOfferRepo.manager.transaction).not.toHaveBeenCalled();
@@ -261,10 +262,30 @@ describe('OffersService', () => {
         where: {
           employer_user_id: 'employer-1',
           candidate_user_id: dto.candidate_user_id,
-          status: expect.any(Object),
+          status: In([OfferStatus.PENDING, OfferStatus.ACCEPTED]),
         },
       });
       expect(mockOfferRepo.manager.transaction).toHaveBeenCalled();
+    });
+
+    it('should translate concurrent duplicate active offers to ConflictError', async () => {
+      const pool = {
+        id: 'pool-1',
+        candidate_id: 'candidate-1',
+        tier: 'job_ready',
+      };
+      mockPoolProfileRepo.findOne.mockResolvedValue(pool);
+      mockOfferRepo.findOne.mockResolvedValue(null);
+      mockOfferRepo.manager.transaction.mockRejectedValue(
+        new QueryFailedError('INSERT INTO offers', [], {
+          code: '23505',
+          constraint: 'UQ_offers_active_employer_candidate',
+        }),
+      );
+
+      await expect(service.createOffer('employer-1', dto)).rejects.toThrow(
+        'Offer already sent to this candidate',
+      );
     });
   });
 

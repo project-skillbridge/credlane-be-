@@ -16,6 +16,7 @@ import { MailService } from '../mail/mail.service';
 import { TalentProfile } from '../talent/entities/talent-profile.entity';
 import { User, UserRole } from '../users/entities/user.entity';
 import { OAUTH_DEFAULT_COUNTRY, UsersService } from '../users/users.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -298,6 +299,32 @@ export class AuthService {
       status: 'success',
       message: SuccessMessages.AUTH.PASSWORD_UPDATED,
     };
+  }
+
+  async changePassword(
+    userId: string,
+    dto: ChangePasswordDto,
+  ): Promise<{ status: 'success'; message: string }> {
+    const user = await this.usersService.findOne(userId);
+
+    if (!user.password) {
+      throw new BadRequestError(ErrorMessages.AUTH.OAUTH_ACCOUNT_NO_PASSWORD);
+    }
+
+    const currentValid = await argon2.verify(user.password, dto.currentPassword);
+    if (!currentValid) {
+      throw new BadRequestError(ErrorMessages.AUTH.WRONG_CURRENT_PASSWORD);
+    }
+
+    const sameAsNew = await argon2.verify(user.password, dto.newPassword);
+    if (sameAsNew) {
+      throw new BadRequestError(ErrorMessages.AUTH.SAME_PASSWORD);
+    }
+
+    const passwordHash = await argon2.hash(dto.newPassword);
+    await this.usersService.updatePassword(userId, passwordHash);
+
+    return { status: 'success', message: SuccessMessages.AUTH.PASSWORD_CHANGED };
   }
 
   async googleCallback(

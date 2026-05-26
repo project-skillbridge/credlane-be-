@@ -82,19 +82,19 @@ export class EmployerAssessmentsController {
   @Get('employer/assessments/template.csv')
   @Roles(UserRole.EMPLOYER)
   @ApiDownloadCsvTemplate()
-  downloadCsvTemplate(@Res() response: Response): Response {
+  downloadCsvTemplate(@Res() response: Response): void {
     response.setHeader('Content-Type', 'text/csv');
     response.setHeader(
       'Content-Disposition',
       'attachment; filename="credlane-question-template.csv"',
     );
-    return response.send(this.employerAssessmentsService.getTemplateCsv());
+    response.send(this.employerAssessmentsService.getTemplateCsv());
   }
 
   @Get('employer/assessments/template.xlsx')
   @Roles(UserRole.EMPLOYER)
   @ApiDownloadXlsxTemplate()
-  downloadXlsxTemplate(@Res() response: Response): Response {
+  downloadXlsxTemplate(@Res() response: Response): void {
     response.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -103,7 +103,7 @@ export class EmployerAssessmentsController {
       'Content-Disposition',
       'attachment; filename="credlane-question-template.xlsx"',
     );
-    return response.send(this.employerAssessmentsService.getTemplateXlsx());
+    response.send(this.employerAssessmentsService.getTemplateXlsx());
   }
 
   @Post('employer/assessments/import-questions')
