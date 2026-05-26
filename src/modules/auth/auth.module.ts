@@ -8,6 +8,7 @@ import { env } from '../../config/env';
 import { MailModule } from '../mail/mail.module';
 import { TalentProfile } from '../talent/entities/talent-profile.entity';
 import { UsersModule } from '../users/users.module';
+import { AccountSettingsController } from './account-settings.controller';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { PasswordResetOtp } from './entities/password-reset-otp.entity';
@@ -38,7 +39,7 @@ import { EmailChangeOtpService } from './email-change-otp.service';
     UsersModule,
     MailModule,
   ],
-  controllers: [AuthController],
+  controllers: [AuthController, AccountSettingsController],
   providers: [
     AuthService,
     PasswordResetOtpService,

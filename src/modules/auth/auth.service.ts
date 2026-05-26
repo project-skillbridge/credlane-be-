@@ -18,7 +18,6 @@ import { User, UserRole } from '../users/entities/user.entity';
 import { OAUTH_DEFAULT_COUNTRY, UsersService } from '../users/users.service';
 import type { AccountDeletionMetadata } from '../users/users.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
-import { DeactivateAccountDto } from './dto/deactivate-account.dto';
 import { DeleteAccountDto } from './dto/delete-account.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
@@ -408,15 +407,6 @@ export class AuthService {
   ): Promise<{ status: 'success'; message: string }> {
     await this.usersService.softDeleteAccountWithAudit(userId, metadata);
     return { status: 'success', message: 'Account deleted' };
-  }
-
-  async deactivateAccount(
-    userId: string,
-    _dto: DeactivateAccountDto,
-    metadata: AccountDeletionMetadata = {},
-  ): Promise<{ status: 'success'; message: string }> {
-    await this.usersService.softDeleteAccountWithAudit(userId, metadata);
-    return { status: 'success', message: 'Account deactivated' };
   }
 
   async requestDataExport(userId: string): Promise<{

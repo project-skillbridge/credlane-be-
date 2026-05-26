@@ -5,7 +5,6 @@ import {
   ApiConsumes,
   ApiOperation,
   ApiResponse,
-  ApiTags,
 } from '@nestjs/swagger';
 import {
   CommunicationPreferencesEnvelopeDto,
@@ -21,35 +20,7 @@ import {
   UpdateTalentSettingsProfileDto,
 } from '../dto/settings.dto';
 
-export const TALENT_SETTINGS_NEXTJS_GUIDE = `
-## Next.js — Talent Settings page
-
-**Auth:** Talent user must be logged in. Use httpOnly cookies from \`POST /auth/login\`; call fetch with \`credentials: 'include'\`.
-
-**Base URL:** \`\${NEXT_PUBLIC_API_URL}/api/v1\`
-
-### Page load
-\`GET /talent/settings\` returns the data needed for the About, Resume, Availability, Communication, and Account tabs.
-
-### About me tab
-\`PATCH /talent/settings/profile\` accepts snake_case fields only: \`first_name\`, \`last_name\`, \`role_track\`, \`linkedin_url\`, \`bio\`, \`personal_website\`.
-
-### Resume tab
-\`POST /talent/settings/resume\` is multipart form-data with \`file\`.
-Allowed file types: PDF, DOC, DOCX, TXT. Upload requires S3 env configuration.
-
-### Availability tab
-\`PATCH /talent/settings/availability\` accepts \`availability_status\`:
-\`actively_looking\`, \`open_to_opportunities\`, or \`not_looking\`.
-\`not_looking\` hides the published profile; the other states publish it.
-
-### Communication tab
-\`GET/PATCH /talent/settings/communication-preferences\` returns and updates grouped \`email\` and \`in_app\` notification toggles.
-\`PATCH /talent/settings/communication-preferences/email/unsubscribe\` turns off all email toggles.
-`.trim();
-
-export const ApiTalentSettingsTags = () =>
-  applyDecorators(ApiTags('Talent Settings'));
+export const ApiTalentSettingsTags = () => applyDecorators();
 
 export const ApiGetTalentSettings = () =>
   applyDecorators(
@@ -57,7 +28,7 @@ export const ApiGetTalentSettings = () =>
     ApiBearerAuth(),
     ApiOperation({
       summary: 'Get talent settings page data',
-      description: TALENT_SETTINGS_NEXTJS_GUIDE,
+      description: 'Returns talent profile, communication, and account settings data.',
     }),
     ApiResponse({
       status: 200,
@@ -76,7 +47,7 @@ export const ApiUpdateTalentSettingsProfile = () =>
     ApiOperation({
       summary: 'Update talent settings profile fields',
       description:
-        'Updates the About me fields used by the settings page. All request fields are optional and use snake_case.',
+        'Updates editable talent profile fields. All request fields are optional.',
     }),
     ApiBody({ type: UpdateTalentSettingsProfileDto }),
     ApiResponse({
@@ -97,7 +68,7 @@ export const ApiUploadTalentSettingsResume = () =>
     ApiOperation({
       summary: 'Upload resume/CV for talent settings',
       description:
-        'Uploads a resume file to the configured S3 bucket and stores the public URL on the talent profile.',
+        'Uploads a resume file and stores the resume URL on the talent profile.',
     }),
     ApiConsumes('multipart/form-data'),
     ApiBody({
@@ -135,7 +106,7 @@ export const ApiUpdateTalentAvailability = () =>
     ApiOperation({
       summary: 'Update talent availability setting',
       description:
-        'Controls availability shown in the settings page and synchronizes the employer pool availability when the talent has a pool profile.',
+        'Updates talent availability and published profile state.',
     }),
     ApiBody({ type: UpdateTalentAvailabilityDto }),
     ApiResponse({
@@ -156,7 +127,7 @@ export const ApiGetCommunicationPreferences = () =>
     ApiOperation({
       summary: 'Get talent communication preferences',
       description:
-        'Returns email and in-app notification toggle state for the Communication tab.',
+        'Returns email and in-app notification preferences.',
     }),
     ApiResponse({
       status: 200,
@@ -175,7 +146,7 @@ export const ApiUpdateCommunicationPreferences = () =>
     ApiOperation({
       summary: 'Update talent communication preferences',
       description:
-        'Updates email and/or in-app notification toggles. Omitted toggles are left unchanged.',
+        'Updates email and/or in-app notification preferences.',
     }),
     ApiBody({ type: UpdateCommunicationPreferencesDto }),
     ApiResponse({
@@ -196,7 +167,7 @@ export const ApiUnsubscribeEmailNotifications = () =>
     ApiOperation({
       summary: 'Unsubscribe from all email notifications',
       description:
-        'Convenience endpoint for the Communication tab Unsubscribe action. It disables all email notification toggles and leaves in-app toggles unchanged.',
+        'Disables all email notification preferences.',
     }),
     ApiResponse({
       status: 200,
