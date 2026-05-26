@@ -314,15 +314,15 @@ export class TalentService {
         }
 
         talentProfile.region = dto.region;
-        talentProfile.education_level = dto.educationLevel;
-        talentProfile.linkedin_url = dto.linkedinUrl ?? null;
+        talentProfile.education_level = dto.education_level;
+        talentProfile.linkedin_url = dto.linkedin_url ?? null;
         talentProfile.onboarding_step = 3;
 
-        if (dto.avatarUrl) {
+        if (dto.avatar_url) {
           await manager.update(
             User,
             { id: userId },
-            { avatar_url: dto.avatarUrl },
+            { avatar_url: dto.avatar_url },
           );
         }
 
