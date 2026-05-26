@@ -7,6 +7,7 @@ export const SuccessMessages = {
     FORGOT_PASSWORD: 'If that email exists, a reset code has been sent',
     PASSWORD_RESET_OTP_VERIFIED: 'OTP verified',
     PASSWORD_UPDATED: 'Password updated. Please log in.',
+    PASSWORD_CHANGED: 'Password changed successfully. Please log in again.',
     TOKEN_REFRESHED: 'Token refreshed successfully',
     LOGGED_OUT: 'Logged out',
   },
