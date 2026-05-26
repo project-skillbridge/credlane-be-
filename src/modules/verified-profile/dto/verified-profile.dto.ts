@@ -39,6 +39,22 @@ export class VerifiedProfileSkillCategoryDto {
   percentage: number;
 }
 
+export class VerifiedProfileReportSkillItemDto {
+  @ApiProperty({ example: 'Skill Proficiency' })
+  label: string;
+
+  @ApiProperty({ example: 82 })
+  value: number;
+}
+
+export class VerifiedProfileReportSkillGroupDto {
+  @ApiProperty({ example: 'Professional Skills' })
+  title: string;
+
+  @ApiProperty({ type: [VerifiedProfileReportSkillItemDto] })
+  skill_info: VerifiedProfileReportSkillItemDto[];
+}
+
 export class VerifiedProfileResponseDto {
   @ApiProperty({ example: 'Jane Doe' })
   full_name: string;
@@ -55,10 +71,26 @@ export class VerifiedProfileResponseDto {
   about: string;
 
   @ApiPropertyOptional({
+    type: [String],
+    example: ['Mid Level', 'Job Ready', 'Fully Remote', '3-5 yrs exp.'],
+    description:
+      'Badge-style report facts used by the verified profile UI header.',
+  })
+  about_tags?: string[];
+
+  @ApiPropertyOptional({
     example:
       'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
   })
   ai_summary?: string;
+
+  @ApiPropertyOptional({
+    example:
+      'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
+    description:
+      'Report-facing alias for ai_summary used by the verified profile UI.',
+  })
+  ai_report?: string;
 
   @ApiPropertyOptional({ example: 'https://example.com/avatar.jpg' })
   avatar_url?: string | null;
@@ -107,6 +139,13 @@ export class VerifiedProfileResponseDto {
 
   @ApiPropertyOptional({ type: VerifiedProfileDimensionScoreDto })
   practical_application?: VerifiedProfileDimensionScoreDto;
+
+  @ApiPropertyOptional({
+    type: [VerifiedProfileReportSkillGroupDto],
+    description:
+      'UI-compatible grouped scores for the verified report skills tabs.',
+  })
+  detailed_skills?: VerifiedProfileReportSkillGroupDto[];
 
   @ApiProperty({ example: 'https://skillbridge.com/verified-profiles/abc123' })
   share_url: string;

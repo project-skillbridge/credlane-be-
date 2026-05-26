@@ -103,6 +103,9 @@ describe('VerifiedProfileService', () => {
         personal_assessment_answers: {
           tools: ['react', 'typescript'],
           specialization: 'frontend_engineer',
+          years_experience: '3_5_yrs',
+          job_search_status: 'open_to_right_opportunity',
+          work_arrangement_preference: ['fully_remote', 'hybrid'],
         },
         advanced_assessment_completed_at: new Date('2026-05-03T00:00:00.000Z'),
         personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
@@ -113,6 +116,7 @@ describe('VerifiedProfileService', () => {
         shareable_link_token: 'ab'.repeat(32),
         verified_at: new Date('2026-05-03T00:00:00.000Z'),
         verified_level: VerifiedLevel.MID,
+        availability: 'immediately_available',
         strong_competencies: ['technical_reasoning', 'communication'],
         competency_scores: { technical_reasoning: 92, communication: 78 },
       });
@@ -148,6 +152,8 @@ describe('VerifiedProfileService', () => {
         status: TalentProfileStatus.JOB_READY,
         ai_summary:
           'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
+        ai_report:
+          'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
         skill_proficiency: {
           validated_level: VerifiedLevel.MID,
           skill_assessment_percentage: 82,
@@ -159,6 +165,38 @@ describe('VerifiedProfileService', () => {
         tier: AssessmentTier.JOB_READY,
         is_owner: true,
       });
+      expect(result).not.toHaveProperty('aiReport');
+      expect(result).not.toHaveProperty('detailedSkills');
+      expect(result.about_tags).toEqual([
+        'Mid Level',
+        'Job Ready',
+        'Open to Work',
+        'Fully Remote',
+        'Hybrid',
+        '3-5 yrs exp.',
+        'Immediately Available',
+      ]);
+      expect(result.detailed_skills).toEqual([
+        {
+          title: 'Assessment Scores',
+          skill_info: [{ label: 'Skill Proficiency', value: 82 }],
+        },
+        {
+          title: 'Professional Skills',
+          skill_info: [{ label: 'Technical Reasoning', value: 92 }],
+        },
+        {
+          title: 'Soft Skills',
+          skill_info: [{ label: 'Communication', value: 78 }],
+        },
+        {
+          title: 'Strengths',
+          skill_info: [
+            { label: 'Technical Reasoning', value: 92 },
+            { label: 'Communication', value: 78 },
+          ],
+        },
+      ]);
       expect(result.key_strengths).toBeDefined();
       expect(result.key_strengths!.length).toBeGreaterThan(0);
       expect(result.share_url).toContain('/verified-profiles/');
@@ -283,6 +321,7 @@ describe('VerifiedProfileService', () => {
         verified_level: 'entry' as VerifiedLevel,
         strong_competencies: null,
         competency_scores: null,
+        score: 76,
       });
 
       (usersService.findOne as jest.Mock).mockResolvedValue(user);
@@ -298,10 +337,12 @@ describe('VerifiedProfileService', () => {
       expect(result.about).toBe('');
       expect(result.skills).toBeUndefined();
       expect(result.ai_summary).toBeUndefined();
+      expect(result.ai_report).toBeUndefined();
       expect(result.key_strengths).toBeUndefined();
       expect(result.professional_skills).toBeUndefined();
       expect(result.soft_skills).toBeUndefined();
-      expect(result.score_percentage).toBeUndefined();
+      expect(result.detailed_skills).toBeUndefined();
+      expect(result.score_percentage).toBe(76);
       expect(result.seniority_badge).toBe('Entry Level');
       expect(result.tier_label).toBeUndefined();
     });
