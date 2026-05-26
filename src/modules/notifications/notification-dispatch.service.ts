@@ -48,6 +48,13 @@ export type ContactRequestReceivedPayload = {
   employerName: string;
 };
 
+export type AssessmentReceivedPayload = {
+  assessmentId: string;
+  title: string;
+  roleTrack: string;
+  shareUrl: string;
+};
+
 type RetakeEligibilityProfile = Pick<
   TalentProfile,
   'advanced_retake_required' | 'assessment_locked_until'
@@ -85,6 +92,27 @@ export class NotificationDispatchService
     }
   }
 
+  async notifyOfferReceived(
+    userId: string,
+    payload: OfferReceivedPayload,
+  ): Promise<void> {
+    return this.dispatch(NotificationType.OFFER_RECEIVED, userId, payload);
+  }
+
+  async notifyOfferAccepted(
+    userId: string,
+    payload: OfferRespondedPayload,
+  ): Promise<void> {
+    return this.dispatch(NotificationType.OFFER_ACCEPTED, userId, payload);
+  }
+
+  async notifyOfferDeclined(
+    userId: string,
+    payload: OfferRespondedPayload,
+  ): Promise<void> {
+    return this.dispatch(NotificationType.OFFER_DECLINED, userId, payload);
+  }
+
   async dispatch(
     type: NotificationType.ADVANCED_ASSESSMENT_SCORE_READY,
     userId: string,
@@ -111,6 +139,11 @@ export class NotificationDispatchService
     payload: ContactRequestReceivedPayload,
   ): Promise<void>;
   async dispatch(
+    type: NotificationType.ASSESSMENT_RECEIVED,
+    userId: string,
+    payload: AssessmentReceivedPayload,
+  ): Promise<void>;
+  async dispatch(
     type: NotificationType,
     userId: string,
     payload:
@@ -118,7 +151,8 @@ export class NotificationDispatchService
       | AdvancedRetakeAvailablePayload
       | OfferReceivedPayload
       | OfferRespondedPayload
-      | ContactRequestReceivedPayload,
+      | ContactRequestReceivedPayload
+      | AssessmentReceivedPayload,
   ): Promise<void> {
     try {
       switch (type) {
@@ -152,6 +186,12 @@ export class NotificationDispatchService
           await this.dispatchContactRequestReceived(
             userId,
             payload as ContactRequestReceivedPayload,
+          );
+          break;
+        case NotificationType.ASSESSMENT_RECEIVED:
+          await this.dispatchAssessmentReceived(
+            userId,
+            payload as AssessmentReceivedPayload,
           );
           break;
         default:
@@ -410,6 +450,42 @@ export class NotificationDispatchService
     } catch (error) {
       this.logger.error(
         `Contact request email failed for user=${userId}: ${String(error)}`,
+      );
+    }
+  }
+
+  private async dispatchAssessmentReceived(
+    userId: string,
+    payload: AssessmentReceivedPayload,
+  ): Promise<void> {
+    const user = await this.usersService.findOne(userId);
+    if (!user) {
+      this.logger.warn(`Notification skipped: user not found user=${userId}`);
+      return;
+    }
+
+    await this.notificationsService.create({
+      userId,
+      type: NotificationType.ASSESSMENT_RECEIVED,
+      title: 'New assessment received',
+      body: `You have been invited to take ${payload.title}.`,
+      data: {
+        assessmentId: payload.assessmentId,
+        title: payload.title,
+        roleTrack: payload.roleTrack,
+        shareUrl: payload.shareUrl,
+      },
+    });
+
+    try {
+      await this.mailService.send({
+        to: user.email,
+        subject: `Assessment invite: ${payload.title}`,
+        text: `Hi ${user.first_name},\n\nYou have been invited to take ${payload.title}. Log in to CredLane to begin.\n\nBest,\nSkillBridge Team`,
+      });
+    } catch (error) {
+      this.logger.error(
+        `Assessment invite email failed for user=${userId}: ${String(error)}`,
       );
     }
   }

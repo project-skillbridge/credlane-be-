@@ -14,6 +14,10 @@ export const ErrorMessages = {
     GOOGLE_AUTH_FAILED: 'Google authentication failed',
     INVALID_OAUTH_SIGNUP_ROLE: 'Invalid OAuth signup role',
     OAUTH_SIGNUP_ROLE_REQUIRED: 'OAuth signup role required',
+    WRONG_CURRENT_PASSWORD: 'Current password is incorrect',
+    SAME_PASSWORD: 'New password must differ from the current password',
+    OAUTH_ACCOUNT_NO_PASSWORD:
+      'This account uses social login and has no password to change',
   },
   USER: {
     EMAIL_ALREADY_REGISTERED: 'Email already registered',
@@ -127,5 +131,10 @@ export const ErrorMessages = {
     OFFER_NOT_FOUND: 'Offer not found',
     CANNOT_RESPOND: 'Cannot respond to an offer that is not pending',
     OFFER_EXPIRED: 'This offer has expired',
+  },
+  EMPLOYER_VERIFICATION: {
+    NOT_VERIFIED: 'Complete your company profile to access this feature.',
+    WEBSITE_NOT_RESOLVABLE:
+      'Company website could not be reached. Please check the URL.',
   },
 } as const;

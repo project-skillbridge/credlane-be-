@@ -47,6 +47,14 @@ export class EmployerProfile {
   @Column({ type: 'text', array: true, nullable: true })
   hiring_locations: string[] | null;
 
+  @ApiProperty({
+    example: ['junior', 'mid'],
+    nullable: true,
+    type: [String],
+  })
+  @Column({ type: 'text', array: true, nullable: true })
+  preferred_experience_levels: string[] | null;
+
   /** Legacy onboarding field (lowercase) */
   @ApiProperty({ example: 'recruiter', nullable: true })
   @Column({ type: 'varchar', length: 50, nullable: true })
@@ -72,6 +80,13 @@ export class EmployerProfile {
   @Column({ type: 'varchar', length: 500, nullable: true })
   company_website: string | null;
 
+  @ApiProperty({
+    example: 'https://www.linkedin.com/company/acme-labs',
+    nullable: true,
+  })
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  linkedin_company_page_url: string | null;
+
   /** Legacy fields kept for backward compatibility */
   @ApiProperty({ example: 'Acme Labs', nullable: true })
   @Column({ type: 'varchar', length: 255, nullable: true })
@@ -96,6 +111,18 @@ export class EmployerProfile {
   @ApiProperty({ nullable: true })
   @Column({ type: 'varchar', length: 100, nullable: true })
   hiring_region: string | null;
+
+  @ApiProperty({ example: 'https://linkedin.com/company/acme', nullable: true })
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  linkedin_company_url: string | null;
+
+  @ApiProperty({ default: false })
+  @Column({ type: 'boolean', default: false })
+  is_verified: boolean;
+
+  @ApiProperty({ default: 0 })
+  @Column({ type: 'int', default: 0 })
+  hire_count: number;
 
   @ApiProperty()
   @CreateDateColumn({ name: 'created_at', type: 'timestamp with time zone' })

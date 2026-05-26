@@ -28,7 +28,7 @@ export type NotificationListItem = {
   title: string;
   body: string;
   data: Record<string, unknown> | null;
-  isRead: boolean;
-  readAt: string | null;
-  createdAt: string;
+  is_read: boolean;
+  read_at: string | null;
+  created_at: string;
 };

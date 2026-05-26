@@ -33,13 +33,13 @@ export class NotificationItemDto {
   data: Record<string, unknown> | null;
 
   @ApiProperty()
-  isRead: boolean;
+  is_read: boolean;
 
   @ApiProperty({ required: false, nullable: true })
-  readAt: string | null;
+  read_at: string | null;
 
   @ApiProperty()
-  createdAt: string;
+  created_at: string;
 }
 
 export class NotificationsListResponseDto {
@@ -49,5 +49,5 @@ export class NotificationsListResponseDto {
 
 export class UnreadCountResponseDto {
   @ApiProperty({ example: 3 })
-  unreadCount: number;
+  unread_count: number;
 }

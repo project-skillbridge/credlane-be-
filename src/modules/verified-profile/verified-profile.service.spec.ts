@@ -103,6 +103,9 @@ describe('VerifiedProfileService', () => {
         personal_assessment_answers: {
           tools: ['react', 'typescript'],
           specialization: 'frontend_engineer',
+          years_experience: '3_5_yrs',
+          job_search_status: 'open_to_right_opportunity',
+          work_arrangement_preference: ['fully_remote', 'hybrid'],
         },
         advanced_assessment_completed_at: new Date('2026-05-03T00:00:00.000Z'),
         personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
@@ -113,6 +116,7 @@ describe('VerifiedProfileService', () => {
         shareable_link_token: 'ab'.repeat(32),
         verified_at: new Date('2026-05-03T00:00:00.000Z'),
         verified_level: VerifiedLevel.MID,
+        availability: 'immediately_available',
         strong_competencies: ['technical_reasoning', 'communication'],
         competency_scores: { technical_reasoning: 92, communication: 78 },
       });
@@ -139,30 +143,64 @@ describe('VerifiedProfileService', () => {
       const result = await service.getForTalentUser(user.id);
 
       expect(result).toMatchObject({
-        fullName: 'Jane Doe',
+        full_name: 'Jane Doe',
         role: 'Frontend Developer',
         goal: 'Land First Role',
         about: 'Builder of useful products',
         skills: ['react', 'typescript'],
         verified: true,
         status: TalentProfileStatus.JOB_READY,
-        aiSummary:
+        ai_summary:
           'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
-        skillProficiency: {
-          validatedLevel: VerifiedLevel.MID,
-          skillAssessmentPercentage: 82,
+        ai_report:
+          'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
+        skill_proficiency: {
+          validated_level: VerifiedLevel.MID,
+          skill_assessment_percentage: 82,
         },
-        seniorityBadge: 'Mid Level',
-        tierLabel: 'Job Ready',
-        scorePercentage: 80,
-        verifiedAt: '2026-05-03T00:00:00.000Z',
+        seniority_badge: 'Mid Level',
+        tier_label: 'Job Ready',
+        score_percentage: 80,
+        verified_at: '2026-05-03T00:00:00.000Z',
         tier: AssessmentTier.JOB_READY,
-        isOwner: true,
+        is_owner: true,
       });
-      expect(result.keyStrengths).toBeDefined();
-      expect(result.keyStrengths!.length).toBeGreaterThan(0);
-      expect(result.shareUrl).toContain('/verified-profiles/');
-      expect(result.qrCodeUrl).toContain('api.qrserver.com');
+      expect(result).not.toHaveProperty('aiReport');
+      expect(result).not.toHaveProperty('detailedSkills');
+      expect(result.about_tags).toEqual([
+        'Mid Level',
+        'Job Ready',
+        'Open to Work',
+        'Fully Remote',
+        'Hybrid',
+        '3-5 yrs exp.',
+        'Immediately Available',
+      ]);
+      expect(result.detailed_skills).toEqual([
+        {
+          title: 'Assessment Scores',
+          skill_info: [{ label: 'Skill Proficiency', value: 82 }],
+        },
+        {
+          title: 'Professional Skills',
+          skill_info: [{ label: 'Technical Reasoning', value: 92 }],
+        },
+        {
+          title: 'Soft Skills',
+          skill_info: [{ label: 'Communication', value: 78 }],
+        },
+        {
+          title: 'Strengths',
+          skill_info: [
+            { label: 'Technical Reasoning', value: 92 },
+            { label: 'Communication', value: 78 },
+          ],
+        },
+      ]);
+      expect(result.key_strengths).toBeDefined();
+      expect(result.key_strengths!.length).toBeGreaterThan(0);
+      expect(result.share_url).toContain('/verified-profiles/');
+      expect(result.qr_code_url).toContain('api.qrserver.com');
     });
 
     it('rejects non-talent users', async () => {
@@ -237,7 +275,7 @@ describe('VerifiedProfileService', () => {
       );
     });
 
-    it('returns avatarUrl when user has one', async () => {
+    it('returns avatar_url when user has one', async () => {
       const user = makeUser({
         avatar_url: 'https://example.com/avatar.jpg',
       });
@@ -261,7 +299,7 @@ describe('VerifiedProfileService', () => {
       );
 
       const result = await service.getForTalentUser(user.id);
-      expect(result.avatarUrl).toBe('https://example.com/avatar.jpg');
+      expect(result.avatar_url).toBe('https://example.com/avatar.jpg');
     });
 
     it('returns undefined optional fields when data is minimal', async () => {
@@ -283,6 +321,7 @@ describe('VerifiedProfileService', () => {
         verified_level: 'entry' as VerifiedLevel,
         strong_competencies: null,
         competency_scores: null,
+        score: 76,
       });
 
       (usersService.findOne as jest.Mock).mockResolvedValue(user);
@@ -297,13 +336,15 @@ describe('VerifiedProfileService', () => {
       expect(result.goal).toBe('');
       expect(result.about).toBe('');
       expect(result.skills).toBeUndefined();
-      expect(result.aiSummary).toBeUndefined();
-      expect(result.keyStrengths).toBeUndefined();
-      expect(result.professionalSkills).toBeUndefined();
-      expect(result.softSkills).toBeUndefined();
-      expect(result.scorePercentage).toBeUndefined();
-      expect(result.seniorityBadge).toBe('Entry Level');
-      expect(result.tierLabel).toBeUndefined();
+      expect(result.ai_summary).toBeUndefined();
+      expect(result.ai_report).toBeUndefined();
+      expect(result.key_strengths).toBeUndefined();
+      expect(result.professional_skills).toBeUndefined();
+      expect(result.soft_skills).toBeUndefined();
+      expect(result.detailed_skills).toBeUndefined();
+      expect(result.score_percentage).toBe(76);
+      expect(result.seniority_badge).toBe('Entry Level');
+      expect(result.tier_label).toBeUndefined();
     });
 
     it('falls back to profile_share_link when no employer pool profile exists', async () => {
@@ -322,8 +363,8 @@ describe('VerifiedProfileService', () => {
       );
 
       const result = await service.getForTalentUser(user.id);
-      expect(result.shareUrl).toContain('legacy-share-link-123');
-      expect(result.qrCodeUrl).toContain('api.qrserver.com');
+      expect(result.share_url).toContain('legacy-share-link-123');
+      expect(result.qr_code_url).toContain('api.qrserver.com');
     });
 
     it('gracefully degrades AI summary when OpenRouter fails', async () => {
@@ -349,10 +390,10 @@ describe('VerifiedProfileService', () => {
       );
 
       const result = await service.getForTalentUser(user.id);
-      expect(result.aiSummary).toBeUndefined();
+      expect(result.ai_summary).toBeUndefined();
     });
 
-    it('returns empty shareUrl when no token or pool link exists', async () => {
+    it('returns empty share_url when no token or pool link exists', async () => {
       const user = makeUser();
       const profile = makeProfile({
         status: TalentProfileStatus.JOB_READY,
@@ -368,8 +409,8 @@ describe('VerifiedProfileService', () => {
       );
 
       const result = await service.getForTalentUser(user.id);
-      expect(result.shareUrl).toBe('');
-      expect(result.qrCodeUrl).toBeUndefined();
+      expect(result.share_url).toBe('');
+      expect(result.qr_code_url).toBeUndefined();
     });
   });
 
@@ -442,15 +483,15 @@ describe('VerifiedProfileService', () => {
       const result = await service.getByShareToken(shareToken);
 
       expect(result).toMatchObject({
-        fullName: 'Jane Doe',
+        full_name: 'Jane Doe',
         role: 'Backend Developer',
         about: 'API specialist',
         verified: true,
-        verifiedAt: '2026-05-04T00:00:00.000Z',
-        skillProficiency: { validatedLevel: VerifiedLevel.MID },
-        isOwner: false,
+        verified_at: '2026-05-04T00:00:00.000Z',
+        skill_proficiency: { validated_level: VerifiedLevel.MID },
+        is_owner: false,
       });
-      expect(result.shareUrl).toContain(shareToken);
+      expect(result.share_url).toContain(shareToken);
     });
 
     it('falls back to profile advanced completion when pool verified_at is missing', async () => {
@@ -486,7 +527,7 @@ describe('VerifiedProfileService', () => {
       });
 
       await expect(service.getByShareToken(shareToken)).resolves.toMatchObject({
-        verifiedAt: '2026-05-03T12:00:00.000Z',
+        verified_at: '2026-05-03T12:00:00.000Z',
         tier: AssessmentTier.JOB_READY,
       });
     });

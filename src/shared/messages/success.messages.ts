@@ -7,6 +7,7 @@ export const SuccessMessages = {
     FORGOT_PASSWORD: 'If that email exists, a reset code has been sent',
     PASSWORD_RESET_OTP_VERIFIED: 'OTP verified',
     PASSWORD_UPDATED: 'Password updated. Please log in.',
+    PASSWORD_CHANGED: 'Password changed successfully. Please log in again.',
     TOKEN_REFRESHED: 'Token refreshed successfully',
     LOGGED_OUT: 'Logged out',
   },
@@ -31,8 +32,7 @@ export const SuccessMessages = {
     STARTED: 'Advanced assessment session created',
     SESSION_RESUMED: 'Advanced assessment session returned',
     SUBMITTED: 'Advanced assessment submitted and scored',
-    QUEUED:
-      'Advanced assessment submission accepted for processing',
+    QUEUED: 'Advanced assessment submission accepted for processing',
     FAILED:
       'Your overall score was below 50%. This attempt does not count toward completion. You may retake the advanced assessment.',
     LT2_SUBMITTED: 'Reflection question generated',
@@ -69,5 +69,8 @@ export const SuccessMessages = {
     CREATED: 'Offer sent successfully',
     ACCEPTED: 'Offer accepted',
     DECLINED: 'Offer declined',
+  },
+  EMPLOYER_VERIFICATION: {
+    VERIFIED: 'Employer verification complete',
   },
 } as const;

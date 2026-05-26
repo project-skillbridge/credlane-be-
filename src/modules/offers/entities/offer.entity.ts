@@ -17,12 +17,20 @@ export enum OfferStatus {
   ACCEPTED = 'accepted',
   DECLINED = 'declined',
   EXPIRED = 'expired',
+  HIRED = 'hired',
 }
 
 @Entity('offers')
 @Index('IDX_offers_employer', ['employer_user_id'])
 @Index('IDX_offers_candidate', ['candidate_user_id'])
 @Index('IDX_offers_status', ['status'])
+@Index('UQ_offers_active_employer_candidate', [
+  'employer_user_id',
+  'candidate_user_id',
+], {
+  unique: true,
+  where: `"status" IN ('pending', 'accepted')`,
+})
 export class Offer {
   @ApiProperty({ format: 'uuid' })
   @PrimaryGeneratedColumn('uuid')
@@ -62,6 +70,26 @@ export class Offer {
   @ApiProperty()
   @Column({ type: 'text' })
   message: string;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ type: 'text', nullable: true })
+  role_description: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  compensation: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  employment_type: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  work_arrangement: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ type: 'date', nullable: true })
+  application_deadline: string | null;
 
   @ApiProperty({ enum: OfferStatus })
   @Column({

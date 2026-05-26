@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuthResult, AuthService } from '../auth/auth.service';
@@ -7,12 +7,27 @@ import { User } from '../users/entities/user.entity';
 import { CompleteEmployerOnboardingDto } from './dto/complete-employer-onboarding.dto';
 import { SaveEmployerProfileDto } from './dto/save-employer-profile.dto';
 import { EmployerProfile } from './entities/employer-profile.entity';
+import { EmployerVerificationService } from './employer-verification.service';
 import {
   ConflictError,
   ErrorMessages,
   ForbiddenError,
+  NotFoundError,
   SuccessMessages,
 } from '../../shared';
+
+export type EmployerPublicProfile = {
+  company_name: string | null;
+  industry: string | null;
+  company_size: string | null;
+  company_website: string | null;
+  linkedin_company_url: string | null;
+  region: string | null;
+  is_verified: boolean;
+  is_new_to_platform: boolean;
+  hire_count: number;
+  member_since: string;
+};
 
 export type EmployerOnboardingResult = {
   message: string;
@@ -23,11 +38,14 @@ export type EmployerOnboardingResult = {
 
 @Injectable()
 export class EmployerService {
+  private readonly logger = new Logger(EmployerService.name);
+
   constructor(
     @InjectRepository(EmployerProfile)
     private readonly employerProfileRepository: Repository<EmployerProfile>,
     private readonly authService: AuthService,
     private readonly usersService: UsersService,
+    private readonly verificationService: EmployerVerificationService,
   ) {}
 
   async saveProfile(
@@ -56,12 +74,23 @@ export class EmployerService {
           profile = manager.create(EmployerProfile, { user_id: userId });
         }
 
-        profile.employer_type = dto.employerType;
-        profile.company_name = dto.companyName.trim();
-        profile.company_size = dto.companySize;
-        profile.company_website = dto.companyWebsite?.trim() ?? null;
-        profile.hiring_roles = dto.hiringRoles;
-        profile.hiring_locations = dto.hiringLocations;
+        profile.employer_type = dto.employer_type;
+        profile.company_name = dto.company_name.trim();
+        profile.company_size = dto.company_size;
+        profile.company_website = dto.company_website.trim();
+        profile.website_url = dto.company_website.trim();
+        profile.industry = dto.industry.trim();
+        profile.region = dto.region.trim();
+        profile.hiring_region = dto.region.trim();
+        profile.linkedin_company_page_url =
+          dto.linkedin_company_page_url?.trim() ?? null;
+        profile.linkedin_company_url =
+          dto.linkedin_company_page_url?.trim() ?? null;
+        profile.hiring_roles = dto.hiring_roles;
+        profile.hiring_locations = [dto.region.trim()];
+        profile.desired_roles = dto.hiring_roles;
+        profile.preferred_experience_levels = dto.preferred_experience_levels;
+        profile.hiring_count_range = dto.hiring_count ?? null;
 
         await manager.save(EmployerProfile, profile);
         await this.usersService.markOnboardingCompleteWithManager(
@@ -70,6 +99,16 @@ export class EmployerService {
         );
       },
     );
+
+    // Recompute verification status after profile changes (non-blocking)
+    this.verificationService
+      .checkAndUpdateVerification(userId)
+      .catch((err) =>
+        this.logger.error(
+          `Verification recompute failed for user ${userId}`,
+          err,
+        ),
+      );
 
     return {
       status: 'success',
@@ -107,11 +146,23 @@ export class EmployerService {
 
         const nextProfile = manager.create(EmployerProfile, {
           user_id: userId,
-          joining_as: dto.joiningAs,
-          desired_roles: dto.desiredRoles,
+          employer_type: dto.joining_as,
+          joining_as: dto.joining_as,
+          company_name: dto.company_name.trim(),
+          company_size: dto.company_size,
+          industry: dto.industry.trim(),
+          desired_roles: dto.desired_roles,
+          hiring_roles: dto.desired_roles,
+          hiring_locations: [dto.region.trim()],
           region: dto.region.trim(),
-          hiring_count_range: dto.hiringCountRange,
-          company_website: dto.companyWebsite?.trim() || null,
+          hiring_region: dto.region.trim(),
+          hiring_count_range: dto.hiring_count_range,
+          company_website: dto.company_website?.trim() || null,
+          website_url: dto.company_website?.trim() || null,
+          linkedin_company_page_url:
+            dto.linkedin_company_page_url?.trim() || null,
+          linkedin_company_url: dto.linkedin_company_page_url?.trim() || null,
+          preferred_experience_levels: dto.preferred_experience_levels,
         });
 
         const savedProfile = await manager.save(EmployerProfile, nextProfile);
@@ -129,11 +180,53 @@ export class EmployerService {
       SuccessMessages.ONBOARDING.EMPLOYER_COMPLETED,
     );
 
+    // Recompute verification after onboarding (non-blocking)
+    this.verificationService
+      .checkAndUpdateVerification(userId)
+      .catch((err) =>
+        this.logger.error(
+          `Verification recompute failed for user ${userId}`,
+          err,
+        ),
+      );
+
     return {
       message: session.message,
       user: session.data.user,
       profile,
       tokens: session.tokens,
+    };
+  }
+
+  async getPublicProfile(
+    employerUserId: string,
+  ): Promise<EmployerPublicProfile> {
+    const profile = await this.employerProfileRepository.findOne({
+      where: { user_id: employerUserId },
+      relations: ['user'],
+    });
+
+    if (!profile) {
+      throw new NotFoundError('Employer profile not found');
+    }
+
+    const accountAge = Date.now() - new Date(profile.user.createdAt).getTime();
+    const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+    const is_new_to_platform =
+      accountAge < ninetyDaysMs && profile.hire_count === 0;
+
+    return {
+      company_name: profile.company_name,
+      industry: profile.industry,
+      company_size: profile.company_size,
+      company_website: profile.company_website ?? profile.website_url,
+      linkedin_company_url:
+        profile.linkedin_company_page_url ?? profile.linkedin_company_url,
+      region: profile.region ?? profile.hiring_region,
+      is_verified: profile.is_verified,
+      is_new_to_platform,
+      hire_count: profile.hire_count,
+      member_since: profile.user.createdAt.toISOString(),
     };
   }
 }

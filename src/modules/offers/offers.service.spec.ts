@@ -1,11 +1,15 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { In, QueryFailedError } from 'typeorm';
 import { OffersService } from './offers.service';
 import { Offer, OfferStatus } from './entities/offer.entity';
 import { OfferDistributionLog } from './entities/offer-distribution-log.entity';
 import { EmployerPoolProfile } from '../talent/entities/employer-pool-profile.entity';
+import { EmployerProfile } from '../employer/entities/employer-profile.entity';
 import { User } from '../users/entities/user.entity';
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
+import { EmployerVerificationService } from '../employer/employer-verification.service';
+import { BadRequestError, ForbiddenError, NotFoundError } from '../../shared';
 
 describe('OffersService', () => {
   let service: OffersService;
@@ -36,7 +40,19 @@ describe('OffersService', () => {
   };
 
   const mockNotificationDispatch = {
-    dispatch: jest.fn(),
+    notifyOfferReceived: jest.fn(),
+    notifyOfferAccepted: jest.fn(),
+    notifyOfferDeclined: jest.fn(),
+  };
+
+  const mockVerificationService = {
+    assertEmployerVerified: jest.fn(),
+  };
+
+  const mockEmployerProfileRepo = {
+    increment: jest.fn(),
+    find: jest.fn(),
+    findOne: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -57,19 +73,31 @@ describe('OffersService', () => {
           provide: NotificationDispatchService,
           useValue: mockNotificationDispatch,
         },
+        {
+          provide: EmployerVerificationService,
+          useValue: mockVerificationService,
+        },
+        {
+          provide: getRepositoryToken(EmployerProfile),
+          useValue: mockEmployerProfileRepo,
+        },
       ],
     }).compile();
 
     service = module.get<OffersService>(OffersService);
     jest.clearAllMocks();
+    mockVerificationService.assertEmployerVerified.mockResolvedValue(undefined);
   });
 
   describe('createOffer', () => {
     const dto = {
-      candidateUserId: 'candidate-1',
-      roleTitle: 'Frontend Developer',
-      message: 'We would like to offer you a position',
-      expiresInDays: 14,
+      candidate_user_id: 'candidate-1',
+      role_title: 'Frontend Developer',
+      role_description: 'We would like to offer you a position',
+      compensation: '$80k - $100k',
+      employment_type: 'Full-time',
+      work_arrangement: 'Remote',
+      expires_in_days: 14,
     };
 
     it('should create an offer for a job_ready candidate', async () => {
@@ -90,8 +118,8 @@ describe('OffersService', () => {
               .mockResolvedValueOnce({
                 id: 'offer-1',
                 employer_user_id: 'employer-1',
-                candidate_user_id: dto.candidateUserId,
-                role_title: dto.roleTitle,
+                candidate_user_id: dto.candidate_user_id,
+                role_title: dto.role_title,
                 status: OfferStatus.PENDING,
               })
               .mockResolvedValueOnce({ id: 'log-1' }),
@@ -104,13 +132,26 @@ describe('OffersService', () => {
         first_name: 'Jane',
         last_name: 'Employer',
       });
-      mockNotificationDispatch.dispatch.mockResolvedValue(undefined);
+      mockNotificationDispatch.notifyOfferReceived.mockResolvedValue(undefined);
 
       const result = await service.createOffer('employer-1', dto);
 
       expect(result.id).toBe('offer-1');
       expect(mockOfferRepo.manager.transaction).toHaveBeenCalled();
-      expect(mockNotificationDispatch.dispatch).toHaveBeenCalled();
+      expect(mockNotificationDispatch.notifyOfferReceived).toHaveBeenCalled();
+    });
+
+    it('should throw ForbiddenError if employer is not verified', async () => {
+      mockVerificationService.assertEmployerVerified.mockRejectedValue(
+        new ForbiddenError(
+          'Complete your company profile to access this feature.',
+        ),
+      );
+
+      await expect(service.createOffer('employer-1', dto)).rejects.toThrow(
+        'Complete your company profile to access this feature.',
+      );
+      expect(mockPoolProfileRepo.findOne).not.toHaveBeenCalled();
     });
 
     it('should throw NotFoundError if candidate not in pool', async () => {
@@ -152,6 +193,100 @@ describe('OffersService', () => {
         'Monthly offer limit reached',
       );
     });
+
+    it('should throw ConflictError when a pending or accepted offer already exists', async () => {
+      const pool = {
+        id: 'pool-1',
+        candidate_id: 'candidate-1',
+        tier: 'job_ready',
+      };
+      mockPoolProfileRepo.findOne.mockResolvedValue(pool);
+      mockOfferRepo.findOne.mockResolvedValue({
+        id: 'existing-offer',
+        status: OfferStatus.PENDING,
+      });
+
+      await expect(service.createOffer('employer-1', dto)).rejects.toThrow(
+        'Offer already sent to this candidate',
+      );
+
+      expect(mockOfferRepo.findOne).toHaveBeenCalledWith({
+        where: {
+          employer_user_id: 'employer-1',
+          candidate_user_id: dto.candidate_user_id,
+          status: In([OfferStatus.PENDING, OfferStatus.ACCEPTED]),
+        },
+      });
+      expect(mockOfferRepo.manager.transaction).not.toHaveBeenCalled();
+    });
+
+    it('should allow a new offer when only declined or expired offers exist', async () => {
+      const pool = {
+        id: 'pool-1',
+        candidate_id: 'candidate-1',
+        tier: 'job_ready',
+      };
+      mockPoolProfileRepo.findOne.mockResolvedValue(pool);
+      mockOfferRepo.findOne.mockResolvedValue(null);
+      mockOfferRepo.manager.transaction.mockImplementation(
+        async (
+          cb: (manager: typeof mockOfferRepo.manager) => Promise<unknown>,
+        ) => {
+          const manager = {
+            count: jest.fn().mockResolvedValue(0),
+            save: jest
+              .fn()
+              .mockResolvedValueOnce({
+                id: 'offer-2',
+                employer_user_id: 'employer-1',
+                candidate_user_id: dto.candidate_user_id,
+                role_title: dto.role_title,
+                status: OfferStatus.PENDING,
+              })
+              .mockResolvedValueOnce({ id: 'log-2' }),
+          };
+          return cb(manager as unknown as typeof mockOfferRepo.manager);
+        },
+      );
+      mockUserRepo.findOne.mockResolvedValue({
+        id: 'employer-1',
+        first_name: 'Jane',
+        last_name: 'Employer',
+      });
+      mockNotificationDispatch.notifyOfferReceived.mockResolvedValue(undefined);
+
+      const result = await service.createOffer('employer-1', dto);
+
+      expect(result.id).toBe('offer-2');
+      expect(mockOfferRepo.findOne).toHaveBeenCalledWith({
+        where: {
+          employer_user_id: 'employer-1',
+          candidate_user_id: dto.candidate_user_id,
+          status: In([OfferStatus.PENDING, OfferStatus.ACCEPTED]),
+        },
+      });
+      expect(mockOfferRepo.manager.transaction).toHaveBeenCalled();
+    });
+
+    it('should translate concurrent duplicate active offers to ConflictError', async () => {
+      const pool = {
+        id: 'pool-1',
+        candidate_id: 'candidate-1',
+        tier: 'job_ready',
+      };
+      mockPoolProfileRepo.findOne.mockResolvedValue(pool);
+      mockOfferRepo.findOne.mockResolvedValue(null);
+      mockOfferRepo.manager.transaction.mockRejectedValue(
+        new QueryFailedError('INSERT INTO offers', [], {
+          code: '23505',
+          constraint: 'UQ_offers_active_employer_candidate',
+        }),
+      );
+
+      await expect(service.createOffer('employer-1', dto)).rejects.toThrow(
+        'Offer already sent to this candidate',
+      );
+    });
   });
 
   describe('respondToOffer', () => {
@@ -175,7 +310,7 @@ describe('OffersService', () => {
         first_name: 'Bob',
         last_name: 'Candidate',
       });
-      mockNotificationDispatch.dispatch.mockResolvedValue(undefined);
+      mockNotificationDispatch.notifyOfferAccepted.mockResolvedValue(undefined);
 
       const result = await service.respondToOffer(
         'candidate-1',
@@ -184,7 +319,7 @@ describe('OffersService', () => {
       );
 
       expect(result.status).toBe(OfferStatus.ACCEPTED);
-      expect(mockNotificationDispatch.dispatch).toHaveBeenCalled();
+      expect(mockNotificationDispatch.notifyOfferAccepted).toHaveBeenCalled();
     });
 
     it('should decline a pending offer', async () => {
@@ -205,7 +340,7 @@ describe('OffersService', () => {
         first_name: 'Bob',
         last_name: 'Candidate',
       });
-      mockNotificationDispatch.dispatch.mockResolvedValue(undefined);
+      mockNotificationDispatch.notifyOfferDeclined.mockResolvedValue(undefined);
 
       const result = await service.respondToOffer(
         'candidate-1',
@@ -269,12 +404,213 @@ describe('OffersService', () => {
 
       const result = await service.getAnalytics('employer-1');
 
-      expect(result.offersThisMonth).toBe(5);
-      expect(result.acceptedCount).toBe(3);
-      expect(result.declinedCount).toBe(1);
-      expect(result.pendingCount).toBe(2);
-      expect(result.expiredCount).toBe(0);
+      expect(result.offers_this_month).toBe(5);
+      expect(result.accepted_count).toBe(3);
+      expect(result.declined_count).toBe(1);
+      expect(result.pending_count).toBe(2);
+      expect(result.expired_count).toBe(0);
       expect(result.remaining).toBe(45);
+    });
+  });
+
+  describe('listEmployerCandidatesOffers', () => {
+    it('should return subtab rows with candidate name, role track, job title, date sent, and status', async () => {
+      mockOfferRepo.update.mockResolvedValue({ affected: 0 });
+      const sentAt = new Date('2026-05-01T10:00:00.000Z');
+      const row = {
+        id: 'offer-1',
+        candidate_user_id: 'candidate-1',
+        role_title: 'Senior Frontend Engineer',
+        status: OfferStatus.PENDING,
+        created_at: sentAt,
+        candidate: {
+          first_name: 'Ada',
+          last_name: 'Lovelace',
+        },
+        employer_pool_profile: { track: 'frontend_developer' },
+      };
+      mockOfferRepo.findAndCount.mockResolvedValue([[row], 1]);
+
+      const result = await service.listEmployerCandidatesOffers('employer-1', {
+        page: 1,
+        limit: 20,
+      });
+
+      expect(result.offers).toEqual([
+        {
+          offer_id: 'offer-1',
+          candidate_user_id: 'candidate-1',
+          candidate_name: 'Ada Lovelace',
+          role_track: 'frontend_developer',
+          job_title: 'Senior Frontend Engineer',
+          date_sent: sentAt,
+          status: OfferStatus.PENDING,
+        },
+      ]);
+      expect(result.total).toBe(1);
+      expect(result.emptyStateMessage).toBeNull();
+      expect(mockOfferRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: expect.objectContaining({
+            employer_user_id: 'employer-1',
+          }),
+          relations: ['candidate', 'employer_pool_profile'],
+        }),
+      );
+    });
+
+    it('should default to pending, declined, and expired (exclude accepted)', async () => {
+      mockOfferRepo.update.mockResolvedValue({ affected: 0 });
+      mockOfferRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.listEmployerCandidatesOffers('employer-1', {});
+
+      const call = mockOfferRepo.findAndCount.mock.calls[0][0] as {
+        where: { status: { _type: string; _value: OfferStatus[] } };
+      };
+      expect(call.where.status._type).toBe('in');
+      expect(call.where.status._value).toEqual([
+        OfferStatus.PENDING,
+        OfferStatus.DECLINED,
+        OfferStatus.EXPIRED,
+      ]);
+    });
+
+    it('should honour an explicit status filter', async () => {
+      mockOfferRepo.update.mockResolvedValue({ affected: 0 });
+      mockOfferRepo.findAndCount.mockResolvedValue([[], 0]);
+
+      await service.listEmployerCandidatesOffers('employer-1', {
+        status: 'declined',
+      });
+
+      expect(mockOfferRepo.findAndCount).toHaveBeenCalledWith(
+        expect.objectContaining({
+          where: {
+            employer_user_id: 'employer-1',
+            status: 'declined',
+          },
+        }),
+      );
+    });
+
+    it('should return empty state message when employer has never sent an offer', async () => {
+      mockOfferRepo.update.mockResolvedValue({ affected: 0 });
+      mockOfferRepo.findAndCount.mockResolvedValue([[], 0]);
+      mockOfferRepo.count.mockResolvedValue(0);
+
+      const result = await service.listEmployerCandidatesOffers(
+        'employer-1',
+        {},
+      );
+
+      expect(result.emptyStateMessage).toBe(
+        'No offers sent yet. Discover candidates and send your first offer.',
+      );
+    });
+
+    it('should not return empty state message when employer has only non-subtab offers', async () => {
+      mockOfferRepo.update.mockResolvedValue({ affected: 0 });
+      mockOfferRepo.findAndCount.mockResolvedValue([[], 0]);
+      mockOfferRepo.count.mockResolvedValue(3);
+
+      const result = await service.listEmployerCandidatesOffers(
+        'employer-1',
+        {},
+      );
+
+      expect(result.emptyStateMessage).toBeNull();
+    });
+  });
+
+  describe('offer status events', () => {
+    it('should publish when a candidate accepts an offer', async () => {
+      const events: Array<{ status: string; offerId: string }> = [];
+      const unsubscribe = service.subscribeEmployerOfferStatus(
+        'employer-1',
+        (event) => events.push(event),
+      );
+
+      const offer = {
+        id: 'offer-1',
+        candidate_user_id: 'candidate-1',
+        employer_user_id: 'employer-1',
+        role_title: 'Dev',
+        status: OfferStatus.PENDING,
+        expires_at: new Date(Date.now() + 86400000),
+      };
+      mockOfferRepo.findOne.mockResolvedValue(offer);
+      mockOfferRepo.update
+        .mockResolvedValueOnce({ affected: 0 })
+        .mockResolvedValueOnce({ affected: 1 });
+      mockUserRepo.findOne.mockResolvedValue({
+        id: 'candidate-1',
+        first_name: 'Bob',
+        last_name: 'Candidate',
+      });
+      mockNotificationDispatch.notifyOfferAccepted.mockResolvedValue(undefined);
+
+      await service.respondToOffer('candidate-1', 'offer-1', 'accept');
+
+      unsubscribe();
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        type: 'offer_status_changed',
+        offerId: 'offer-1',
+        status: OfferStatus.ACCEPTED,
+        candidateName: 'Bob Candidate',
+      });
+    });
+
+    it('should publish when a candidate declines an offer', async () => {
+      const events: unknown[] = [];
+      const unsubscribe = service.subscribeEmployerOfferStatus(
+        'employer-1',
+        (event) => events.push(event),
+      );
+
+      const offer = {
+        id: 'offer-2',
+        candidate_user_id: 'candidate-2',
+        employer_user_id: 'employer-1',
+        role_title: 'Designer',
+        status: OfferStatus.PENDING,
+        expires_at: new Date(Date.now() + 86400000),
+      };
+      mockOfferRepo.findOne.mockResolvedValue(offer);
+      mockOfferRepo.update
+        .mockResolvedValueOnce({ affected: 0 })
+        .mockResolvedValueOnce({ affected: 1 });
+      mockUserRepo.findOne.mockResolvedValue({
+        id: 'candidate-2',
+        first_name: 'Sam',
+        last_name: 'Lee',
+      });
+      mockNotificationDispatch.notifyOfferDeclined.mockResolvedValue(undefined);
+
+      await service.respondToOffer('candidate-2', 'offer-2', 'decline');
+
+      unsubscribe();
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({
+        offerId: 'offer-2',
+        status: OfferStatus.DECLINED,
+      });
+    });
+
+    it('should allow idempotent unsubscribe and drop stream when last listener leaves', () => {
+      const unsubscribe = service.subscribeEmployerOfferStatus(
+        'employer-1',
+        jest.fn(),
+      );
+
+      unsubscribe();
+      unsubscribe();
+
+      const streams = (
+        service as unknown as { offerStatusStreams: Map<string, unknown> }
+      ).offerStatusStreams;
+      expect(streams.has('employer-1')).toBe(false);
     });
   });
 
@@ -325,6 +661,154 @@ describe('OffersService', () => {
       const result = await service.listEmployerOffers('employer-1', {});
 
       expect(result.offers[0].status).toBe(OfferStatus.ACCEPTED);
+    });
+  });
+
+  describe('markHireComplete', () => {
+    it('should mark an accepted offer as hired and increment hire_count', async () => {
+      const offer = {
+        id: 'offer-1',
+        employer_user_id: 'employer-1',
+        candidate_user_id: 'candidate-1',
+        status: OfferStatus.ACCEPTED,
+      };
+      mockOfferRepo.findOne.mockResolvedValue(offer);
+
+      const mockManager = {
+        update: jest.fn().mockResolvedValue({ affected: 1 }),
+        increment: jest.fn().mockResolvedValue({ affected: 1 }),
+      };
+      mockOfferRepo.manager.transaction.mockImplementation(
+        async (cb: (manager: unknown) => Promise<unknown>) => {
+          return cb(mockManager);
+        },
+      );
+
+      const result = await service.markHireComplete('employer-1', 'offer-1');
+
+      expect(result.status).toBe(OfferStatus.HIRED);
+      expect(mockOfferRepo.manager.transaction).toHaveBeenCalled();
+      expect(mockManager.update).toHaveBeenCalledWith(
+        Offer,
+        { id: 'offer-1', status: OfferStatus.ACCEPTED },
+        { status: OfferStatus.HIRED },
+      );
+      expect(mockManager.increment).toHaveBeenCalledWith(
+        EmployerProfile,
+        { user_id: 'employer-1' },
+        'hire_count',
+        1,
+      );
+    });
+
+    it('should throw NotFoundError if offer does not exist', async () => {
+      mockOfferRepo.findOne.mockResolvedValue(null);
+
+      await expect(
+        service.markHireComplete('employer-1', 'offer-999'),
+      ).rejects.toThrow(NotFoundError);
+    });
+
+    it('should throw BadRequestError if offer is not in ACCEPTED status', async () => {
+      const offer = {
+        id: 'offer-1',
+        employer_user_id: 'employer-1',
+        status: OfferStatus.PENDING,
+      };
+      mockOfferRepo.findOne.mockResolvedValue(offer);
+
+      await expect(
+        service.markHireComplete('employer-1', 'offer-1'),
+      ).rejects.toThrow(BadRequestError);
+    });
+  });
+
+  describe('listCandidateOffers - enrichment', () => {
+    it('should include is_employer_verified in enriched offers', async () => {
+      mockOfferRepo.update.mockResolvedValue({ affected: 0 });
+      const offers = [
+        {
+          id: 'offer-1',
+          employer_user_id: 'employer-1',
+          candidate_user_id: 'candidate-1',
+          status: OfferStatus.PENDING,
+          expires_at: new Date(Date.now() + 86400000),
+          created_at: new Date(),
+        },
+      ];
+      mockOfferRepo.findAndCount.mockResolvedValue([offers, 1]);
+      mockEmployerProfileRepo.find.mockResolvedValue([
+        { user_id: 'employer-1', is_verified: true },
+      ]);
+
+      const result = await service.listCandidateOffers('candidate-1', {});
+
+      expect(result.offers[0].is_employer_verified).toBe(true);
+      expect(result.total_pages).toBe(1);
+    });
+
+    it('should default is_employer_verified to false if no profile found', async () => {
+      mockOfferRepo.update.mockResolvedValue({ affected: 0 });
+      const offers = [
+        {
+          id: 'offer-1',
+          employer_user_id: 'employer-2',
+          candidate_user_id: 'candidate-1',
+          status: OfferStatus.PENDING,
+          expires_at: new Date(Date.now() + 86400000),
+          created_at: new Date(),
+        },
+      ];
+      mockOfferRepo.findAndCount.mockResolvedValue([offers, 1]);
+      mockEmployerProfileRepo.find.mockResolvedValue([]);
+
+      const result = await service.listCandidateOffers('candidate-1', {});
+
+      expect(result.offers[0].is_employer_verified).toBe(false);
+    });
+  });
+
+  describe('getOfferForCandidate - enrichment', () => {
+    it('should include is_employer_verified from employer profile', async () => {
+      const offer = {
+        id: 'offer-1',
+        employer_user_id: 'employer-1',
+        candidate_user_id: 'candidate-1',
+        status: OfferStatus.ACCEPTED,
+        expires_at: new Date(Date.now() + 86400000),
+      };
+      mockOfferRepo.findOne.mockResolvedValue(offer);
+      mockOfferRepo.update.mockResolvedValue({ affected: 0 });
+      mockEmployerProfileRepo.findOne.mockResolvedValue({
+        is_verified: true,
+      });
+
+      const result = await service.getOfferForCandidate(
+        'candidate-1',
+        'offer-1',
+      );
+
+      expect(result.is_employer_verified).toBe(true);
+    });
+
+    it('should default is_employer_verified to false if profile missing', async () => {
+      const offer = {
+        id: 'offer-1',
+        employer_user_id: 'employer-1',
+        candidate_user_id: 'candidate-1',
+        status: OfferStatus.PENDING,
+        expires_at: new Date(Date.now() + 86400000),
+      };
+      mockOfferRepo.findOne.mockResolvedValue(offer);
+      mockOfferRepo.update.mockResolvedValue({ affected: 0 });
+      mockEmployerProfileRepo.findOne.mockResolvedValue(null);
+
+      const result = await service.getOfferForCandidate(
+        'candidate-1',
+        'offer-1',
+      );
+
+      expect(result.is_employer_verified).toBe(false);
     });
   });
 });

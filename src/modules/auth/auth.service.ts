@@ -16,6 +16,7 @@ import { MailService } from '../mail/mail.service';
 import { TalentProfile } from '../talent/entities/talent-profile.entity';
 import { User, UserRole } from '../users/entities/user.entity';
 import { OAUTH_DEFAULT_COUNTRY, UsersService } from '../users/users.service';
+import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
@@ -51,12 +52,12 @@ export interface AuthUser {
   role: UserRole;
   track?: string | null;
   is_verified: boolean;
-  onboardingComplete: boolean;
+  onboarding_complete: boolean;
 }
 
 export interface AuthTokens {
-  accessToken: string;
-  refreshToken: string;
+  access_token: string;
+  refresh_token: string;
 }
 
 export interface AuthSession {
@@ -164,7 +165,7 @@ export class AuthService {
       ? user
       : await this.usersService.markVerified(user.id);
     const tokens = await this.signTokens(verifiedUser);
-    await this.persistRefreshToken(verifiedUser.id, tokens.refreshToken);
+    await this.persistRefreshToken(verifiedUser.id, tokens.refresh_token);
 
     return {
       message: SuccessMessages.AUTH.EMAIL_VERIFIED,
@@ -300,6 +301,32 @@ export class AuthService {
     };
   }
 
+  async changePassword(
+    userId: string,
+    dto: ChangePasswordDto,
+  ): Promise<{ status: 'success'; message: string }> {
+    const user = await this.usersService.findOne(userId);
+
+    if (!user.password) {
+      throw new BadRequestError(ErrorMessages.AUTH.OAUTH_ACCOUNT_NO_PASSWORD);
+    }
+
+    const currentValid = await argon2.verify(user.password, dto.currentPassword);
+    if (!currentValid) {
+      throw new BadRequestError(ErrorMessages.AUTH.WRONG_CURRENT_PASSWORD);
+    }
+
+    const sameAsNew = await argon2.verify(user.password, dto.newPassword);
+    if (sameAsNew) {
+      throw new BadRequestError(ErrorMessages.AUTH.SAME_PASSWORD);
+    }
+
+    const passwordHash = await argon2.hash(dto.newPassword);
+    await this.usersService.updatePassword(userId, passwordHash);
+
+    return { status: 'success', message: SuccessMessages.AUTH.PASSWORD_CHANGED };
+  }
+
   async googleCallback(
     profile: GoogleProfile,
     signupRole?: OAuthSignupRole,
@@ -410,7 +437,7 @@ export class AuthService {
     }
 
     const tokens = await this.signTokens(user);
-    const nextHash = await argon2.hash(tokens.refreshToken);
+    const nextHash = await argon2.hash(tokens.refresh_token);
     const rotated = await this.usersService.rotateRefreshTokenHash(
       user.id,
       user.refreshTokenHash,
@@ -509,7 +536,7 @@ export class AuthService {
 
   /** Post-login redirect based on the user's persisted role. */
   private getPostLoginRedirectPath(user: AuthUser): string {
-    if (!user.onboardingComplete) {
+    if (!user.onboarding_complete) {
       switch (user.role) {
         case UserRole.TALENT:
           return '/talent/onboarding';
@@ -534,7 +561,7 @@ export class AuthService {
 
   private async issueTokens(user: User, message: string): Promise<AuthResult> {
     const tokens = await this.signTokens(user);
-    await this.persistRefreshToken(user.id, tokens.refreshToken);
+    await this.persistRefreshToken(user.id, tokens.refresh_token);
 
     return {
       message,
@@ -550,7 +577,7 @@ export class AuthService {
       sub: user.id,
       email: user.email,
       role: user.role,
-      onboardingComplete: user.onboarding_complete,
+      onboarding_complete: user.onboarding_complete,
     };
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(
@@ -569,8 +596,8 @@ export class AuthService {
       ),
     ]);
     return {
-      accessToken,
-      refreshToken,
+      access_token: accessToken,
+      refresh_token: refreshToken,
     };
   }
 
@@ -593,7 +620,7 @@ export class AuthService {
       country: user.country,
       role: user.role,
       is_verified: user.is_verified,
-      onboardingComplete: user.onboarding_complete,
+      onboarding_complete: user.onboarding_complete,
     };
   }
 }

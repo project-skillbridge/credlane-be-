@@ -29,6 +29,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { AdminQuestionsModule } from './modules/admin/questions/admin-questions.module';
 import { EmployerDiscoveryModule } from './modules/employer-discovery/employer-discovery.module';
 import { OffersModule } from './modules/offers/offers.module';
+import { EmployerAssessmentsModule } from './modules/employer-assessments/employer-assessments.module';
 
 @Module({
   imports: [
@@ -56,6 +57,7 @@ import { OffersModule } from './modules/offers/offers.module';
     AdminQuestionsModule,
     EmployerDiscoveryModule,
     OffersModule,
+    EmployerAssessmentsModule,
   ],
   providers: [
     {
