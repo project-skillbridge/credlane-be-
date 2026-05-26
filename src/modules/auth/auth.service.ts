@@ -13,7 +13,10 @@ import type { StringValue } from 'ms';
 import { Repository } from 'typeorm';
 import { env } from '../../config/env';
 import { MailService } from '../mail/mail.service';
-import { TalentProfile } from '../talent/entities/talent-profile.entity';
+import {
+  TalentProfile,
+  TalentProfileStatus,
+} from '../talent/entities/talent-profile.entity';
 import { User, UserRole } from '../users/entities/user.entity';
 import { OAUTH_DEFAULT_COUNTRY, UsersService } from '../users/users.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -53,6 +56,10 @@ export interface AuthUser {
   track?: string | null;
   is_verified: boolean;
   onboarding_complete: boolean;
+  /** LinkedIn URL — only present for talent users; null when not set. */
+  linkedin_url?: string | null;
+  /** True when the talent has reached Job Ready status. */
+  is_job_ready?: boolean;
 }
 
 export interface AuthTokens {
@@ -484,13 +491,15 @@ export class AuthService {
       user.role === UserRole.TALENT
         ? await this.talentProfileRepository.findOne({
             where: { user_id: userId },
-            select: { track: true },
+            select: { track: true, linkedin_url: true, status: true },
           })
         : null;
 
     return {
       ...this.toAuthUser(user),
       track: profile?.track ?? null,
+      linkedin_url: profile?.linkedin_url ?? null,
+      is_job_ready: profile?.status === TalentProfileStatus.JOB_READY,
     };
   }
 
