@@ -25,6 +25,7 @@ import { UsersModule } from './modules/users/users.module';
 import { ProbeController } from './probe.controller';
 import { WelcomeController } from './welcome.controller';
 import { AiResourcesModule } from './modules/ai-resources/ai-resources.module';
+import { AiReportModule } from './modules/ai-report/ai-report.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AdminQuestionsModule } from './modules/admin/questions/admin-questions.module';
 import { EmployerDiscoveryModule } from './modules/employer-discovery/employer-discovery.module';
@@ -53,6 +54,7 @@ import { EmployerAssessmentsModule } from './modules/employer-assessments/employ
     EmployerModule,
     MailModule,
     AiResourcesModule,
+    AiReportModule,
     NotificationsModule,
     AdminQuestionsModule,
     EmployerDiscoveryModule,

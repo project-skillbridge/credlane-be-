@@ -145,7 +145,7 @@ export class AdvancedAssessmentController {
     description:
       'Validates the session and enqueues background scoring (MCQ + AI rubric, weighted 30/70, tiering, persistence). ' +
       'Returns immediately with status=processing and session_id. ' +
-      'Poll GET /dashboard/home for performance.advanced (score, tier, guidanceReport when ready). ' +
+      'Poll GET /talent/ai-report/guidance-report for guidance reports; GET /dashboard/home for score and tier. ' +
       'Optional: GET /session/:id until completed_at is set. ' +
       'Returns 422 LT2_NOT_SUBMITTED if /lt2-submit was never called. ' +
       'Duplicate submits while a job is in flight are deduped by attempt id.',
