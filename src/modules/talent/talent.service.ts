@@ -637,9 +637,15 @@ export class TalentService {
           });
         }
 
-        talentProfile.region = dto.region;
-        talentProfile.education_level = dto.educationLevel;
-        talentProfile.linkedin_url = dto.linkedinUrl ?? null;
+        if (dto.region !== undefined) {
+          talentProfile.region = dto.region;
+        }
+        if (dto.educationLevel !== undefined) {
+          talentProfile.education_level = dto.educationLevel;
+        }
+        if (dto.linkedinUrl !== undefined) {
+          talentProfile.linkedin_url = dto.linkedinUrl.trim();
+        }
         talentProfile.onboarding_step = 3;
 
         if (dto.avatarUrl) {

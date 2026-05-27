@@ -59,6 +59,8 @@ export interface AuthUser {
   track?: string | null;
   is_verified: boolean;
   onboarding_complete: boolean;
+  linkedin_url?: string | null;
+  profile_verified?: boolean;
 }
 
 export interface AuthTokens {
@@ -609,13 +611,15 @@ export class AuthService {
       user.role === UserRole.TALENT
         ? await this.talentProfileRepository.findOne({
             where: { user_id: userId },
-            select: { track: true },
+            select: { track: true, linkedin_url: true, profile_verified: true },
           })
         : null;
 
     return {
       ...this.toAuthUser(user),
       track: profile?.track ?? null,
+      linkedin_url: profile?.linkedin_url ?? null,
+      profile_verified: profile?.profile_verified ?? false,
     };
   }
 
