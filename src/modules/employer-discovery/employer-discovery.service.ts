@@ -10,6 +10,7 @@ import { DiscoveryCandidatesQueryDto } from './dto/discovery-candidates-query.dt
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
 import { NotificationType } from '../notifications/notification-type.enum';
 import { EmployerVerificationService } from '../employer/employer-verification.service';
+import { Offer, OfferStatus } from '../offers/entities/offer.entity';
 
 export type CandidateCard = {
   user_id: string;
@@ -22,6 +23,8 @@ export type CandidateCard = {
   strong_competencies: string[] | null;
   share_token: string | null;
   is_saved: boolean;
+  offer_sent: boolean;
+  offer_status: OfferStatus.PENDING | OfferStatus.ACCEPTED | null;
 };
 
 export type DiscoveryListResult = {
@@ -30,6 +33,7 @@ export type DiscoveryListResult = {
   page: number;
   limit: number;
   total_pages: number;
+  empty_state_message: string | null;
 };
 
 type CandidateRawRow = {
@@ -51,6 +55,11 @@ type SavedCandidateIdRow = {
   s_candidate_user_id: string;
 };
 
+type CandidateOfferStatusRow = {
+  offer_candidate_user_id: string;
+  offer_status: OfferStatus.PENDING | OfferStatus.ACCEPTED;
+};
+
 @Injectable()
 export class EmployerDiscoveryService {
   private readonly logger = new Logger(EmployerDiscoveryService.name);
@@ -64,6 +73,8 @@ export class EmployerDiscoveryService {
     private readonly contactRequestRepo: Repository<EmployerContactRequest>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    @InjectRepository(Offer)
+    private readonly offerRepo: Repository<Offer>,
     private readonly notificationDispatch: NotificationDispatchService,
     private readonly verificationService: EmployerVerificationService,
   ) {}
@@ -123,6 +134,10 @@ export class EmployerDiscoveryService {
     // Check which candidates are saved by this employer
     const candidateIds = rawResults.map((r) => r.userId);
     const savedMap = await this.getSavedMap(employerUserId, candidateIds);
+    const offerStatusMap = await this.getOfferStatusMap(
+      employerUserId,
+      candidateIds,
+    );
 
     const candidates: CandidateCard[] = rawResults.map((r) => ({
       user_id: r.userId,
@@ -135,6 +150,8 @@ export class EmployerDiscoveryService {
       strong_competencies: r.strongCompetencies,
       share_token: r.shareToken,
       is_saved: savedMap.has(r.userId),
+      offer_sent: offerStatusMap.has(r.userId),
+      offer_status: offerStatusMap.get(r.userId) ?? null,
     }));
 
     return {
@@ -143,12 +160,22 @@ export class EmployerDiscoveryService {
       page,
       limit,
       total_pages: Math.ceil(total / limit),
+      empty_state_message:
+        total === 0
+          ? 'No saved candidates in this list. Try saving candidates or checking another list.'
+          : null,
     };
   }
 
   async getCandidateProfile(
+    employerUserId: string,
     candidateUserId: string,
-  ): Promise<EmployerPoolProfile> {
+  ): Promise<
+    EmployerPoolProfile & {
+      offer_sent: boolean;
+      offer_status: OfferStatus.PENDING | OfferStatus.ACCEPTED | null;
+    }
+  > {
     const profile = await this.poolProfileRepo.findOne({
       where: { candidate_id: candidateUserId },
     });
@@ -163,7 +190,13 @@ export class EmployerDiscoveryService {
       );
     }
 
-    return profile;
+    const offerStatusMap = await this.getOfferStatusMap(employerUserId, [
+      candidateUserId,
+    ]);
+    return Object.assign(profile, {
+      offer_sent: offerStatusMap.has(candidateUserId),
+      offer_status: offerStatusMap.get(candidateUserId) ?? null,
+    });
   }
 
   async saveCandidate(
@@ -261,6 +294,12 @@ export class EmployerDiscoveryService {
       .limit(limit)
       .getRawMany();
 
+    const candidateIds = rawResults.map((r) => r.userId);
+    const offerStatusMap = await this.getOfferStatusMap(
+      employerUserId,
+      candidateIds,
+    );
+
     const candidates: CandidateCard[] = rawResults.map((r) => ({
       user_id: r.userId,
       full_name: `${r.firstName ?? ''} ${r.lastName ?? ''}`.trim(),
@@ -272,6 +311,8 @@ export class EmployerDiscoveryService {
       strong_competencies: r.strongCompetencies,
       share_token: r.shareToken,
       is_saved: true,
+      offer_sent: offerStatusMap.has(r.userId),
+      offer_status: offerStatusMap.get(r.userId) ?? null,
     }));
 
     return {
@@ -280,6 +321,10 @@ export class EmployerDiscoveryService {
       page,
       limit,
       total_pages: Math.ceil(total / limit),
+      empty_state_message:
+        total === 0
+          ? 'No candidates match your current filters. Try adjusting your selection.'
+          : null,
     };
   }
 
@@ -349,5 +394,28 @@ export class EmployerDiscoveryService {
       .getRawMany();
 
     return new Set(saved.map((row) => row.s_candidate_user_id));
+  }
+
+  private async getOfferStatusMap(
+    employerUserId: string,
+    candidateIds: string[],
+  ): Promise<Map<string, OfferStatus.PENDING | OfferStatus.ACCEPTED>> {
+    if (candidateIds.length === 0) return new Map();
+
+    const rows: CandidateOfferStatusRow[] = await this.offerRepo
+      .createQueryBuilder('offer')
+      .select(['offer.candidate_user_id', 'offer.status'])
+      .where('offer.employer_user_id = :employerUserId', { employerUserId })
+      .andWhere('offer.candidate_user_id IN (:...candidateIds)', {
+        candidateIds,
+      })
+      .andWhere('offer.status IN (:...statuses)', {
+        statuses: [OfferStatus.PENDING, OfferStatus.ACCEPTED],
+      })
+      .getRawMany();
+
+    return new Map(
+      rows.map((row) => [row.offer_candidate_user_id, row.offer_status]),
+    );
   }
 }

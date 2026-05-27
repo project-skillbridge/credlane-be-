@@ -3,6 +3,7 @@ import {
   ConflictException,
   ForbiddenException,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import {
   AssessmentAttempt,
@@ -262,20 +263,64 @@ describe('SkillAssessmentService', () => {
   it('refuses to start when the unseen bank lacks the skill question mix', async () => {
     eligibleSkillQuestions = makeSkillBankQuestions().slice(0, 9);
 
+    await expect(service.start(userId)).rejects.toBeInstanceOf(
+      ServiceUnavailableException,
+    );
     await expect(service.start(userId)).rejects.toMatchObject({
       message: ErrorMessages.SKILL_ASSESSMENT.NO_QUESTIONS_AVAILABLE,
     });
     expect(attemptRepo.save).not.toHaveBeenCalled();
   });
 
-  it('scopes history exclusion to last attempt ID when a prior attempt exists', async () => {
-    const lastAttempt = Object.assign(new AssessmentAttempt(), {
-      id: 'prev-attempt-1',
-      completed_at: new Date('2026-05-20T10:00:00.000Z'),
-    });
-    attemptRepo.findOne
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(lastAttempt);
+  it('retries without exclusion when bank is exhausted after excluding history', async () => {
+    attemptRepo.count.mockResolvedValue(1);
+    attemptRepo.findOne.mockResolvedValue(null); // no active session
+
+    let eligibleQueryCount = 0;
+    talentProfileRepo.manager.transaction.mockImplementation(
+      async (work: (manager: EntityManagerLike) => Promise<unknown>) => {
+        const manager: EntityManagerLike = {
+          findOne: jest.fn().mockResolvedValue(profile),
+          getRepository: jest.fn(() => attemptRepo),
+          createQueryBuilder: jest.fn(() => ({
+            where: jest.fn().mockReturnThis(),
+            andWhere: jest.fn().mockReturnThis(),
+            orderBy: jest.fn().mockReturnThis(),
+            getMany: jest.fn().mockImplementation(() => {
+              eligibleQueryCount += 1;
+              // 1st call: excluded bank returns insufficient questions
+              if (eligibleQueryCount === 1) {
+                return makeSkillBankQuestions().slice(0, 5);
+              }
+              // 2nd call (retry without exclusion): returns full bank
+              if (eligibleQueryCount === 2) {
+                return makeSkillBankQuestions();
+              }
+              // probe queries
+              return [];
+            }),
+          })),
+          create: jest.fn((_entity: unknown, data: unknown) =>
+            attemptRepo.create(data),
+          ),
+          save: jest.fn((_entity: unknown, data: unknown) =>
+            attemptRepo.save(data),
+          ),
+          update: jest.fn(),
+        };
+        return work(manager);
+      },
+    );
+
+    const result = await service.start(userId);
+
+    expect(result.session_id).toBe('attempt-1');
+    expect(result.attempt_number).toBe(2);
+  });
+
+  it('excludes all previously served questions from full history', async () => {
+    attemptRepo.count.mockResolvedValue(1);
+    attemptRepo.findOne.mockResolvedValue(null);
 
     let andWhereCallArgs: unknown[] = [];
     talentProfileRepo.manager.transaction.mockImplementation(
@@ -310,64 +355,18 @@ describe('SkillAssessmentService', () => {
       (args): args is Record<string, unknown> =>
         args !== null &&
         typeof args === 'object' &&
-        'lastAttemptId' in (args as Record<string, unknown>),
+        'talentProfileId' in (args as Record<string, unknown>),
     );
 
     expect(historyFilter).toBeDefined();
-    expect(historyFilter!.lastAttemptId).toBe('prev-attempt-1');
+    expect(historyFilter!.talentProfileId).toBe(profile.id);
+    // Should NOT have lastAttemptId — full history is excluded
+    expect(historyFilter).not.toHaveProperty('lastAttemptId');
   });
 
-  it('omits history filter when no previous completed attempt exists', async () => {
-    attemptRepo.findOne.mockResolvedValue(null);
-
-    let andWhereCallArgs: unknown[] = [];
-    talentProfileRepo.manager.transaction.mockImplementation(
-      async (work: (manager: EntityManagerLike) => Promise<unknown>) => {
-        const andWhereMock = jest.fn().mockReturnThis();
-        const manager: EntityManagerLike = {
-          findOne: jest.fn().mockResolvedValue(profile),
-          getRepository: jest.fn(() => attemptRepo),
-          createQueryBuilder: jest.fn(() => ({
-            where: jest.fn().mockReturnThis(),
-            andWhere: andWhereMock,
-            orderBy: jest.fn().mockReturnThis(),
-            getMany: jest.fn().mockResolvedValue(eligibleSkillQuestions),
-          })),
-          create: jest.fn((_entity: unknown, data: unknown) =>
-            attemptRepo.create(data),
-          ),
-          save: jest.fn((_entity: unknown, data: unknown) =>
-            attemptRepo.save(data),
-          ),
-          update: jest.fn(),
-        };
-        const result = await work(manager);
-        andWhereCallArgs = andWhereMock.mock.calls.map((call) => call[1]);
-        return result;
-      },
-    );
-
-    await service.start(userId);
-
-    const historyFilter = andWhereCallArgs.find(
-      (args) =>
-        args !== null &&
-        typeof args === 'object' &&
-        'lastAttemptId' in (args as Record<string, unknown>),
-    );
-
-    expect(historyFilter).toBeUndefined();
-  });
-
-  it('starts a retake session successfully when history is scoped to the last attempt', async () => {
-    const lastAttempt = Object.assign(new AssessmentAttempt(), {
-      id: 'prev-attempt-1',
-      completed_at: new Date('2026-05-20T10:00:00.000Z'),
-    });
+  it('starts a retake session successfully with full history exclusion', async () => {
     attemptRepo.count.mockResolvedValue(1);
-    attemptRepo.findOne
-      .mockResolvedValueOnce(null)
-      .mockResolvedValueOnce(lastAttempt);
+    attemptRepo.findOne.mockResolvedValue(null);
 
     const result = await service.start(userId);
 
@@ -490,6 +489,51 @@ describe('SkillAssessmentService', () => {
     expect(result.session_id).toBe('attempt-1');
     expect(result.attempt_number).toBe(1);
     expect(result).not.toHaveProperty('attempt_id');
+  });
+
+  it('includes retake metadata in the submit response', async () => {
+    const attempt = Object.assign(new AssessmentAttempt(), {
+      id: 'attempt-1',
+      talent_profile_id: profile.id,
+      assessment_type: AssessmentType.SKILL,
+      started_at: new Date('2026-05-21T10:00:00.000Z'),
+      completed_at: null,
+      generated_questions_json: {
+        context: { verified_level: VerifiedLevel.MID },
+        questions: [
+          {
+            question_id: 'question-1',
+            question_number: 1,
+            question_type: QuestionType.SINGLE_PICK,
+            question_text: 'Which metric best indicates activation?',
+            options: ['Signups', 'First key action', 'Page views'],
+            correct_answer: 'First key action',
+          },
+        ],
+      },
+    });
+    attemptRepo.findOne.mockResolvedValue(attempt);
+    attemptRepo.count.mockResolvedValue(1);
+    questionRepo.findBy.mockResolvedValue([
+      Object.assign(new AssessmentQuestion(), {
+        id: 'question-1',
+        competency: 'activation',
+        metadata: {},
+      }),
+    ]);
+
+    const result = await service.submit(userId, {
+      attempt_id: 'attempt-1',
+      answers: [{ question_id: 'question-1', answer: 'Wrong answer' }],
+    });
+
+    expect(result).toHaveProperty('retake_available');
+    expect(result).toHaveProperty(
+      'max_attempts',
+      SKILL_ASSESSMENT_MAX_ATTEMPTS,
+    );
+    expect(result).toHaveProperty('attempts_used');
+    expect(typeof result.retake_available).toBe('boolean');
   });
 
   it('does not pass or keep claimed level when primary MCQs are wrong even with high text scores', async () => {
@@ -630,6 +674,9 @@ describe('SkillAssessmentService', () => {
     talentProfileRepo.manager.transaction.mockImplementation(
       async (work: (manager: EntityManagerLike) => Promise<unknown>) => {
         const manager: EntityManagerLike = {
+          findOne: jest.fn(),
+          getRepository: jest.fn(() => attemptRepo),
+          createQueryBuilder: jest.fn(),
           save: jest.fn(),
           update: updateMock,
           create: jest.fn((_entity: unknown, data: unknown) => data),
