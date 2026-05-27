@@ -39,20 +39,54 @@ export class VerifiedProfileSkillCategoryDto {
   percentage: number;
 }
 
-export class VerifiedProfileReportSkillItemDto {
+export class VerifiedProfileRatedItemDto {
+  @ApiProperty({ example: 'Clear practical problem solving.' })
+  label: string;
+
+  @ApiProperty({ example: 3 })
+  rating: number;
+}
+
+export class VerifiedProfileAssessmentInsightDto {
   @ApiProperty({ example: 'Skill Proficiency' })
   label: string;
 
-  @ApiProperty({ example: 82 })
-  value: number;
+  @ApiProperty({
+    example:
+      'You showed job-ready strengths across the latest assessment attempt.',
+  })
+  insight: string;
 }
 
-export class VerifiedProfileReportSkillGroupDto {
-  @ApiProperty({ example: 'Professional Skills' })
+export class VerifiedProfileAssessmentInsightsDto {
+  @ApiPropertyOptional({ type: VerifiedProfileAssessmentInsightDto })
+  skill_proficiency?: VerifiedProfileAssessmentInsightDto;
+
+  @ApiPropertyOptional({ type: VerifiedProfileAssessmentInsightDto })
+  workplace_readiness?: VerifiedProfileAssessmentInsightDto;
+
+  @ApiPropertyOptional({ type: VerifiedProfileAssessmentInsightDto })
+  practical_application?: VerifiedProfileAssessmentInsightDto;
+}
+
+export class VerifiedProfileResourceDto {
+  @ApiProperty({ example: 'MDN React Docs' })
   title: string;
 
-  @ApiProperty({ type: [VerifiedProfileReportSkillItemDto] })
-  skill_info: VerifiedProfileReportSkillItemDto[];
+  @ApiProperty({ example: 'MDN' })
+  provider: string;
+
+  @ApiProperty({ example: 'https://developer.mozilla.org/' })
+  url: string;
+
+  @ApiProperty({ enum: ['free', 'paid'], example: 'free' })
+  tier: 'free' | 'paid';
+
+  @ApiProperty({ example: 'api_design' })
+  competency: string;
+
+  @ApiProperty({ example: 'This resource supports the candidate growth area.' })
+  reason: string;
 }
 
 export class VerifiedProfileResponseDto {
@@ -81,14 +115,7 @@ export class VerifiedProfileResponseDto {
   @ApiPropertyOptional({
     example:
       'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
-  })
-  ai_summary?: string;
-
-  @ApiPropertyOptional({
-    example:
-      'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
-    description:
-      'Report-facing alias for ai_summary used by the verified profile UI.',
+    description: 'AI-generated report text used by the verified profile UI.',
   })
   ai_report?: string;
 
@@ -131,6 +158,24 @@ export class VerifiedProfileResponseDto {
   @ApiPropertyOptional({ type: [VerifiedProfileSkillCategoryDto] })
   soft_skills?: VerifiedProfileSkillCategoryDto[];
 
+  @ApiPropertyOptional({
+    type: [String],
+    example: ['Fully Remote', 'Async Collaboration', 'Small Teams'],
+  })
+  working_style?: string[];
+
+  @ApiPropertyOptional({
+    example:
+      'Your recent assessments show steady progress in structured thinking.',
+  })
+  growth_insight?: string;
+
+  @ApiPropertyOptional({ type: [VerifiedProfileRatedItemDto] })
+  strength_ratings?: VerifiedProfileRatedItemDto[];
+
+  @ApiPropertyOptional({ type: [VerifiedProfileRatedItemDto] })
+  weaknesses?: VerifiedProfileRatedItemDto[];
+
   @ApiPropertyOptional({ type: VerifiedProfileSkillProficiencyDto })
   skill_proficiency?: VerifiedProfileSkillProficiencyDto;
 
@@ -140,12 +185,21 @@ export class VerifiedProfileResponseDto {
   @ApiPropertyOptional({ type: VerifiedProfileDimensionScoreDto })
   practical_application?: VerifiedProfileDimensionScoreDto;
 
+  @ApiPropertyOptional({ type: VerifiedProfileAssessmentInsightsDto })
+  assessment_insights?: VerifiedProfileAssessmentInsightsDto;
+
+  @ApiPropertyOptional({ type: [VerifiedProfileResourceDto] })
+  recommended_resources?: VerifiedProfileResourceDto[];
+
+  @ApiPropertyOptional({ example: '/resources' })
+  resource_page_url?: '/resources';
+
   @ApiPropertyOptional({
-    type: [VerifiedProfileReportSkillGroupDto],
-    description:
-      'UI-compatible grouped scores for the verified report skills tabs.',
+    example: 'https://cdn.example.com/resumes/resume.pdf',
+    nullable: true,
+    description: 'Resume URL from talent settings when available.',
   })
-  detailed_skills?: VerifiedProfileReportSkillGroupDto[];
+  resume_url?: string | null;
 
   @ApiProperty({ example: 'https://skillbridge.com/verified-profiles/abc123' })
   share_url: string;
