@@ -103,3 +103,53 @@ describe('job ready matches digest email template', () => {
     expect(compactHtml).toContain('https://example.com/employer/discovery/candidates');
   });
 });
+
+describe('assessment performance email template', () => {
+  it('renders results copy without an unsubscribe link', () => {
+    const html = substituteMailTemplate(
+      loadMailTemplateFile('assessment-performance.html'),
+      {
+        name: 'Jane',
+        score: '78',
+        maxScore: '100',
+        percentage: '78',
+        tierLabel: 'Job Ready',
+        dashboardUrl: 'https://example.com/t/dashboard',
+        logoUrl: 'https://example.com/logo.png',
+        supportEmail: 'support@example.com',
+        year: '2026',
+      },
+    );
+
+    const compactHtml = html.replace(/\s+/g, ' ');
+
+    expect(compactHtml).toContain('Your assessment results are ready');
+    expect(compactHtml).toContain('78%');
+    expect(compactHtml).toContain('support@example.com');
+    expect(compactHtml).not.toContain('unsubscribe');
+    expect(compactHtml).not.toContain('Email preferences');
+  });
+});
+
+describe('advanced retake email template', () => {
+  it('renders the retake notice without an unsubscribe link', () => {
+    const html = substituteMailTemplate(
+      loadMailTemplateFile('advanced-retake-available.html'),
+      {
+        name: 'Jane',
+        dashboardUrl: 'https://example.com/t/dashboard',
+        logoUrl: 'https://example.com/logo.png',
+        supportEmail: 'support@example.com',
+        year: '2026',
+      },
+    );
+
+    const compactHtml = html.replace(/\s+/g, ' ');
+
+    expect(compactHtml).toContain('You can retake your advanced assessment');
+    expect(compactHtml).toContain('Go to dashboard');
+    expect(compactHtml).toContain('support@example.com');
+    expect(compactHtml).not.toContain('unsubscribe');
+    expect(compactHtml).not.toContain('Email preferences');
+  });
+});

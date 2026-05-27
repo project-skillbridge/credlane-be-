@@ -117,7 +117,6 @@ export class MailService {
       dashboardUrl,
       logoUrl,
       supportEmail: env.SUPPORT_EMAIL,
-      unsubscribeUrl: `${base}/email-preferences`,
       year: String(new Date().getFullYear()),
     };
 
@@ -151,7 +150,6 @@ export class MailService {
       dashboardUrl,
       logoUrl,
       supportEmail: env.SUPPORT_EMAIL,
-      unsubscribeUrl: `${base}/email-preferences`,
       year: String(new Date().getFullYear()),
     };
 
