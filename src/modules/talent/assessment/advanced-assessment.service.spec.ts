@@ -1377,7 +1377,7 @@ describe('AdvancedAssessmentService', () => {
       });
     });
 
-    it('throws 422 when the latest skill result is below the pass threshold', async () => {
+    it('throws 422 when the latest skill result has no validated level', async () => {
       const profile = makeTalentProfile({
         validated_level: VerifiedLevel.MID,
         personal_assessment_completed_at: new Date(),
@@ -1417,6 +1417,7 @@ describe('AdvancedAssessmentService', () => {
         getOne: jest.fn().mockResolvedValue({
           percentage: 60,
           claimed_percentage: 65,
+          validated_level: null,
         }),
       });
       entityManager.createQueryBuilder.mockReturnValue(skillQuery);
