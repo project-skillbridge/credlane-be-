@@ -93,10 +93,14 @@ export class EmployerService {
         profile.industry = dto.industry.trim();
         profile.region = dto.region.trim();
         profile.hiring_region = dto.region.trim();
-        profile.linkedin_company_page_url =
-          dto.linkedin_company_page_url?.trim() ?? null;
-        profile.linkedin_company_url =
-          dto.linkedin_company_page_url?.trim() ?? null;
+        if (dto.linkedin_company_page_url !== undefined) {
+          const linkedinCompanyPageUrl =
+            dto.linkedin_company_page_url.trim();
+          if (linkedinCompanyPageUrl !== '') {
+            profile.linkedin_company_page_url = linkedinCompanyPageUrl;
+            profile.linkedin_company_url = linkedinCompanyPageUrl;
+          }
+        }
         profile.hiring_roles = dto.hiring_roles;
         profile.hiring_locations = [dto.region.trim()];
         profile.desired_roles = dto.hiring_roles;

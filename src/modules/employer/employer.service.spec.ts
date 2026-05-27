@@ -105,6 +105,35 @@ describe('EmployerService', () => {
     );
   });
 
+  it('preserves existing LinkedIn fields when profile update value is blank', async () => {
+    const existing = Object.assign(new EmployerProfile(), {
+      user_id: userId,
+      linkedin_company_page_url: 'https://linkedin.com/company/current',
+      linkedin_company_url: 'https://linkedin.com/company/current',
+    });
+    manager.findOne.mockResolvedValue(existing);
+
+    await service.saveProfile(userId, {
+      employer_type: 'Recruiter',
+      company_name: 'Acme Labs',
+      company_size: '11-50',
+      company_website: 'https://acme.example',
+      industry: 'Fintech',
+      region: 'Nigeria',
+      linkedin_company_page_url: '   ',
+      hiring_roles: ['frontend_developer'],
+      preferred_experience_levels: ['junior'],
+    });
+
+    expect(manager.save).toHaveBeenCalledWith(
+      EmployerProfile,
+      expect.objectContaining({
+        linkedin_company_page_url: 'https://linkedin.com/company/current',
+        linkedin_company_url: 'https://linkedin.com/company/current',
+      }),
+    );
+  });
+
   it('maps expanded legacy onboarding fields onto the employer profile', async () => {
     manager.findOne.mockResolvedValue(null);
 
