@@ -57,10 +57,10 @@ import {
   ScoredTextAnswer,
 } from '../../ai/ai.types';
 
-const SKILL_ASSESSMENT_MCQ_COUNT = 6;
-const SKILL_ASSESSMENT_TEXT_COUNT = 4;
-const SKILL_PROBE_MCQ_COUNT = 2;
-const SKILL_PROBE_TEXT_COUNT = 2;
+const SKILL_ASSESSMENT_MCQ_COUNT = 13;
+const SKILL_ASSESSMENT_TEXT_COUNT = 3;
+const SKILL_PROBE_MCQ_COUNT = 1;
+const SKILL_PROBE_TEXT_COUNT = 1;
 const SKILL_MCQ_SECTION_WEIGHT = 0.4;
 
 type ProbeDirection = 'above' | 'below';
