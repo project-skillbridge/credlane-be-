@@ -527,13 +527,9 @@ describe('SkillAssessmentService', () => {
       answers: [{ question_id: 'question-1', answer: 'Wrong answer' }],
     });
 
-    expect(result).toHaveProperty('retake_available');
-    expect(result).toHaveProperty(
-      'max_attempts',
-      SKILL_ASSESSMENT_MAX_ATTEMPTS,
-    );
-    expect(result).toHaveProperty('attempts_used');
-    expect(typeof result.retake_available).toBe('boolean');
+    expect(result.max_attempts).toBe(SKILL_ASSESSMENT_MAX_ATTEMPTS);
+    expect(result.attempts_used).toBe(1);
+    expect(result.retake_available).toBe(true);
   });
 
   it('does not pass or keep claimed level when primary MCQs are wrong even with high text scores', async () => {

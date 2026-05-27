@@ -373,7 +373,8 @@ describe('AdvancedAssessmentService', () => {
     };
 
     rubricScoring = {
-      // 80/176 ≈ 45% raw text yield → still emerging band by default
+      // 53/116 ≈ 46% raw text yield → still emerging band by default
+      // max-total 116 = 5 short×12 + 4 long×12 + 1 LT-3×8
       scoreAnswers: jest.fn().mockResolvedValue(makeScoredAnswers(53, 116)),
     };
 
@@ -782,7 +783,7 @@ describe('AdvancedAssessmentService', () => {
       );
     });
 
-    it('writes one assessment_scores row per session question (20)', async () => {
+    it('writes one assessment_scores row per session question (15)', async () => {
       rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
       await service.processSubmitJob(makeSubmitJobData() as never);
 
