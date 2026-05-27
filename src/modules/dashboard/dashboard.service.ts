@@ -146,9 +146,6 @@ export class DashboardService {
         0,
         SKILL_ASSESSMENT_MAX_ATTEMPTS - attemptsUsed,
       ),
-      ...(result.guidance_report != null && {
-        guidance_report: result.guidance_report,
-      }),
     };
   }
 
@@ -170,9 +167,6 @@ export class DashboardService {
         profile.advanced_assessment_completed_at,
         result.created_at,
       ),
-      ...(result.guidance_report != null && {
-        guidance_report: result.guidance_report,
-      }),
       ...this.withNestedRetake(profile),
     };
   }
