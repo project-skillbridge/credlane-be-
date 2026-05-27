@@ -2,7 +2,7 @@ export type AssessmentAnswerBlock = 'mcq' | 'short_text' | 'long_text';
 
 export const ASSESSMENT_SHORT_TEXT_MIN_CHARS = 60;
 export const ASSESSMENT_SHORT_TEXT_MAX_CHARS = 600;
-export const ASSESSMENT_LONG_TEXT_MIN_CHARS = 150;
+export const ASSESSMENT_LONG_TEXT_MIN_CHARS = 60;
 export const ASSESSMENT_LONG_TEXT_MAX_CHARS = 2000;
 
 export function textLengthBoundsForBlock(block: AssessmentAnswerBlock): {

@@ -92,8 +92,8 @@ export class EmployerDiscoveryService {
       .innerJoin(User, 'u', 'u.id = pool.candidate_id')
       .where('pool.tier = :tier', { tier: 'job_ready' });
 
-    if (query.role_track) {
-      qb.andWhere('pool.track = :roleTrack', { roleTrack: query.role_track });
+    if (query.roleTrack) {
+      qb.andWhere('pool.track = :roleTrack', { roleTrack: query.roleTrack });
     }
 
     if (query.availability) {

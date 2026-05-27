@@ -143,17 +143,17 @@ export class TalentService {
   ) {
     await this.talentProfileRepository.manager.transaction(async (manager) => {
       const userPatch: Partial<User> = {};
-      if (dto.first_name !== undefined) {
-        const firstName = dto.first_name.trim();
+      if (dto.firstName !== undefined) {
+        const firstName = dto.firstName.trim();
         if (!firstName) {
-          throw new BadRequestException('first_name must not be empty');
+          throw new BadRequestException('firstName must not be empty');
         }
         userPatch.first_name = firstName;
       }
-      if (dto.last_name !== undefined) {
-        const lastName = dto.last_name.trim();
+      if (dto.lastName !== undefined) {
+        const lastName = dto.lastName.trim();
         if (!lastName) {
-          throw new BadRequestException('last_name must not be empty');
+          throw new BadRequestException('lastName must not be empty');
         }
         userPatch.last_name = lastName;
       }
@@ -172,18 +172,15 @@ export class TalentService {
         });
       }
 
-      if (dto.role_track !== undefined) {
-        profile.track = dto.role_track;
-        profile.role_track = dto.role_track;
+      if (dto.roleTrack !== undefined) {
+        profile.track = dto.roleTrack;
+        profile.role_track = dto.roleTrack;
       }
-      if (dto.linkedin_url !== undefined) {
-        profile.linkedin_url = dto.linkedin_url.trim();
+      if (dto.linkedinUrl !== undefined) {
+        profile.linkedin_url = dto.linkedinUrl.trim();
       }
-      if (dto.bio !== undefined) {
-        profile.bio = dto.bio.trim();
-      }
-      if (dto.personal_website !== undefined) {
-        profile.personal_website = dto.personal_website.trim();
+      if (dto.personalWebsite !== undefined) {
+        profile.personal_website = dto.personalWebsite.trim();
       }
 
       await manager.save(TalentProfile, profile);
@@ -232,9 +229,9 @@ export class TalentService {
           });
         }
 
-        profile.availability_status = dto.availability_status;
+        profile.availability_status = dto.availabilityStatus;
         profile.is_published =
-          dto.availability_status !== TalentAvailabilityStatus.NOT_LOOKING;
+          dto.availabilityStatus !== TalentAvailabilityStatus.NOT_LOOKING;
         if (!profile.is_published) {
           profile.published_at = null;
         } else if (!profile.published_at) {
@@ -245,7 +242,7 @@ export class TalentService {
         await manager.update(
           EmployerPoolProfile,
           { talent_profile_id: savedProfile.id },
-          { availability: dto.availability_status },
+          { availability: dto.availabilityStatus },
         );
 
         return savedProfile;
@@ -269,7 +266,8 @@ export class TalentService {
     for (const preference of preferences) {
       const key = this.notificationTypeToPreferenceKey(preference.type);
       if (!key) continue;
-      values[preference.channel][key] = preference.enabled;
+      values[this.channelToPreferenceGroupKey(preference.channel)][key] =
+        preference.enabled;
     }
 
     return values;
@@ -285,20 +283,21 @@ export class TalentService {
       enabled: boolean;
     }> = [];
 
-    for (const channel of [
-      NotificationPreferenceChannel.EMAIL,
-      NotificationPreferenceChannel.IN_APP,
-    ] as const) {
-      const group = dto[channel];
-      if (!group) continue;
-      const typedGroup = group as Partial<
-        Record<keyof ReturnType<TalentService['defaultPreferenceGroup']>, boolean>
-      >;
+    const groups: Array<{
+      channel: NotificationPreferenceChannel;
+      group?: UpdateCommunicationPreferencesDto['email'];
+    }> = [
+      { channel: NotificationPreferenceChannel.EMAIL, group: dto.email },
+      { channel: NotificationPreferenceChannel.IN_APP, group: dto.inApp },
+    ];
 
-      for (const key of Object.keys(typedGroup) as Array<
+    for (const { channel, group } of groups) {
+      if (!group) continue;
+
+      for (const key of Object.keys(group) as Array<
         keyof ReturnType<TalentService['defaultPreferenceGroup']>
       >) {
-        const enabled = typedGroup[key];
+        const enabled = group[key];
         if (enabled === undefined) continue;
         entries.push({
           channel,
@@ -329,17 +328,16 @@ export class TalentService {
     return {
       status: 'success',
       message: 'Communication preferences updated',
-      communication_preferences:
-        await this.getCommunicationPreferences(userId),
+      communication_preferences: await this.getCommunicationPreferences(userId),
     };
   }
 
   async unsubscribeEmailNotifications(userId: string) {
     return this.updateCommunicationPreferences(userId, {
       email: {
-        new_offers: false,
-        assessment_reminders: false,
-        retake_window_open: false,
+        newOffers: false,
+        assessmentReminders: false,
+        retakeWindowOpen: false,
       },
     });
   }
@@ -347,15 +345,15 @@ export class TalentService {
   private defaultCommunicationPreferences() {
     return {
       email: this.defaultPreferenceGroup(),
-      in_app: this.defaultPreferenceGroup(),
+      inApp: this.defaultPreferenceGroup(),
     };
   }
 
   private defaultPreferenceGroup() {
     return {
-      new_offers: true,
-      assessment_reminders: true,
-      retake_window_open: true,
+      newOffers: true,
+      assessmentReminders: true,
+      retakeWindowOpen: true,
     };
   }
 
@@ -363,9 +361,9 @@ export class TalentService {
     key: keyof ReturnType<TalentService['defaultPreferenceGroup']>,
   ): NotificationType {
     const map = {
-      new_offers: NotificationType.OFFER_RECEIVED,
-      assessment_reminders: NotificationType.ASSESSMENT_RECEIVED,
-      retake_window_open: NotificationType.ADVANCED_RETAKE_AVAILABLE,
+      newOffers: NotificationType.OFFER_RECEIVED,
+      assessmentReminders: NotificationType.ASSESSMENT_RECEIVED,
+      retakeWindowOpen: NotificationType.ADVANCED_RETAKE_AVAILABLE,
     } satisfies Record<
       keyof ReturnType<TalentService['defaultPreferenceGroup']>,
       NotificationType
@@ -377,13 +375,22 @@ export class TalentService {
     type: NotificationType,
   ): keyof ReturnType<TalentService['defaultPreferenceGroup']> | null {
     const map: Partial<
-      Record<NotificationType, keyof ReturnType<TalentService['defaultPreferenceGroup']>>
+      Record<
+        NotificationType,
+        keyof ReturnType<TalentService['defaultPreferenceGroup']>
+      >
     > = {
-      [NotificationType.OFFER_RECEIVED]: 'new_offers',
-      [NotificationType.ASSESSMENT_RECEIVED]: 'assessment_reminders',
-      [NotificationType.ADVANCED_RETAKE_AVAILABLE]: 'retake_window_open',
+      [NotificationType.OFFER_RECEIVED]: 'newOffers',
+      [NotificationType.ASSESSMENT_RECEIVED]: 'assessmentReminders',
+      [NotificationType.ADVANCED_RETAKE_AVAILABLE]: 'retakeWindowOpen',
     };
     return map[type] ?? null;
+  }
+
+  private channelToPreferenceGroupKey(
+    channel: NotificationPreferenceChannel,
+  ): keyof ReturnType<TalentService['defaultCommunicationPreferences']> {
+    return channel === NotificationPreferenceChannel.IN_APP ? 'inApp' : 'email';
   }
 
   private toRoleLabel(roleTrack: string | null): string | null {

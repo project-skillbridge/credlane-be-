@@ -56,6 +56,7 @@ import {
   GuidanceReport,
   ScoredTextAnswer,
 } from '../../ai/ai.types';
+import { BankExhaustedAlertService } from '../../mail/bank-exhausted-alert.service';
 
 const SKILL_ASSESSMENT_MCQ_COUNT = 13;
 const SKILL_ASSESSMENT_TEXT_COUNT = 3;
@@ -168,6 +169,7 @@ export class SkillAssessmentService {
     private readonly rubricScoring: RubricScoringService,
     private readonly guidanceReport: GuidanceReportService,
     private readonly questionGeneration: QuestionGenerationService,
+    private readonly bankExhaustedAlert: BankExhaustedAlertService,
   ) {}
 
   private async resolveSkillAttemptNumber(
@@ -340,10 +342,11 @@ export class SkillAssessmentService {
         let selectedQuestions: AssessmentQuestion[];
         try {
           selectedQuestions = this.selectSkillQuestionMix(bankQuestions);
-        } catch {
-          // Bank exhausted after exclusion — retry without excluding last-attempt questions
+        } catch (firstErr) {
+          // Bank mix insufficient after question-history exclusion — retry without exclusion.
+          // Alert is suppressed here; it fires only if the retry also fails.
           this.logger.warn(
-            `Skill bank exhausted after exclusion for user=${lockedProfile.user_id}, retrying without exclusion`,
+            `Skill bank mix insufficient after exclusion for user=${lockedProfile.user_id}, retrying without exclusion`,
           );
           rawBankQuestions = await this.findEligibleSkillQuestions(
             manager,
@@ -357,7 +360,19 @@ export class SkillAssessmentService {
             verifiedLevel,
             rawBankQuestions,
           );
-          selectedQuestions = this.selectSkillQuestionMix(bankQuestions);
+          try {
+            selectedQuestions = this.selectSkillQuestionMix(bankQuestions);
+          } catch (retryErr) {
+            this.throwSkillBankExhausted(
+              retryErr instanceof Error ? retryErr.message : String(firstErr),
+              {
+                talentProfileId: lockedProfile.id,
+                userId: lockedProfile.user_id,
+                track: lockedProfile.track,
+                verifiedLevel: verifiedLevel,
+              },
+            );
+          }
         }
 
         let aboveProbeQuestions: AssessmentQuestion[] = [];
@@ -384,23 +399,30 @@ export class SkillAssessmentService {
 
         const probeTotal =
           aboveProbeQuestions.length + belowProbeQuestions.length;
-        const deficit = SKILL_ASSESSMENT_TOTAL -
-          selectedQuestions.length -
-          probeTotal;
+        const deficit =
+          SKILL_ASSESSMENT_TOTAL - selectedQuestions.length - probeTotal;
 
         if (deficit > 0) {
           const usedIds = new Set(
-            [...selectedQuestions, ...aboveProbeQuestions, ...belowProbeQuestions]
-              .map((q) => q.id),
+            [
+              ...selectedQuestions,
+              ...aboveProbeQuestions,
+              ...belowProbeQuestions,
+            ].map((q) => q.id),
           );
           const extras = bankQuestions
             .filter((q) => !usedIds.has(q.id))
             .slice(0, deficit);
           if (extras.length < deficit) {
-            throw new ServiceUnavailableException({
-              error: 'BANK_EXHAUSTED',
-              message: ErrorMessages.SKILL_ASSESSMENT.NO_QUESTIONS_AVAILABLE,
-            });
+            this.throwSkillBankExhausted(
+              `Could not fill ${deficit} deficit question(s) after probe selection`,
+              {
+                talentProfileId: lockedProfile.id,
+                userId: lockedProfile.user_id,
+                track: lockedProfile.track,
+                verifiedLevel: verifiedLevel,
+              },
+            );
           }
           selectedQuestions = [...selectedQuestions, ...extras];
         }
@@ -559,7 +581,7 @@ export class SkillAssessmentService {
 
     const attempt = await this.attemptRepo.findOne({
       where: {
-        id: dto.attempt_id,
+        id: dto.attemptId,
         talent_profile_id: profile.id,
         assessment_type: AssessmentType.SKILL,
       },
@@ -589,7 +611,7 @@ export class SkillAssessmentService {
       questionEntities.map((question) => [question.id, question]),
     );
     const answerMap = new Map(
-      dto.answers.map((answer) => [answer.question_id, answer]),
+      dto.answers.map((answer) => [answer.questionId, answer]),
     );
 
     let primaryMcqCorrect = 0;
@@ -812,10 +834,7 @@ export class SkillAssessmentService {
       !failed &&
       validatedLevel !== null &&
       levelIsLower(validatedLevel, claimed);
-    const passed =
-      !failed &&
-      claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE &&
-      primaryMcqGatePassed;
+    const passed = !failed && validatedLevel !== null;
     const tier = this.resolveSkillTier(percentage);
 
     let guidanceReport: GuidanceReport | null = null;
@@ -1077,10 +1096,10 @@ export class SkillAssessmentService {
       mcqs.length < SKILL_ASSESSMENT_MCQ_COUNT ||
       text.length < SKILL_ASSESSMENT_TEXT_COUNT
     ) {
-      throw new ServiceUnavailableException({
-        error: 'BANK_EXHAUSTED',
-        message: ErrorMessages.SKILL_ASSESSMENT.NO_QUESTIONS_AVAILABLE,
-      });
+      // Throw a plain Error so the caller (start()) can retry before alerting.
+      throw new Error(
+        `Primary bank mix insufficient: mcq=${mcqs.length}/${SKILL_ASSESSMENT_MCQ_COUNT} text=${text.length}/${SKILL_ASSESSMENT_TEXT_COUNT}`,
+      );
     }
 
     return [...mcqs, ...text];
@@ -1195,13 +1214,39 @@ export class SkillAssessmentService {
       mcqs.length < SKILL_PROBE_MCQ_COUNT ||
       text.length < SKILL_PROBE_TEXT_COUNT
     ) {
-      throw new ServiceUnavailableException({
-        error: 'BANK_EXHAUSTED',
-        message: ErrorMessages.SKILL_ASSESSMENT.NO_QUESTIONS_AVAILABLE,
-      });
+      this.throwSkillBankExhausted(
+        `Probe bank mix insufficient: mcq=${mcqs.length}/${SKILL_PROBE_MCQ_COUNT} text=${text.length}/${SKILL_PROBE_TEXT_COUNT}`,
+      );
     }
 
     return [...mcqs, ...text];
+  }
+
+  private throwSkillBankExhausted(
+    detail: string,
+    context?: {
+      talentProfileId?: string;
+      userId?: string;
+      track?: string | null;
+      verifiedLevel?: string | null;
+      expectedQuestions?: number;
+      gotQuestions?: number;
+    },
+  ): never {
+    this.bankExhaustedAlert.notify({
+      assessmentType: 'skill',
+      detail,
+      talentProfileId: context?.talentProfileId,
+      userId: context?.userId,
+      track: context?.track,
+      verifiedLevel: context?.verifiedLevel,
+      expectedQuestions: context?.expectedQuestions,
+      gotQuestions: context?.gotQuestions,
+    });
+    throw new ServiceUnavailableException({
+      error: 'BANK_EXHAUSTED',
+      message: ErrorMessages.SKILL_ASSESSMENT.NO_QUESTIONS_AVAILABLE,
+    });
   }
 
   private toPercentage(score: number, maxScore: number): number {
@@ -1381,7 +1426,7 @@ export class SkillAssessmentService {
     }
 
     const counterField =
-      dto.event_type === IntegrityEventType.TAB_SWITCH
+      dto.eventType === IntegrityEventType.TAB_SWITCH
         ? 'tab_switch_count'
         : 'copy_paste_count';
 
@@ -1443,15 +1488,15 @@ export class SkillAssessmentService {
     );
 
     this.logger.warn(
-      `Skill session voided - integrity ${dto.event_type}: attempt=${result.attemptId} user=${userId}`,
+      `Skill session voided - integrity ${dto.eventType}: attempt=${result.attemptId} user=${userId}`,
     );
 
     return {
       status: 'voided',
       message: ErrorMessages.SKILL_ASSESSMENT.SESSION_VOIDED,
-      tab_switch_count: result.tabSwitchCount,
-      copy_paste_count: result.copyPasteCount,
-      session_voided: true,
+      tabSwitchCount: result.tabSwitchCount,
+      copyPasteCount: result.copyPasteCount,
+      sessionVoided: true,
       action: 'logout',
     };
   }

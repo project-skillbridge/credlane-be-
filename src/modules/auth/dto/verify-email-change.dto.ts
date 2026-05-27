@@ -5,7 +5,7 @@ export class VerifyEmailChangeDto {
   @ApiProperty({ example: 'new.email@company.com' })
   @IsEmail({}, { message: 'Please enter a valid email address' })
   @MaxLength(255)
-  new_email: string;
+  newEmail: string;
 
   @ApiProperty({ description: '6-digit OTP sent to the new email address' })
   @IsString()

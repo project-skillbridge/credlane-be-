@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+
 import {
   IsBoolean,
   IsIn,
@@ -9,7 +10,9 @@ import {
   MinLength,
   ValidateNested,
 } from 'class-validator';
+
 import { Type } from 'class-transformer';
+
 import { TalentAvailabilityStatus } from '../entities/talent-profile.entity';
 
 export class UpdateTalentSettingsProfileDto {
@@ -18,64 +21,59 @@ export class UpdateTalentSettingsProfileDto {
   @IsString()
   @MinLength(1)
   @MaxLength(255)
-  first_name?: string;
+  firstName?: string;
 
   @ApiPropertyOptional({ example: 'Smith' })
   @IsOptional()
   @IsString()
   @MinLength(1)
   @MaxLength(255)
-  last_name?: string;
+  lastName?: string;
 
   @ApiPropertyOptional({ example: 'frontend_developer' })
   @IsOptional()
   @IsString()
   @MaxLength(100)
-  role_track?: string;
+  roleTrack?: string;
 
   @ApiPropertyOptional({ example: 'https://www.linkedin.com/in/alexsmith' })
   @IsOptional()
-  @IsUrl({}, { message: 'linkedin_url must be a valid URL' })
+  @IsUrl({}, { message: 'linkedinUrl must be a valid URL' })
   @MaxLength(255)
-  linkedin_url?: string;
-
-  @ApiPropertyOptional({ example: 'Product-minded frontend developer.' })
-  @IsOptional()
-  @IsString()
-  @MaxLength(1000)
-  bio?: string;
+  linkedinUrl?: string;
 
   @ApiPropertyOptional({ example: 'https://alexsmith.dev' })
   @IsOptional()
-  @IsUrl({}, { message: 'personal_website must be a valid URL' })
+  @IsUrl({}, { message: 'personalWebsite must be a valid URL' })
   @MaxLength(500)
-  personal_website?: string;
+  personalWebsite?: string;
 }
 
 export class UpdateTalentAvailabilityDto {
   @ApiProperty({
     enum: Object.values(TalentAvailabilityStatus),
+
     example: TalentAvailabilityStatus.ACTIVELY_LOOKING,
   })
   @IsIn(Object.values(TalentAvailabilityStatus))
-  availability_status: TalentAvailabilityStatus;
+  availabilityStatus: TalentAvailabilityStatus;
 }
 
 class NotificationPreferenceGroupDto {
   @ApiPropertyOptional({ example: true })
   @IsOptional()
   @IsBoolean()
-  new_offers?: boolean;
+  newOffers?: boolean;
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()
   @IsBoolean()
-  assessment_reminders?: boolean;
+  assessmentReminders?: boolean;
 
   @ApiPropertyOptional({ example: true })
   @IsOptional()
   @IsBoolean()
-  retake_window_open?: boolean;
+  retakeWindowOpen?: boolean;
 }
 
 export class UpdateCommunicationPreferencesDto {
@@ -89,5 +87,5 @@ export class UpdateCommunicationPreferencesDto {
   @IsOptional()
   @ValidateNested()
   @Type(() => NotificationPreferenceGroupDto)
-  in_app?: NotificationPreferenceGroupDto;
+  inApp?: NotificationPreferenceGroupDto;
 }

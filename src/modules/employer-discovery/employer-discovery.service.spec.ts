@@ -143,7 +143,9 @@ describe('EmployerDiscoveryService', () => {
 
       await expect(
         service.getCandidateProfile('employer-1', 'user-1'),
-      ).rejects.toThrow('Only Job Ready candidates are accessible to employers');
+      ).rejects.toThrow(
+        'Only Job Ready candidates are accessible to employers',
+      );
     });
   });
 
@@ -366,7 +368,7 @@ describe('EmployerDiscoveryService', () => {
       await service.discoverCandidates('employer-1', {
         page: 1,
         limit: 20,
-        role_track: 'backend_developer',
+        roleTrack: 'backend_developer',
       });
 
       expect(poolQb.andWhere).toHaveBeenCalledWith('pool.track = :roleTrack', {

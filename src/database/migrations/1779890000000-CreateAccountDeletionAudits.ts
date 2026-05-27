@@ -1,13 +1,6 @@
-import {
-  MigrationInterface,
-  QueryRunner,
-  Table,
-  TableIndex,
-} from 'typeorm';
+import { MigrationInterface, QueryRunner, Table, TableIndex } from 'typeorm';
 
-export class CreateAccountDeletionAudits1779890000000
-  implements MigrationInterface
-{
+export class CreateAccountDeletionAudits1779890000000 implements MigrationInterface {
   name = 'CreateAccountDeletionAudits1779890000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

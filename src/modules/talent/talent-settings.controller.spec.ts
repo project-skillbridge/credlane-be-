@@ -57,17 +57,23 @@ describe('TalentSettingsController', () => {
     expect(
       Reflect.getMetadata(PATH_METADATA, controller.updateSettingsProfile),
     ).toBe('profile');
-    expect(Reflect.getMetadata(PATH_METADATA, controller.uploadSettingsResume)).toBe(
-      'resume',
-    );
+    expect(
+      Reflect.getMetadata(PATH_METADATA, controller.uploadSettingsResume),
+    ).toBe('resume');
     expect(
       Reflect.getMetadata(PATH_METADATA, controller.updateSettingsAvailability),
     ).toBe('availability');
     expect(
-      Reflect.getMetadata(PATH_METADATA, controller.getCommunicationPreferences),
+      Reflect.getMetadata(
+        PATH_METADATA,
+        controller.getCommunicationPreferences,
+      ),
     ).toBe('communication-preferences');
     expect(
-      Reflect.getMetadata(PATH_METADATA, controller.updateCommunicationPreferences),
+      Reflect.getMetadata(
+        PATH_METADATA,
+        controller.updateCommunicationPreferences,
+      ),
     ).toBe('communication-preferences');
     expect(
       Reflect.getMetadata(
@@ -104,7 +110,6 @@ describe('TalentSettingsController', () => {
       last_name: 'Smith',
       role_track: 'frontend_developer',
       linkedin_url: 'https://www.linkedin.com/in/alexsmith',
-      bio: 'Frontend developer',
       personal_website: 'https://alexsmith.dev',
     };
     const serviceResult = {
@@ -233,7 +238,9 @@ describe('TalentSettingsController', () => {
         },
       },
     };
-    talentService.unsubscribeEmailNotifications.mockResolvedValue(serviceResult);
+    talentService.unsubscribeEmailNotifications.mockResolvedValue(
+      serviceResult,
+    );
 
     const result = await controller.unsubscribeEmailNotifications(userId);
 

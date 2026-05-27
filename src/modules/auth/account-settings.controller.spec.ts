@@ -80,18 +80,18 @@ describe('AccountSettingsController', () => {
     expect(Reflect.getMetadata(PATH_METADATA, controller.changePassword)).toBe(
       'change-password',
     );
-    expect(Reflect.getMetadata(PATH_METADATA, controller.requestEmailChange)).toBe(
-      'change-email/request',
-    );
-    expect(Reflect.getMetadata(PATH_METADATA, controller.verifyEmailChange)).toBe(
-      'change-email/verify',
-    );
+    expect(
+      Reflect.getMetadata(PATH_METADATA, controller.requestEmailChange),
+    ).toBe('change-email/request');
+    expect(
+      Reflect.getMetadata(PATH_METADATA, controller.verifyEmailChange),
+    ).toBe('change-email/verify');
     expect(Reflect.getMetadata(PATH_METADATA, controller.deleteAccount)).toBe(
       'account',
     );
-    expect(Reflect.getMetadata(PATH_METADATA, controller.requestDataExport)).toBe(
-      'account/data-export',
-    );
+    expect(
+      Reflect.getMetadata(PATH_METADATA, controller.requestDataExport),
+    ).toBe('account/data-export');
     expect(Reflect.getMetadata(METHOD_METADATA, controller.deleteAccount)).toBe(
       RequestMethod.DELETE,
     );
@@ -128,9 +128,9 @@ describe('AccountSettingsController', () => {
     );
     const response = buildMockResponse();
 
-    await expect(controller.changePassword(user, dto, response)).rejects.toThrow(
-      'Current password is incorrect',
-    );
+    await expect(
+      controller.changePassword(user, dto, response),
+    ).rejects.toThrow('Current password is incorrect');
     expect(response.clearCookie).not.toHaveBeenCalled();
   });
 

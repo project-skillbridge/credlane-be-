@@ -40,7 +40,9 @@ describe('TalentService settings', () => {
       manager: { transaction: jest.fn((callback) => callback(manager)) },
     };
     employerPoolProfileRepository = {};
-    notificationPreferenceRepository = { find: jest.fn().mockResolvedValue([]) };
+    notificationPreferenceRepository = {
+      find: jest.fn().mockResolvedValue([]),
+    };
     usersService = {
       findOne: jest.fn().mockResolvedValue({
         id: userId,
@@ -63,17 +65,17 @@ describe('TalentService settings', () => {
     );
   });
 
-  it('rejects whitespace-only first_name updates', async () => {
+  it('rejects whitespace-only firstName updates', async () => {
     await expect(
-      service.updateSettingsProfile(userId, { first_name: '   ' }),
+      service.updateSettingsProfile(userId, { firstName: '   ' }),
     ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(manager.update).not.toHaveBeenCalled();
   });
 
-  it('rejects whitespace-only last_name updates', async () => {
+  it('rejects whitespace-only lastName updates', async () => {
     await expect(
-      service.updateSettingsProfile(userId, { last_name: '   ' }),
+      service.updateSettingsProfile(userId, { lastName: '   ' }),
     ).rejects.toBeInstanceOf(BadRequestException);
 
     expect(manager.update).not.toHaveBeenCalled();
@@ -88,14 +90,35 @@ describe('TalentService settings', () => {
     );
 
     await service.updateSettingsProfile(userId, {
-      first_name: '  Alex ',
-      last_name: ' Smith  ',
+      firstName: '  Alex ',
+      lastName: ' Smith  ',
     });
 
     expect(manager.update).toHaveBeenCalledWith(
       expect.any(Function),
       { id: userId },
       { first_name: 'Alex', last_name: 'Smith' },
+    );
+  });
+
+  it('does not update bio via settings profile patch', async () => {
+    const profile = Object.assign(new TalentProfile(), {
+      user_id: userId,
+      bio: 'Original bio from onboarding',
+    });
+    manager.findOne.mockResolvedValue(profile);
+    talentProfileRepository.findOne.mockResolvedValue(profile);
+
+    await service.updateSettingsProfile(userId, {
+      linkedinUrl: 'https://www.linkedin.com/in/alexsmith',
+    });
+
+    expect(manager.save).toHaveBeenCalledWith(
+      TalentProfile,
+      expect.objectContaining({
+        bio: 'Original bio from onboarding',
+        linkedin_url: 'https://www.linkedin.com/in/alexsmith',
+      }),
     );
   });
 
@@ -110,10 +133,12 @@ describe('TalentService settings', () => {
     manager.findOne.mockResolvedValue(profile);
 
     const result = await service.updateAvailability(userId, {
-      availability_status: TalentAvailabilityStatus.ACTIVELY_LOOKING,
+      availabilityStatus: TalentAvailabilityStatus.ACTIVELY_LOOKING,
     });
 
-    expect(talentProfileRepository.manager.transaction).toHaveBeenCalledTimes(1);
+    expect(talentProfileRepository.manager.transaction).toHaveBeenCalledTimes(
+      1,
+    );
     expect(manager.save).toHaveBeenCalledWith(
       TalentProfile,
       expect.objectContaining({
@@ -145,10 +170,12 @@ describe('TalentService settings', () => {
 
     await expect(
       service.updateAvailability(userId, {
-        availability_status: TalentAvailabilityStatus.NOT_LOOKING,
+        availabilityStatus: TalentAvailabilityStatus.NOT_LOOKING,
       }),
     ).rejects.toThrow('pool update failed');
 
-    expect(talentProfileRepository.manager.transaction).toHaveBeenCalledTimes(1);
+    expect(talentProfileRepository.manager.transaction).toHaveBeenCalledTimes(
+      1,
+    );
   });
 });

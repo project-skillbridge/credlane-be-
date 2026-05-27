@@ -6,9 +6,7 @@ import {
   TableIndex,
 } from 'typeorm';
 
-export class CreateEmailChangeOtps1779880000000
-  implements MigrationInterface
-{
+export class CreateEmailChangeOtps1779880000000 implements MigrationInterface {
   name = 'CreateEmailChangeOtps1779880000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

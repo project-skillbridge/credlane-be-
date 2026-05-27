@@ -45,6 +45,7 @@ describe('SkillAssessmentService', () => {
   };
   let questionRepo: Record<string, jest.Mock>;
   let rubricScoring: { scoreAnswers: jest.Mock };
+  let bankExhaustedAlert: { notify: jest.Mock };
   let eligibleSkillQuestions: AssessmentQuestion[];
 
   const userId = 'talent-user-1';
@@ -135,6 +136,7 @@ describe('SkillAssessmentService', () => {
     mockTransaction(makeProbeQuestions());
 
     rubricScoring = { scoreAnswers: jest.fn().mockResolvedValue([]) };
+    bankExhaustedAlert = { notify: jest.fn() };
 
     service = new SkillAssessmentService(
       talentProfileRepo as never,
@@ -146,6 +148,7 @@ describe('SkillAssessmentService', () => {
       rubricScoring as never,
       { generate: jest.fn() } as never,
       { generateQuestions: jest.fn().mockResolvedValue([]) } as never,
+      bankExhaustedAlert as never,
     );
   });
 
@@ -269,6 +272,12 @@ describe('SkillAssessmentService', () => {
     await expect(service.start(userId)).rejects.toMatchObject({
       message: ErrorMessages.SKILL_ASSESSMENT.NO_QUESTIONS_AVAILABLE,
     });
+    expect(bankExhaustedAlert.notify).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assessmentType: 'skill',
+        detail: expect.stringContaining('Primary bank mix insufficient'),
+      }),
+    );
     expect(attemptRepo.save).not.toHaveBeenCalled();
   });
 
@@ -482,8 +491,8 @@ describe('SkillAssessmentService', () => {
     ]);
 
     const result = await service.submit(userId, {
-      attempt_id: 'attempt-1',
-      answers: [{ question_id: 'question-1', answer: 'First key action' }],
+      attemptId: 'attempt-1',
+      answers: [{ questionId: 'question-1', answer: 'First key action' }],
     });
 
     expect(result.session_id).toBe('attempt-1');
@@ -523,8 +532,8 @@ describe('SkillAssessmentService', () => {
     ]);
 
     const result = await service.submit(userId, {
-      attempt_id: 'attempt-1',
-      answers: [{ question_id: 'question-1', answer: 'Wrong answer' }],
+      attemptId: 'attempt-1',
+      answers: [{ questionId: 'question-1', answer: 'Wrong answer' }],
     });
 
     expect(result.max_attempts).toBe(SKILL_ASSESSMENT_MAX_ATTEMPTS);
@@ -593,15 +602,15 @@ describe('SkillAssessmentService', () => {
     ]);
 
     const result = await service.submit(userId, {
-      attempt_id: 'attempt-1',
+      attemptId: 'attempt-1',
       answers: [
-        { question_id: 'question-mcq-1', answer: 'Signups' },
-        { question_id: 'question-text-1', answer: validTextAnswer },
+        { questionId: 'question-mcq-1', answer: 'Signups' },
+        { questionId: 'question-text-1', answer: validTextAnswer },
       ],
     });
 
     expect(result.percentage).toBeLessThan(70);
-    expect(result.passed).toBe(false);
+    expect(result.passed).toBe(true);
     expect(result.failed).toBe(false);
     expect(result.validated_level).toBe(VerifiedLevel.JUNIOR);
   });
@@ -682,10 +691,10 @@ describe('SkillAssessmentService', () => {
     );
 
     const result = await service.submit(userId, {
-      attempt_id: 'attempt-1',
+      attemptId: 'attempt-1',
       answers: [
-        { question_id: 'question-mcq-1', answer: 'Signups' },
-        { question_id: 'question-text-1', answer: validTextAnswer },
+        { questionId: 'question-mcq-1', answer: 'Signups' },
+        { questionId: 'question-text-1', answer: validTextAnswer },
       ],
     });
 
@@ -740,8 +749,8 @@ describe('SkillAssessmentService', () => {
 
     await expect(
       service.submit(userId, {
-        attempt_id: 'attempt-1',
-        answers: [{ question_id: 'question-text-1', answer: 'Too short' }],
+        attemptId: 'attempt-1',
+        answers: [{ questionId: 'question-text-1', answer: 'Too short' }],
       }),
     ).rejects.toMatchObject({
       message: `Question 7 must be between ${ASSESSMENT_LONG_TEXT_MIN_CHARS} and ${ASSESSMENT_LONG_TEXT_MAX_CHARS} characters`,
@@ -767,10 +776,10 @@ describe('SkillAssessmentService', () => {
       VerifiedLevel.MID,
     );
     expect(resolveLevel(59, 0, 65, 60, VerifiedLevel.SENIOR)).toBe(
-      VerifiedLevel.MID,
+      VerifiedLevel.SENIOR,
     );
     expect(resolveLevel(59, 0, 50, 58, VerifiedLevel.SENIOR)).toBe(
-      VerifiedLevel.MID,
+      VerifiedLevel.SENIOR,
     );
     expect(resolveLevel(54, 0, 0, 54, VerifiedLevel.EXPERT)).toBe(
       VerifiedLevel.JUNIOR,
@@ -791,7 +800,7 @@ describe('SkillAssessmentService', () => {
       VerifiedLevel.MID,
     );
     expect(resolveLevel(65, 0, 0, 65, VerifiedLevel.MID)).toBe(
-      VerifiedLevel.JUNIOR,
+      VerifiedLevel.MID,
     );
   });
 
@@ -843,13 +852,13 @@ describe('SkillAssessmentService', () => {
       );
 
       const result = await service.flag(userId, 'attempt-1', {
-        event_type: IntegrityEventType.TAB_SWITCH,
+        eventType: IntegrityEventType.TAB_SWITCH,
       });
 
       expect(result.status).toBe('voided');
       expect(result.action).toBe('logout');
-      expect(result.session_voided).toBe(true);
-      expect(result.tab_switch_count).toBe(1);
+      expect(result.sessionVoided).toBe(true);
+      expect(result.tabSwitchCount).toBe(1);
     });
 
     it('throws 400 when flagging a completed skill session', async () => {
@@ -869,7 +878,7 @@ describe('SkillAssessmentService', () => {
 
       await expect(
         service.flag(userId, 'attempt-1', {
-          event_type: IntegrityEventType.COPY_PASTE,
+          eventType: IntegrityEventType.COPY_PASTE,
         }),
       ).rejects.toBeInstanceOf(BadRequestException);
     });

@@ -78,6 +78,28 @@ export const env = createEnv({
     EMAIL_LOGO_URL: z.string().url().optional(),
     SUPPORT_EMAIL: z.email().default('support@skillbridge.com'),
 
+    /**
+     * Comma-separated content team emails notified on BANK_EXHAUSTED (503).
+     * Each token is validated as an email address at startup.
+     */
+    CONTENT_TEAM_BANK_ALERT_EMAILS: z
+      .string()
+      .optional()
+      .refine(
+        (val) => {
+          if (!val?.trim()) return true;
+          return val
+            .split(',')
+            .map((t) => t.trim())
+            .filter((t) => t.length > 0)
+            .every((t) => z.string().email().safeParse(t).success);
+        },
+        {
+          message:
+            'CONTENT_TEAM_BANK_ALERT_EMAILS must be a comma-separated list of valid email addresses',
+        },
+      ),
+
     AWS_REGION: z.string().optional(),
     AWS_S3_BUCKET: z.string().optional(),
     AWS_ACCESS_KEY_ID: z.string().optional(),

@@ -27,13 +27,13 @@ export class SaveEmployerProfileDto {
     description: 'Founder | Recruiter | Agency',
   })
   @IsIn(EMPLOYER_TYPES, { message: 'Invalid employer type selection' })
-  employer_type: string;
+  employerType: string;
 
   @ApiProperty({ example: 'Acme Labs' })
   @IsString()
-  @MinLength(1, { message: 'company_name is required' })
+  @MinLength(1, { message: 'companyName is required' })
   @MaxLength(255)
-  company_name: string;
+  companyName: string;
 
   @ApiProperty({
     example: '11-50',
@@ -41,12 +41,12 @@ export class SaveEmployerProfileDto {
     description: '1-10 | 11-50 | 51-200 | 201-500 | 500+',
   })
   @IsIn(EMPLOYER_COMPANY_SIZES, { message: 'Invalid company size selection' })
-  company_size: string;
+  companySize: string;
 
   @ApiProperty({ example: 'https://acmelabs.com' })
   @IsUrl({}, { message: 'Please enter a valid website URL' })
   @MaxLength(500)
-  company_website: string;
+  companyWebsite: string;
 
   @ApiProperty({ example: 'Fintech' })
   @IsString()
@@ -68,7 +68,7 @@ export class SaveEmployerProfileDto {
     message: LINKEDIN_COMPANY_PAGE_ERROR,
   })
   @MaxLength(500)
-  linkedin_company_page_url?: string;
+  linkedinCompanyPageUrl?: string;
 
   @ApiProperty({
     example: ['frontend_developer', 'backend_developer'],
@@ -82,7 +82,7 @@ export class SaveEmployerProfileDto {
     each: true,
     message: `Each role must be one of: ${EMPLOYER_DESIRED_ROLES.join(', ')}`,
   })
-  hiring_roles: string[];
+  hiringRoles: string[];
 
   @ApiProperty({
     example: ['junior', 'mid'],
@@ -96,7 +96,7 @@ export class SaveEmployerProfileDto {
     each: true,
     message: 'Invalid experience level selection',
   })
-  preferred_experience_levels: string[];
+  preferredExperienceLevels: string[];
 
   @ApiPropertyOptional({
     example: '6_10',
@@ -105,7 +105,7 @@ export class SaveEmployerProfileDto {
   })
   @IsOptional()
   @IsIn(EMPLOYER_HIRING_RANGES, {
-    message: `hiring_count must be one of: ${EMPLOYER_HIRING_RANGES.join(', ')}`,
+    message: `hiringCount must be one of: ${EMPLOYER_HIRING_RANGES.join(', ')}`,
   })
-  hiring_count?: string;
+  hiringCount?: string;
 }

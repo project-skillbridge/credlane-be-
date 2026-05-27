@@ -22,7 +22,9 @@ export class AiReportService {
     private readonly assessmentResultRepo: Repository<AssessmentResult>,
   ) {}
 
-  async getGuidanceReports(userId: string): Promise<TalentGuidanceReportsResponse> {
+  async getGuidanceReports(
+    userId: string,
+  ): Promise<TalentGuidanceReportsResponse> {
     const profile = await this.talentProfileRepo.findOne({
       where: { user_id: userId },
     });

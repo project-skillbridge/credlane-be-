@@ -169,7 +169,7 @@ export class OffersService {
 
     // Validate candidate is Job Ready
     const poolProfile = await this.poolProfileRepo.findOne({
-      where: { candidate_id: dto.candidate_user_id },
+      where: { candidate_id: dto.candidateUserId },
     });
 
     if (!poolProfile) {
@@ -185,7 +185,7 @@ export class OffersService {
     const existingOffer = await this.offerRepo.findOne({
       where: {
         employer_user_id: employerUserId,
-        candidate_user_id: dto.candidate_user_id,
+        candidate_user_id: dto.candidateUserId,
         status: In([OfferStatus.PENDING, OfferStatus.ACCEPTED]),
       },
     });
@@ -194,7 +194,7 @@ export class OffersService {
     }
 
     // Enforce send-cap atomically via transaction
-    const expiresInDays = dto.expires_in_days ?? 14;
+    const expiresInDays = dto.expiresInDays ?? 14;
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + expiresInDays);
 
@@ -227,15 +227,15 @@ export class OffersService {
 
         const created = await manager.save(Offer, {
           employer_user_id: employerUserId,
-          candidate_user_id: dto.candidate_user_id,
+          candidate_user_id: dto.candidateUserId,
           employer_pool_profile_id: poolProfile.id,
-          role_title: dto.role_title,
+          role_title: dto.roleTitle,
           message: dto.message ?? '',
-          role_description: dto.role_description ?? null,
+          role_description: dto.roleDescription ?? null,
           compensation: dto.compensation,
-          employment_type: dto.employment_type,
-          work_arrangement: dto.work_arrangement,
-          application_deadline: dto.application_deadline ?? null,
+          employment_type: dto.employmentType,
+          work_arrangement: dto.workArrangement,
+          application_deadline: dto.applicationDeadline ?? null,
           status: OfferStatus.PENDING,
           expires_at: expiresAt,
         } as Partial<Offer>);
@@ -263,15 +263,12 @@ export class OffersService {
       : 'An employer';
 
     try {
-      await this.notificationDispatch.notifyOfferReceived(
-        dto.candidate_user_id,
-        {
-          offerId: offer.id,
-          employerUserId,
-          employerName,
-          roleTitle: dto.role_title,
-        },
-      );
+      await this.notificationDispatch.notifyOfferReceived(dto.candidateUserId, {
+        offerId: offer.id,
+        employerUserId,
+        employerName,
+        roleTitle: dto.roleTitle,
+      });
     } catch (notifyError: unknown) {
       this.logger.error(
         `Offer notification failed offer=${offer.id}: ${String(notifyError)}`,

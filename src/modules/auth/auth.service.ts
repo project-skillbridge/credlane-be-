@@ -130,11 +130,11 @@ export class AuthService {
     const user = await this.usersService.create({
       email: dto.email,
       password: dto.password,
-      first_name: dto.firstName,
-      last_name: dto.lastName,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
       country: OAUTH_DEFAULT_COUNTRY,
       role: dto.role,
-      signup_reason:
+      signupReason:
         dto.role === UserRole.EMPLOYER ? dto.reasonForJoining : undefined,
     });
 
@@ -318,7 +318,10 @@ export class AuthService {
       throw new BadRequestError(ErrorMessages.AUTH.OAUTH_ACCOUNT_NO_PASSWORD);
     }
 
-    const currentValid = await argon2.verify(user.password, dto.currentPassword);
+    const currentValid = await argon2.verify(
+      user.password,
+      dto.currentPassword,
+    );
     if (!currentValid) {
       throw new BadRequestError(ErrorMessages.AUTH.WRONG_CURRENT_PASSWORD);
     }
@@ -331,7 +334,10 @@ export class AuthService {
     const passwordHash = await argon2.hash(dto.newPassword);
     await this.usersService.updatePassword(userId, passwordHash);
 
-    return { status: 'success', message: SuccessMessages.AUTH.PASSWORD_CHANGED };
+    return {
+      status: 'success',
+      message: SuccessMessages.AUTH.PASSWORD_CHANGED,
+    };
   }
 
   async requestEmailChange(
@@ -339,7 +345,7 @@ export class AuthService {
     dto: RequestEmailChangeDto,
   ): Promise<{ status: 'success'; message: string }> {
     const user = await this.usersService.findOne(userId);
-    const existing = await this.usersService.findByEmail(dto.new_email);
+    const existing = await this.usersService.findByEmail(dto.newEmail);
     if (existing && existing.id !== userId) {
       throw new BadRequestError(ErrorMessages.USER.EMAIL_ALREADY_REGISTERED);
     }
@@ -353,10 +359,10 @@ export class AuthService {
 
     const issuedOtp = await this.emailChangeOtpService.issue(
       userId,
-      dto.new_email,
+      dto.newEmail,
     );
     await this.mailService.sendVerificationOtp({
-      to: dto.new_email,
+      to: dto.newEmail,
       otp: issuedOtp.code,
       expiresAt: issuedOtp.expiresAt,
       recipientFirstName: user.first_name,
@@ -373,7 +379,7 @@ export class AuthService {
     dto: VerifyEmailChangeDto,
   ): Promise<{ status: 'success'; message: string }> {
     const user = await this.usersService.findOne(userId);
-    const existing = await this.usersService.findByEmail(dto.new_email);
+    const existing = await this.usersService.findByEmail(dto.newEmail);
     if (existing && existing.id !== userId) {
       throw new BadRequestError(ErrorMessages.USER.EMAIL_ALREADY_REGISTERED);
     }
@@ -387,14 +393,14 @@ export class AuthService {
 
     const isValidOtp = await this.emailChangeOtpService.consume(
       userId,
-      dto.new_email,
+      dto.newEmail,
       dto.otp,
     );
     if (!isValidOtp) {
       throw new BadRequestError(ErrorMessages.AUTH.INVALID_OR_EXPIRED_OTP);
     }
 
-    await this.usersService.updateEmail(userId, dto.new_email);
+    await this.usersService.updateEmail(userId, dto.newEmail);
     return {
       status: 'success',
       message: 'Work email changed. Please log in again.',

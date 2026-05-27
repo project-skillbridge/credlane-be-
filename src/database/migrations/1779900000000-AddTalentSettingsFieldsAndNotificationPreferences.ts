@@ -1,13 +1,6 @@
-import {
-  MigrationInterface,
-  QueryRunner,
-  Table,
-  TableIndex,
-} from 'typeorm';
+import { MigrationInterface, QueryRunner, Table, TableIndex } from 'typeorm';
 
-export class AddTalentSettingsFieldsAndNotificationPreferences1779900000000
-  implements MigrationInterface
-{
+export class AddTalentSettingsFieldsAndNotificationPreferences1779900000000 implements MigrationInterface {
   name = 'AddTalentSettingsFieldsAndNotificationPreferences1779900000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
