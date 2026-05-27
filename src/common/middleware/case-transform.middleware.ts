@@ -21,7 +21,7 @@ export class CaseTransformMiddleware implements NestMiddleware {
 
     if (req.query && typeof req.query === 'object') {
       try {
-        req.query = keysToCamel(req.query, REQUEST_CASE_TRANSFORM_OPTIONS);
+        this.applyCamelCaseToQuery(req);
       } catch (err) {
         this.logger.error('Failed to transform request query keys to camelCase', err);
         return next(err);
@@ -29,5 +29,18 @@ export class CaseTransformMiddleware implements NestMiddleware {
     }
 
     next();
+  }
+
+  /**
+   * Express 5 defines `req.query` as a getter-only property.
+   * Override the descriptor so downstream code sees the transformed value.
+   */
+  private applyCamelCaseToQuery(req: Request): void {
+    const camelQuery = keysToCamel(req.query, REQUEST_CASE_TRANSFORM_OPTIONS);
+    Object.defineProperty(req, 'query', {
+      value: camelQuery,
+      writable: true,
+      configurable: true,
+    });
   }
 }
