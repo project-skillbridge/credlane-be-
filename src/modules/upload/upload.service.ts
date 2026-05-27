@@ -30,14 +30,26 @@ export class UploadService {
   }
 
   async uploadAvatar(file: Express.Multer.File): Promise<string> {
+    return this.uploadToS3('avatars/', file, 'jpg');
+  }
+
+  async uploadResume(file: Express.Multer.File): Promise<string> {
+    return this.uploadToS3('resumes/', file, 'pdf');
+  }
+
+  private async uploadToS3(
+    prefix: string,
+    file: Express.Multer.File,
+    defaultExt: string,
+  ): Promise<string> {
     if (!this.s3 || !env.AWS_S3_BUCKET || !env.AWS_REGION) {
       throw new ServiceUnavailableException(
         'File upload is not configured on this server',
       );
     }
 
-    const ext = file.originalname.split('.').pop() ?? 'jpg';
-    const key = `avatars/${randomUUID()}.${ext}`;
+    const ext = file.originalname.split('.').pop() ?? defaultExt;
+    const key = `${prefix}${randomUUID()}.${ext}`;
 
     await this.s3.send(
       new PutObjectCommand({
