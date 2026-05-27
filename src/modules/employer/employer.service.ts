@@ -6,6 +6,7 @@ import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
 import { CompleteEmployerOnboardingDto } from './dto/complete-employer-onboarding.dto';
 import { SaveEmployerProfileDto } from './dto/save-employer-profile.dto';
+import { UpdateEmployerProfileDto } from './dto/update-employer-profile.dto';
 import { EmployerProfile } from './entities/employer-profile.entity';
 import { EmployerVerificationService } from './employer-verification.service';
 import {
@@ -48,6 +49,16 @@ export class EmployerService {
     private readonly verificationService: EmployerVerificationService,
   ) {}
 
+  async getProfile(userId: string): Promise<EmployerProfile> {
+    const profile = await this.employerProfileRepository.findOne({
+      where: { user_id: userId },
+    });
+    if (!profile) {
+      throw new NotFoundError('Employer profile not found');
+    }
+    return profile;
+  }
+
   async saveProfile(
     userId: string,
     dto: SaveEmployerProfileDto,
@@ -82,10 +93,14 @@ export class EmployerService {
         profile.industry = dto.industry.trim();
         profile.region = dto.region.trim();
         profile.hiring_region = dto.region.trim();
-        profile.linkedin_company_page_url =
-          dto.linkedin_company_page_url?.trim() ?? null;
-        profile.linkedin_company_url =
-          dto.linkedin_company_page_url?.trim() ?? null;
+        if (dto.linkedin_company_page_url !== undefined) {
+          const linkedinCompanyPageUrl =
+            dto.linkedin_company_page_url.trim();
+          if (linkedinCompanyPageUrl !== '') {
+            profile.linkedin_company_page_url = linkedinCompanyPageUrl;
+            profile.linkedin_company_url = linkedinCompanyPageUrl;
+          }
+        }
         profile.hiring_roles = dto.hiring_roles;
         profile.hiring_locations = [dto.region.trim()];
         profile.desired_roles = dto.hiring_roles;
@@ -114,6 +129,99 @@ export class EmployerService {
       status: 'success',
       message: SuccessMessages.ONBOARDING.EMPLOYER_PROFILE_SAVED,
     };
+  }
+
+  async updateProfile(
+    userId: string,
+    dto: UpdateEmployerProfileDto,
+  ): Promise<{ status: string; message: string; profile: EmployerProfile }> {
+    const profile = await this.employerProfileRepository.findOne({
+      where: { user_id: userId },
+    });
+    if (!profile) {
+      throw new NotFoundError('Employer profile not found');
+    }
+
+    this.applyProfileUpdates(profile, dto);
+    const savedProfile = await this.employerProfileRepository.manager.save(
+      EmployerProfile,
+      profile,
+    );
+
+    this.verificationService
+      .checkAndUpdateVerification(userId)
+      .catch((err) =>
+        this.logger.error(
+          `Verification recompute failed for user ${userId}`,
+          err,
+        ),
+      );
+
+    return {
+      status: 'success',
+      message: 'Employer profile updated',
+      profile: savedProfile,
+    };
+  }
+
+  private applyProfileUpdates(
+    profile: EmployerProfile,
+    dto: UpdateEmployerProfileDto,
+  ): void {
+    if (dto.employer_type !== undefined) {
+      profile.employer_type = dto.employer_type;
+    }
+    if (dto.company_name !== undefined) {
+      const companyName = this.trimNonEmpty(dto.company_name);
+      if (companyName) {
+        profile.company_name = companyName;
+      }
+    }
+    if (dto.company_size !== undefined) {
+      profile.company_size = dto.company_size;
+    }
+    if (dto.company_website !== undefined) {
+      const companyWebsite = this.trimNonEmpty(dto.company_website);
+      if (companyWebsite) {
+        profile.company_website = companyWebsite;
+        profile.website_url = companyWebsite;
+      }
+    }
+    if (dto.industry !== undefined) {
+      const industry = this.trimNonEmpty(dto.industry);
+      if (industry) {
+        profile.industry = industry;
+      }
+    }
+    if (dto.region !== undefined) {
+      const region = this.trimNonEmpty(dto.region);
+      if (region) {
+        profile.region = region;
+        profile.hiring_region = region;
+        profile.hiring_locations = [region];
+      }
+    }
+    if (dto.linkedin_company_page_url !== undefined) {
+      profile.linkedin_company_page_url =
+        dto.linkedin_company_page_url?.trim() ?? null;
+      profile.linkedin_company_url =
+        dto.linkedin_company_page_url?.trim() ?? null;
+    }
+    if (dto.hiring_roles !== undefined) {
+      profile.hiring_roles = dto.hiring_roles;
+      profile.desired_roles = dto.hiring_roles;
+    }
+    if (dto.preferred_experience_levels !== undefined) {
+      profile.preferred_experience_levels = dto.preferred_experience_levels;
+    }
+    if (dto.hiring_count !== undefined) {
+      profile.hiring_count_range = dto.hiring_count ?? null;
+    }
+  }
+
+  private trimNonEmpty(value: string): string | undefined {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
   }
 
   async completeOnboarding(
