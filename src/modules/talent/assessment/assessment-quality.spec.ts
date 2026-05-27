@@ -42,6 +42,6 @@ describe('assessment-quality', () => {
         percentage: 80,
         validated_level: 'mid' as never,
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 });

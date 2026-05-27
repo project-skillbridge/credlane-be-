@@ -1309,6 +1309,7 @@ describe('AdvancedAssessmentService', () => {
         getOne: jest.fn().mockResolvedValue({
           percentage: 80,
           claimed_percentage: 80,
+          validated_level: VerifiedLevel.MID,
         } as AssessmentResult),
       };
 
@@ -1476,6 +1477,7 @@ describe('AdvancedAssessmentService', () => {
         getOne: jest.fn().mockResolvedValue({
           percentage: 80,
           claimed_percentage: 80,
+          validated_level: VerifiedLevel.MID,
         }),
       });
       const activeAttemptQuery = makeQuery({
