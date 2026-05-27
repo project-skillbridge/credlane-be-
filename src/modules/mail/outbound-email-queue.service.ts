@@ -139,7 +139,6 @@ export class OutboundEmailQueueService
       expiresMinutes: String(expiresInMinutes),
       logoUrl,
       supportEmail: env.SUPPORT_EMAIL,
-      unsubscribeUrl: `${base}/email-preferences`,
       year: String(new Date().getFullYear()),
       ...digitVars,
     });

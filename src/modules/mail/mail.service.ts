@@ -80,7 +80,6 @@ export class MailService {
       playStoreLink: '#',
       appStoreLink: '#',
       supportEmail: env.SUPPORT_EMAIL,
-      unsubscribeUrl: `${base}/email-preferences`,
       year: String(new Date().getFullYear()),
       expiresMinutes: String(expiresInMinutes),
       ...digitVars,

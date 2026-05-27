@@ -19,7 +19,6 @@ describe('verification email template', () => {
         playStoreLink: '#',
         appStoreLink: '#',
         supportEmail: 'support@example.com',
-        unsubscribeUrl: 'https://example.com/email-preferences',
         year: '2026',
         expiresMinutes: '9',
       },
@@ -35,6 +34,7 @@ describe('verification email template', () => {
     expect(compactHtml).toContain(
       'If you did not create a SkillBridge account',
     );
+    expect(compactHtml).not.toContain('unsubscribe');
     expect(compactHtml).not.toContain('for your brand, for a cause, or just');
     expect(compactHtml).not.toContain('15 minutes');
   });
