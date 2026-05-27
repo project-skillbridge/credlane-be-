@@ -17,6 +17,7 @@ import {
 } from '../assessments/entities';
 import { EmployerPoolProfile } from '../talent/entities/employer-pool-profile.entity';
 import {
+  TalentAvailabilityStatus,
   TalentProfile,
   TalentProfileStatus,
 } from '../talent/entities/talent-profile.entity';
@@ -111,6 +112,7 @@ describe('VerifiedProfileService', () => {
         bio: 'Builder of useful products',
         track: 'frontend_developer',
         validated_level: VerifiedLevel.MID,
+        resume_url: 'https://cdn.example.com/resumes/jane.pdf',
         personal_assessment_answers: {
           tools: ['react', 'typescript'],
           specialization: 'frontend_engineer',
@@ -192,8 +194,6 @@ describe('VerifiedProfileService', () => {
         skills: ['react', 'typescript'],
         verified: true,
         status: TalentProfileStatus.JOB_READY,
-        ai_summary:
-          'Jane shows job-ready frontend strengths and strong product reasoning.',
         ai_report:
           'Jane shows job-ready frontend strengths and strong product reasoning.',
         skill_proficiency: {
@@ -203,12 +203,13 @@ describe('VerifiedProfileService', () => {
         seniority_badge: 'Mid Level',
         tier_label: 'Job Ready',
         score_percentage: 80,
-        download_cv_url: null,
+        resume_url: 'https://cdn.example.com/resumes/jane.pdf',
         verified_at: '2026-05-03T00:00:00.000Z',
         tier: AssessmentTier.JOB_READY,
         is_owner: true,
       });
       expect(result).not.toHaveProperty('aiReport');
+      expect(result).not.toHaveProperty('ai_summary');
       expect(result).not.toHaveProperty('detailedSkills');
       expect(result.about_tags).toEqual([
         'Mid Level',
@@ -455,8 +456,8 @@ describe('VerifiedProfileService', () => {
       expect(result.goal).toBe('');
       expect(result.about).toBe('');
       expect(result.skills).toBeUndefined();
-      expect(result.ai_summary).toBeUndefined();
       expect(result.ai_report).toBeUndefined();
+      expect(result).not.toHaveProperty('ai_summary');
       expect(result.key_strengths).toBeUndefined();
       expect(result.professional_skills).toBeUndefined();
       expect(result.soft_skills).toBeUndefined();
@@ -509,7 +510,7 @@ describe('VerifiedProfileService', () => {
       );
 
       const result = await service.getForTalentUser(user.id);
-      expect(result.ai_summary).toBeUndefined();
+      expect(result).not.toHaveProperty('ai_summary');
     });
 
     it('returns empty share_url when no token or pool link exists', async () => {
@@ -682,6 +683,9 @@ function makeProfile(overrides: Partial<TalentProfile>): TalentProfile {
     onboarding_step: 3,
     status: TalentProfileStatus.NOT_STARTED,
     bio: null,
+    personal_website: null,
+    resume_url: null,
+    availability_status: TalentAvailabilityStatus.OPEN_TO_OPPORTUNITIES,
     personal_assessment_answers: null,
     personal_assessment_completed_at: null,
     skill_assessment_completed_at: null,

@@ -56,7 +56,6 @@ describe('Verified profile (e2e)', () => {
     goal: 'Land First Role',
     about: '',
     about_tags: ['Mid Level', 'Job Ready', 'Open to Work', 'Fully Remote'],
-    ai_summary: 'Alex shows job-ready frontend strengths.',
     ai_report: 'Alex shows job-ready frontend strengths.',
     avatar_url: null,
     verified: true,
@@ -115,7 +114,7 @@ describe('Verified profile (e2e)', () => {
       },
     ],
     resource_page_url: '/resources',
-    download_cv_url: null,
+    resume_url: 'https://cdn.example.com/resumes/alex.pdf',
     share_url: 'https://skillbridge.com/verified-profiles/'.concat(
       'ab'.repeat(32),
     ),
@@ -219,8 +218,9 @@ describe('Verified profile (e2e)', () => {
             },
           ],
           resource_page_url: '/resources',
-          download_cv_url: null,
+          resume_url: 'https://cdn.example.com/resumes/alex.pdf',
         });
+        expect(res.body.data).not.toHaveProperty('ai_summary');
         expect(res.body.data).not.toHaveProperty('detailed_skills');
       });
   });

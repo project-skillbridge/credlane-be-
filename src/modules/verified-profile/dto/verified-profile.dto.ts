@@ -115,14 +115,7 @@ export class VerifiedProfileResponseDto {
   @ApiPropertyOptional({
     example:
       'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
-  })
-  ai_summary?: string;
-
-  @ApiPropertyOptional({
-    example:
-      'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
-    description:
-      'Report-facing alias for ai_summary used by the verified profile UI.',
+    description: 'AI-generated report text used by the verified profile UI.',
   })
   ai_report?: string;
 
@@ -202,12 +195,11 @@ export class VerifiedProfileResponseDto {
   resource_page_url?: '/resources';
 
   @ApiPropertyOptional({
-    example: null,
+    example: 'https://cdn.example.com/resumes/resume.pdf',
     nullable: true,
-    description:
-      'Reserved for a future downloadable CV/resume URL. Currently null until resume storage is available.',
+    description: 'Resume URL from talent settings when available.',
   })
-  download_cv_url?: string | null;
+  resume_url?: string | null;
 
   @ApiProperty({ example: 'https://skillbridge.com/verified-profiles/abc123' })
   share_url: string;

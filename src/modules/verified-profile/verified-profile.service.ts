@@ -65,7 +65,7 @@ type GuidanceResourceItem = {
   reason: string;
 };
 type GuidanceReportContent = {
-  ai_summary?: string;
+  ai_report?: string;
   growth_insight?: string;
   summary?: string;
   strength_ratings?: RatedProfileItem[];
@@ -245,9 +245,9 @@ export class VerifiedProfileService {
     );
     const qrCodeUrl = buildQrCodeUrl(shareUrl);
 
-    let aiSummary = guidanceReport.ai_summary;
-    if (!aiSummary && latestAdvancedResult) {
-      aiSummary = await this.generateAiSummary(
+    let aiReport = guidanceReport.ai_report;
+    if (!aiReport && latestAdvancedResult) {
+      aiReport = await this.generateAiSummary(
         user,
         profile,
         latestAdvancedResult,
@@ -273,7 +273,7 @@ export class VerifiedProfileService {
       goal: resolveGoalLabel(profile.goal),
       about: profile.bio?.trim() ?? '',
       ...(aboutTags.length > 0 && { about_tags: aboutTags }),
-      ...(aiSummary && { ai_summary: aiSummary, ai_report: aiSummary }),
+      ...(aiReport && { ai_report: aiReport }),
       avatar_url: user.avatar_url,
       verified: true,
       status: profile.status,
@@ -312,7 +312,7 @@ export class VerifiedProfileService {
       ...(guidanceReport.resource_page_url && {
         resource_page_url: guidanceReport.resource_page_url,
       }),
-      download_cv_url: null,
+      resume_url: profile.resume_url ?? null,
       share_url: shareUrl,
       ...(qrCodeUrl && { qr_code_url: qrCodeUrl }),
       is_owner: isOwner ?? false,
@@ -329,7 +329,7 @@ export class VerifiedProfileService {
     }
 
     return {
-      ...this.readGuidanceString(report, 'ai_summary', 'ai_summary'),
+      ...this.readGuidanceString(report, 'ai_summary', 'ai_report'),
       ...this.readGuidanceString(report, 'growth_insight', 'growth_insight'),
       ...this.readGuidanceString(report, 'summary', 'summary'),
       ...this.readRatedItems(report, 'strength_ratings', 'strength_ratings'),
