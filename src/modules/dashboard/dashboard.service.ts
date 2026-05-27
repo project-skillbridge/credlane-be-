@@ -28,7 +28,6 @@ import { VerifiedLevel } from '../assessments/entities/assessment-question.entit
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
 import {
   SKILL_ASSESSMENT_MAX_ATTEMPTS,
-  SKILL_ASSESSMENT_PASS_PERCENTAGE,
 } from '../talent/talent.constants';
 import {
   meetsSkillQualityBenchmark,
@@ -124,7 +123,6 @@ export class DashboardService {
     attemptsUsed: number,
   ): DashboardSkillPerformance {
     const percentage = result.percentage ?? 0;
-    const claimedPercentage = result.claimed_percentage ?? percentage;
     const validatedLevel =
       result.validated_level ?? profile.validated_level ?? VerifiedLevel.JUNIOR;
 
@@ -135,7 +133,7 @@ export class DashboardService {
       max_score: result.max_score ?? result.score,
       percentage,
       validated_level: validatedLevel,
-      passed: !failed && claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE,
+      passed: !failed && Boolean(result.validated_level),
       failed,
       completed_at: this.toIsoTimestamp(
         profile.skill_assessment_completed_at,
