@@ -889,8 +889,10 @@ export class SkillAssessmentService {
     );
 
     const attemptsUsed = await this.countCompletedSkillAttempts(profile.id);
-    const retakeAvailable =
-      !passed && attemptsUsed < SKILL_ASSESSMENT_MAX_ATTEMPTS;
+    const hasAttemptsRemaining =
+      Boolean(profile.advanced_assessment_completed_at) ||
+      attemptsUsed < SKILL_ASSESSMENT_MAX_ATTEMPTS;
+    const retakeAvailable = !passed && hasAttemptsRemaining;
 
     return {
       status: failed ? 'failed' : 'success',
