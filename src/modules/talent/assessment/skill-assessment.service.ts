@@ -57,10 +57,11 @@ import {
   ScoredTextAnswer,
 } from '../../ai/ai.types';
 
-const SKILL_ASSESSMENT_MCQ_COUNT = 6;
-const SKILL_ASSESSMENT_TEXT_COUNT = 4;
-const SKILL_PROBE_MCQ_COUNT = 2;
-const SKILL_PROBE_TEXT_COUNT = 2;
+const SKILL_ASSESSMENT_MCQ_COUNT = 13;
+const SKILL_ASSESSMENT_TEXT_COUNT = 3;
+const SKILL_PROBE_MCQ_COUNT = 1;
+const SKILL_PROBE_TEXT_COUNT = 1;
+const SKILL_ASSESSMENT_TOTAL = 20;
 const SKILL_MCQ_SECTION_WEIGHT = 0.4;
 
 type ProbeDirection = 'above' | 'below';
@@ -379,6 +380,29 @@ export class SkillAssessmentService {
             belowLevel,
           );
           belowProbeQuestions = this.selectSkillProbeMix(belowBank);
+        }
+
+        const probeTotal =
+          aboveProbeQuestions.length + belowProbeQuestions.length;
+        const deficit = SKILL_ASSESSMENT_TOTAL -
+          selectedQuestions.length -
+          probeTotal;
+
+        if (deficit > 0) {
+          const usedIds = new Set(
+            [...selectedQuestions, ...aboveProbeQuestions, ...belowProbeQuestions]
+              .map((q) => q.id),
+          );
+          const extras = bankQuestions
+            .filter((q) => !usedIds.has(q.id))
+            .slice(0, deficit);
+          if (extras.length < deficit) {
+            throw new ServiceUnavailableException({
+              error: 'BANK_EXHAUSTED',
+              message: ErrorMessages.SKILL_ASSESSMENT.NO_QUESTIONS_AVAILABLE,
+            });
+          }
+          selectedQuestions = [...selectedQuestions, ...extras];
         }
 
         const allSelected = [
@@ -1171,7 +1195,10 @@ export class SkillAssessmentService {
       mcqs.length < SKILL_PROBE_MCQ_COUNT ||
       text.length < SKILL_PROBE_TEXT_COUNT
     ) {
-      return [];
+      throw new ServiceUnavailableException({
+        error: 'BANK_EXHAUSTED',
+        message: ErrorMessages.SKILL_ASSESSMENT.NO_QUESTIONS_AVAILABLE,
+      });
     }
 
     return [...mcqs, ...text];
