@@ -40,9 +40,13 @@ export class EmployerDiscoveryController {
     summary: 'View full verified profile of a Job Ready candidate',
   })
   async getCandidateProfile(
+    @CurrentUser('sub') employerUserId: string,
     @Param('userId', ParseUUIDPipe) candidateUserId: string,
   ) {
-    return this.discoveryService.getCandidateProfile(candidateUserId);
+    return this.discoveryService.getCandidateProfile(
+      employerUserId,
+      candidateUserId,
+    );
   }
 
   @Post('candidates/:userId/save')
