@@ -128,7 +128,6 @@ export class OutboundEmailQueueService
       digits.map((d, i) => [`digit${i + 1}`, d]),
     ) as Record<string, string>;
 
-    const base = env.FRONTEND_URL.replace(/\/$/, '');
     const logoUrl =
       env.EMAIL_LOGO_URL ??
       'https://placehold.co/140x40/1f5f6b/ffffff/png?text=SkillBridge';
