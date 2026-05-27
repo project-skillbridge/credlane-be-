@@ -50,7 +50,6 @@ export class PublicEmployerAssessmentQuestionResponseDto {
 
   @ApiPropertyOptional({ nullable: true, type: [String] })
   options: string[] | null;
-
 }
 
 export class EmployerAssessmentResponseDto {

@@ -160,10 +160,9 @@ describe('EmployerAssessmentsService', () => {
       expect(lockQueryBuilder.setLock).toHaveBeenCalledWith(
         'pessimistic_write',
       );
-      expect(lockQueryBuilder.where).toHaveBeenCalledWith(
-        'user.id = :userId',
-        { userId: 'emp-1' },
-      );
+      expect(lockQueryBuilder.where).toHaveBeenCalledWith('user.id = :userId', {
+        userId: 'emp-1',
+      });
     });
 
     it('should reject when less than 5 company questions are provided', async () => {
@@ -356,9 +355,9 @@ describe('EmployerAssessmentsService', () => {
       });
       mockAssessmentRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.getAssessment('emp-1', 'missing-ass')).rejects.toThrow(
-        'Assessment not found',
-      );
+      await expect(
+        service.getAssessment('emp-1', 'missing-ass'),
+      ).rejects.toThrow('Assessment not found');
     });
   });
 

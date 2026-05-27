@@ -37,7 +37,7 @@ export class DashboardSkillPerformanceDto {
 
   @ApiProperty({
     description:
-      'Whether the skill assessment met the 70% pass gate for advanced',
+      'Whether the skill assessment met the 50% quality gate and received a validated level',
   })
   passed: boolean;
 
@@ -58,13 +58,6 @@ export class DashboardSkillPerformanceDto {
 
   @ApiProperty({ example: 2, description: 'Skill attempts remaining (max 3)' })
   attempts_remaining: number;
-
-  @ApiPropertyOptional({
-    nullable: true,
-    description:
-      'AI guidance report. Emerging reports include retake_advice; Job Ready reports are strengths-focused and omit retake_advice.',
-  })
-  guidance_report?: Record<string, unknown> | null;
 }
 
 export class DashboardRetakeDto {
@@ -224,7 +217,6 @@ export type DashboardSkillPerformance = {
   completed_at: string;
   attempts_used: number;
   attempts_remaining: number;
-  guidance_report?: Record<string, unknown> | null;
 };
 
 export type DashboardAdvancedPerformance = {
@@ -235,7 +227,6 @@ export type DashboardAdvancedPerformance = {
   tier_label: string;
   integrity_confidence: string;
   completed_at: string;
-  guidance_report?: Record<string, unknown> | null;
   retake?: DashboardRetake | null;
 };
 

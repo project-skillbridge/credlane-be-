@@ -625,6 +625,60 @@ describe('DashboardService', () => {
     });
   });
 
+  it('marks skill as passed and unlocks advanced when the latest skill attempt validates to junior', async () => {
+    const talentUser = makeUser({
+      first_name: 'Jane',
+      role: UserRole.TALENT,
+      onboarding_complete: true,
+    });
+
+    const profile = makeProfile({
+      onboarding_step: 3,
+      goal: 'land_first_role',
+      track: 'frontend_developer',
+      region: 'Lagos',
+      education_level: 'bachelors',
+      claimed_level: VerifiedLevel.MID,
+      personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+      skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
+      validated_level: VerifiedLevel.JUNIOR,
+      status: TalentProfileStatus.IN_PROGRESS,
+    });
+
+    (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
+    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+    (assessmentAttemptRepository.count as jest.Mock).mockResolvedValue(1);
+    (queryBuilder.getOne as jest.Mock).mockImplementation(() => {
+      if (lastAssessmentType === AssessmentType.SKILL) {
+        return Promise.resolve(
+          makeAssessmentResult({
+            percentage: 57,
+            claimed_percentage: 57,
+            validated_level: VerifiedLevel.JUNIOR,
+          }),
+        );
+      }
+      return Promise.resolve(null);
+    });
+
+    const home = await service.getHome(talentUser.id);
+    const skillJourney = home.journey_overview.find(
+      (item) => item.key === 'skill',
+    );
+    const advancedJourney = home.journey_overview.find(
+      (item) => item.key === 'advanced',
+    );
+
+    expect(skillJourney?.status).toBe(DashboardJourneyStatus.AVAILABLE);
+    expect(advancedJourney?.status).toBe(DashboardJourneyStatus.AVAILABLE);
+    expect(home.performance.skill).toMatchObject({
+      percentage: 57,
+      validated_level: VerifiedLevel.JUNIOR,
+      passed: true,
+      failed: false,
+    });
+  });
+
   it('returns attempts_used and attempts_remaining based on completed attempt count', async () => {
     const talentUser = makeUser({
       first_name: 'Jane',

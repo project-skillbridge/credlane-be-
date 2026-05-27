@@ -3,8 +3,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from '../users/users.module';
 import {
   AssessmentAttempt,
+  AssessmentQuestion,
   AssessmentResponse,
   AssessmentResult,
+  AssessmentScore,
 } from '../assessments/entities';
 import { EmployerPoolProfile } from '../talent/entities/employer-pool-profile.entity';
 import { TalentProfile } from '../talent/entities/talent-profile.entity';
@@ -19,6 +21,8 @@ import { VerifiedProfileService } from './verified-profile.service';
       AssessmentResult,
       AssessmentAttempt,
       AssessmentResponse,
+      AssessmentScore,
+      AssessmentQuestion,
     ]),
     UsersModule,
   ],

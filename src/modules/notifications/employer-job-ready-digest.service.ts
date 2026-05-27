@@ -165,7 +165,9 @@ export class EmployerJobReadyDigestService
     const digestWeekStartIso = stableDigestWeekStartKey(referenceDate);
 
     const employers = await this.employerProfileRepo.find();
-    const configuredEmployers = employers.filter(hasConfiguredHiringPreferences);
+    const configuredEmployers = employers.filter(
+      hasConfiguredHiringPreferences,
+    );
     if (configuredEmployers.length === 0) {
       return;
     }

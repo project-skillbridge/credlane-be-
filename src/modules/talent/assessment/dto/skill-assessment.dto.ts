@@ -21,7 +21,7 @@ export class SkillAnswerDto {
   })
   @IsUUID()
   @IsNotEmpty()
-  question_id: string;
+  questionId: string;
 
   @ApiProperty({
     description:
@@ -69,7 +69,7 @@ export class SkillAnswerDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
-  time_spent_seconds?: number;
+  timeSpentSeconds?: number;
 }
 
 export class SubmitSkillAssessmentDto {
@@ -81,7 +81,7 @@ export class SubmitSkillAssessmentDto {
   })
   @IsUUID()
   @IsNotEmpty()
-  attempt_id: string;
+  attemptId: string;
 
   @ApiProperty({
     type: [SkillAnswerDto],
@@ -89,20 +89,20 @@ export class SubmitSkillAssessmentDto {
       'Array of answers for all questions in the session. Include one entry per question.',
     example: [
       {
-        question_id: 'a1b2c3d4-5678-90ab-cdef-1234567890ab',
+        questionId: 'a1b2c3d4-5678-90ab-cdef-1234567890ab',
         answer: 'React hooks',
-        time_spent_seconds: 30,
+        timeSpentSeconds: 30,
       },
       {
-        question_id: 'b2c3d4e5-6789-01bc-def0-234567890abc',
+        questionId: 'b2c3d4e5-6789-01bc-def0-234567890abc',
         answer: ['JavaScript', 'TypeScript'],
-        time_spent_seconds: 45,
+        timeSpentSeconds: 45,
       },
       {
-        question_id: 'c3d4e5f6-7890-12cd-ef01-34567890abcd',
+        questionId: 'c3d4e5f6-7890-12cd-ef01-34567890abcd',
         answer:
           'I would approach this problem by analyzing the requirements first, then designing a solution that scales well.',
-        time_spent_seconds: 90,
+        timeSpentSeconds: 90,
       },
     ],
   })

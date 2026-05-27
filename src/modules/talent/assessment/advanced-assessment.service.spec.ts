@@ -53,7 +53,7 @@ function makeAttempt(
 }
 
 /**
- * 5 MCQ + 10 short text + 2 LT-1 (SITUATIONAL) + 2 LT-2 (WORK_TASK) + 1
+ * 5 MCQ + 5 short text + 2 LT-1 (SITUATIONAL) + 2 LT-2 (WORK_TASK) + 1
  * LT-3 (REFLECTION, runtime-generated). For tests we pre-populate the
  * reflection slot so submit() doesn't hit the LT2_NOT_SUBMITTED guard.
  */
@@ -70,7 +70,7 @@ function makeSessionJson() {
     correct_answer: i < 4 ? 'Option A' : 'Option B',
   }));
 
-  const shortTextQuestions = Array.from({ length: 10 }, (_, i) => ({
+  const shortTextQuestions = Array.from({ length: 5 }, (_, i) => ({
     question_id: `short-${i + 1}`,
     question_number: 6 + i,
     block: 'short_text',
@@ -91,7 +91,7 @@ function makeSessionJson() {
   ];
   const longTextQuestions = longTextSlots.map((slot_type, i) => ({
     question_id: `long-${i + 1}`,
-    question_number: 16 + i,
+    question_number: 11 + i,
     block: 'long_text',
     question_type: QuestionType.OPTIONAL_TEXT,
     question_text: `Long text question ${i + 1} (${slot_type})`,
@@ -110,16 +110,16 @@ function makeSessionJson() {
 function makeSubmitDto(overrides: Record<string, unknown> = {}) {
   const session = makeSessionJson();
   return {
-    session_id: 'attempt-1',
+    sessionId: 'attempt-1',
     answers: session.questions.map((q) => ({
-      question_id: q.question_id,
+      questionId: q.question_id,
       answer:
         q.block === 'mcq'
           ? 'Option A'
           : q.block === 'short_text'
             ? SHORT_ANSWER
             : LT_ANSWER,
-      time_spent_seconds: q.block === 'long_text' ? 30 : 10,
+      timeSpentSeconds: q.block === 'long_text' ? 30 : 10,
     })),
     ...overrides,
   };
@@ -129,23 +129,23 @@ function makeSubmitJobData(overrides: Record<string, unknown> = {}) {
   const dto = makeSubmitDto(overrides);
   return {
     userId: 'talent-user-1',
-    sessionId: dto.session_id,
+    sessionId: dto.sessionId,
     answers: dto.answers,
     ...overrides,
   };
 }
 
 /**
- * Returns 15 scored text answers in the canonical scoring shape:
- * 10 short (max 12) + 2 LT-1 (max 12) + 2 LT-2 (max 12) + 1 LT-3 (max 8).
+ * Returns 10 scored text answers in the canonical scoring shape:
+ * 5 short (max 12) + 2 LT-1 (max 12) + 2 LT-2 (max 12) + 1 LT-3 (max 8).
  * The caller distributes total raw across all answers proportionally.
  */
-function makeScoredAnswers(rawTotal: number, maxTotal = 176) {
-  // 14 full-rubric questions (max 12 each = 168) + 1 LT-3 (max 8) = 176
+function makeScoredAnswers(rawTotal: number, maxTotal = 116) {
+  // 9 full-rubric questions (max 12 each = 108) + 1 LT-3 (max 8) = 116
   const proportion = rawTotal / maxTotal;
   const result = [];
 
-  for (let i = 0; i < 10; i++) {
+  for (let i = 0; i < 5; i++) {
     const raw = Math.round(12 * proportion);
     result.push({
       question_id: `short-${i + 1}`,
@@ -200,7 +200,7 @@ function makeScoredAnswers(rawTotal: number, maxTotal = 176) {
 }
 
 function makePerfectScoredAnswers() {
-  return makeScoredAnswers(176, 176);
+  return makeScoredAnswers(116, 116);
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -231,6 +231,7 @@ describe('AdvancedAssessmentService', () => {
   let usersService: { findOne: jest.Mock };
   let notificationDispatch: { dispatch: jest.Mock };
   let submitQueue: { enqueue: jest.Mock };
+  let bankExhaustedAlert: { notify: jest.Mock };
 
   // Cross-test captures
   let entityManagerSaveCalls: Array<{ entity: unknown; data: unknown }>;
@@ -373,8 +374,9 @@ describe('AdvancedAssessmentService', () => {
     };
 
     rubricScoring = {
-      // 80/176 ≈ 45% raw text yield → still emerging band by default
-      scoreAnswers: jest.fn().mockResolvedValue(makeScoredAnswers(80, 176)),
+      // 53/116 ≈ 46% raw text yield → still emerging band by default
+      // max-total 116 = 5 short×12 + 4 long×12 + 1 LT-3×8
+      scoreAnswers: jest.fn().mockResolvedValue(makeScoredAnswers(53, 116)),
     };
 
     guidanceReport = {
@@ -445,6 +447,10 @@ describe('AdvancedAssessmentService', () => {
       enqueue: jest.fn().mockResolvedValue(undefined),
     };
 
+    bankExhaustedAlert = {
+      notify: jest.fn(),
+    };
+
     service = new AdvancedAssessmentService(
       talentProfileRepo as never,
       questionRepo as never,
@@ -460,6 +466,7 @@ describe('AdvancedAssessmentService', () => {
       usersService as never,
       notificationDispatch as never,
       submitQueue as never,
+      bankExhaustedAlert as never,
     );
   });
 
@@ -613,7 +620,7 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('routes the REFLECTION slot through is_lt3=true and others through full rubric', async () => {
-      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(80, 176));
+      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(53, 116));
       await service.processSubmitJob(makeSubmitJobData() as never);
 
       const inputs = rubricScoring.scoreAnswers.mock.calls[0][0];
@@ -658,7 +665,7 @@ describe('AdvancedAssessmentService', () => {
       rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
       const dto = makeSubmitDto();
       dto.answers = dto.answers.map((answer) =>
-        String(answer.question_id).startsWith('mcq-')
+        String(answer.questionId).startsWith('mcq-')
           ? { ...answer, answer: 'Option C' }
           : answer,
       );
@@ -678,10 +685,10 @@ describe('AdvancedAssessmentService', () => {
       rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
       const dto = makeSubmitDto();
       dto.answers = dto.answers.map((answer) => {
-        if (!String(answer.question_id).startsWith('mcq-')) return answer;
+        if (!String(answer.questionId).startsWith('mcq-')) return answer;
         return {
           ...answer,
-          answer: answer.question_id === 'mcq-1' ? 'Option A' : 'Option C',
+          answer: answer.questionId === 'mcq-1' ? 'Option A' : 'Option C',
         };
       });
 
@@ -719,7 +726,7 @@ describe('AdvancedAssessmentService', () => {
 
       const dto = makeSubmitDto();
       dto.answers = dto.answers.filter(
-        (answer) => !String(answer.question_id).startsWith('mcq-'),
+        (answer) => !String(answer.questionId).startsWith('mcq-'),
       );
 
       await service.processSubmitJob(
@@ -744,7 +751,7 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('places tier at Emerging when pct < 75%', async () => {
-      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(115, 176));
+      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(76, 116));
       await service.processSubmitJob(makeSubmitJobData() as never);
 
       const resultSave = entityManagerSaveCalls.find(
@@ -756,7 +763,7 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('marks sub-50% as failed without profile completion or guidance report', async () => {
-      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(0, 176));
+      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(0, 116));
       await service.processSubmitJob(
         makeSubmitJobData({ answers: [] }) as never,
       );
@@ -782,7 +789,7 @@ describe('AdvancedAssessmentService', () => {
       );
     });
 
-    it('writes one assessment_scores row per session question (20)', async () => {
+    it('writes one assessment_scores row per session question (15)', async () => {
       rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
       await service.processSubmitJob(makeSubmitJobData() as never);
 
@@ -794,7 +801,7 @@ describe('AdvancedAssessmentService', () => {
         question_type: AssessmentScoreQuestionType;
         max_score: number;
       }>;
-      expect(rows).toHaveLength(20);
+      expect(rows).toHaveLength(15);
 
       const mcqRows = rows.filter(
         (r) => r.question_type === AssessmentScoreQuestionType.MCQ,
@@ -806,14 +813,14 @@ describe('AdvancedAssessmentService', () => {
         (r) => r.question_type === AssessmentScoreQuestionType.LONG_TEXT,
       );
       expect(mcqRows).toHaveLength(5);
-      expect(shortRows).toHaveLength(10);
+      expect(shortRows).toHaveLength(5);
       expect(longRows).toHaveLength(5);
       // LT-3 row carries max_score=8
       expect(longRows.find((r) => r.max_score === 8)).toBeDefined();
     });
 
     it('sets retake gate (assessment_locked_until) when tier is not job_ready', async () => {
-      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(100, 176));
+      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(66, 116));
 
       await service.processSubmitJob(makeSubmitJobData() as never);
       expect(entityManagerUpdate).toHaveBeenCalledWith(
@@ -873,16 +880,16 @@ describe('AdvancedAssessmentService', () => {
 
     it('flags abnormal long-text timing and sets integrity_confidence to low', async () => {
       const dto = {
-        session_id: 'attempt-1',
+        sessionId: 'attempt-1',
         answers: makeSessionJson().questions.map((q) => ({
-          question_id: q.question_id,
+          questionId: q.question_id,
           answer:
             q.block === 'mcq'
               ? 'Option A'
               : q.block === 'short_text'
                 ? SHORT_ANSWER
                 : LT_ANSWER,
-          time_spent_seconds: q.block === 'long_text' ? 2 : 10,
+          timeSpentSeconds: q.block === 'long_text' ? 2 : 10,
         })),
       };
 
@@ -934,7 +941,7 @@ describe('AdvancedAssessmentService', () => {
     describe('tier boundary cases', () => {
       it('49% → Not Ready', async () => {
         rubricScoring.scoreAnswers.mockResolvedValue(
-          makeScoredAnswers(85, 176),
+          makeScoredAnswers(56, 116),
         );
         await service.processSubmitJob(
           makeSubmitJobData({ answers: [] }) as never,
@@ -979,7 +986,7 @@ describe('AdvancedAssessmentService', () => {
 
     it('generates an LT-3 question and appends it to the session', async () => {
       const result = await service.submitLt2(userId, 'attempt-1', {
-        question_id: 'long-4', // last WORK_TASK
+        questionId: 'long-4', // last WORK_TASK
         answer: validAnswer,
       });
 
@@ -991,7 +998,7 @@ describe('AdvancedAssessmentService', () => {
     it('is idempotent: second call returns the same LT-3 without re-invoking the LLM', async () => {
       // First call: prime the session
       await service.submitLt2(userId, 'attempt-1', {
-        question_id: 'long-4',
+        questionId: 'long-4',
         answer: validAnswer,
       });
 
@@ -1001,7 +1008,7 @@ describe('AdvancedAssessmentService', () => {
       lt3Generation.generate.mockClear();
 
       const second = await service.submitLt2(userId, 'attempt-1', {
-        question_id: 'long-4',
+        questionId: 'long-4',
         answer: validAnswer,
       });
 
@@ -1012,7 +1019,7 @@ describe('AdvancedAssessmentService', () => {
     it('throws 422 LT2_QUESTION_MISMATCH when question_id is not LT-2', async () => {
       await expect(
         service.submitLt2(userId, 'attempt-1', {
-          question_id: 'long-1', // SITUATIONAL, not WORK_TASK
+          questionId: 'long-1', // SITUATIONAL, not WORK_TASK
           answer: validAnswer,
         }),
       ).rejects.toThrow(UnprocessableEntityException);
@@ -1023,7 +1030,7 @@ describe('AdvancedAssessmentService', () => {
 
       await expect(
         service.submitLt2(userId, 'attempt-1', {
-          question_id: 'long-4',
+          questionId: 'long-4',
           answer: validAnswer,
         }),
       ).rejects.toThrow(ServiceUnavailableException);
@@ -1035,7 +1042,7 @@ describe('AdvancedAssessmentService', () => {
       );
       await expect(
         service.submitLt2(userId, 'attempt-1', {
-          question_id: 'long-4',
+          questionId: 'long-4',
           answer: validAnswer,
         }),
       ).rejects.toThrow(BadRequestException);
@@ -1047,7 +1054,7 @@ describe('AdvancedAssessmentService', () => {
       );
       await expect(
         service.submitLt2(userId, 'attempt-1', {
-          question_id: 'long-4',
+          questionId: 'long-4',
           answer: validAnswer,
         }),
       ).rejects.toThrow(UnprocessableEntityException);
@@ -1055,7 +1062,7 @@ describe('AdvancedAssessmentService', () => {
 
     it('calls manager.update (not manager.save) to persist the LT-3 session update', async () => {
       await service.submitLt2(userId, 'attempt-1', {
-        question_id: 'long-4',
+        questionId: 'long-4',
         answer: LT_ANSWER,
       });
 
@@ -1069,7 +1076,7 @@ describe('AdvancedAssessmentService', () => {
 
     it('includes the REFLECTION slot in the generated_questions_json written by manager.update', async () => {
       await service.submitLt2(userId, 'attempt-1', {
-        question_id: 'long-4',
+        questionId: 'long-4',
         answer: LT_ANSWER,
       });
 
@@ -1093,7 +1100,7 @@ describe('AdvancedAssessmentService', () => {
 
     it('does not call manager.save for the attempt entity when persisting LT-3', async () => {
       await service.submitLt2(userId, 'attempt-1', {
-        question_id: 'long-4',
+        questionId: 'long-4',
         answer: LT_ANSWER,
       });
 
@@ -1105,7 +1112,7 @@ describe('AdvancedAssessmentService', () => {
 
     it('updates attempt.generated_questions_json in-memory after manager.update so the idempotency guard sees LT-3', async () => {
       await service.submitLt2(userId, 'attempt-1', {
-        question_id: 'long-4',
+        questionId: 'long-4',
         answer: LT_ANSWER,
       });
 
@@ -1133,7 +1140,7 @@ describe('AdvancedAssessmentService', () => {
 
       await expect(
         service.submitLt2(userId, 'attempt-1', {
-          question_id: 'long-4',
+          questionId: 'long-4',
           answer: validAnswer,
         }),
       ).rejects.toMatchObject({
@@ -1177,13 +1184,13 @@ describe('AdvancedAssessmentService', () => {
   describe('flag()', () => {
     it('voids session and returns logout action on tab switch', async () => {
       const result = await service.flag(userId, 'attempt-1', {
-        event_type: IntegrityEventType.TAB_SWITCH,
+        eventType: IntegrityEventType.TAB_SWITCH,
       });
 
       expect(result.status).toBe('voided');
       expect(result.action).toBe('logout');
-      expect(result.session_voided).toBe(true);
-      expect(result.tab_switch_count).toBe(1);
+      expect(result.sessionVoided).toBe(true);
+      expect(result.tabSwitchCount).toBe(1);
       expect(talentProfileRepo.manager.transaction).toHaveBeenCalled();
       expect(entityManagerFindOne).toHaveBeenCalledWith(
         AssessmentAttempt,
@@ -1215,7 +1222,7 @@ describe('AdvancedAssessmentService', () => {
 
     it('sets 14-day retake gate when session is voided', async () => {
       await service.flag(userId, 'attempt-1', {
-        event_type: IntegrityEventType.TAB_SWITCH,
+        eventType: IntegrityEventType.TAB_SWITCH,
       });
 
       const profileUpdate = entityManagerUpdate.mock.calls.find(
@@ -1236,13 +1243,13 @@ describe('AdvancedAssessmentService', () => {
 
     it('increments copy_paste_count on COPY_PASTE and voids session', async () => {
       const result = await service.flag(userId, 'attempt-1', {
-        event_type: IntegrityEventType.COPY_PASTE,
+        eventType: IntegrityEventType.COPY_PASTE,
       });
 
       expect(result.status).toBe('voided');
       expect(result.action).toBe('logout');
-      expect(result.session_voided).toBe(true);
-      expect(result.copy_paste_count).toBe(1);
+      expect(result.sessionVoided).toBe(true);
+      expect(result.copyPasteCount).toBe(1);
       expect(entityManagerIncrement).toHaveBeenCalledWith(
         AssessmentAttempt,
         expect.anything(),
@@ -1256,7 +1263,7 @@ describe('AdvancedAssessmentService', () => {
 
       await expect(
         service.flag(userId, 'attempt-1', {
-          event_type: IntegrityEventType.TAB_SWITCH,
+          eventType: IntegrityEventType.TAB_SWITCH,
         }),
       ).rejects.toThrow(NotFoundException);
     });
@@ -1266,7 +1273,7 @@ describe('AdvancedAssessmentService', () => {
 
       await expect(
         service.flag(userId, 'attempt-1', {
-          event_type: IntegrityEventType.TAB_SWITCH,
+          eventType: IntegrityEventType.TAB_SWITCH,
         }),
       ).rejects.toThrow(NotFoundException);
     });
@@ -1278,7 +1285,7 @@ describe('AdvancedAssessmentService', () => {
 
       await expect(
         service.flag(userId, 'attempt-1', {
-          event_type: IntegrityEventType.TAB_SWITCH,
+          eventType: IntegrityEventType.TAB_SWITCH,
         }),
       ).rejects.toThrow(BadRequestException);
     });
@@ -1308,6 +1315,7 @@ describe('AdvancedAssessmentService', () => {
         getOne: jest.fn().mockResolvedValue({
           percentage: 80,
           claimed_percentage: 80,
+          validated_level: VerifiedLevel.MID,
         } as AssessmentResult),
       };
 
@@ -1377,7 +1385,7 @@ describe('AdvancedAssessmentService', () => {
       });
     });
 
-    it('throws 422 when the latest skill result is below the pass threshold', async () => {
+    it('throws 422 when the latest skill result has no validated level', async () => {
       const profile = makeTalentProfile({
         validated_level: VerifiedLevel.MID,
         personal_assessment_completed_at: new Date(),
@@ -1417,6 +1425,7 @@ describe('AdvancedAssessmentService', () => {
         getOne: jest.fn().mockResolvedValue({
           percentage: 60,
           claimed_percentage: 65,
+          validated_level: null,
         }),
       });
       entityManager.createQueryBuilder.mockReturnValue(skillQuery);
@@ -1434,7 +1443,7 @@ describe('AdvancedAssessmentService', () => {
       });
     });
 
-    it('throws 503 BANK_EXHAUSTED when fewer than 19 base questions can be assembled', async () => {
+    it('throws 503 BANK_EXHAUSTED when fewer than the required base questions can be assembled', async () => {
       const profile = makeTalentProfile({
         validated_level: VerifiedLevel.MID,
         personal_assessment_completed_at: new Date(),
@@ -1474,6 +1483,7 @@ describe('AdvancedAssessmentService', () => {
         getOne: jest.fn().mockResolvedValue({
           percentage: 80,
           claimed_percentage: 80,
+          validated_level: VerifiedLevel.MID,
         }),
       });
       const activeAttemptQuery = makeQuery({
@@ -1502,6 +1512,13 @@ describe('AdvancedAssessmentService', () => {
 
       await expect(service.start(userId)).rejects.toThrow(
         ServiceUnavailableException,
+      );
+      expect(bankExhaustedAlert.notify).toHaveBeenCalledWith(
+        expect.objectContaining({
+          assessmentType: 'advanced',
+          expectedQuestions: 14,
+          gotQuestions: 10,
+        }),
       );
     });
   });

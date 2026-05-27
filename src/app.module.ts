@@ -1,9 +1,15 @@
-import { Module, ValidationPipe } from '@nestjs/common';
+import {
+  Module,
+  MiddlewareConsumer,
+  NestModule,
+  ValidationPipe,
+} from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR, APP_PIPE } from '@nestjs/core';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import type { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
+import { CaseTransformMiddleware } from './common/middleware/case-transform.middleware';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { appConfig } from './config/app.config';
@@ -25,6 +31,7 @@ import { UsersModule } from './modules/users/users.module';
 import { ProbeController } from './probe.controller';
 import { WelcomeController } from './welcome.controller';
 import { AiResourcesModule } from './modules/ai-resources/ai-resources.module';
+import { AiReportModule } from './modules/ai-report/ai-report.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AdminQuestionsModule } from './modules/admin/questions/admin-questions.module';
 import { EmployerDiscoveryModule } from './modules/employer-discovery/employer-discovery.module';
@@ -53,6 +60,7 @@ import { EmployerAssessmentsModule } from './modules/employer-assessments/employ
     EmployerModule,
     MailModule,
     AiResourcesModule,
+    AiReportModule,
     NotificationsModule,
     AdminQuestionsModule,
     EmployerDiscoveryModule,
@@ -77,4 +85,8 @@ import { EmployerAssessmentsModule } from './modules/employer-assessments/employ
   ],
   controllers: [ProbeController, WelcomeController],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(CaseTransformMiddleware).forRoutes('*');
+  }
+}

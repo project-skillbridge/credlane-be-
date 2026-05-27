@@ -21,9 +21,9 @@ describe('advancedAssessmentSubmitJobSchema', () => {
       sessionId: '22222222-2222-4222-8222-222222222222',
       answers: [
         {
-          question_id: '33333333-3333-4333-8333-333333333333',
+          questionId: '33333333-3333-4333-8333-333333333333',
           answer: 'Option A',
-          time_spent_seconds: 30,
+          timeSpentSeconds: 30,
         },
       ],
     });
@@ -60,7 +60,7 @@ describe('AdvancedAssessmentQueueService', () => {
       sessionId: '22222222-2222-4222-8222-222222222222',
       answers: [
         {
-          question_id: '33333333-3333-4333-8333-333333333333',
+          questionId: '33333333-3333-4333-8333-333333333333',
           answer: 'hello',
         },
       ],

@@ -6,6 +6,7 @@ import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
 import { CompleteEmployerOnboardingDto } from './dto/complete-employer-onboarding.dto';
 import { SaveEmployerProfileDto } from './dto/save-employer-profile.dto';
+import { UpdateEmployerProfileDto } from './dto/update-employer-profile.dto';
 import { EmployerProfile } from './entities/employer-profile.entity';
 import { EmployerVerificationService } from './employer-verification.service';
 import {
@@ -48,6 +49,16 @@ export class EmployerService {
     private readonly verificationService: EmployerVerificationService,
   ) {}
 
+  async getProfile(userId: string): Promise<EmployerProfile> {
+    const profile = await this.employerProfileRepository.findOne({
+      where: { user_id: userId },
+    });
+    if (!profile) {
+      throw new NotFoundError('Employer profile not found');
+    }
+    return profile;
+  }
+
   async saveProfile(
     userId: string,
     dto: SaveEmployerProfileDto,
@@ -74,23 +85,26 @@ export class EmployerService {
           profile = manager.create(EmployerProfile, { user_id: userId });
         }
 
-        profile.employer_type = dto.employer_type;
-        profile.company_name = dto.company_name.trim();
-        profile.company_size = dto.company_size;
-        profile.company_website = dto.company_website.trim();
-        profile.website_url = dto.company_website.trim();
+        profile.employer_type = dto.employerType;
+        profile.company_name = dto.companyName.trim();
+        profile.company_size = dto.companySize;
+        profile.company_website = dto.companyWebsite.trim();
+        profile.website_url = dto.companyWebsite.trim();
         profile.industry = dto.industry.trim();
         profile.region = dto.region.trim();
         profile.hiring_region = dto.region.trim();
-        profile.linkedin_company_page_url =
-          dto.linkedin_company_page_url?.trim() ?? null;
-        profile.linkedin_company_url =
-          dto.linkedin_company_page_url?.trim() ?? null;
-        profile.hiring_roles = dto.hiring_roles;
+        if (dto.linkedinCompanyPageUrl !== undefined) {
+          const linkedinCompanyPageUrl = dto.linkedinCompanyPageUrl.trim();
+          if (linkedinCompanyPageUrl !== '') {
+            profile.linkedin_company_page_url = linkedinCompanyPageUrl;
+            profile.linkedin_company_url = linkedinCompanyPageUrl;
+          }
+        }
+        profile.hiring_roles = dto.hiringRoles;
         profile.hiring_locations = [dto.region.trim()];
-        profile.desired_roles = dto.hiring_roles;
-        profile.preferred_experience_levels = dto.preferred_experience_levels;
-        profile.hiring_count_range = dto.hiring_count ?? null;
+        profile.desired_roles = dto.hiringRoles;
+        profile.preferred_experience_levels = dto.preferredExperienceLevels;
+        profile.hiring_count_range = dto.hiringCount ?? null;
 
         await manager.save(EmployerProfile, profile);
         await this.usersService.markOnboardingCompleteWithManager(
@@ -114,6 +128,98 @@ export class EmployerService {
       status: 'success',
       message: SuccessMessages.ONBOARDING.EMPLOYER_PROFILE_SAVED,
     };
+  }
+
+  async updateProfile(
+    userId: string,
+    dto: UpdateEmployerProfileDto,
+  ): Promise<{ status: string; message: string; profile: EmployerProfile }> {
+    const profile = await this.employerProfileRepository.findOne({
+      where: { user_id: userId },
+    });
+    if (!profile) {
+      throw new NotFoundError('Employer profile not found');
+    }
+
+    this.applyProfileUpdates(profile, dto);
+    const savedProfile = await this.employerProfileRepository.manager.save(
+      EmployerProfile,
+      profile,
+    );
+
+    this.verificationService
+      .checkAndUpdateVerification(userId)
+      .catch((err) =>
+        this.logger.error(
+          `Verification recompute failed for user ${userId}`,
+          err,
+        ),
+      );
+
+    return {
+      status: 'success',
+      message: 'Employer profile updated',
+      profile: savedProfile,
+    };
+  }
+
+  private applyProfileUpdates(
+    profile: EmployerProfile,
+    dto: UpdateEmployerProfileDto,
+  ): void {
+    if (dto.employerType !== undefined) {
+      profile.employer_type = dto.employerType;
+    }
+    if (dto.companyName !== undefined) {
+      const companyName = this.trimNonEmpty(dto.companyName);
+      if (companyName) {
+        profile.company_name = companyName;
+      }
+    }
+    if (dto.companySize !== undefined) {
+      profile.company_size = dto.companySize;
+    }
+    if (dto.companyWebsite !== undefined) {
+      const companyWebsite = this.trimNonEmpty(dto.companyWebsite);
+      if (companyWebsite) {
+        profile.company_website = companyWebsite;
+        profile.website_url = companyWebsite;
+      }
+    }
+    if (dto.industry !== undefined) {
+      const industry = this.trimNonEmpty(dto.industry);
+      if (industry) {
+        profile.industry = industry;
+      }
+    }
+    if (dto.region !== undefined) {
+      const region = this.trimNonEmpty(dto.region);
+      if (region) {
+        profile.region = region;
+        profile.hiring_region = region;
+        profile.hiring_locations = [region];
+      }
+    }
+    if (dto.linkedinCompanyPageUrl !== undefined) {
+      profile.linkedin_company_page_url =
+        dto.linkedinCompanyPageUrl?.trim() ?? null;
+      profile.linkedin_company_url = dto.linkedinCompanyPageUrl?.trim() ?? null;
+    }
+    if (dto.hiringRoles !== undefined) {
+      profile.hiring_roles = dto.hiringRoles;
+      profile.desired_roles = dto.hiringRoles;
+    }
+    if (dto.preferredExperienceLevels !== undefined) {
+      profile.preferred_experience_levels = dto.preferredExperienceLevels;
+    }
+    if (dto.hiringCount !== undefined) {
+      profile.hiring_count_range = dto.hiringCount ?? null;
+    }
+  }
+
+  private trimNonEmpty(value: string): string | undefined {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
   }
 
   async completeOnboarding(
@@ -146,23 +252,22 @@ export class EmployerService {
 
         const nextProfile = manager.create(EmployerProfile, {
           user_id: userId,
-          employer_type: dto.joining_as,
-          joining_as: dto.joining_as,
-          company_name: dto.company_name.trim(),
-          company_size: dto.company_size,
+          employer_type: dto.joiningAs,
+          joining_as: dto.joiningAs,
+          company_name: dto.companyName.trim(),
+          company_size: dto.companySize,
           industry: dto.industry.trim(),
-          desired_roles: dto.desired_roles,
-          hiring_roles: dto.desired_roles,
+          desired_roles: dto.desiredRoles,
+          hiring_roles: dto.desiredRoles,
           hiring_locations: [dto.region.trim()],
           region: dto.region.trim(),
           hiring_region: dto.region.trim(),
-          hiring_count_range: dto.hiring_count_range,
-          company_website: dto.company_website?.trim() || null,
-          website_url: dto.company_website?.trim() || null,
-          linkedin_company_page_url:
-            dto.linkedin_company_page_url?.trim() || null,
-          linkedin_company_url: dto.linkedin_company_page_url?.trim() || null,
-          preferred_experience_levels: dto.preferred_experience_levels,
+          hiring_count_range: dto.hiringCountRange,
+          company_website: dto.companyWebsite?.trim() || null,
+          website_url: dto.companyWebsite?.trim() || null,
+          linkedin_company_page_url: dto.linkedinCompanyPageUrl?.trim() || null,
+          linkedin_company_url: dto.linkedinCompanyPageUrl?.trim() || null,
+          preferred_experience_levels: dto.preferredExperienceLevels,
         });
 
         const savedProfile = await manager.save(EmployerProfile, nextProfile);

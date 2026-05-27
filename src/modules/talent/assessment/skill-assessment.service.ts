@@ -5,6 +5,7 @@ import {
   Injectable,
   Logger,
   NotFoundException,
+  ServiceUnavailableException,
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -50,12 +51,18 @@ import {
 import { RubricScoringService } from '../../ai/rubric-scoring.service';
 import { GuidanceReportService } from '../../ai/guidance-report.service';
 import { QuestionGenerationService } from '../../ai/question-generation.service';
-import { GuidanceReport, ScoredTextAnswer } from '../../ai/ai.types';
+import {
+  GeneratedQuestion,
+  GuidanceReport,
+  ScoredTextAnswer,
+} from '../../ai/ai.types';
+import { BankExhaustedAlertService } from '../../mail/bank-exhausted-alert.service';
 
-const SKILL_ASSESSMENT_MCQ_COUNT = 6;
-const SKILL_ASSESSMENT_TEXT_COUNT = 4;
-const SKILL_PROBE_MCQ_COUNT = 2;
-const SKILL_PROBE_TEXT_COUNT = 2;
+const SKILL_ASSESSMENT_MCQ_COUNT = 13;
+const SKILL_ASSESSMENT_TEXT_COUNT = 3;
+const SKILL_PROBE_MCQ_COUNT = 1;
+const SKILL_PROBE_TEXT_COUNT = 1;
+const SKILL_ASSESSMENT_TOTAL = 20;
 const SKILL_MCQ_SECTION_WEIGHT = 0.4;
 
 type ProbeDirection = 'above' | 'below';
@@ -118,6 +125,9 @@ export interface SubmitSkillAssessmentResult {
   downgraded: boolean;
   passed: boolean;
   failed: boolean;
+  retake_available: boolean;
+  max_attempts: number;
+  attempts_used: number;
   guidance_report?: GuidanceReport;
   personalised_message?: string;
 }
@@ -159,6 +169,7 @@ export class SkillAssessmentService {
     private readonly rubricScoring: RubricScoringService,
     private readonly guidanceReport: GuidanceReportService,
     private readonly questionGeneration: QuestionGenerationService,
+    private readonly bankExhaustedAlert: BankExhaustedAlertService,
   ) {}
 
   private async resolveSkillAttemptNumber(
@@ -317,18 +328,52 @@ export class SkillAssessmentService {
           manager,
         );
 
-        const rawBankQuestions = await this.findEligibleSkillQuestions(
+        let rawBankQuestions = await this.findEligibleSkillQuestions(
           manager,
           lockedProfile,
           verifiedLevel,
         );
-        const bankQuestions = await this.ensureSkillQuestionsWithAI(
+        let bankQuestions = await this.ensureSkillQuestionsWithAI(
           manager,
           lockedProfile,
           verifiedLevel,
           rawBankQuestions,
         );
-        const selectedQuestions = this.selectSkillQuestionMix(bankQuestions);
+        let selectedQuestions: AssessmentQuestion[];
+        try {
+          selectedQuestions = this.selectSkillQuestionMix(bankQuestions);
+        } catch (firstErr) {
+          // Bank mix insufficient after question-history exclusion — retry without exclusion.
+          // Alert is suppressed here; it fires only if the retry also fails.
+          this.logger.warn(
+            `Skill bank mix insufficient after exclusion for user=${lockedProfile.user_id}, retrying without exclusion`,
+          );
+          rawBankQuestions = await this.findEligibleSkillQuestions(
+            manager,
+            lockedProfile,
+            verifiedLevel,
+            true,
+          );
+          bankQuestions = await this.ensureSkillQuestionsWithAI(
+            manager,
+            lockedProfile,
+            verifiedLevel,
+            rawBankQuestions,
+          );
+          try {
+            selectedQuestions = this.selectSkillQuestionMix(bankQuestions);
+          } catch (retryErr) {
+            this.throwSkillBankExhausted(
+              retryErr instanceof Error ? retryErr.message : String(firstErr),
+              {
+                talentProfileId: lockedProfile.id,
+                userId: lockedProfile.user_id,
+                track: lockedProfile.track,
+                verifiedLevel: verifiedLevel,
+              },
+            );
+          }
+        }
 
         let aboveProbeQuestions: AssessmentQuestion[] = [];
         const aboveLevel = this.levelAbove(verifiedLevel);
@@ -350,6 +395,36 @@ export class SkillAssessmentService {
             belowLevel,
           );
           belowProbeQuestions = this.selectSkillProbeMix(belowBank);
+        }
+
+        const probeTotal =
+          aboveProbeQuestions.length + belowProbeQuestions.length;
+        const deficit =
+          SKILL_ASSESSMENT_TOTAL - selectedQuestions.length - probeTotal;
+
+        if (deficit > 0) {
+          const usedIds = new Set(
+            [
+              ...selectedQuestions,
+              ...aboveProbeQuestions,
+              ...belowProbeQuestions,
+            ].map((q) => q.id),
+          );
+          const extras = bankQuestions
+            .filter((q) => !usedIds.has(q.id))
+            .slice(0, deficit);
+          if (extras.length < deficit) {
+            this.throwSkillBankExhausted(
+              `Could not fill ${deficit} deficit question(s) after probe selection`,
+              {
+                talentProfileId: lockedProfile.id,
+                userId: lockedProfile.user_id,
+                track: lockedProfile.track,
+                verifiedLevel: verifiedLevel,
+              },
+            );
+          }
+          selectedQuestions = [...selectedQuestions, ...extras];
         }
 
         const allSelected = [
@@ -506,7 +581,7 @@ export class SkillAssessmentService {
 
     const attempt = await this.attemptRepo.findOne({
       where: {
-        id: dto.attempt_id,
+        id: dto.attemptId,
         talent_profile_id: profile.id,
         assessment_type: AssessmentType.SKILL,
       },
@@ -536,7 +611,7 @@ export class SkillAssessmentService {
       questionEntities.map((question) => [question.id, question]),
     );
     const answerMap = new Map(
-      dto.answers.map((answer) => [answer.question_id, answer]),
+      dto.answers.map((answer) => [answer.questionId, answer]),
     );
 
     let primaryMcqCorrect = 0;
@@ -759,10 +834,7 @@ export class SkillAssessmentService {
       !failed &&
       validatedLevel !== null &&
       levelIsLower(validatedLevel, claimed);
-    const passed =
-      !failed &&
-      claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE &&
-      primaryMcqGatePassed;
+    const passed = !failed && validatedLevel !== null;
     const tier = this.resolveSkillTier(percentage);
 
     let guidanceReport: GuidanceReport | null = null;
@@ -859,6 +931,12 @@ export class SkillAssessmentService {
       this.readSessionPayload(attempt),
     );
 
+    const attemptsUsed = await this.countCompletedSkillAttempts(profile.id);
+    const hasAttemptsRemaining =
+      Boolean(profile.advanced_assessment_completed_at) ||
+      attemptsUsed < SKILL_ASSESSMENT_MAX_ATTEMPTS;
+    const retakeAvailable = !passed && hasAttemptsRemaining;
+
     return {
       status: failed ? 'failed' : 'success',
       message: failed
@@ -874,6 +952,9 @@ export class SkillAssessmentService {
       downgraded,
       passed,
       failed,
+      retake_available: retakeAvailable,
+      max_attempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
+      attempts_used: attemptsUsed,
       ...(guidanceReport && { guidance_report: guidanceReport }),
       ...(downgraded && {
         personalised_message: SuccessMessages.SKILL_ASSESSMENT.DOWNGRADE_NOTICE,
@@ -885,16 +966,8 @@ export class SkillAssessmentService {
     manager: EntityManager,
     profile: TalentProfile,
     verifiedLevel: VerifiedLevel,
+    skipExclusion = false,
   ): Promise<AssessmentQuestion[]> {
-    const lastAttempt = await manager.getRepository(AssessmentAttempt).findOne({
-      where: {
-        talent_profile_id: profile.id,
-        assessment_type: AssessmentType.SKILL,
-        completed_at: Not(IsNull()),
-      },
-      order: { completed_at: 'DESC' },
-    });
-
     const qb = manager
       .createQueryBuilder(AssessmentQuestion, 'question')
       .where('question.assessment_type = :assessmentType', {
@@ -904,16 +977,15 @@ export class SkillAssessmentService {
       .andWhere('question.track = :track', { track: profile.track })
       .andWhere('question.verified_level = :verifiedLevel', { verifiedLevel });
 
-    if (lastAttempt) {
+    if (!skipExclusion) {
       qb.andWhere(
         `NOT EXISTS (
           SELECT 1
           FROM talent_question_history history
           WHERE history.question_id = question.id
           AND history.talent_profile_id = :talentProfileId
-          AND history.attempt_id = :lastAttemptId
         )`,
-        { talentProfileId: profile.id, lastAttemptId: lastAttempt.id },
+        { talentProfileId: profile.id },
       );
     }
 
@@ -940,26 +1012,35 @@ export class SkillAssessmentService {
       `Generating AI questions for track=${profile.track} level=${verifiedLevel}: ${neededMcqs} MCQ, ${neededTexts} text`,
     );
 
-    const [generatedMcqs, generatedTexts] = await Promise.all([
-      neededMcqs > 0
-        ? this.questionGeneration.generateQuestions({
-            track: profile.track!,
-            verified_level: verifiedLevel,
-            assessment_type: 'skill',
-            question_type: QuestionType.SINGLE_PICK,
-            count: neededMcqs,
-          })
-        : Promise.resolve([]),
-      neededTexts > 0
-        ? this.questionGeneration.generateQuestions({
-            track: profile.track!,
-            verified_level: verifiedLevel,
-            assessment_type: 'skill',
-            question_type: QuestionType.REQUIRED_TEXT,
-            count: neededTexts,
-          })
-        : Promise.resolve([]),
-    ]);
+    let generatedMcqs: GeneratedQuestion[];
+    let generatedTexts: GeneratedQuestion[];
+    try {
+      [generatedMcqs, generatedTexts] = await Promise.all([
+        neededMcqs > 0
+          ? this.questionGeneration.generateQuestions({
+              track: profile.track!,
+              verified_level: verifiedLevel,
+              assessment_type: 'skill',
+              question_type: QuestionType.SINGLE_PICK,
+              count: neededMcqs,
+            })
+          : Promise.resolve([]),
+        neededTexts > 0
+          ? this.questionGeneration.generateQuestions({
+              track: profile.track!,
+              verified_level: verifiedLevel,
+              assessment_type: 'skill',
+              question_type: QuestionType.REQUIRED_TEXT,
+              count: neededTexts,
+            })
+          : Promise.resolve([]),
+      ]);
+    } catch (error) {
+      this.logger.warn(
+        `AI question generation failed for track=${profile.track} level=${verifiedLevel}: ${String(error)}`,
+      );
+      return bankQuestions;
+    }
 
     const allGenerated = [...generatedMcqs, ...generatedTexts];
     if (allGenerated.length === 0) {
@@ -1015,8 +1096,9 @@ export class SkillAssessmentService {
       mcqs.length < SKILL_ASSESSMENT_MCQ_COUNT ||
       text.length < SKILL_ASSESSMENT_TEXT_COUNT
     ) {
-      throw new UnprocessableEntityException(
-        ErrorMessages.SKILL_ASSESSMENT.NO_QUESTIONS_AVAILABLE,
+      // Throw a plain Error so the caller (start()) can retry before alerting.
+      throw new Error(
+        `Primary bank mix insufficient: mcq=${mcqs.length}/${SKILL_ASSESSMENT_MCQ_COUNT} text=${text.length}/${SKILL_ASSESSMENT_TEXT_COUNT}`,
       );
     }
 
@@ -1132,10 +1214,39 @@ export class SkillAssessmentService {
       mcqs.length < SKILL_PROBE_MCQ_COUNT ||
       text.length < SKILL_PROBE_TEXT_COUNT
     ) {
-      return [];
+      this.throwSkillBankExhausted(
+        `Probe bank mix insufficient: mcq=${mcqs.length}/${SKILL_PROBE_MCQ_COUNT} text=${text.length}/${SKILL_PROBE_TEXT_COUNT}`,
+      );
     }
 
     return [...mcqs, ...text];
+  }
+
+  private throwSkillBankExhausted(
+    detail: string,
+    context?: {
+      talentProfileId?: string;
+      userId?: string;
+      track?: string | null;
+      verifiedLevel?: string | null;
+      expectedQuestions?: number;
+      gotQuestions?: number;
+    },
+  ): never {
+    this.bankExhaustedAlert.notify({
+      assessmentType: 'skill',
+      detail,
+      talentProfileId: context?.talentProfileId,
+      userId: context?.userId,
+      track: context?.track,
+      verifiedLevel: context?.verifiedLevel,
+      expectedQuestions: context?.expectedQuestions,
+      gotQuestions: context?.gotQuestions,
+    });
+    throw new ServiceUnavailableException({
+      error: 'BANK_EXHAUSTED',
+      message: ErrorMessages.SKILL_ASSESSMENT.NO_QUESTIONS_AVAILABLE,
+    });
   }
 
   private toPercentage(score: number, maxScore: number): number {
@@ -1315,7 +1426,7 @@ export class SkillAssessmentService {
     }
 
     const counterField =
-      dto.event_type === IntegrityEventType.TAB_SWITCH
+      dto.eventType === IntegrityEventType.TAB_SWITCH
         ? 'tab_switch_count'
         : 'copy_paste_count';
 
@@ -1377,15 +1488,15 @@ export class SkillAssessmentService {
     );
 
     this.logger.warn(
-      `Skill session voided - integrity ${dto.event_type}: attempt=${result.attemptId} user=${userId}`,
+      `Skill session voided - integrity ${dto.eventType}: attempt=${result.attemptId} user=${userId}`,
     );
 
     return {
       status: 'voided',
       message: ErrorMessages.SKILL_ASSESSMENT.SESSION_VOIDED,
-      tab_switch_count: result.tabSwitchCount,
-      copy_paste_count: result.copyPasteCount,
-      session_voided: true,
+      tabSwitchCount: result.tabSwitchCount,
+      copyPasteCount: result.copyPasteCount,
+      sessionVoided: true,
       action: 'logout',
     };
   }

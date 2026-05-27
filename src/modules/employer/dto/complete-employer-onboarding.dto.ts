@@ -27,22 +27,22 @@ export class CompleteEmployerOnboardingDto {
     description: 'How the employer identifies — recruiter, founder, or agency',
   })
   @IsIn(EMPLOYER_JOINING_AS, {
-    message: `joining_as must be one of: ${EMPLOYER_JOINING_AS.join(', ')}`,
+    message: `joiningAs must be one of: ${EMPLOYER_JOINING_AS.join(', ')}`,
   })
-  joining_as: string;
+  joiningAs: string;
 
   @ApiProperty({ example: 'Acme Labs' })
   @IsString()
-  @MinLength(1, { message: 'company_name is required' })
+  @MinLength(1, { message: 'companyName is required' })
   @MaxLength(255)
-  company_name: string;
+  companyName: string;
 
   @ApiProperty({
     example: '11-50',
     enum: EMPLOYER_COMPANY_SIZES,
   })
   @IsIn(EMPLOYER_COMPANY_SIZES, { message: 'Invalid company size selection' })
-  company_size: string;
+  companySize: string;
 
   @ApiProperty({ example: 'Fintech' })
   @IsString()
@@ -62,7 +62,7 @@ export class CompleteEmployerOnboardingDto {
     each: true,
     message: `Each role must be one of: ${EMPLOYER_DESIRED_ROLES.join(', ')}`,
   })
-  desired_roles: string[];
+  desiredRoles: string[];
 
   @ApiProperty({
     example: ['junior', 'mid'],
@@ -76,7 +76,7 @@ export class CompleteEmployerOnboardingDto {
     each: true,
     message: 'Invalid experience level selection',
   })
-  preferred_experience_levels: string[];
+  preferredExperienceLevels: string[];
 
   @ApiProperty({
     example: 'Nigeria',
@@ -94,18 +94,18 @@ export class CompleteEmployerOnboardingDto {
       'Approximate number of talents to hire: 1_5 | 6_10 | 11_25 | 26_50 | 51_plus',
   })
   @IsIn(EMPLOYER_HIRING_RANGES, {
-    message: `hiring_count_range must be one of: ${EMPLOYER_HIRING_RANGES.join(', ')}`,
+    message: `hiringCountRange must be one of: ${EMPLOYER_HIRING_RANGES.join(', ')}`,
   })
-  hiring_count_range: string;
+  hiringCountRange: string;
 
   @ApiPropertyOptional({
     example: 'https://acmelabs.com',
     description: 'Company website URL',
   })
   @IsOptional()
-  @IsUrl({}, { message: 'company_website must be a valid URL' })
+  @IsUrl({}, { message: 'companyWebsite must be a valid URL' })
   @MaxLength(500)
-  company_website?: string;
+  companyWebsite?: string;
 
   @ApiPropertyOptional({
     example: 'https://www.linkedin.com/company/acmelabs',
@@ -116,5 +116,5 @@ export class CompleteEmployerOnboardingDto {
     message: LINKEDIN_COMPANY_PAGE_ERROR,
   })
   @MaxLength(500)
-  linkedin_company_page_url?: string;
+  linkedinCompanyPageUrl?: string;
 }

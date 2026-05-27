@@ -19,8 +19,7 @@ export class SubmitEmployerAssessmentDto {
 
   @ApiProperty({
     required: false,
-    description:
-      'Map of question ID to the candidate selected answer value',
+    description: 'Map of question ID to the candidate selected answer value',
   })
   @IsOptional()
   @IsObject()
