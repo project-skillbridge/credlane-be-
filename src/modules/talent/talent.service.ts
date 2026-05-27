@@ -643,7 +643,9 @@ export class TalentService {
         if (dto.educationLevel !== undefined) {
           talentProfile.education_level = dto.educationLevel;
         }
-        if (dto.linkedinUrl !== undefined) {
+        if (dto.linkedinUrl === null) {
+          talentProfile.linkedin_url = null;
+        } else if (typeof dto.linkedinUrl === 'string') {
           talentProfile.linkedin_url = dto.linkedinUrl.trim();
         }
         talentProfile.onboarding_step = 3;
