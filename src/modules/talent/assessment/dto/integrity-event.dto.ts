@@ -9,7 +9,7 @@ export enum IntegrityEventType {
 export class FlagIntegrityEventDto {
   @ApiProperty({ enum: IntegrityEventType })
   @IsEnum(IntegrityEventType)
-  event_type: IntegrityEventType;
+  eventType: IntegrityEventType;
 
   @ApiProperty({ required: false, description: 'Additional context' })
   @IsOptional()
@@ -20,8 +20,8 @@ export class FlagIntegrityEventDto {
 export interface IntegrityFlagResult {
   status: string;
   message: string;
-  tab_switch_count?: number;
-  copy_paste_count?: number;
-  session_voided?: boolean;
+  tabSwitchCount?: number;
+  copyPasteCount?: number;
+  sessionVoided?: boolean;
   action?: 'warn' | 'logout';
 }

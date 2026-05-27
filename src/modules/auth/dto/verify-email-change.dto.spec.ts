@@ -4,7 +4,7 @@ import { VerifyEmailChangeDto } from './verify-email-change.dto';
 describe('VerifyEmailChangeDto', () => {
   const buildDto = (otp: string) => {
     const dto = new VerifyEmailChangeDto();
-    dto.new_email = 'new.email@example.com';
+    dto.newEmail = 'new.email@example.com';
     dto.otp = otp;
     return dto;
   };
@@ -17,9 +17,7 @@ describe('VerifyEmailChangeDto', () => {
     const errors = await validate(buildDto('12AB56'));
 
     expect(errors).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ property: 'otp' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ property: 'otp' })]),
     );
   });
 
@@ -27,9 +25,7 @@ describe('VerifyEmailChangeDto', () => {
     const errors = await validate(buildDto('12345'));
 
     expect(errors).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ property: 'otp' }),
-      ]),
+      expect.arrayContaining([expect.objectContaining({ property: 'otp' })]),
     );
   });
 });

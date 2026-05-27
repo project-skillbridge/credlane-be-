@@ -17,19 +17,19 @@ export class CreateOfferDto {
   @ApiProperty({ format: 'uuid', description: 'Candidate user ID' })
   @IsNotEmpty()
   @IsUUID()
-  candidate_user_id: string;
+  candidateUserId: string;
 
   @ApiProperty({ description: 'Job role title' })
   @IsNotEmpty()
   @IsString()
   @MaxLength(255)
-  role_title: string;
+  roleTitle: string;
 
   @ApiPropertyOptional({ description: 'Role description', maxLength: 500 })
   @IsOptional()
   @IsString()
   @MaxLength(500)
-  role_description?: string;
+  roleDescription?: string;
 
   @ApiProperty({
     required: false,
@@ -51,17 +51,17 @@ export class CreateOfferDto {
   })
   @IsNotEmpty()
   @IsIn(['Full-time', 'Part-time', 'Contract', 'Internship'])
-  employment_type: string;
+  employmentType: string;
 
   @ApiProperty({ enum: ['Remote', 'Hybrid', 'On-site'] })
   @IsNotEmpty()
   @IsIn(['Remote', 'Hybrid', 'On-site'])
-  work_arrangement: string;
+  workArrangement: string;
 
   @ApiProperty({ required: false, type: String, format: 'date' })
   @IsOptional()
   @IsDateString()
-  application_deadline?: string;
+  applicationDeadline?: string;
 
   @ApiProperty({
     required: false,
@@ -73,5 +73,5 @@ export class CreateOfferDto {
   @IsInt()
   @Min(1)
   @Max(90)
-  expires_in_days?: number = 14;
+  expiresInDays?: number = 14;
 }

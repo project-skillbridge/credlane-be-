@@ -15,7 +15,7 @@ export class DiscoveryCandidatesQueryDto extends PaginationDto {
   @ApiProperty({ required: false, description: 'Filter by role track' })
   @IsOptional()
   @IsString()
-  role_track?: string;
+  roleTrack?: string;
 
   @ApiProperty({
     required: false,

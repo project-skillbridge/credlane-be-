@@ -26,9 +26,7 @@ import {
 } from '../assessments/entities';
 import { VerifiedLevel } from '../assessments/entities/assessment-question.entity';
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
-import {
-  SKILL_ASSESSMENT_MAX_ATTEMPTS,
-} from '../talent/talent.constants';
+import { SKILL_ASSESSMENT_MAX_ATTEMPTS } from '../talent/talent.constants';
 import {
   meetsSkillQualityBenchmark,
   qualifiesForAdvancedFromSkillResult,

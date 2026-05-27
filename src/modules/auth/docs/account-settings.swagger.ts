@@ -92,8 +92,7 @@ export const ApiRequestAccountDataExport = () =>
     ApiBearerAuth(),
     ApiOperation({
       summary: 'Request/download a copy of the authenticated account data',
-      description:
-        'Returns a JSON snapshot of the authenticated account data.',
+      description: 'Returns a JSON snapshot of the authenticated account data.',
     }),
     ApiResponse({
       status: 200,

@@ -78,9 +78,9 @@ export class UsersService {
 
     const passwordHash = await argon2.hash(dto.password);
     const signupReason =
-      dto.signup_reason == null || dto.signup_reason.trim() === ''
+      dto.signupReason == null || dto.signupReason.trim() === ''
         ? null
-        : dto.signup_reason.trim();
+        : dto.signupReason.trim();
 
     try {
       return await this.userModelAction.create({
@@ -88,10 +88,10 @@ export class UsersService {
         createPayload: {
           email: normalizedEmail,
           password: passwordHash,
-          first_name: dto.first_name,
-          last_name: dto.last_name,
+          first_name: dto.firstName,
+          last_name: dto.lastName,
           country: dto.country,
-          avatar_url: dto.profile_pic_url ?? null,
+          avatar_url: dto.profilePicUrl ?? null,
           is_verified: false,
           onboarding_complete: false,
           role: dto.role ?? UserRole.TALENT,
@@ -134,7 +134,7 @@ export class UsersService {
   async update(id: string, dto: UpdateUserDto): Promise<User> {
     await this.findOne(id);
 
-    const { profile_pic_url: profilePicUrl, ...userDto } = dto;
+    const { profilePicUrl, ...userDto } = dto;
     const payload: Partial<User> = {
       ...userDto,
       ...(profilePicUrl !== undefined ? { avatar_url: profilePicUrl } : {}),

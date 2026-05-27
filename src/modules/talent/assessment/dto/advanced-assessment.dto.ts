@@ -19,12 +19,12 @@ export class StartAdvancedAssessmentDto {}
 export class AdvancedAnswerTimingDto {
   @ApiProperty({ format: 'uuid' })
   @IsUUID()
-  question_id: string;
+  questionId: string;
 
   @ApiProperty({ description: 'Seconds spent on this question' })
   @IsNumber()
   @Min(0)
-  time_spent_seconds: number;
+  timeSpentSeconds: number;
 }
 
 export class AdvancedAnswerDto {
@@ -35,7 +35,7 @@ export class AdvancedAnswerDto {
   })
   @IsUUID()
   @IsNotEmpty()
-  question_id: string;
+  questionId: string;
 
   @ApiProperty({
     description:
@@ -80,7 +80,7 @@ export class AdvancedAnswerDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
-  time_spent_seconds?: number;
+  timeSpentSeconds?: number;
 }
 
 export {
@@ -96,7 +96,7 @@ export class SubmitAdvancedAssessmentDto {
   })
   @IsUUID()
   @IsNotEmpty()
-  session_id: string;
+  sessionId: string;
 
   @ApiProperty({
     type: [AdvancedAnswerDto],
@@ -140,7 +140,7 @@ export class SubmitLt2Dto {
   })
   @IsUUID()
   @IsNotEmpty()
-  question_id: string;
+  questionId: string;
 
   @ApiProperty({
     description: 'Candidate\u2019s LT-2 answer text (60\u20132000 chars)',

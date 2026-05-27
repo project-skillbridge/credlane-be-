@@ -14,11 +14,11 @@ export enum NotificationPreferenceChannel {
 }
 
 @Entity('user_notification_preferences')
-@Index('UQ_user_notification_preferences_user_channel_type', [
-  'user_id',
-  'channel',
-  'type',
-], { unique: true })
+@Index(
+  'UQ_user_notification_preferences_user_channel_type',
+  ['user_id', 'channel', 'type'],
+  { unique: true },
+)
 export class UserNotificationPreference {
   @PrimaryGeneratedColumn('uuid')
   id: string;

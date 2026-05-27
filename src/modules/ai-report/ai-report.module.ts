@@ -7,7 +7,11 @@ import { AssessmentAttempt, AssessmentResult } from '../assessments/entities';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([TalentProfile, AssessmentAttempt, AssessmentResult]),
+    TypeOrmModule.forFeature([
+      TalentProfile,
+      AssessmentAttempt,
+      AssessmentResult,
+    ]),
   ],
   controllers: [AiReportController],
   providers: [AiReportService],

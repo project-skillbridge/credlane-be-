@@ -24,7 +24,7 @@ Report type: ${input.report_type}
 Track: ${input.track}
 Claimed level: ${input.claimed_level}
 Validated level: ${input.validated_level}
-Score: ${input.percentage}% (Stage 2 pass threshold: 70%)
+Score: ${input.percentage}% (Stage 2 quality threshold: 50%)
 Strong competencies: ${input.strong_competencies.join(', ') || 'none identified'}
 Areas needing improvement: ${input.weak_competencies.join(', ') || 'none identified'}
 

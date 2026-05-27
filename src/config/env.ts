@@ -78,6 +78,9 @@ export const env = createEnv({
     EMAIL_LOGO_URL: z.string().url().optional(),
     SUPPORT_EMAIL: z.email().default('support@skillbridge.com'),
 
+    /** Comma-separated content team emails notified on BANK_EXHAUSTED (503). */
+    CONTENT_TEAM_BANK_ALERT_EMAILS: z.string().optional(),
+
     AWS_REGION: z.string().optional(),
     AWS_S3_BUCKET: z.string().optional(),
     AWS_ACCESS_KEY_ID: z.string().optional(),

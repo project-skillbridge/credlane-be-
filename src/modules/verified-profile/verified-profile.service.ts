@@ -508,9 +508,8 @@ export class VerifiedProfileService {
           where: { attempt_id: attemptId },
         })
       : [];
-    const scoreBreakdown = this.buildCompetencyBreakdownFromScoreRows(
-      scoreRows,
-    );
+    const scoreBreakdown =
+      this.buildCompetencyBreakdownFromScoreRows(scoreRows);
     if (scoreBreakdown.competencyScores) {
       return scoreBreakdown;
     }
@@ -575,11 +574,7 @@ export class VerifiedProfileService {
             typeof metadata.competency === 'string'
               ? metadata.competency
               : null;
-          const competency = (
-            question.competency ??
-            metadataCompetency ??
-            ''
-          )
+          const competency = (question.competency ?? metadataCompetency ?? '')
             .trim()
             .toLowerCase();
 

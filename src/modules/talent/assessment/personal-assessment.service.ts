@@ -9,6 +9,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { randomUUID } from 'crypto';
 import { EntityManager, Repository } from 'typeorm';
 import { ErrorMessages, SuccessMessages } from '../../../shared';
+import { camelToSnake } from '../../../common/utils/case-transform';
 import { personalAssessmentGenerationSchema } from '../../ai/ai.schemas';
 import { OpenRouterService } from '../../ai/openrouter.service';
 import { UsersService } from '../../users/users.service';
@@ -207,12 +208,10 @@ export class PersonalAssessmentService {
   private normalizeAnswerAliases(
     rawAnswers: Record<string, unknown>,
   ): Record<string, unknown> {
-    const normalized = { ...rawAnswers };
-    if (
-      normalized.claimed_level === undefined &&
-      normalized.claimedLevel !== undefined
-    ) {
-      normalized.claimed_level = normalized.claimedLevel;
+    const normalized: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(rawAnswers)) {
+      const snakeKey = key.includes('_') ? key : camelToSnake(key);
+      normalized[snakeKey] = value;
     }
     return normalized;
   }

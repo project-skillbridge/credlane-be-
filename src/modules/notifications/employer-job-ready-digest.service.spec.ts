@@ -86,15 +86,15 @@ describe('employer job ready digest matching', () => {
   });
 
   it('uses the same digest week key for same-day runs at different times', () => {
-    expect(
-      stableDigestWeekStartKey(new Date('2026-05-20T12:00:00.000Z')),
-    ).toBe('2026-05-13');
-    expect(
-      stableDigestWeekStartKey(new Date('2026-05-20T23:59:59.000Z')),
-    ).toBe('2026-05-13');
-    expect(
-      stableDigestWeekStartKey(new Date('2026-05-27T12:00:00.000Z')),
-    ).toBe('2026-05-20');
+    expect(stableDigestWeekStartKey(new Date('2026-05-20T12:00:00.000Z'))).toBe(
+      '2026-05-13',
+    );
+    expect(stableDigestWeekStartKey(new Date('2026-05-20T23:59:59.000Z'))).toBe(
+      '2026-05-13',
+    );
+    expect(stableDigestWeekStartKey(new Date('2026-05-27T12:00:00.000Z'))).toBe(
+      '2026-05-20',
+    );
   });
 
   it('falls back to desired_roles when hiring_roles is empty', () => {
@@ -151,7 +151,9 @@ describe('EmployerJobReadyDigestService', () => {
   };
 
   beforeEach(() => {
-    notificationsService = { create: jest.fn().mockResolvedValue({ id: 'n-1' }) };
+    notificationsService = {
+      create: jest.fn().mockResolvedValue({ id: 'n-1' }),
+    };
     mailService = {
       sendJobReadyMatchesDigest: jest.fn().mockResolvedValue({ id: 'email-1' }),
     };

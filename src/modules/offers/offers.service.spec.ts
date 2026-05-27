@@ -91,13 +91,13 @@ describe('OffersService', () => {
 
   describe('createOffer', () => {
     const dto = {
-      candidate_user_id: 'candidate-1',
-      role_title: 'Frontend Developer',
-      role_description: 'We would like to offer you a position',
+      candidateUserId: 'candidate-1',
+      roleTitle: 'Frontend Developer',
+      roleDescription: 'We would like to offer you a position',
       compensation: '$80k - $100k',
-      employment_type: 'Full-time',
-      work_arrangement: 'Remote',
-      expires_in_days: 14,
+      employmentType: 'Full-time',
+      workArrangement: 'Remote',
+      expiresInDays: 14,
     };
 
     it('should create an offer for a job_ready candidate', async () => {
@@ -118,8 +118,8 @@ describe('OffersService', () => {
               .mockResolvedValueOnce({
                 id: 'offer-1',
                 employer_user_id: 'employer-1',
-                candidate_user_id: dto.candidate_user_id,
-                role_title: dto.role_title,
+                candidate_user_id: dto.candidateUserId,
+                role_title: dto.roleTitle,
                 status: OfferStatus.PENDING,
               })
               .mockResolvedValueOnce({ id: 'log-1' }),
@@ -213,7 +213,7 @@ describe('OffersService', () => {
       expect(mockOfferRepo.findOne).toHaveBeenCalledWith({
         where: {
           employer_user_id: 'employer-1',
-          candidate_user_id: dto.candidate_user_id,
+          candidate_user_id: dto.candidateUserId,
           status: In([OfferStatus.PENDING, OfferStatus.ACCEPTED]),
         },
       });
@@ -239,8 +239,8 @@ describe('OffersService', () => {
               .mockResolvedValueOnce({
                 id: 'offer-2',
                 employer_user_id: 'employer-1',
-                candidate_user_id: dto.candidate_user_id,
-                role_title: dto.role_title,
+                candidate_user_id: dto.candidateUserId,
+                role_title: dto.roleTitle,
                 status: OfferStatus.PENDING,
               })
               .mockResolvedValueOnce({ id: 'log-2' }),
@@ -261,7 +261,7 @@ describe('OffersService', () => {
       expect(mockOfferRepo.findOne).toHaveBeenCalledWith({
         where: {
           employer_user_id: 'employer-1',
-          candidate_user_id: dto.candidate_user_id,
+          candidate_user_id: dto.candidateUserId,
           status: In([OfferStatus.PENDING, OfferStatus.ACCEPTED]),
         },
       });

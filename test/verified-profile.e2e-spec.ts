@@ -75,7 +75,9 @@ describe('Verified profile (e2e)', () => {
     soft_skills: [{ label: 'Communication', percentage: 78 }],
     working_style: ['Async Collaboration', 'Fully Remote'],
     growth_insight: 'Keep deepening systems thinking.',
-    strength_ratings: [{ label: 'Clear practical problem solving.', rating: 3 }],
+    strength_ratings: [
+      { label: 'Clear practical problem solving.', rating: 3 },
+    ],
     weaknesses: [{ label: 'Improve systems-level reasoning.', rating: 1 }],
     skill_proficiency: {
       validated_level: 'mid',

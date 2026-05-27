@@ -21,7 +21,7 @@ export class SkillAnswerDto {
   })
   @IsUUID()
   @IsNotEmpty()
-  question_id: string;
+  questionId: string;
 
   @ApiProperty({
     description:
@@ -69,7 +69,7 @@ export class SkillAnswerDto {
   @IsOptional()
   @IsNumber()
   @Min(0)
-  time_spent_seconds?: number;
+  timeSpentSeconds?: number;
 }
 
 export class SubmitSkillAssessmentDto {
@@ -81,7 +81,7 @@ export class SubmitSkillAssessmentDto {
   })
   @IsUUID()
   @IsNotEmpty()
-  attempt_id: string;
+  attemptId: string;
 
   @ApiProperty({
     type: [SkillAnswerDto],

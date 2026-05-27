@@ -65,16 +65,16 @@ describe('EmployerService', () => {
     manager.findOne.mockResolvedValue(existing);
 
     await service.saveProfile(userId, {
-      employer_type: 'Recruiter',
-      company_name: '  Acme Labs  ',
-      company_size: '11-50',
-      company_website: ' https://acme.example ',
+      employerType: 'Recruiter',
+      companyName: '  Acme Labs  ',
+      companySize: '11-50',
+      companyWebsite: ' https://acme.example ',
       industry: ' Fintech ',
       region: ' Nigeria ',
-      linkedin_company_page_url: ' https://www.linkedin.com/company/acme ',
-      hiring_roles: ['frontend_developer', 'backend_developer'],
-      preferred_experience_levels: ['junior', 'mid'],
-      hiring_count: '6_10',
+      linkedinCompanyPageUrl: ' https://www.linkedin.com/company/acme ',
+      hiringRoles: ['frontend_developer', 'backend_developer'],
+      preferredExperienceLevels: ['junior', 'mid'],
+      hiringCount: '6_10',
     });
 
     expect(manager.save).toHaveBeenCalledWith(
@@ -114,15 +114,15 @@ describe('EmployerService', () => {
     manager.findOne.mockResolvedValue(existing);
 
     await service.saveProfile(userId, {
-      employer_type: 'Recruiter',
-      company_name: 'Acme Labs',
-      company_size: '11-50',
-      company_website: 'https://acme.example',
+      employerType: 'Recruiter',
+      companyName: 'Acme Labs',
+      companySize: '11-50',
+      companyWebsite: 'https://acme.example',
       industry: 'Fintech',
       region: 'Nigeria',
-      linkedin_company_page_url: '   ',
-      hiring_roles: ['frontend_developer'],
-      preferred_experience_levels: ['junior'],
+      linkedinCompanyPageUrl: '   ',
+      hiringRoles: ['frontend_developer'],
+      preferredExperienceLevels: ['junior'],
     });
 
     expect(manager.save).toHaveBeenCalledWith(
@@ -138,16 +138,16 @@ describe('EmployerService', () => {
     manager.findOne.mockResolvedValue(null);
 
     const result = await service.completeOnboarding(userId, {
-      joining_as: 'recruiter',
-      company_name: 'Acme Labs',
-      company_size: '51-200',
+      joiningAs: 'recruiter',
+      companyName: 'Acme Labs',
+      companySize: '51-200',
       industry: 'Healthtech',
-      desired_roles: ['product_manager'],
-      preferred_experience_levels: ['senior'],
+      desiredRoles: ['product_manager'],
+      preferredExperienceLevels: ['senior'],
       region: 'Kenya',
-      hiring_count_range: '1_5',
-      company_website: 'https://acme.example',
-      linkedin_company_page_url: 'https://www.linkedin.com/company/acme',
+      hiringCountRange: '1_5',
+      companyWebsite: 'https://acme.example',
+      linkedinCompanyPageUrl: 'https://www.linkedin.com/company/acme',
     });
 
     expect(manager.create).toHaveBeenCalledWith(
@@ -183,14 +183,14 @@ describe('EmployerService', () => {
 
     await expect(
       service.saveProfile(userId, {
-        employer_type: 'Founder',
-        company_name: 'Acme Labs',
-        company_size: '1-10',
-        company_website: 'https://acme.example',
+        employerType: 'Founder',
+        companyName: 'Acme Labs',
+        companySize: '1-10',
+        companyWebsite: 'https://acme.example',
         industry: 'Fintech',
         region: 'Nigeria',
-        hiring_roles: ['frontend_developer'],
-        preferred_experience_levels: ['junior'],
+        hiringRoles: ['frontend_developer'],
+        preferredExperienceLevels: ['junior'],
       }),
     ).rejects.toThrow('Invalid user');
   });
@@ -209,8 +209,8 @@ describe('EmployerService', () => {
     employerProfileRepository.findOne.mockResolvedValue(existing);
 
     const result = await service.updateProfile(userId, {
-      company_name: '   ',
-      company_website: '   ',
+      companyName: '   ',
+      companyWebsite: '   ',
       industry: '   ',
       region: '   ',
     });

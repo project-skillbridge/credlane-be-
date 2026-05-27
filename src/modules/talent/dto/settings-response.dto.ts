@@ -49,6 +49,9 @@ export class TalentSettingsProfileDto {
   @ApiPropertyOptional({
     nullable: true,
     example: 'Product-minded frontend developer.',
+    readOnly: true,
+    description:
+      'Read-only in settings; set during onboarding, not via PATCH profile.',
   })
   bio: string | null;
 

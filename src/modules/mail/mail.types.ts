@@ -37,3 +37,15 @@ export type JobReadyMatchesDigestEmailPayload = {
   recipientFirstName: string;
   matchCount: number;
 };
+
+/** Internal alert when an assessment question bank cannot fulfil a session. */
+export type BankExhaustedAlertPayload = {
+  assessmentType: 'skill' | 'advanced';
+  detail: string;
+  talentProfileId?: string;
+  userId?: string;
+  track?: string | null;
+  verifiedLevel?: string | null;
+  expectedQuestions?: number;
+  gotQuestions?: number;
+};

@@ -28,7 +28,8 @@ export const ApiGetTalentSettings = () =>
     ApiBearerAuth(),
     ApiOperation({
       summary: 'Get talent settings page data',
-      description: 'Returns talent profile, communication, and account settings data.',
+      description:
+        'Returns talent profile, communication, and account settings data.',
     }),
     ApiResponse({
       status: 200,
@@ -47,7 +48,7 @@ export const ApiUpdateTalentSettingsProfile = () =>
     ApiOperation({
       summary: 'Update talent settings profile fields',
       description:
-        'Updates editable talent profile fields. All request fields are optional.',
+        'Updates editable talent profile fields (name, role track, LinkedIn, personal website). Bio is read-only in settings and is not accepted on this endpoint. All request fields are optional.',
     }),
     ApiBody({ type: UpdateTalentSettingsProfileDto }),
     ApiResponse({
@@ -105,8 +106,7 @@ export const ApiUpdateTalentAvailability = () =>
     ApiBearerAuth(),
     ApiOperation({
       summary: 'Update talent availability setting',
-      description:
-        'Updates talent availability and published profile state.',
+      description: 'Updates talent availability and published profile state.',
     }),
     ApiBody({ type: UpdateTalentAvailabilityDto }),
     ApiResponse({
@@ -126,8 +126,7 @@ export const ApiGetCommunicationPreferences = () =>
     ApiBearerAuth(),
     ApiOperation({
       summary: 'Get talent communication preferences',
-      description:
-        'Returns email and in-app notification preferences.',
+      description: 'Returns email and in-app notification preferences.',
     }),
     ApiResponse({
       status: 200,
@@ -145,8 +144,7 @@ export const ApiUpdateCommunicationPreferences = () =>
     ApiBearerAuth(),
     ApiOperation({
       summary: 'Update talent communication preferences',
-      description:
-        'Updates email and/or in-app notification preferences.',
+      description: 'Updates email and/or in-app notification preferences.',
     }),
     ApiBody({ type: UpdateCommunicationPreferencesDto }),
     ApiResponse({
@@ -166,8 +164,7 @@ export const ApiUnsubscribeEmailNotifications = () =>
     ApiBearerAuth(),
     ApiOperation({
       summary: 'Unsubscribe from all email notifications',
-      description:
-        'Disables all email notification preferences.',
+      description: 'Disables all email notification preferences.',
     }),
     ApiResponse({
       status: 200,
