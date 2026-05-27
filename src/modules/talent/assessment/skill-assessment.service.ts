@@ -342,10 +342,11 @@ export class SkillAssessmentService {
         let selectedQuestions: AssessmentQuestion[];
         try {
           selectedQuestions = this.selectSkillQuestionMix(bankQuestions);
-        } catch {
-          // Bank exhausted after exclusion — retry without excluding last-attempt questions
+        } catch (firstErr) {
+          // Bank mix insufficient after question-history exclusion — retry without exclusion.
+          // Alert is suppressed here; it fires only if the retry also fails.
           this.logger.warn(
-            `Skill bank exhausted after exclusion for user=${lockedProfile.user_id}, retrying without exclusion`,
+            `Skill bank mix insufficient after exclusion for user=${lockedProfile.user_id}, retrying without exclusion`,
           );
           rawBankQuestions = await this.findEligibleSkillQuestions(
             manager,
@@ -359,7 +360,19 @@ export class SkillAssessmentService {
             verifiedLevel,
             rawBankQuestions,
           );
-          selectedQuestions = this.selectSkillQuestionMix(bankQuestions);
+          try {
+            selectedQuestions = this.selectSkillQuestionMix(bankQuestions);
+          } catch (retryErr) {
+            this.throwSkillBankExhausted(
+              retryErr instanceof Error ? retryErr.message : String(firstErr),
+              {
+                talentProfileId: lockedProfile.id,
+                userId: lockedProfile.user_id,
+                track: lockedProfile.track,
+                verifiedLevel: verifiedLevel,
+              },
+            );
+          }
         }
 
         let aboveProbeQuestions: AssessmentQuestion[] = [];
@@ -1083,7 +1096,8 @@ export class SkillAssessmentService {
       mcqs.length < SKILL_ASSESSMENT_MCQ_COUNT ||
       text.length < SKILL_ASSESSMENT_TEXT_COUNT
     ) {
-      this.throwSkillBankExhausted(
+      // Throw a plain Error so the caller (start()) can retry before alerting.
+      throw new Error(
         `Primary bank mix insufficient: mcq=${mcqs.length}/${SKILL_ASSESSMENT_MCQ_COUNT} text=${text.length}/${SKILL_ASSESSMENT_TEXT_COUNT}`,
       );
     }

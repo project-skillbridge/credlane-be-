@@ -209,9 +209,16 @@ export class PersonalAssessmentService {
     rawAnswers: Record<string, unknown>,
   ): Record<string, unknown> {
     const normalized: Record<string, unknown> = {};
+    const sourceKeys: Record<string, string> = {};
     for (const [key, value] of Object.entries(rawAnswers)) {
       const snakeKey = key.includes('_') ? key : camelToSnake(key);
+      if (snakeKey in normalized && sourceKeys[snakeKey] !== key) {
+        throw new BadRequestException(
+          `Conflicting answer aliases: "${sourceKeys[snakeKey]}" and "${key}" both map to "${snakeKey}"`,
+        );
+      }
       normalized[snakeKey] = value;
+      sourceKeys[snakeKey] = key;
     }
     return normalized;
   }

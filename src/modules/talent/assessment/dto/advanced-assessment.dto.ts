@@ -104,20 +104,20 @@ export class SubmitAdvancedAssessmentDto {
       'Array of answers for all questions. Include only answered questions - unanswered questions are automatically scored as 0.',
     example: [
       {
-        question_id: '80967789-af3d-47c9-9e89-819e74719a06',
+        questionId: '80967789-af3d-47c9-9e89-819e74719a06',
         answer: '201 Created',
-        time_spent_seconds: 45,
+        timeSpentSeconds: 45,
       },
       {
-        question_id: '0c32fe73-c79a-41ea-8d68-7027a1dd9bd2',
+        questionId: '0c32fe73-c79a-41ea-8d68-7027a1dd9bd2',
         answer:
           'I would implement idempotency by using a unique request ID parameter in the request header or body. The server stores processed request IDs in a cache or database with a TTL. When a request arrives, check if the ID exists - if yes, return the cached response; if no, process the request and store the ID with the response.',
-        time_spent_seconds: 120,
+        timeSpentSeconds: 120,
       },
       {
-        question_id: 'abc12345-1234-5678-90ab-cdef12345678',
+        questionId: 'abc12345-1234-5678-90ab-cdef12345678',
         answer: ['Option A', 'Option C', 'Option D'],
-        time_spent_seconds: 60,
+        timeSpentSeconds: 60,
       },
     ],
   })

@@ -49,11 +49,15 @@ export function transformKeys<T>(
     return input.map((item: unknown) => transformKeys(item, keyTransform, options)) as T;
   }
 
+  const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
   const preserveContainers = options.preserveKeyContainers ?? new Set<string>();
-  const result: Record<string, unknown> = {};
+  const result: Record<string, unknown> = Object.create(null) as Record<string, unknown>;
 
   for (const [key, value] of Object.entries(input as Record<string, unknown>)) {
     const nextKey = keyTransform(key);
+    if (DANGEROUS_KEYS.has(key) || DANGEROUS_KEYS.has(nextKey)) {
+      continue;
+    }
     if (preserveContainers.has(key) || preserveContainers.has(nextKey)) {
       result[nextKey] = value;
       continue;

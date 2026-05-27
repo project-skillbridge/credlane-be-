@@ -8,7 +8,6 @@ import {
 import { Reflector } from '@nestjs/core';
 import { map, Observable } from 'rxjs';
 import { SuccessMessages } from '../../shared';
-import { keysToCamel } from '../utils/case-transform';
 
 export const SKIP_API_TRANSFORM_KEY = 'skipApiTransform';
 export const SkipApiTransform = () => SetMetadata(SKIP_API_TRANSFORM_KEY, true);
@@ -23,7 +22,7 @@ type PaginatedPayload<T> = {
 } & Record<string, unknown>;
 
 export type ApiResponse<T> = {
-  statusCode: number;
+  status_code: number;
   message: string;
   data?: T;
   meta?: Record<string, unknown>;
@@ -55,7 +54,7 @@ export class TransformInterceptor<T> implements NestInterceptor<
       map((payload) => {
         const statusCode = response.statusCode;
         const baseResponse = {
-          statusCode,
+          status_code: statusCode,
           message: SuccessMessages.COMMON.SUCCESS,
         };
 
@@ -69,11 +68,11 @@ export class TransformInterceptor<T> implements NestInterceptor<
             payload: data,
             ...rest
           } = payload as PaginatedPayload<T>;
-          return keysToCamel({
+          return {
             ...baseResponse,
             data,
             meta: { ...rest, ...paginationMeta },
-          });
+          };
         }
 
         if (
@@ -83,14 +82,14 @@ export class TransformInterceptor<T> implements NestInterceptor<
           'message' in payload
         ) {
           const { message, ...data } = payload as MessagePayload;
-          return keysToCamel({
-            statusCode,
+          return {
+            status_code: statusCode,
             message: String(message),
             ...data,
-          });
+          };
         }
 
-        return keysToCamel({ ...baseResponse, data: payload });
+        return { ...baseResponse, data: payload };
       }),
     );
   }

@@ -30,9 +30,14 @@ export class BankExhaustedAlertService {
       return [];
     }
 
+    const seen = new Set<string>();
     return raw
       .split(',')
       .map((entry) => entry.trim())
-      .filter((entry) => entry.length > 0);
+      .filter((entry) => {
+        if (entry.length === 0 || seen.has(entry)) return false;
+        seen.add(entry);
+        return true;
+      });
   }
 }

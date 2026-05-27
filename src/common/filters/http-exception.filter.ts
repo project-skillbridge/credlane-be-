@@ -9,7 +9,6 @@ import {
 import { Request, Response } from 'express';
 import { MulterError } from 'multer';
 import { ErrorMessages } from '../../shared';
-import { keysToCamel } from '../utils/case-transform';
 
 @Catch()
 export class HttpExceptionFilter implements ExceptionFilter {
@@ -56,16 +55,14 @@ export class HttpExceptionFilter implements ExceptionFilter {
       );
     }
 
-    response.status(status).json(
-      keysToCamel({
-        success: false,
-        statusCode: status,
-        error,
-        message,
-        ...details,
-        path: request.url,
-        timestamp: new Date().toISOString(),
-      }),
-    );
+    response.status(status).json({
+      success: false,
+      status_code: status,
+      error,
+      message,
+      ...details,
+      path: request.url,
+      timestamp: new Date().toISOString(),
+    });
   }
 }

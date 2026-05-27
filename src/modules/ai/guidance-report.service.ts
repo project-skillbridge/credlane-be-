@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { GuidanceReport, GuidanceReportInput } from './ai.types';
 import { guidanceReportSchema } from './ai.schemas';
 import { OpenRouterService } from './openrouter.service';
+import { SKILL_ASSESSMENT_PASS_PERCENTAGE } from '../talent/talent.constants';
 
 const SYSTEM_PROMPT = `You are a professional career development advisor generating assessment reports for SkillBridge candidates.
 
@@ -24,7 +25,7 @@ Report type: ${input.report_type}
 Track: ${input.track}
 Claimed level: ${input.claimed_level}
 Validated level: ${input.validated_level}
-Score: ${input.percentage}% (Stage 2 quality threshold: 50%)
+Score: ${input.percentage}% (Stage 2 quality threshold: ${SKILL_ASSESSMENT_PASS_PERCENTAGE}%)
 Strong competencies: ${input.strong_competencies.join(', ') || 'none identified'}
 Areas needing improvement: ${input.weak_competencies.join(', ') || 'none identified'}
 

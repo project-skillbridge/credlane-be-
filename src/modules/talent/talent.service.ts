@@ -146,14 +146,14 @@ export class TalentService {
       if (dto.firstName !== undefined) {
         const firstName = dto.firstName.trim();
         if (!firstName) {
-          throw new BadRequestException('first_name must not be empty');
+          throw new BadRequestException('firstName must not be empty');
         }
         userPatch.first_name = firstName;
       }
       if (dto.lastName !== undefined) {
         const lastName = dto.lastName.trim();
         if (!lastName) {
-          throw new BadRequestException('last_name must not be empty');
+          throw new BadRequestException('lastName must not be empty');
         }
         userPatch.last_name = lastName;
       }
