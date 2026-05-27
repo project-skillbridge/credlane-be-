@@ -297,7 +297,7 @@ describe('SkillAssessmentService', () => {
                 return makeSkillBankQuestions();
               }
               // probe queries
-              return [];
+              return makeProbeQuestions();
             }),
           })),
           create: jest.fn((_entity: unknown, data: unknown) =>
