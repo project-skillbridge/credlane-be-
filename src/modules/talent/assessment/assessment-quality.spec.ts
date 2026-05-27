@@ -12,35 +12,36 @@ describe('assessment-quality', () => {
     expect(meetsAdvancedQualityBenchmark(50)).toBe(true);
   });
 
-  it('requires skill quality and claimed pass for advanced unlock', () => {
+  it('requires skill quality and a validated level for advanced unlock', () => {
     expect(
       qualifiesForAdvancedFromSkillResult({
         percentage: 45,
-        claimed_percentage: 80,
+        validated_level: null,
       }),
     ).toBe(false);
     expect(
       qualifiesForAdvancedFromSkillResult({
         percentage: 60,
-        claimed_percentage: 65,
+        validated_level: null,
       }),
     ).toBe(false);
     expect(
       qualifiesForAdvancedFromSkillResult({
         percentage: 55,
-        claimed_percentage: 72,
+        validated_level: 'junior' as never,
       }),
     ).toBe(true);
     expect(
       qualifiesForAdvancedFromSkillResult({
         percentage: 80,
-        claimed_percentage: null,
+        validated_level: null,
       }),
     ).toBe(false);
     expect(
       qualifiesForAdvancedFromSkillResult({
         percentage: 80,
+        validated_level: 'mid' as never,
       }),
-    ).toBe(false);
+    ).toBe(true);
   });
 });

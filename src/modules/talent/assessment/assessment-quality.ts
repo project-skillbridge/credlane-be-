@@ -1,7 +1,6 @@
 import { AssessmentResult } from '../../assessments/entities';
 import {
   ADVANCED_ASSESSMENT_QUALITY_MIN_PERCENTAGE,
-  SKILL_ASSESSMENT_PASS_PERCENTAGE,
   SKILL_ASSESSMENT_QUALITY_MIN_PERCENTAGE,
 } from '../talent.constants';
 
@@ -16,17 +15,11 @@ export function meetsAdvancedQualityBenchmark(
 }
 
 export function qualifiesForAdvancedFromSkillResult(
-  result: Pick<AssessmentResult, 'percentage' | 'claimed_percentage'>,
+  result: Pick<AssessmentResult, 'percentage' | 'validated_level'>,
 ): boolean {
-  const percentage = result.percentage ?? 0;
-  const claimedPercentage = result.claimed_percentage;
-
-  if (claimedPercentage === null || claimedPercentage === undefined) {
-    return false;
-  }
-
   return (
-    meetsSkillQualityBenchmark(percentage) &&
-    claimedPercentage >= SKILL_ASSESSMENT_PASS_PERCENTAGE
+    meetsSkillQualityBenchmark(result.percentage ?? 0) &&
+    result.validated_level !== null &&
+    result.validated_level !== undefined
   );
 }
