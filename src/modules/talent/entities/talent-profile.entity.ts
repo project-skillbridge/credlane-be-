@@ -20,6 +20,12 @@ export enum TalentProfileStatus {
   JOB_READY = 'job_ready',
 }
 
+export enum TalentAvailabilityStatus {
+  ACTIVELY_LOOKING = 'actively_looking',
+  OPEN_TO_OPPORTUNITIES = 'open_to_opportunities',
+  NOT_LOOKING = 'not_looking',
+}
+
 @Entity('talent_profiles')
 export class TalentProfile {
   @ApiProperty({ format: 'uuid' })
@@ -116,6 +122,25 @@ export class TalentProfile {
   @ApiProperty({ required: false, nullable: true })
   @Column({ type: 'text', nullable: true })
   bio: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  personal_website: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ type: 'varchar', length: 500, nullable: true })
+  resume_url: string | null;
+
+  @ApiProperty({
+    enum: TalentAvailabilityStatus,
+    default: TalentAvailabilityStatus.OPEN_TO_OPPORTUNITIES,
+  })
+  @Column({
+    type: 'varchar',
+    length: 50,
+    default: TalentAvailabilityStatus.OPEN_TO_OPPORTUNITIES,
+  })
+  availability_status: TalentAvailabilityStatus;
 
   @ApiProperty({ required: false, nullable: true })
   @Column({ type: 'varchar', length: 255, nullable: true, unique: true })
