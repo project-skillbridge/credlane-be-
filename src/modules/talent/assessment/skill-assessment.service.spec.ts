@@ -132,7 +132,7 @@ describe('SkillAssessmentService', () => {
       manager: { transaction: jest.fn() },
     };
 
-    mockTransaction();
+    mockTransaction(makeProbeQuestions());
 
     rubricScoring = { scoreAnswers: jest.fn().mockResolvedValue([]) };
 
@@ -230,9 +230,9 @@ describe('SkillAssessmentService', () => {
     expect(result.session_id).toBe('attempt-1');
     expect(result.attempt_number).toBe(1);
     expect(result).not.toHaveProperty('attempt_id');
-    expect(result.questions).toHaveLength(10);
+    expect(result.questions).toHaveLength(20);
     expect(result.questions[0].block).toBe('mcq');
-    expect(result.questions[6].block).toBe('long_text');
+    expect(result.questions[15].block).toBe('long_text');
     expect(attemptRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({
         generated_questions_json: expect.objectContaining({
@@ -261,7 +261,7 @@ describe('SkillAssessmentService', () => {
   });
 
   it('refuses to start when the unseen bank lacks the skill question mix', async () => {
-    eligibleSkillQuestions = makeSkillBankQuestions().slice(0, 9);
+    eligibleSkillQuestions = makeSkillBankQuestions().slice(0, 15);
 
     await expect(service.start(userId)).rejects.toBeInstanceOf(
       ServiceUnavailableException,
@@ -371,7 +371,7 @@ describe('SkillAssessmentService', () => {
     const result = await service.start(userId);
 
     expect(result.session_id).toBe('attempt-1');
-    expect(result.questions).toHaveLength(10);
+    expect(result.questions).toHaveLength(20);
   });
 
   it('returns a stored skill session without exposing correct answers or side effects', async () => {
@@ -891,7 +891,7 @@ type EntityManagerLike = {
 
 function makeSkillBankQuestions(): AssessmentQuestion[] {
   return [
-    ...Array.from({ length: 6 }, (_ignored, index) =>
+    ...Array.from({ length: 13 }, (_ignored, index) =>
       Object.assign(new AssessmentQuestion(), {
         id: `skill-mcq-${index + 1}`,
         question_type: QuestionType.SINGLE_PICK,
@@ -900,7 +900,7 @@ function makeSkillBankQuestions(): AssessmentQuestion[] {
         correct_answer: 'A',
       }),
     ),
-    ...Array.from({ length: 4 }, (_ignored, index) =>
+    ...Array.from({ length: 3 }, (_ignored, index) =>
       Object.assign(new AssessmentQuestion(), {
         id: `skill-text-${index + 1}`,
         question_type: QuestionType.REQUIRED_TEXT,
@@ -909,5 +909,24 @@ function makeSkillBankQuestions(): AssessmentQuestion[] {
         correct_answer: null,
       }),
     ),
+  ];
+}
+
+function makeProbeQuestions(): AssessmentQuestion[] {
+  return [
+    Object.assign(new AssessmentQuestion(), {
+      id: 'probe-mcq-1',
+      question_type: QuestionType.SINGLE_PICK,
+      question_text: 'Probe MCQ 1',
+      options: ['A', 'B'],
+      correct_answer: 'A',
+    }),
+    Object.assign(new AssessmentQuestion(), {
+      id: 'probe-text-1',
+      question_type: QuestionType.REQUIRED_TEXT,
+      question_text: 'Probe text 1',
+      options: null,
+      correct_answer: null,
+    }),
   ];
 }
