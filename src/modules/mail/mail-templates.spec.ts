@@ -67,7 +67,9 @@ describe('job ready matches digest email template', () => {
     expect(compactHtml).toContain(
       '2 new Job Ready candidates match your saved hiring preferences this week.',
     );
-    expect(compactHtml).toContain('https://example.com/employer/discovery/candidates');
+    expect(compactHtml).toContain(
+      'https://example.com/employer/discovery/candidates',
+    );
   });
 
   it('renders singular form for one match', () => {
@@ -100,7 +102,9 @@ describe('job ready matches digest email template', () => {
       'new Job Ready match for your hiring preferences',
     );
     expect(compactHtml).not.toContain('new Job Ready matches for your hiring');
-    expect(compactHtml).toContain('https://example.com/employer/discovery/candidates');
+    expect(compactHtml).toContain(
+      'https://example.com/employer/discovery/candidates',
+    );
   });
 });
 
