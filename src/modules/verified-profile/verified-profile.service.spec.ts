@@ -7,8 +7,10 @@ import {
 } from '../../shared';
 import {
   AssessmentAttempt,
+  AssessmentQuestion,
   AssessmentResponse,
   AssessmentResult,
+  AssessmentScore,
   AssessmentTier,
   AssessmentType,
   VerifiedLevel,
@@ -37,6 +39,11 @@ describe('VerifiedProfileService', () => {
   >;
   let assessmentResponseRepository: Pick<
     Repository<AssessmentResponse>,
+    'find'
+  >;
+  let assessmentScoreRepository: Pick<Repository<AssessmentScore>, 'find'>;
+  let assessmentQuestionRepository: Pick<
+    Repository<AssessmentQuestion>,
     'find'
   >;
   let openRouterService: { chat: jest.Mock };
@@ -77,6 +84,8 @@ describe('VerifiedProfileService', () => {
       findOne: jest.fn().mockResolvedValue(null),
     };
     assessmentResponseRepository = { find: jest.fn().mockResolvedValue([]) };
+    assessmentScoreRepository = { find: jest.fn().mockResolvedValue([]) };
+    assessmentQuestionRepository = { find: jest.fn().mockResolvedValue([]) };
 
     openRouterService = { chat: jest.fn() };
 
@@ -86,6 +95,8 @@ describe('VerifiedProfileService', () => {
       assessmentResultRepository as Repository<AssessmentResult>,
       assessmentAttemptRepository as never,
       assessmentResponseRepository as never,
+      assessmentScoreRepository as never,
+      assessmentQuestionRepository as never,
       usersService as UsersService,
       openRouterService as never,
     );
@@ -117,6 +128,10 @@ describe('VerifiedProfileService', () => {
         verified_at: new Date('2026-05-03T00:00:00.000Z'),
         verified_level: VerifiedLevel.MID,
         availability: 'immediately_available',
+        work_preferences: {
+          workStyle: 'async_collaboration',
+          teamSize: 'small_teams',
+        },
         strong_competencies: ['technical_reasoning', 'communication'],
         competency_scores: { technical_reasoning: 92, communication: 78 },
       });
@@ -131,7 +146,34 @@ describe('VerifiedProfileService', () => {
       (resultQueryBuilder.getOne as jest.Mock).mockImplementation(() => {
         if (lastAssessmentType === AssessmentType.ADVANCED) {
           return Promise.resolve(
-            makeResult({ tier: AssessmentTier.JOB_READY, percentage: 80 }),
+            makeResult({
+              tier: AssessmentTier.JOB_READY,
+              percentage: 80,
+              guidance_report: {
+                ai_summary:
+                  'Jane shows job-ready frontend strengths and strong product reasoning.',
+                growth_insight:
+                  'Jane should keep deepening systems thinking and stakeholder communication.',
+                summary: 'Jane showed job-ready strengths.',
+                strength_ratings: [
+                  { item: 'Clear practical problem solving.', rating: 3 },
+                ],
+                weak_area_ratings: [
+                  { item: 'Improve systems-level reasoning.', rating: 1 },
+                ],
+                recommended_resources: [
+                  {
+                    title: 'Frontend Patterns',
+                    provider: 'SkillBridge',
+                    url: 'https://example.com/frontend-patterns',
+                    tier: 'free',
+                    competency: 'technical_reasoning',
+                    reason: 'Supports frontend architecture growth.',
+                  },
+                ],
+                resource_page_url: '/resources',
+              },
+            }),
           );
         }
         if (lastAssessmentType === AssessmentType.SKILL) {
@@ -151,9 +193,9 @@ describe('VerifiedProfileService', () => {
         verified: true,
         status: TalentProfileStatus.JOB_READY,
         ai_summary:
-          'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
+          'Jane shows job-ready frontend strengths and strong product reasoning.',
         ai_report:
-          'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
+          'Jane shows job-ready frontend strengths and strong product reasoning.',
         skill_proficiency: {
           validated_level: VerifiedLevel.MID,
           skill_assessment_percentage: 82,
@@ -161,6 +203,7 @@ describe('VerifiedProfileService', () => {
         seniority_badge: 'Mid Level',
         tier_label: 'Job Ready',
         score_percentage: 80,
+        download_cv_url: null,
         verified_at: '2026-05-03T00:00:00.000Z',
         tier: AssessmentTier.JOB_READY,
         is_owner: true,
@@ -176,31 +219,107 @@ describe('VerifiedProfileService', () => {
         '3-5 yrs exp.',
         'Immediately Available',
       ]);
-      expect(result.detailed_skills).toEqual([
+      expect(result).not.toHaveProperty('detailed_skills');
+      expect(result.professional_skills).toEqual([
+        { label: 'Technical Reasoning', percentage: 92 },
+      ]);
+      expect(result.soft_skills).toEqual([
+        { label: 'Communication', percentage: 78 },
+      ]);
+      expect(result.working_style).toEqual([
+        'Async Collaboration',
+        'Small Teams',
+        'Fully Remote',
+        'Hybrid',
+      ]);
+      expect(result.growth_insight).toBe(
+        'Jane should keep deepening systems thinking and stakeholder communication.',
+      );
+      expect(result.strength_ratings).toEqual([
+        { label: 'Clear practical problem solving.', rating: 3 },
+      ]);
+      expect(result.weaknesses).toEqual([
+        { label: 'Improve systems-level reasoning.', rating: 1 },
+      ]);
+      expect(result.assessment_insights?.skill_proficiency).toEqual({
+        label: 'Skill Proficiency',
+        insight: 'Jane showed job-ready strengths.',
+      });
+      expect(result.recommended_resources).toEqual([
         {
-          title: 'Assessment Scores',
-          skill_info: [{ label: 'Skill Proficiency', value: 82 }],
-        },
-        {
-          title: 'Professional Skills',
-          skill_info: [{ label: 'Technical Reasoning', value: 92 }],
-        },
-        {
-          title: 'Soft Skills',
-          skill_info: [{ label: 'Communication', value: 78 }],
-        },
-        {
-          title: 'Strengths',
-          skill_info: [
-            { label: 'Technical Reasoning', value: 92 },
-            { label: 'Communication', value: 78 },
-          ],
+          title: 'Frontend Patterns',
+          provider: 'SkillBridge',
+          url: 'https://example.com/frontend-patterns',
+          tier: 'free',
+          competency: 'technical_reasoning',
+          reason: 'Supports frontend architecture growth.',
         },
       ]);
-      expect(result.key_strengths).toBeDefined();
-      expect(result.key_strengths!.length).toBeGreaterThan(0);
+      expect(result.resource_page_url).toBe('/resources');
+      expect(result.key_strengths).toEqual([
+        {
+          competency: 'technical_reasoning',
+          label: 'Technical Reasoning',
+          percentage: 92,
+        },
+        { competency: 'communication', label: 'Communication', percentage: 78 },
+      ]);
       expect(result.share_url).toContain('/verified-profiles/');
       expect(result.qr_code_url).toContain('api.qrserver.com');
+    });
+
+    it('resolves UUID competency score keys to question competency labels', async () => {
+      const user = makeUser();
+      const profile = makeProfile({
+        status: TalentProfileStatus.JOB_READY,
+        track: 'frontend_developer',
+        personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+        advanced_assessment_completed_at: new Date('2026-05-03T00:00:00.000Z'),
+      });
+      const questionId = '0b1131db-d55e-43f8-89b9-f32fde01871b';
+      const pool = Object.assign(new EmployerPoolProfile(), {
+        talent_profile_id: profile.id,
+        candidate_id: user.id,
+        shareable_link_token: 'ab'.repeat(32),
+        verified_at: new Date('2026-05-03T00:00:00.000Z'),
+        tier: AssessmentTier.JOB_READY,
+        strong_competencies: [questionId],
+        competency_scores: { [questionId]: 100 },
+      });
+
+      (usersService.findOne as jest.Mock).mockResolvedValue(user);
+      (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+      (employerPoolRepository.findOne as jest.Mock).mockResolvedValue(pool);
+      (assessmentQuestionRepository.find as jest.Mock).mockResolvedValue([
+        Object.assign(new AssessmentQuestion(), {
+          id: questionId,
+          competency: 'api_design',
+          metadata: null,
+        }),
+      ]);
+      openRouterService.chat.mockResolvedValue({ summary: 'Summary' });
+      (resultQueryBuilder.getOne as jest.Mock).mockImplementation(() => {
+        if (lastAssessmentType === AssessmentType.ADVANCED) {
+          return Promise.resolve(
+            makeResult({
+              attempt_id: 'attempt-1',
+              tier: AssessmentTier.JOB_READY,
+              percentage: 86,
+            }),
+          );
+        }
+        return Promise.resolve(null);
+      });
+
+      const result = await service.getForTalentUser(user.id);
+
+      expect(result.key_strengths).toEqual([
+        { competency: 'api_design', label: 'Api Design', percentage: 100 },
+      ]);
+      expect(result.professional_skills).toEqual([
+        { label: 'Api Design', percentage: 100 },
+      ]);
+      expect(JSON.stringify(result)).not.toContain(questionId);
     });
 
     it('rejects non-talent users', async () => {
@@ -341,7 +460,7 @@ describe('VerifiedProfileService', () => {
       expect(result.key_strengths).toBeUndefined();
       expect(result.professional_skills).toBeUndefined();
       expect(result.soft_skills).toBeUndefined();
-      expect(result.detailed_skills).toBeUndefined();
+      expect(result).not.toHaveProperty('detailed_skills');
       expect(result.score_percentage).toBe(76);
       expect(result.seniority_badge).toBe('Entry Level');
       expect(result.tier_label).toBeUndefined();
