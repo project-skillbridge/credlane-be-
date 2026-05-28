@@ -13,14 +13,14 @@ import { UserRole } from '../users/entities/user.entity';
 import { AiReportService } from './ai-report.service';
 
 class GuidanceReportEnvelopeDto {
-  @ApiProperty({ description: 'Assessment score achieved' })
-  score: number;
-
-  @ApiProperty({ description: 'Maximum possible score' })
-  max_score: number;
-
   @ApiProperty({ description: 'Score as percentage (0-100)' })
   percentage: number;
+
+  @ApiProperty({
+    description:
+      'Percentile rank (0-100): percentage of candidates who scored lower',
+  })
+  percentile: number;
 
   @ApiPropertyOptional({
     nullable: true,
