@@ -5,11 +5,16 @@ import { AiReportService } from './ai-report.service';
 
 type QueryBuilderMock = {
   innerJoinAndSelect: jest.Mock;
+  innerJoin: jest.Mock;
   where: jest.Mock;
   andWhere: jest.Mock;
   orderBy: jest.Mock;
   addOrderBy: jest.Mock;
+  select: jest.Mock;
+  addSelect: jest.Mock;
+  setParameter: jest.Mock;
   getOne: jest.Mock;
+  getRawOne: jest.Mock;
 };
 
 function createQueryBuilderMock(
@@ -17,11 +22,16 @@ function createQueryBuilderMock(
 ): QueryBuilderMock {
   return {
     innerJoinAndSelect: jest.fn().mockReturnThis(),
+    innerJoin: jest.fn().mockReturnThis(),
     where: jest.fn().mockReturnThis(),
     andWhere: jest.fn().mockReturnThis(),
     orderBy: jest.fn().mockReturnThis(),
     addOrderBy: jest.fn().mockReturnThis(),
+    select: jest.fn().mockReturnThis(),
+    addSelect: jest.fn().mockReturnThis(),
+    setParameter: jest.fn().mockReturnThis(),
     getOne: jest.fn().mockResolvedValue(getOneResult),
+    getRawOne: jest.fn().mockResolvedValue({ total: 10, below: 7 }),
   };
 }
 
@@ -74,11 +84,16 @@ describe('AiReportService', () => {
       },
     } as unknown as AssessmentResult);
 
+    // createQueryBuilder is called 4 times: skill result, advanced result, skill percentile, advanced percentile
     let qbCall = 0;
     assessmentResultRepo = {
       createQueryBuilder: jest.fn(() => {
         qbCall += 1;
-        return qbCall === 1 ? skillQb : advancedQb;
+        // Calls 1 & 3 are for skill (result then percentile), 2 & 4 for advanced
+        if (qbCall === 1) return skillQb;
+        if (qbCall === 2) return advancedQb;
+        // Percentile queries reuse the same mock shape
+        return createQueryBuilderMock(null);
       }),
       manager: {
         findOne: jest.fn().mockResolvedValue({
@@ -93,13 +108,12 @@ describe('AiReportService', () => {
     );
   });
 
-  it('returns skill and advanced guidance reports with score data', async () => {
+  it('returns skill and advanced guidance reports with percentile', async () => {
     const result = await service.getGuidanceReports('user-1');
 
     expect(result.skill_guidance_report).toEqual({
-      score: 72,
-      max_score: 100,
       percentage: 72,
+      percentile: 70,
       attempt_date: '2025-05-20T10:00:00.000Z',
       report_type: 'emerging',
       ai_summary: 'Good progress',
@@ -113,9 +127,8 @@ describe('AiReportService', () => {
     });
 
     expect(result.advanced_guidance_report).toEqual({
-      score: 88,
-      max_score: 100,
       percentage: 88,
+      percentile: 70,
       attempt_date: '2025-05-20T10:00:00.000Z',
       report_type: 'job_ready',
       ai_summary: 'Excellent',
@@ -131,7 +144,8 @@ describe('AiReportService', () => {
     expect(talentProfileRepo.findOne).toHaveBeenCalledWith({
       where: { user_id: 'user-1' },
     });
-    expect(assessmentResultRepo.createQueryBuilder).toHaveBeenCalledTimes(2);
+    // 2 for getLatestResult + 2 for calculatePercentile
+    expect(assessmentResultRepo.createQueryBuilder).toHaveBeenCalledTimes(4);
   });
 
   it('returns null reports when talent profile is missing', async () => {
@@ -163,8 +177,12 @@ describe('AiReportService', () => {
       percentage: 50,
       guidance_report: null,
     } as unknown as AssessmentResult);
+    let call = 0;
     const repo = {
-      createQueryBuilder: jest.fn(() => emptyQb),
+      createQueryBuilder: jest.fn(() => {
+        call += 1;
+        return call <= 2 ? emptyQb : createQueryBuilderMock(null);
+      }),
       manager: {
         findOne: jest.fn().mockResolvedValue({ completed_at: null }),
       },
@@ -177,9 +195,8 @@ describe('AiReportService', () => {
     const result = await service.getGuidanceReports('user-1');
 
     expect(result.skill_guidance_report).toEqual({
-      score: 50,
-      max_score: 100,
       percentage: 50,
+      percentile: 70,
       attempt_date: null,
       report_type: '',
       ai_summary: '',
@@ -191,5 +208,37 @@ describe('AiReportService', () => {
       weak_area_ratings: [],
       recommended_resources: [],
     });
+  });
+
+  it('returns 0 percentile when no other results exist', async () => {
+    const resultQb = createQueryBuilderMock({
+      attempt_id: 'attempt-1',
+      score: 80,
+      max_score: 100,
+      percentage: 80,
+      guidance_report: { report_type: 'job_ready' },
+    } as unknown as AssessmentResult);
+    const percentileQb = createQueryBuilderMock(null);
+    percentileQb.getRawOne.mockResolvedValue({ total: 0, below: 0 });
+
+    let call = 0;
+    const repo = {
+      createQueryBuilder: jest.fn(() => {
+        call += 1;
+        return call <= 2 ? resultQb : percentileQb;
+      }),
+      manager: {
+        findOne: jest.fn().mockResolvedValue({
+          completed_at: new Date('2025-06-01T00:00:00.000Z'),
+        }),
+      },
+    };
+    service = new AiReportService(
+      talentProfileRepo as unknown as Repository<TalentProfile>,
+      repo as unknown as Repository<AssessmentResult>,
+    );
+
+    const result = await service.getGuidanceReports('user-1');
+    expect(result.skill_guidance_report?.percentile).toBe(0);
   });
 });
