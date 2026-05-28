@@ -1,13 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
   AssessmentAttempt,
   AssessmentQuestion,
   AssessmentResult,
+  AssessmentScore,
   AssessmentType,
 } from '../assessments/entities';
+import { AssessmentTier } from '../assessments/entities/assessment-result.entity';
+import { VerifiedLevel } from '../assessments/entities/assessment-question.entity';
 import { TalentProfile } from '../talent/entities/talent-profile.entity';
+import { GuidanceReportService } from '../ai/guidance-report.service';
+import { GuidanceReportInput } from '../ai/ai.types';
 
 export type GuidanceReportEnvelope = {
   score: number;
@@ -31,11 +36,14 @@ export type TalentGuidanceReportsResponse = {
 
 @Injectable()
 export class AiReportService {
+  private readonly logger = new Logger(AiReportService.name);
+
   constructor(
     @InjectRepository(TalentProfile)
     private readonly talentProfileRepo: Repository<TalentProfile>,
     @InjectRepository(AssessmentResult)
     private readonly assessmentResultRepo: Repository<AssessmentResult>,
+    private readonly guidanceReportGenerator: GuidanceReportService,
   ) {}
 
   async getGuidanceReports(
@@ -75,10 +83,14 @@ export class AiReportService {
       skill_guidance_report: await this.buildEnvelope(
         skillResult,
         skillPercentile,
+        profile,
+        'skill',
       ),
       advanced_guidance_report: await this.buildEnvelope(
         advancedResult,
         advancedPercentile,
+        profile,
+        'advanced',
       ),
     };
   }
@@ -88,8 +100,19 @@ export class AiReportService {
       | (AssessmentResult & { attempt_completed_at?: string | null })
       | null,
     percentile: number,
+    profile?: TalentProfile | null,
+    assessmentType?: 'skill' | 'advanced',
   ): Promise<GuidanceReportEnvelope> {
     if (!result) return null;
+
+    // Generate guidance report on demand if missing
+    if (!result.guidance_report && profile) {
+      result = await this.generateAndPersist(
+        result,
+        profile,
+        assessmentType ?? 'advanced',
+      );
+    }
 
     const report = result.guidance_report ?? {};
     const rawResources =
@@ -111,6 +134,94 @@ export class AiReportService {
       weak_area_ratings: (report.weak_area_ratings as unknown[]) ?? [],
       recommended_resources: resources,
     };
+  }
+
+  private async generateAndPersist(
+    result: AssessmentResult & { attempt_completed_at?: string | null },
+    profile: TalentProfile,
+    assessmentType: 'skill' | 'advanced',
+  ): Promise<AssessmentResult & { attempt_completed_at?: string | null }> {
+    const tier = result.tier;
+    const reportType =
+      tier === AssessmentTier.JOB_READY ? 'job_ready' : 'emerging';
+
+    // Extract competencies from assessment_scores + assessment_questions
+    const { strong, weak } = await this.extractCompetenciesForResult(
+      result.attempt_id,
+    );
+
+    const input: GuidanceReportInput = {
+      report_type: reportType,
+      assessment_type: assessmentType,
+      track: profile.track ?? 'general',
+      claimed_level: profile.claimed_level ?? VerifiedLevel.JUNIOR,
+      validated_level: profile.validated_level ?? VerifiedLevel.JUNIOR,
+      percentage: result.percentage ?? 0,
+      strong_competencies: strong,
+      weak_competencies: weak,
+    };
+
+    try {
+      this.logger.log(
+        `Generating guidance report on demand for result=${result.id}`,
+      );
+      const generated = await this.guidanceReportGenerator.generate(input);
+      const guidanceReport = generated as unknown as Record<string, unknown>;
+
+      await this.assessmentResultRepo.update(result.id, {
+        guidance_report: guidanceReport as never,
+      });
+
+      this.logger.log(`Guidance report persisted for result=${result.id}`);
+      return { ...result, guidance_report: guidanceReport };
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      const stack = err instanceof Error ? err.stack : undefined;
+      this.logger.error(
+        `Failed to generate guidance report: ${message}`,
+        stack,
+      );
+      return result;
+    }
+  }
+
+  private async extractCompetenciesForResult(
+    attemptId: string,
+  ): Promise<{ strong: string[]; weak: string[] }> {
+    const scores = await this.assessmentResultRepo.manager.find(
+      AssessmentScore,
+      { where: { attempt_id: attemptId } },
+    );
+
+    if (scores.length === 0) return { strong: [], weak: [] };
+
+    // Collect question IDs to look up competency
+    const questionIds = [...new Set(scores.map((s) => s.question_id))];
+    const questions = await this.assessmentResultRepo.manager
+      .createQueryBuilder(AssessmentQuestion, 'q')
+      .where('q.id IN (:...ids)', { ids: questionIds })
+      .getMany();
+
+    const competencyByQuestion = new Map<string, string>();
+    for (const q of questions) {
+      if (q.competency) competencyByQuestion.set(q.id, q.competency);
+    }
+
+    const strong = new Set<string>();
+    const weak = new Set<string>();
+
+    for (const score of scores) {
+      if (score.max_score <= 0) continue;
+      const ratio = score.raw_score / score.max_score;
+      const competency =
+        score.competency ?? competencyByQuestion.get(score.question_id);
+      if (!competency) continue;
+
+      if (ratio >= 0.7) strong.add(competency);
+      else if (ratio < 0.5) weak.add(competency);
+    }
+
+    return { strong: [...strong], weak: [...weak] };
   }
 
   /**

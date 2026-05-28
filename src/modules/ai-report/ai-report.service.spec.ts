@@ -2,6 +2,7 @@ import { Repository } from 'typeorm';
 import { AssessmentResult, AssessmentType } from '../assessments/entities';
 import { TalentProfile } from '../talent/entities/talent-profile.entity';
 import { AiReportService } from './ai-report.service';
+import { GuidanceReportService } from '../ai/guidance-report.service';
 
 type QueryBuilderMock = {
   innerJoinAndSelect: jest.Mock;
@@ -43,7 +44,9 @@ describe('AiReportService', () => {
   let assessmentResultRepo: {
     createQueryBuilder: jest.Mock;
     manager: { findOne: jest.Mock };
+    update: jest.Mock;
   };
+  let guidanceReportGenerator: { generate: jest.Mock };
 
   beforeEach(() => {
     talentProfileRepo = {
@@ -100,11 +103,27 @@ describe('AiReportService', () => {
           completed_at: new Date('2025-05-20T10:00:00.000Z'),
         }),
       },
+      update: jest.fn().mockResolvedValue(undefined),
+    };
+
+    guidanceReportGenerator = {
+      generate: jest.fn().mockResolvedValue({
+        report_type: 'emerging',
+        ai_summary: 'Generated',
+        summary: 'Generated summary',
+        retake_advice: '',
+        growth_insight: 'Growth',
+        strength_ratings: [],
+        weak_area_ratings: [],
+        recommended_resources: [],
+        resource_page_url: '/resources',
+      }),
     };
 
     service = new AiReportService(
       talentProfileRepo as unknown as Repository<TalentProfile>,
       assessmentResultRepo as unknown as Repository<AssessmentResult>,
+      guidanceReportGenerator as unknown as GuidanceReportService,
     );
   });
 
@@ -169,12 +188,14 @@ describe('AiReportService', () => {
     });
   });
 
-  it('returns envelope with defaults when guidance_report is null', async () => {
+  it('generates guidance report on demand when guidance_report is null', async () => {
     const emptyQb = createQueryBuilderMock({
+      id: 'result-1',
       attempt_id: 'attempt-1',
       score: 50,
       max_score: 100,
       percentage: 50,
+      tier: 'emerging',
       guidance_report: null,
     } as unknown as AssessmentResult);
     let call = 0;
@@ -185,24 +206,38 @@ describe('AiReportService', () => {
       }),
       manager: {
         findOne: jest.fn().mockResolvedValue({ completed_at: null }),
+        find: jest.fn().mockResolvedValue([]),
+        createQueryBuilder: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnThis(),
+          getMany: jest.fn().mockResolvedValue([]),
+        }),
       },
+      update: jest.fn().mockResolvedValue(undefined),
     };
     service = new AiReportService(
       talentProfileRepo as unknown as Repository<TalentProfile>,
       repo as unknown as Repository<AssessmentResult>,
+      guidanceReportGenerator as unknown as GuidanceReportService,
     );
 
     const result = await service.getGuidanceReports('user-1');
 
+    expect(guidanceReportGenerator.generate).toHaveBeenCalled();
+    expect(repo.update).toHaveBeenCalledWith(
+      'result-1',
+      expect.objectContaining({
+        guidance_report: expect.any(Object),
+      }),
+    );
     expect(result.skill_guidance_report).toEqual({
       score: 50,
       percentile: 70,
       attempt_date: null,
-      report_type: '',
-      ai_summary: '',
-      summary: '',
+      report_type: 'emerging',
+      ai_summary: 'Generated',
+      summary: 'Generated summary',
       retake_advice: '',
-      growth_insight: '',
+      growth_insight: 'Growth',
       strength_ratings: [],
       resource_page_url: '/resources',
       weak_area_ratings: [],
@@ -236,6 +271,7 @@ describe('AiReportService', () => {
     service = new AiReportService(
       talentProfileRepo as unknown as Repository<TalentProfile>,
       repo as unknown as Repository<AssessmentResult>,
+      guidanceReportGenerator as unknown as GuidanceReportService,
     );
 
     const result = await service.getGuidanceReports('user-1');
