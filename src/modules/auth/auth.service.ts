@@ -14,10 +14,7 @@ import type { StringValue } from 'ms';
 import { Repository } from 'typeorm';
 import { env } from '../../config/env';
 import { MailService } from '../mail/mail.service';
-import {
-  TalentProfile,
-  TalentProfileStatus,
-} from '../talent/entities/talent-profile.entity';
+import { TalentProfile } from '../talent/entities/talent-profile.entity';
 import { User, UserRole } from '../users/entities/user.entity';
 import { OAUTH_DEFAULT_COUNTRY, UsersService } from '../users/users.service';
 import type { AccountDeletionMetadata } from '../users/users.service';
@@ -63,7 +60,6 @@ export interface AuthUser {
   is_verified: boolean;
   onboarding_complete: boolean;
   linkedin_url?: string | null;
-  is_job_ready?: boolean;
   profile_verified?: boolean;
 }
 
@@ -614,13 +610,8 @@ export class AuthService {
     const profile =
       user.role === UserRole.TALENT
         ? await this.talentProfileRepository.findOne({
-          where: { user_id: userId },
-            select: {
-              track: true,
-              linkedin_url: true,
-              status: true,
-              profile_verified: true,
-            },
+            where: { user_id: userId },
+            select: { track: true, linkedin_url: true, profile_verified: true },
           })
         : null;
 
@@ -628,7 +619,6 @@ export class AuthService {
       ...this.toAuthUser(user),
       track: profile?.track ?? null,
       linkedin_url: profile?.linkedin_url ?? null,
-      is_job_ready: profile?.status === TalentProfileStatus.JOB_READY,
       profile_verified: profile?.profile_verified ?? false,
     };
   }

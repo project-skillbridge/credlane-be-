@@ -24,17 +24,17 @@ export class SaveTalentProfileDto {
   @ApiPropertyOptional({ example: 'bachelor', enum: TALENT_EDUCATION_LEVELS })
   @IsOptional()
   @IsIn(TALENT_EDUCATION_LEVELS, {
-    message: `education_level must be one of: ${TALENT_EDUCATION_LEVELS.join(', ')}`,
+    message: `educationLevel must be one of: ${TALENT_EDUCATION_LEVELS.join(', ')}`,
   })
-  education_level?: string;
+  educationLevel?: string;
 
   @ApiPropertyOptional({ example: 'https://www.linkedin.com/in/alexsmith' })
   @IsOptional()
-  @IsUrl({}, { message: 'linkedin_url must be a valid URL' })
+  @IsUrl({}, { message: 'linkedinProfile must be a valid URL' })
   @Matches(LINKEDIN_REGEX, {
     message:
-      'linkedin_url must be a valid LinkedIn profile URL (linkedin.com/in/...)',
+      'linkedinProfile must be a valid LinkedIn profile URL (linkedin.com/in/...)',
   })
   @MaxLength(255)
-  linkedin_url?: string;
+  linkedinProfile?: string;
 }

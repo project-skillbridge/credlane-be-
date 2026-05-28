@@ -43,7 +43,6 @@ import { RegisterDto } from './dto/register.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { VerifyPasswordResetOtpDto } from './dto/verify-password-reset-otp.dto';
-import { ChangePasswordDto } from './dto/change-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyGoogleAuthCodeDto } from './dto/verify-google-auth-code.dto';
 import { OAuthSignupRoleRequiredException } from './exceptions/oauth-signup-role-required.exception';
@@ -301,32 +300,5 @@ export class AuthController {
   @ApiOperation({ summary: 'Return the current authenticated user' })
   me(@CurrentUser() user: AuthenticatedUser) {
     return this.authService.getProfile(user.sub);
-  }
-
-  @ApiCookieAuth()
-  @UseGuards(ThrottlerGuard)
-  @Post('change-password')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Change password for the authenticated user',
-    description:
-      'Verifies the current password, rejects reuse of the same password, updates to the new password, and clears auth cookies — forcing a fresh login.',
-  })
-  @ApiBadRequestResponse({
-    description:
-      'Current password incorrect, new password same as current, or OAuth account has no password',
-  })
-  @ApiUnprocessableEntityResponse({ description: 'Passwords do not match' })
-  @ApiTooManyRequestsResponse({
-    description: 'Too many requests — limit is 5 per minute per IP',
-  })
-  async changePassword(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: ChangePasswordDto,
-    @Res({ passthrough: true }) response: Response,
-  ) {
-    const result = await this.authService.changePassword(user.sub, dto);
-    clearAuthCookies(response);
-    return result;
   }
 }
