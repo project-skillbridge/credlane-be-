@@ -152,7 +152,6 @@ describe('AiReportService', () => {
       report_type: 'job_ready',
       ai_summary: 'Excellent',
       summary: 'Strong performance',
-      retake_advice: '',
       growth_insight: 'Ready',
       strength_ratings: [{ item: 'Design', rating: 3 }],
       resource_page_url: '/resources',
