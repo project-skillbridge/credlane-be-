@@ -322,6 +322,7 @@ export class AiReportService {
         'attempt',
         'attempt.id = result.attempt_id',
       )
+      .addSelect('attempt.completed_at', 'attempt_completed_at')
       .where('attempt.talent_profile_id = :talentProfileId', {
         talentProfileId,
       })
@@ -330,19 +331,21 @@ export class AiReportService {
       })
       .orderBy('attempt.completed_at', 'DESC', 'NULLS LAST')
       .addOrderBy('result.created_at', 'DESC')
-      .getOne();
+      .getRawAndEntities();
 
-    if (!result) return null;
+    const entity = result.entities[0];
+    if (!entity) return null;
 
-    // Fetch the attempt's completed_at separately since the join doesn't hydrate onto the result entity
-    const attempt = await this.assessmentResultRepo.manager.findOne(
-      AssessmentAttempt,
-      { where: { id: result.attempt_id }, select: ['completed_at'] },
-    );
+    const raw = result.raw[0] as
+      | { attempt_completed_at?: string | null }
+      | undefined;
+    const completedAt = raw?.attempt_completed_at;
 
     return {
-      ...result,
-      attempt_completed_at: attempt?.completed_at?.toISOString() ?? null,
+      ...entity,
+      attempt_completed_at: completedAt
+        ? new Date(completedAt).toISOString()
+        : null,
     };
   }
 }

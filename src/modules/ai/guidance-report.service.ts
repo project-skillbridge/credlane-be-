@@ -18,7 +18,9 @@ export class GuidanceReportService {
     const hasWeakCompetencies = input.weak_competencies.length > 0;
     const reportFocus = isJobReady
       ? 'Create a strengths-focused Job Ready report. Keep the tone encouraging, growth-oriented, and lighter than a remediation plan.'
-      : 'Create a targeted improvement plan for an Emerging or Not Ready candidate. Focus on weak areas from the advanced assessment and concrete preparation for a retake.';
+      : input.assessment_type === 'skill'
+        ? 'Create a targeted improvement plan for an Emerging or Not Ready candidate. Focus on weak areas from the skill assessment and concrete preparation for a retake.'
+        : 'Create a targeted improvement plan for an Emerging or Not Ready candidate. Focus on weak areas from the advanced assessment and concrete preparation for a retake.';
 
     const userPrompt = `
 Report type: ${input.report_type}

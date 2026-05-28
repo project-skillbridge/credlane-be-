@@ -12,6 +12,23 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { AiReportService } from './ai-report.service';
 
+class RatedReportItemDto {
+  @ApiProperty({ description: 'Human-readable description of the rating' })
+  item: string;
+
+  @ApiProperty({ description: 'Rating from 1 to 3', minimum: 1, maximum: 3 })
+  rating: number;
+}
+
+class GuidanceResourceDto {
+  @ApiProperty() title: string;
+  @ApiProperty() provider: string;
+  @ApiProperty() url: string;
+  @ApiProperty({ enum: ['free', 'paid'] }) tier: string;
+  @ApiProperty() competency: string;
+  @ApiProperty() reason: string;
+}
+
 class GuidanceReportEnvelopeDto {
   @ApiProperty({ description: 'Assessment score (0-100)' })
   score: number;
@@ -35,10 +52,11 @@ class GuidanceReportEnvelopeDto {
   @ApiProperty() summary: string;
   @ApiPropertyOptional() retake_advice: string;
   @ApiProperty() growth_insight: string;
-  @ApiProperty({ type: [Object] }) strength_ratings: unknown[];
+  @ApiProperty({ type: [RatedReportItemDto] }) strength_ratings: unknown[];
   @ApiProperty() resource_page_url: string;
-  @ApiProperty({ type: [Object] }) weak_area_ratings: unknown[];
-  @ApiProperty({ type: [Object] }) recommended_resources: unknown[];
+  @ApiProperty({ type: [RatedReportItemDto] }) weak_area_ratings: unknown[];
+  @ApiProperty({ type: [GuidanceResourceDto] })
+  recommended_resources: unknown[];
 }
 
 class TalentGuidanceReportsResponseDto {

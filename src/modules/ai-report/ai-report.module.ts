@@ -5,6 +5,7 @@ import { AiReportService } from './ai-report.service';
 import { TalentProfile } from '../talent/entities/talent-profile.entity';
 import {
   AssessmentAttempt,
+  AssessmentQuestion,
   AssessmentResult,
   AssessmentScore,
 } from '../assessments/entities';
@@ -14,6 +15,7 @@ import {
     TypeOrmModule.forFeature([
       TalentProfile,
       AssessmentAttempt,
+      AssessmentQuestion,
       AssessmentResult,
       AssessmentScore,
     ]),

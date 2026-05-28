@@ -16,6 +16,7 @@ type QueryBuilderMock = {
   setParameter: jest.Mock;
   getOne: jest.Mock;
   getRawOne: jest.Mock;
+  getRawAndEntities: jest.Mock;
 };
 
 function createQueryBuilderMock(
@@ -33,6 +34,12 @@ function createQueryBuilderMock(
     setParameter: jest.fn().mockReturnThis(),
     getOne: jest.fn().mockResolvedValue(getOneResult),
     getRawOne: jest.fn().mockResolvedValue({ total: 10, below: 7 }),
+    getRawAndEntities: jest.fn().mockResolvedValue({
+      entities: getOneResult ? [getOneResult] : [],
+      raw: getOneResult
+        ? [{ attempt_completed_at: '2025-05-20T10:00:00.000Z' }]
+        : [],
+    }),
   };
 }
 
@@ -43,7 +50,11 @@ describe('AiReportService', () => {
   let advancedQb: QueryBuilderMock;
   let assessmentResultRepo: {
     createQueryBuilder: jest.Mock;
-    manager: { findOne: jest.Mock };
+    manager: {
+      find: jest.Mock;
+      createQueryBuilder: jest.Mock;
+      getRepository: jest.Mock;
+    };
     update: jest.Mock;
   };
   let guidanceReportGenerator: { generate: jest.Mock };
@@ -99,8 +110,14 @@ describe('AiReportService', () => {
         return createQueryBuilderMock(null);
       }),
       manager: {
-        findOne: jest.fn().mockResolvedValue({
-          completed_at: new Date('2025-05-20T10:00:00.000Z'),
+        find: jest.fn().mockResolvedValue([]),
+        createQueryBuilder: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          getMany: jest.fn().mockResolvedValue([]),
+        }),
+        getRepository: jest.fn().mockReturnValue({
+          find: jest.fn().mockResolvedValue([]),
         }),
       },
       update: jest.fn().mockResolvedValue(undefined),
@@ -152,6 +169,7 @@ describe('AiReportService', () => {
       report_type: 'job_ready',
       ai_summary: 'Excellent',
       summary: 'Strong performance',
+      retake_advice: '',
       growth_insight: 'Ready',
       strength_ratings: [{ item: 'Design', rating: 3 }],
       resource_page_url: '/resources',
@@ -178,8 +196,8 @@ describe('AiReportService', () => {
   });
 
   it('returns null when getOne finds no assessment results', async () => {
-    skillQb.getOne.mockResolvedValue(null);
-    advancedQb.getOne.mockResolvedValue(null);
+    skillQb.getRawAndEntities.mockResolvedValue({ entities: [], raw: [] });
+    advancedQb.getRawAndEntities.mockResolvedValue({ entities: [], raw: [] });
 
     await expect(service.getGuidanceReports('user-1')).resolves.toEqual({
       skill_guidance_report: null,
@@ -188,7 +206,7 @@ describe('AiReportService', () => {
   });
 
   it('generates guidance report on demand when guidance_report is null', async () => {
-    const emptyQb = createQueryBuilderMock({
+    const resultData = {
       id: 'result-1',
       attempt_id: 'attempt-1',
       score: 50,
@@ -196,7 +214,12 @@ describe('AiReportService', () => {
       percentage: 50,
       tier: 'emerging',
       guidance_report: null,
-    } as unknown as AssessmentResult);
+    } as unknown as AssessmentResult;
+    const emptyQb = createQueryBuilderMock(resultData);
+    emptyQb.getRawAndEntities.mockResolvedValue({
+      entities: [resultData],
+      raw: [{ attempt_completed_at: null }],
+    });
     let call = 0;
     const repo = {
       createQueryBuilder: jest.fn(() => {
@@ -204,11 +227,14 @@ describe('AiReportService', () => {
         return call <= 2 ? emptyQb : createQueryBuilderMock(null);
       }),
       manager: {
-        findOne: jest.fn().mockResolvedValue({ completed_at: null }),
         find: jest.fn().mockResolvedValue([]),
         createQueryBuilder: jest.fn().mockReturnValue({
           where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
           getMany: jest.fn().mockResolvedValue([]),
+        }),
+        getRepository: jest.fn().mockReturnValue({
+          find: jest.fn().mockResolvedValue([]),
         }),
       },
       update: jest.fn().mockResolvedValue(undefined),
