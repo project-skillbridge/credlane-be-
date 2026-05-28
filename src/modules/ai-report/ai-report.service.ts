@@ -9,9 +9,8 @@ import {
 import { TalentProfile } from '../talent/entities/talent-profile.entity';
 
 export type GuidanceReportEnvelope = {
-  score: number;
-  max_score: number;
   percentage: number;
+  percentile: number;
   attempt_date: string | null;
   report_type: string;
   ai_summary: string;
@@ -56,9 +55,27 @@ export class AiReportService {
       this.getLatestResult(profile.id, AssessmentType.ADVANCED),
     ]);
 
+    const [skillPercentile, advancedPercentile] = await Promise.all([
+      skillResult
+        ? this.calculatePercentile(
+            AssessmentType.SKILL,
+            skillResult.percentage ?? 0,
+          )
+        : 0,
+      advancedResult
+        ? this.calculatePercentile(
+            AssessmentType.ADVANCED,
+            advancedResult.percentage ?? 0,
+          )
+        : 0,
+    ]);
+
     return {
-      skill_guidance_report: this.buildEnvelope(skillResult),
-      advanced_guidance_report: this.buildEnvelope(advancedResult),
+      skill_guidance_report: this.buildEnvelope(skillResult, skillPercentile),
+      advanced_guidance_report: this.buildEnvelope(
+        advancedResult,
+        advancedPercentile,
+      ),
     };
   }
 
@@ -66,15 +83,15 @@ export class AiReportService {
     result:
       | (AssessmentResult & { attempt_completed_at?: string | null })
       | null,
+    percentile: number,
   ): GuidanceReportEnvelope {
     if (!result) return null;
 
     const report = result.guidance_report ?? {};
 
     return {
-      score: result.score ?? 0,
-      max_score: result.max_score ?? 100,
       percentage: result.percentage ?? 0,
+      percentile,
       attempt_date: result.attempt_completed_at ?? null,
       report_type: (report.report_type as string) ?? '',
       ai_summary: (report.ai_summary as string) ?? '',
@@ -86,6 +103,36 @@ export class AiReportService {
       weak_area_ratings: (report.weak_area_ratings as unknown[]) ?? [],
       recommended_resources: (report.recommended_resources as unknown[]) ?? [],
     };
+  }
+
+  /**
+   * Calculates the percentile rank: percentage of candidates who scored
+   * strictly lower than the given score for this assessment type.
+   */
+  private async calculatePercentile(
+    assessmentType: AssessmentType,
+    userPercentage: number,
+  ): Promise<number> {
+    const raw: { total: number; below: number } | undefined =
+      await this.assessmentResultRepo
+        .createQueryBuilder('result')
+        .innerJoin(
+          AssessmentAttempt,
+          'attempt',
+          'attempt.id = result.attempt_id',
+        )
+        .where('attempt.assessment_type = :assessmentType', { assessmentType })
+        .andWhere('result.percentage IS NOT NULL')
+        .select('COUNT(*)::int', 'total')
+        .addSelect(
+          'COUNT(*) FILTER (WHERE result.percentage < :userPercentage)::int',
+          'below',
+        )
+        .setParameter('userPercentage', userPercentage)
+        .getRawOne();
+
+    if (!raw || raw.total === 0) return 0;
+    return Math.round((raw.below / raw.total) * 100);
   }
 
   private async getLatestResult(
