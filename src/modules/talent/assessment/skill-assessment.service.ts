@@ -1001,7 +1001,10 @@ export class SkillAssessmentService {
     const mcqs = bankQuestions.filter((q) => this.isPickQuestion(q));
     const texts = bankQuestions.filter((q) => !this.isPickQuestion(q));
 
-    const neededMcqs = Math.max(0, SKILL_ASSESSMENT_MCQ_COUNT - mcqs.length);
+    // Generate enough MCQs to cover both the minimum mix AND the deficit filler
+    // (SKILL_ASSESSMENT_TOTAL may exceed MCQ_COUNT + TEXT_COUNT; extras fill the gap)
+    const targetMcqs = SKILL_ASSESSMENT_TOTAL - SKILL_ASSESSMENT_TEXT_COUNT;
+    const neededMcqs = Math.max(0, targetMcqs - mcqs.length);
     const neededTexts = Math.max(0, SKILL_ASSESSMENT_TEXT_COUNT - texts.length);
 
     if (neededMcqs === 0 && neededTexts === 0) {
@@ -1214,9 +1217,11 @@ export class SkillAssessmentService {
       mcqs.length < SKILL_PROBE_MCQ_COUNT ||
       text.length < SKILL_PROBE_TEXT_COUNT
     ) {
-      this.throwSkillBankExhausted(
+      // Probe questions are best-effort; deficit filler handles the gap
+      this.logger.warn(
         `Probe bank mix insufficient: mcq=${mcqs.length}/${SKILL_PROBE_MCQ_COUNT} text=${text.length}/${SKILL_PROBE_TEXT_COUNT}`,
       );
+      return [...mcqs, ...text];
     }
 
     return [...mcqs, ...text];
