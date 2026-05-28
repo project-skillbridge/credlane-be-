@@ -196,10 +196,6 @@ describe('VerifiedProfileService', () => {
         status: TalentProfileStatus.JOB_READY,
         ai_report:
           'Jane shows job-ready frontend strengths and strong product reasoning.',
-        skill_proficiency: {
-          validated_level: VerifiedLevel.MID,
-          skill_assessment_percentage: 82,
-        },
         seniority_badge: 'Mid Level',
         tier_label: 'Job Ready',
         score_percentage: 80,
@@ -207,10 +203,13 @@ describe('VerifiedProfileService', () => {
         verified_at: '2026-05-03T00:00:00.000Z',
         tier: AssessmentTier.JOB_READY,
         is_owner: true,
+        resource_page_url: '/resources',
       });
       expect(result).not.toHaveProperty('aiReport');
       expect(result).not.toHaveProperty('ai_summary');
       expect(result).not.toHaveProperty('detailedSkills');
+      expect(result).not.toHaveProperty('key_strengths');
+      expect(result).not.toHaveProperty('professional_skills');
       expect(result.about_tags).toEqual([
         'Mid Level',
         'Job Ready',
@@ -221,12 +220,6 @@ describe('VerifiedProfileService', () => {
         'Immediately Available',
       ]);
       expect(result).not.toHaveProperty('detailed_skills');
-      expect(result.professional_skills).toEqual([
-        { label: 'Technical Reasoning', percentage: 92 },
-      ]);
-      expect(result.soft_skills).toEqual([
-        { label: 'Communication', percentage: 78 },
-      ]);
       expect(result.working_style).toEqual([
         'Async Collaboration',
         'Small Teams',
@@ -236,16 +229,6 @@ describe('VerifiedProfileService', () => {
       expect(result.growth_insight).toBe(
         'Jane should keep deepening systems thinking and stakeholder communication.',
       );
-      expect(result.strength_ratings).toEqual([
-        { label: 'Clear practical problem solving.', rating: 3 },
-      ]);
-      expect(result.weaknesses).toEqual([
-        { label: 'Improve systems-level reasoning.', rating: 1 },
-      ]);
-      expect(result.assessment_insights?.skill_proficiency).toEqual({
-        label: 'Skill Proficiency',
-        insight: 'Jane showed job-ready strengths.',
-      });
       expect(result.recommended_resources).toEqual([
         {
           title: 'Frontend Patterns',
@@ -256,14 +239,66 @@ describe('VerifiedProfileService', () => {
           reason: 'Supports frontend architecture growth.',
         },
       ]);
-      expect(result.resource_page_url).toBe('/resources');
-      expect(result.key_strengths).toEqual([
+      expect(result.skill_breakdown_tabs).toEqual([
         {
-          competency: 'technical_reasoning',
-          label: 'Technical Reasoning',
-          percentage: 92,
+          id: 'assessment_scores',
+          label: 'Assessment Scores',
+          items: [
+            {
+              id: 'skill_proficiency',
+              label: 'Skill Proficiency',
+              percentage: 80,
+              validated_level: VerifiedLevel.MID,
+              insight: 'Jane showed job-ready strengths.',
+            },
+            {
+              id: 'workplace_readiness',
+              label: 'Workplace Readiness',
+              percentage: 0,
+              insight:
+                'Jane should keep deepening systems thinking and stakeholder communication.',
+            },
+            {
+              id: 'practical_application',
+              label: 'Practical Application',
+              percentage: 0,
+              insight:
+                'Jane should keep deepening systems thinking and stakeholder communication.',
+            },
+          ],
         },
-        { competency: 'communication', label: 'Communication', percentage: 78 },
+        {
+          id: 'professional_skills',
+          label: 'Professional Skills',
+          items: [
+            {
+              label: 'Technical Reasoning',
+              percentage: 92,
+              insight:
+                'Jane should keep deepening systems thinking and stakeholder communication.',
+            },
+          ],
+        },
+        {
+          id: 'key_strengths',
+          label: 'Strengths',
+          items: [
+            {
+              competency: 'technical_reasoning',
+              label: 'Technical Reasoning',
+              percentage: 92,
+              insight:
+                'Jane should keep deepening systems thinking and stakeholder communication.',
+            },
+            {
+              competency: 'communication',
+              label: 'Communication',
+              percentage: 78,
+              insight:
+                'Jane should keep deepening systems thinking and stakeholder communication.',
+            },
+          ],
+        },
       ]);
       expect(result.share_url).toContain('/verified-profiles/');
       expect(result.qr_code_url).toContain('api.qrserver.com');
@@ -314,10 +349,16 @@ describe('VerifiedProfileService', () => {
 
       const result = await service.getForTalentUser(user.id);
 
-      expect(result.key_strengths).toEqual([
+      const strengthsTab = result.skill_breakdown_tabs.find(
+        (tab) => tab.id === 'key_strengths',
+      );
+      expect(strengthsTab?.items).toEqual([
         { competency: 'api_design', label: 'Api Design', percentage: 100 },
       ]);
-      expect(result.professional_skills).toEqual([
+      const professionalTab = result.skill_breakdown_tabs.find(
+        (tab) => tab.id === 'professional_skills',
+      );
+      expect(professionalTab?.items).toEqual([
         { label: 'Api Design', percentage: 100 },
       ]);
       expect(JSON.stringify(result)).not.toContain(questionId);
@@ -455,16 +496,55 @@ describe('VerifiedProfileService', () => {
 
       expect(result.goal).toBe('');
       expect(result.about).toBe('');
-      expect(result.skills).toBeUndefined();
-      expect(result.ai_report).toBeUndefined();
+      expect(result.skills).toEqual([]);
+      expect(result.ai_report).toBe('');
+      expect(result.growth_insight).toBe('');
+      expect(result.recommended_resources).toEqual([]);
+      expect(result.qr_code_url).toContain('api.qrserver.com');
       expect(result).not.toHaveProperty('ai_summary');
-      expect(result.key_strengths).toBeUndefined();
-      expect(result.professional_skills).toBeUndefined();
-      expect(result.soft_skills).toBeUndefined();
+      expect(result.skill_breakdown_tabs).toEqual([
+        {
+          id: 'assessment_scores',
+          label: 'Assessment Scores',
+          items: [
+            {
+              id: 'skill_proficiency',
+              label: 'Skill Proficiency',
+              percentage: 76,
+              validated_level: 'entry',
+              insight: 'Assessment insights are not available yet.',
+            },
+            {
+              id: 'workplace_readiness',
+              label: 'Workplace Readiness',
+              percentage: 0,
+              insight: 'Assessment insights are not available yet.',
+            },
+            {
+              id: 'practical_application',
+              label: 'Practical Application',
+              percentage: 0,
+              insight: 'Assessment insights are not available yet.',
+            },
+          ],
+        },
+        {
+          id: 'professional_skills',
+          label: 'Professional Skills',
+          items: [{ label: 'General', percentage: 76 }],
+        },
+        {
+          id: 'key_strengths',
+          label: 'Strengths',
+          items: [
+            { competency: 'general', label: 'General', percentage: 76 },
+          ],
+        },
+      ]);
       expect(result).not.toHaveProperty('detailed_skills');
       expect(result.score_percentage).toBe(76);
       expect(result.seniority_badge).toBe('Entry Level');
-      expect(result.tier_label).toBeUndefined();
+      expect(result.tier_label).toBe('');
     });
 
     it('falls back to profile_share_link when no employer pool profile exists', async () => {
@@ -530,7 +610,7 @@ describe('VerifiedProfileService', () => {
 
       const result = await service.getForTalentUser(user.id);
       expect(result.share_url).toBe('');
-      expect(result.qr_code_url).toBeUndefined();
+      expect(result.qr_code_url).toBeNull();
     });
   });
 
@@ -608,8 +688,14 @@ describe('VerifiedProfileService', () => {
         about: 'API specialist',
         verified: true,
         verified_at: '2026-05-04T00:00:00.000Z',
-        skill_proficiency: { validated_level: VerifiedLevel.MID },
         is_owner: false,
+      });
+      const assessmentTab = result.skill_breakdown_tabs.find(
+        (tab) => tab.id === 'assessment_scores',
+      );
+      expect(assessmentTab?.items[0]).toMatchObject({
+        id: 'skill_proficiency',
+        validated_level: VerifiedLevel.MID,
       });
       expect(result.share_url).toContain(shareToken);
     });

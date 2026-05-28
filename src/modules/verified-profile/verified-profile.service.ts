@@ -28,7 +28,12 @@ import {
 import { User, UserRole } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 import type { AdvancedAssessmentGeneratedQuestion } from '../talent/assessment/advanced-assessment-ai.service';
-import type { VerifiedProfileResponseDto } from './dto/verified-profile.dto';
+import type {
+  VerifiedProfileAssessmentBreakdownItemDto,
+  VerifiedProfileResponseDto,
+  VerifiedProfileSkillBreakdownItemDto,
+  VerifiedProfileSkillBreakdownTabDto,
+} from './dto/verified-profile.dto';
 import {
   buildQrCodeUrl,
   buildShareUrl,
@@ -230,8 +235,7 @@ export class VerifiedProfileService {
       competencyScores,
       strongCompetencies,
     );
-    const { professionalSkills, softSkills } =
-      categorizeCompetencies(competencyScores);
+    const { professionalSkills } = categorizeCompetencies(competencyScores);
     const aboutTags = this.buildAboutTags(
       personalAnswers,
       seniorityBadge,
@@ -261,6 +265,19 @@ export class VerifiedProfileService {
       blockScores,
       guidanceReport,
     );
+    const growthInsight = guidanceReport.growth_insight ?? '';
+    const skillBreakdownTabs = this.buildSkillBreakdownTabs({
+      scorePercentage,
+      skillProficiency,
+      blockScores,
+      assessmentInsights,
+      professionalSkills,
+      keyStrengths,
+      growthInsight,
+      aiReport: aiReport ?? '',
+    });
+    const tier =
+      latestAdvancedResult?.tier ?? poolProfile?.tier ?? profile.status;
 
     return {
       full_name: `${user.first_name} ${user.last_name}`.trim(),
@@ -272,53 +289,155 @@ export class VerifiedProfileService {
       ),
       goal: resolveGoalLabel(profile.goal),
       about: profile.bio?.trim() ?? '',
-      ...(aboutTags.length > 0 && { about_tags: aboutTags }),
-      ...(aiReport && { ai_report: aiReport }),
-      avatar_url: user.avatar_url,
+      about_tags: aboutTags,
+      ai_report: aiReport ?? '',
+      avatar_url: user.avatar_url ?? null,
       verified: true,
-      status: profile.status,
-      ...(seniorityBadge && { seniority_badge: seniorityBadge }),
-      ...(skills && { skills }),
-      ...(tierLabel && { tier_label: tierLabel }),
-      ...(scorePercentage !== undefined && {
-        score_percentage: scorePercentage,
-      }),
-      ...(keyStrengths && { key_strengths: keyStrengths }),
-      ...(professionalSkills && { professional_skills: professionalSkills }),
-      ...(softSkills && { soft_skills: softSkills }),
-      ...(workingStyle.length > 0 && { working_style: workingStyle }),
-      ...(guidanceReport.growth_insight && {
-        growth_insight: guidanceReport.growth_insight,
-      }),
-      ...(guidanceReport.strength_ratings?.length && {
-        strength_ratings: guidanceReport.strength_ratings,
-      }),
-      ...(guidanceReport.weaknesses?.length && {
-        weaknesses: guidanceReport.weaknesses,
-      }),
-      ...(skillProficiency && { skill_proficiency: skillProficiency }),
-      ...(blockScores.workplaceReadiness && {
-        workplace_readiness: blockScores.workplaceReadiness,
-      }),
-      ...(blockScores.practicalApplication && {
-        practical_application: blockScores.practicalApplication,
-      }),
-      ...(Object.keys(assessmentInsights).length > 0 && {
-        assessment_insights: assessmentInsights,
-      }),
-      ...(guidanceReport.recommended_resources?.length && {
-        recommended_resources: guidanceReport.recommended_resources,
-      }),
-      ...(guidanceReport.resource_page_url && {
-        resource_page_url: guidanceReport.resource_page_url,
-      }),
+      status: tier,
+      seniority_badge: seniorityBadge ?? '',
+      tier,
+      tier_label: tierLabel ?? '',
+      score_percentage: scorePercentage ?? 0,
+      skills: skills ?? [],
+      working_style: workingStyle,
+      growth_insight: growthInsight,
+      skill_breakdown_tabs: skillBreakdownTabs,
+      recommended_resources: guidanceReport.recommended_resources ?? [],
+      resource_page_url: '/resources',
       resume_url: profile.resume_url ?? null,
       share_url: shareUrl,
-      ...(qrCodeUrl && { qr_code_url: qrCodeUrl }),
+      qr_code_url: qrCodeUrl ?? null,
       is_owner: isOwner ?? false,
       verified_at: verifiedAt.toISOString(),
-      ...(latestAdvancedResult?.tier && { tier: latestAdvancedResult.tier }),
     };
+  }
+
+  private buildSkillBreakdownTabs(input: {
+    scorePercentage: number | undefined;
+    skillProficiency:
+      | {
+          validated_level: VerifiedLevel;
+          skill_assessment_percentage?: number;
+        }
+      | undefined;
+    blockScores: {
+      workplaceReadiness?: { percentage: number; label: string };
+      practicalApplication?: { percentage: number; label: string };
+    };
+    assessmentInsights: AssessmentInsights;
+    professionalSkills:
+      | Array<{ label: string; percentage: number }>
+      | undefined;
+    keyStrengths:
+      | Array<{ competency: string; label: string; percentage: number }>
+      | undefined;
+    growthInsight: string;
+    aiReport: string;
+  }): VerifiedProfileSkillBreakdownTabDto[] {
+    const defaultInsight =
+      input.growthInsight.trim() ||
+      input.aiReport.trim() ||
+      'Assessment insights are not available yet.';
+    const skillPercentage =
+      input.scorePercentage ??
+      input.skillProficiency?.skill_assessment_percentage ??
+      0;
+    const skillInsight =
+      input.assessmentInsights.skill_proficiency?.insight ??
+      (input.skillProficiency?.skill_assessment_percentage != null
+        ? `Validated at ${formatSlugLabel(
+            input.skillProficiency.validated_level,
+          )} with a ${input.skillProficiency.skill_assessment_percentage}% skill assessment score.`
+        : defaultInsight);
+    const workplacePercentage =
+      input.blockScores.workplaceReadiness?.percentage ?? 0;
+    const practicalPercentage =
+      input.blockScores.practicalApplication?.percentage ?? 0;
+
+    const assessmentItems: VerifiedProfileAssessmentBreakdownItemDto[] = [
+      {
+        id: 'skill_proficiency',
+        label: 'Skill Proficiency',
+        percentage: skillPercentage,
+        validated_level: input.skillProficiency?.validated_level ?? 'mid',
+        insight: skillInsight,
+      },
+      {
+        id: 'workplace_readiness',
+        label: 'Workplace Readiness',
+        percentage: workplacePercentage,
+        insight:
+          input.assessmentInsights.workplace_readiness?.insight ??
+          defaultInsight,
+      },
+      {
+        id: 'practical_application',
+        label: 'Practical Application',
+        percentage: practicalPercentage,
+        insight:
+          input.assessmentInsights.practical_application?.insight ??
+          defaultInsight,
+      },
+    ];
+
+    const rowInsight = input.growthInsight.trim()
+      ? input.growthInsight
+      : undefined;
+    let professionalItems: VerifiedProfileSkillBreakdownItemDto[] = (
+      input.professionalSkills ?? []
+    ).map(({ label, percentage }) => ({
+      label,
+      percentage,
+      ...(rowInsight && { insight: rowInsight }),
+    }));
+
+    let strengthItems: VerifiedProfileSkillBreakdownItemDto[] = (
+      input.keyStrengths ?? []
+    ).map(({ competency, label, percentage }) => ({
+      competency,
+      label,
+      percentage,
+      ...(rowInsight && { insight: rowInsight }),
+    }));
+
+    if (professionalItems.length === 0 && skillPercentage > 0) {
+      professionalItems = [
+        {
+          label: 'General',
+          percentage: skillPercentage,
+          ...(rowInsight && { insight: rowInsight }),
+        },
+      ];
+    }
+
+    if (strengthItems.length === 0 && skillPercentage > 0) {
+      strengthItems = [
+        {
+          competency: 'general',
+          label: 'General',
+          percentage: skillPercentage,
+          ...(rowInsight && { insight: rowInsight }),
+        },
+      ];
+    }
+
+    return [
+      {
+        id: 'assessment_scores',
+        label: 'Assessment Scores',
+        items: assessmentItems,
+      },
+      {
+        id: 'professional_skills',
+        label: 'Professional Skills',
+        items: professionalItems,
+      },
+      {
+        id: 'key_strengths',
+        label: 'Strengths',
+        items: strengthItems,
+      },
+    ];
   }
 
   private readGuidanceReport(
