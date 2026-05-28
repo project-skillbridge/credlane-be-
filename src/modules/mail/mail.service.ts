@@ -5,6 +5,7 @@ import { loadMailTemplateFile, substituteMailTemplate } from './mail-templates';
 import type {
   AdvancedRetakeAvailableEmailPayload,
   AssessmentPerformanceEmailPayload,
+  BankExhaustedAlertPayload,
   JobReadyMatchesDigestEmailPayload,
   PasswordResetEmailPayload,
   SendMailOptions,
@@ -80,7 +81,6 @@ export class MailService {
       playStoreLink: '#',
       appStoreLink: '#',
       supportEmail: env.SUPPORT_EMAIL,
-      unsubscribeUrl: `${base}/email-preferences`,
       year: String(new Date().getFullYear()),
       expiresMinutes: String(expiresInMinutes),
       ...digitVars,
@@ -118,7 +118,6 @@ export class MailService {
       dashboardUrl,
       logoUrl,
       supportEmail: env.SUPPORT_EMAIL,
-      unsubscribeUrl: `${base}/email-preferences`,
       year: String(new Date().getFullYear()),
     };
 
@@ -152,7 +151,6 @@ export class MailService {
       dashboardUrl,
       logoUrl,
       supportEmail: env.SUPPORT_EMAIL,
-      unsubscribeUrl: `${base}/email-preferences`,
       year: String(new Date().getFullYear()),
     };
 
@@ -204,6 +202,44 @@ export class MailService {
     return this.send({
       to: params.to,
       subject: 'New Job Ready candidates match your hiring preferences',
+      text,
+      html,
+    });
+  }
+
+  async sendBankExhaustedAlert(
+    params: BankExhaustedAlertPayload & { to: string | string[] },
+  ) {
+    const assessmentLabel =
+      params.assessmentType === 'skill' ? 'Skill' : 'Advanced';
+    const subject = `[SkillBridge] Question bank exhausted — ${assessmentLabel} assessment`;
+    const lines = [
+      'A candidate session could not start because the question bank is insufficient.',
+      '',
+      `Assessment: ${assessmentLabel}`,
+      `Detail: ${params.detail}`,
+      params.talentProfileId
+        ? `Talent profile ID: ${params.talentProfileId}`
+        : null,
+      params.userId ? `User ID: ${params.userId}` : null,
+      params.track ? `Track: ${params.track}` : null,
+      params.verifiedLevel ? `Verified level: ${params.verifiedLevel}` : null,
+      params.expectedQuestions !== undefined
+        ? `Expected questions: ${params.expectedQuestions}`
+        : null,
+      params.gotQuestions !== undefined
+        ? `Got questions: ${params.gotQuestions}`
+        : null,
+      '',
+      'Please review and replenish the live question bank for this track/level.',
+    ].filter((line): line is string => line !== null);
+
+    const text = lines.join('\n');
+    const html = lines.map((line) => `<p>${line || '&nbsp;'}</p>`).join('');
+
+    return this.send({
+      to: params.to,
+      subject,
       text,
       html,
     });

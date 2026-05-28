@@ -2,15 +2,20 @@ import {
   buildQrCodeUrl,
   buildShareUrl,
   categorizeCompetencies,
+  compactStrings,
   formatSlugLabel,
   readPersonalAnswers,
   readSessionQuestions,
+  resolveAvailabilityLabel,
+  resolveExperienceLabel,
   resolveGoalLabel,
+  resolveJobSearchStatusLabel,
   resolveKeyStrengths,
   resolveRoleLabel,
   resolveSeniorityBadge,
   resolveSkills,
   resolveTierLabel,
+  resolveWorkArrangementLabels,
   rubricScorePercentage,
 } from './verified-profile.utils';
 
@@ -21,6 +26,14 @@ describe('verified-profile.utils', () => {
       expect(formatSlugLabel('')).toBe('');
       expect(formatSlugLabel('single')).toBe('Single');
       expect(formatSlugLabel('already Formatted')).toBe('Already Formatted');
+    });
+  });
+
+  describe('compactStrings', () => {
+    it('removes empty strings and case-insensitive duplicates', () => {
+      expect(
+        compactStrings([' Mid Level ', '', undefined, 'mid level', 'Remote']),
+      ).toEqual(['Mid Level', 'Remote']);
     });
   });
 
@@ -135,6 +148,44 @@ describe('verified-profile.utils', () => {
     it('returns empty string for null or empty', () => {
       expect(resolveGoalLabel(null)).toBe('');
       expect(resolveGoalLabel('')).toBe('');
+    });
+  });
+
+  describe('verified report label helpers', () => {
+    it('formats experience labels', () => {
+      expect(resolveExperienceLabel('3_5_yrs')).toBe('3-5 yrs exp.');
+      expect(resolveExperienceLabel('custom_value')).toBe('Custom Value');
+      expect(resolveExperienceLabel(null)).toBeUndefined();
+    });
+
+    it('formats availability labels', () => {
+      expect(resolveAvailabilityLabel('immediately_available')).toBe(
+        'Immediately Available',
+      );
+      expect(resolveAvailabilityLabel('employed_flexible')).toBe(
+        'Employed, Flexible',
+      );
+      expect(resolveAvailabilityLabel(null)).toBeUndefined();
+    });
+
+    it('formats job search status labels', () => {
+      expect(resolveJobSearchStatusLabel('open_to_right_opportunity')).toBe(
+        'Open to Work',
+      );
+      expect(resolveJobSearchStatusLabel('actively_looking')).toBe(
+        'Actively Looking',
+      );
+      expect(resolveJobSearchStatusLabel(null)).toBeUndefined();
+    });
+
+    it('formats work arrangement labels', () => {
+      expect(
+        resolveWorkArrangementLabels(['fully_remote', 'hybrid', 'hybrid']),
+      ).toEqual(['Fully Remote', 'Hybrid']);
+      expect(resolveWorkArrangementLabels('open_to_any')).toEqual([
+        'Open to Any',
+      ]);
+      expect(resolveWorkArrangementLabels(null)).toEqual([]);
     });
   });
 

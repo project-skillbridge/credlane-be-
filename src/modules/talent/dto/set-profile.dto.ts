@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsIn,
   IsOptional,
@@ -14,21 +14,23 @@ const LINKEDIN_REGEX =
   /^https?:\/\/(www\.)?linkedin\.com\/in\/[a-zA-Z0-9_%-]+\/?(\?.*)?$/i;
 
 export class SetProfileDto {
-  @ApiProperty({ example: 'Nigeria', description: 'Region or country' })
+  @ApiPropertyOptional({ example: 'Nigeria', description: 'Region or country' })
+  @IsOptional()
   @IsString()
   @MinLength(2)
   @MaxLength(100)
-  region: string;
+  region?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: 'bachelor',
     enum: TALENT_EDUCATION_LEVELS,
     description: 'Highest level of education',
   })
+  @IsOptional()
   @IsIn(TALENT_EDUCATION_LEVELS, {
     message: `education_level must be one of: ${TALENT_EDUCATION_LEVELS.join(', ')}`,
   })
-  education_level: string;
+  education_level?: string;
 
   @ApiPropertyOptional({
     example: 'https://www.linkedin.com/in/alexsmith',

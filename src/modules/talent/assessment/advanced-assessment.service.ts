@@ -45,6 +45,7 @@ import { RubricScoringService } from '../../ai/rubric-scoring.service';
 import { GuidanceReportService } from '../../ai/guidance-report.service';
 import { Lt3GenerationService } from '../../ai/lt3-generation.service';
 import { EmployerPoolProfileService } from './employer-pool-profile.service';
+import { BankExhaustedAlertService } from '../../mail/bank-exhausted-alert.service';
 import {
   GenerateQuestionsInput,
   GeneratedQuestion,
@@ -179,6 +180,7 @@ export class AdvancedAssessmentService {
     private readonly notificationDispatch: NotificationDispatchService,
     @Inject(forwardRef(() => AdvancedAssessmentQueueService))
     private readonly submitQueue: AdvancedAssessmentQueueService,
+    private readonly bankExhaustedAlert: BankExhaustedAlertService,
   ) {}
 
   async start(userId: string): Promise<AdvancedAssessmentSessionResult> {
@@ -309,14 +311,7 @@ export class AdvancedAssessmentService {
               `track=${profile.track ?? 'unknown'} ` +
               `verified_level=${profile.validated_level ?? 'unknown'}`,
           );
-          throw new ServiceUnavailableException({
-            error: 'BANK_EXHAUSTED',
-            message: ErrorMessages.ADVANCED_ASSESSMENT.BANK_EXHAUSTED,
-            track: profile.track ?? null,
-            verified_level: profile.validated_level ?? null,
-            expected_questions: ADVANCED_ASSESSMENT_BASE_QUESTIONS,
-            got_questions: aiResult.questions.length,
-          });
+          this.throwAdvancedBankExhausted(profile, aiResult.questions.length);
         }
 
         const startedAt = new Date();
@@ -413,7 +408,7 @@ export class AdvancedAssessmentService {
     );
 
     const answerMap = new Map(
-      dto.answers.map((answer) => [answer.question_id, answer]),
+      dto.answers.map((answer) => [answer.questionId, answer]),
     );
     for (const question of sessionQuestions) {
       const isMcq =
@@ -428,11 +423,11 @@ export class AdvancedAssessmentService {
     try {
       await this.submitQueue.enqueue({
         userId,
-        sessionId: dto.session_id,
+        sessionId: dto.sessionId,
         answers: dto.answers.map((answer) => ({
-          question_id: answer.question_id,
+          questionId: answer.questionId,
           answer: answer.answer,
-          time_spent_seconds: answer.time_spent_seconds,
+          timeSpentSeconds: answer.timeSpentSeconds,
         })),
       });
     } catch {
@@ -522,7 +517,7 @@ export class AdvancedAssessmentService {
     const userId = data.userId;
     const dtoAnswers = data.answers;
     const answerMap = new Map(
-      dtoAnswers.map((answer) => [answer.question_id, answer]),
+      dtoAnswers.map((answer) => [answer.questionId, answer]),
     );
 
     let mcqRawScore = 0;
@@ -561,8 +556,8 @@ export class AdvancedAssessmentService {
       const isLongText = question.block === 'long_text';
       const abnormal =
         isLongText &&
-        submitted?.time_spent_seconds !== undefined &&
-        submitted.time_spent_seconds < ABNORMAL_LONG_TEXT_SECONDS &&
+        submitted?.timeSpentSeconds !== undefined &&
+        submitted.timeSpentSeconds < ABNORMAL_LONG_TEXT_SECONDS &&
         answer.length > 0;
       if (abnormal) {
         hasAbnormalTiming = true;
@@ -660,6 +655,7 @@ export class AdvancedAssessmentService {
       : ({
           report_type:
             tier === AssessmentTier.JOB_READY ? 'job_ready' : 'emerging',
+          assessment_type: 'advanced',
           track: profile.track ?? 'general',
           claimed_level: profile.claimed_level ?? VerifiedLevel.JUNIOR,
           validated_level: profile.validated_level ?? VerifiedLevel.JUNIOR,
@@ -734,7 +730,15 @@ export class AdvancedAssessmentService {
     });
 
     if (resultLookup && guidanceInput) {
-      await this.persistGuidanceReport(resultLookup, guidanceInput);
+      try {
+        this.logger.log(`Generating guidance report for attempt=${attempt.id}`);
+        await this.persistGuidanceReport(resultLookup, guidanceInput);
+        this.logger.log(`Guidance report persisted for attempt=${attempt.id}`);
+      } catch (error) {
+        this.logger.error(
+          `Guidance report generation failed for attempt=${attempt.id}: ${String(error)}`,
+        );
+      }
     }
 
     if (!failed && tier === AssessmentTier.JOB_READY && personalContext) {
@@ -833,6 +837,7 @@ export class AdvancedAssessmentService {
       this.scoredTextAnswersFromAssessmentScores(scoreRows);
     const guidanceInput = {
       report_type: tier === AssessmentTier.JOB_READY ? 'job_ready' : 'emerging',
+      assessment_type: 'advanced' as const,
       track: profile.track ?? 'general',
       claimed_level: profile.claimed_level ?? VerifiedLevel.JUNIOR,
       validated_level: profile.validated_level ?? VerifiedLevel.JUNIOR,
@@ -947,7 +952,7 @@ export class AdvancedAssessmentService {
 
     const attempt = await this.attemptRepo.findOne({
       where: {
-        id: dto.session_id,
+        id: dto.sessionId,
         talent_profile_id: profile.id,
         assessment_type: AssessmentType.ADVANCED,
       },
@@ -1056,7 +1061,7 @@ export class AdvancedAssessmentService {
         ErrorMessages.ADVANCED_ASSESSMENT.SESSION_CORRUPT,
       );
     }
-    if (lt2Question.question_id !== dto.question_id) {
+    if (lt2Question.question_id !== dto.questionId) {
       throw new UnprocessableEntityException({
         error: 'LT2_QUESTION_MISMATCH',
         message: ErrorMessages.ADVANCED_ASSESSMENT.LT2_QUESTION_MISMATCH,
@@ -1227,7 +1232,7 @@ export class AdvancedAssessmentService {
     }
 
     const counterField =
-      dto.event_type === IntegrityEventType.TAB_SWITCH
+      dto.eventType === IntegrityEventType.TAB_SWITCH
         ? 'tab_switch_count'
         : 'copy_paste_count';
 
@@ -1302,15 +1307,15 @@ export class AdvancedAssessmentService {
     );
 
     this.logger.warn(
-      `Session voided - integrity ${dto.event_type}: attempt=${result.attemptId} user=${userId}`,
+      `Session voided - integrity ${dto.eventType}: attempt=${result.attemptId} user=${userId}`,
     );
 
     return {
       status: 'voided',
       message: ErrorMessages.ADVANCED_ASSESSMENT.SESSION_VOIDED,
-      tab_switch_count: result.tabSwitchCount,
-      copy_paste_count: result.copyPasteCount,
-      session_voided: true,
+      tabSwitchCount: result.tabSwitchCount,
+      copyPasteCount: result.copyPasteCount,
+      sessionVoided: true,
       action: 'logout',
     };
   }
@@ -1986,6 +1991,30 @@ export class AdvancedAssessmentService {
     return question.question_type === QuestionType.OPTIONAL_TEXT
       ? 'long_text'
       : 'short_text';
+  }
+
+  private throwAdvancedBankExhausted(
+    profile: TalentProfile,
+    gotQuestions: number,
+  ): never {
+    this.bankExhaustedAlert.notify({
+      assessmentType: 'advanced',
+      detail: `Expected ${ADVANCED_ASSESSMENT_BASE_QUESTIONS} questions but assembled ${gotQuestions}`,
+      talentProfileId: profile.id,
+      userId: profile.user_id,
+      track: profile.track,
+      verifiedLevel: profile.validated_level,
+      expectedQuestions: ADVANCED_ASSESSMENT_BASE_QUESTIONS,
+      gotQuestions,
+    });
+    throw new ServiceUnavailableException({
+      error: 'BANK_EXHAUSTED',
+      message: ErrorMessages.ADVANCED_ASSESSMENT.BANK_EXHAUSTED,
+      track: profile.track ?? null,
+      verified_level: profile.validated_level ?? null,
+      expected_questions: ADVANCED_ASSESSMENT_BASE_QUESTIONS,
+      got_questions: gotQuestions,
+    });
   }
 
   private toSessionResult(

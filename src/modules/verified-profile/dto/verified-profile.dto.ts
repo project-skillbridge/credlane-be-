@@ -1,42 +1,86 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ApiExtraModels,
+  ApiProperty,
+  ApiPropertyOptional,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import { VerifiedLevel } from '../../assessments/entities/assessment-question.entity';
 
-export class VerifiedProfileDimensionScoreDto {
-  @ApiProperty({ example: 78 })
+export class VerifiedProfileAssessmentBreakdownItemDto {
+  @ApiProperty({ example: 'skill_proficiency' })
+  id: string;
+
+  @ApiProperty({ example: 'Skill Proficiency' })
+  label: string;
+
+  @ApiProperty({ example: 86 })
   percentage: number;
 
-  @ApiProperty({ example: 'Workplace Readiness' })
+  @ApiPropertyOptional({ enum: VerifiedLevel, example: VerifiedLevel.MID })
+  validated_level?: string;
+
+  @ApiProperty()
+  insight: string;
+}
+
+export class VerifiedProfileSkillBreakdownItemDto {
+  @ApiProperty({ example: 'Technical Reasoning' })
   label: string;
+
+  @ApiProperty({ example: 93 })
+  percentage: number;
+
+  @ApiPropertyOptional({ example: 'technical_reasoning' })
+  competency?: string;
+
+  @ApiPropertyOptional()
+  insight?: string;
 }
 
-export class VerifiedProfileSkillProficiencyDto {
-  @ApiProperty({ enum: VerifiedLevel, example: VerifiedLevel.MID })
-  validated_level: VerifiedLevel;
+@ApiExtraModels(
+  VerifiedProfileAssessmentBreakdownItemDto,
+  VerifiedProfileSkillBreakdownItemDto,
+)
+export class VerifiedProfileSkillBreakdownTabDto {
+  @ApiProperty({ example: 'assessment_scores' })
+  id: string;
 
-  @ApiPropertyOptional({
-    example: 82,
-    description: 'Latest skill assessment score percentage, when available',
+  @ApiProperty({ example: 'Assessment Scores' })
+  label: string;
+
+  @ApiProperty({
+    type: 'array',
+    items: {
+      oneOf: [
+        { $ref: getSchemaPath(VerifiedProfileAssessmentBreakdownItemDto) },
+        { $ref: getSchemaPath(VerifiedProfileSkillBreakdownItemDto) },
+      ],
+    },
   })
-  skill_assessment_percentage?: number;
+  items: (
+    | VerifiedProfileAssessmentBreakdownItemDto
+    | VerifiedProfileSkillBreakdownItemDto
+  )[];
 }
 
-export class VerifiedProfileStrengthDto {
-  @ApiProperty({ example: 'technical_reasoning' })
+export class VerifiedProfileResourceDto {
+  @ApiProperty({ example: 'MDN React Docs' })
+  title: string;
+
+  @ApiProperty({ example: 'MDN' })
+  provider: string;
+
+  @ApiProperty({ example: 'https://developer.mozilla.org/' })
+  url: string;
+
+  @ApiProperty({ enum: ['free', 'paid'], example: 'free' })
+  tier: 'free' | 'paid';
+
+  @ApiProperty({ example: 'api_design' })
   competency: string;
 
-  @ApiProperty({ example: 'Technical Reasoning' })
-  label: string;
-
-  @ApiProperty({ example: 92 })
-  percentage: number;
-}
-
-export class VerifiedProfileSkillCategoryDto {
-  @ApiProperty({ example: 'Technical Reasoning' })
-  label: string;
-
-  @ApiProperty({ example: 92 })
-  percentage: number;
+  @ApiProperty({ example: 'This resource supports the candidate growth area.' })
+  reason: string;
 }
 
 export class VerifiedProfileResponseDto {
@@ -54,14 +98,14 @@ export class VerifiedProfileResponseDto {
   })
   about: string;
 
-  @ApiPropertyOptional({
-    example:
-      'Jane is a frontend engineer with strong technical reasoning skills validated through multi-stage assessment.',
+  @ApiProperty({
+    type: [String],
+    example: ['Mid Level', 'Job Ready', 'Open to Work', 'Fully Remote'],
   })
-  ai_summary?: string;
+  about_tags: string[];
 
-  @ApiPropertyOptional({ example: 'https://example.com/avatar.jpg' })
-  avatar_url?: string | null;
+  @ApiProperty({ example: 'https://example.com/avatar.jpg', nullable: true })
+  avatar_url: string | null;
 
   @ApiProperty({ example: true })
   verified: boolean;
@@ -69,63 +113,59 @@ export class VerifiedProfileResponseDto {
   @ApiProperty({ example: 'job_ready' })
   status: string;
 
-  @ApiPropertyOptional({ example: 'Mid Level' })
-  seniority_badge?: string;
+  @ApiProperty({ example: 'Mid Level' })
+  seniority_badge: string;
 
-  @ApiPropertyOptional({
-    type: [String],
-    example: ['React', 'TypeScript', 'Node.js'],
-  })
-  skills?: string[];
+  @ApiProperty({ example: 'job_ready' })
+  tier: string;
 
-  @ApiPropertyOptional({
-    type: [String],
-    example: ['React', 'TypeScript'],
-  })
-  verified_skills?: string[];
+  @ApiProperty({ example: 'Job Ready' })
+  tier_label: string;
 
-  @ApiPropertyOptional({ example: 85 })
-  score_percentage?: number;
-
-  @ApiPropertyOptional({ example: 'Job Ready' })
-  tier_label?: string;
-
-  @ApiPropertyOptional({ type: [VerifiedProfileStrengthDto] })
-  key_strengths?: VerifiedProfileStrengthDto[];
-
-  @ApiPropertyOptional({ type: [VerifiedProfileSkillCategoryDto] })
-  professional_skills?: VerifiedProfileSkillCategoryDto[];
-
-  @ApiPropertyOptional({ type: [VerifiedProfileSkillCategoryDto] })
-  soft_skills?: VerifiedProfileSkillCategoryDto[];
-
-  @ApiPropertyOptional({ type: VerifiedProfileSkillProficiencyDto })
-  skill_proficiency?: VerifiedProfileSkillProficiencyDto;
-
-  @ApiPropertyOptional({ type: VerifiedProfileDimensionScoreDto })
-  workplace_readiness?: VerifiedProfileDimensionScoreDto;
-
-  @ApiPropertyOptional({ type: VerifiedProfileDimensionScoreDto })
-  practical_application?: VerifiedProfileDimensionScoreDto;
-
-  @ApiProperty({ example: 'https://skillbridge.com/verified-profiles/abc123' })
-  share_url: string;
-
-  @ApiPropertyOptional({
-    example:
-      'https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://skillbridge.com/verified-profiles/abc123',
-  })
-  qr_code_url?: string;
-
-  @ApiProperty({ example: true })
-  is_owner: boolean;
+  @ApiProperty({ example: 85 })
+  score_percentage: number;
 
   @ApiProperty({ example: '2026-05-03T12:00:00.000Z' })
   verified_at: string;
 
-  @ApiPropertyOptional({
-    example: 'job_ready',
-    description: 'Advanced assessment tier at verification',
+  @ApiProperty({ example: true })
+  is_owner: boolean;
+
+  @ApiProperty({ type: [String], example: ['React', 'TypeScript'] })
+  skills: string[];
+
+  @ApiProperty({
+    type: [String],
+    example: ['Fully Remote', 'Async Collaboration'],
   })
-  tier?: string;
+  working_style: string[];
+
+  @ApiProperty({
+    description: 'AI-generated report text used by the verified profile UI.',
+  })
+  ai_report: string;
+
+  @ApiProperty()
+  growth_insight: string;
+
+  @ApiProperty({ type: [VerifiedProfileSkillBreakdownTabDto] })
+  skill_breakdown_tabs: VerifiedProfileSkillBreakdownTabDto[];
+
+  @ApiProperty({ type: [VerifiedProfileResourceDto] })
+  recommended_resources: VerifiedProfileResourceDto[];
+
+  @ApiProperty({ example: '/resources' })
+  resource_page_url: '/resources';
+
+  @ApiProperty({
+    example: 'https://cdn.example.com/resumes/resume.pdf',
+    nullable: true,
+  })
+  resume_url: string | null;
+
+  @ApiProperty({ example: 'https://skillbridge.com/verified-profiles/abc123' })
+  share_url: string;
+
+  @ApiProperty({ nullable: true })
+  qr_code_url: string | null;
 }

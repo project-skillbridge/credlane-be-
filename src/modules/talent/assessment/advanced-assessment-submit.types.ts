@@ -1,9 +1,9 @@
 import { z } from 'zod';
 
 export type AdvancedAssessmentSubmitAnswer = {
-  question_id: string;
+  questionId: string;
   answer: string | string[];
-  time_spent_seconds?: number;
+  timeSpentSeconds?: number;
 };
 
 export type AdvancedAssessmentSubmitJobData = {
@@ -13,9 +13,9 @@ export type AdvancedAssessmentSubmitJobData = {
 };
 
 const submitAnswerSchema = z.object({
-  question_id: z.string().uuid(),
+  questionId: z.string().uuid(),
   answer: z.union([z.string(), z.array(z.string())]),
-  time_spent_seconds: z.number().optional(),
+  timeSpentSeconds: z.number().optional(),
 });
 
 export const advancedAssessmentSubmitJobSchema = z.object({

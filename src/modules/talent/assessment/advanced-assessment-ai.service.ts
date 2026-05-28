@@ -3,9 +3,9 @@ import { AssessmentQuestion, QuestionType } from '../../assessments/entities';
 import { TalentPersonalAssessmentContext } from './personal-assessment.service';
 
 // Final question counts (includes runtime-generated LT-3).
-export const ADVANCED_ASSESSMENT_TOTAL_QUESTIONS = 20;
+export const ADVANCED_ASSESSMENT_TOTAL_QUESTIONS = 15;
 export const ADVANCED_ASSESSMENT_MCQ_COUNT = 5;
-export const ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT = 10;
+export const ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT = 5;
 export const ADVANCED_ASSESSMENT_LONG_TEXT_COUNT = 5;
 
 // What's actually served at session start. LT-3 is generated mid-session by
@@ -99,7 +99,9 @@ export class AdvancedAssessmentAiService {
       question_text: question.question_text,
       options: question.options,
       slot_type: question.slot_type,
-      metadata: question.metadata,
+      metadata: question.competency
+        ? { ...question.metadata, competency: question.competency }
+        : question.metadata,
       correct_answer: question.correct_answer,
       min_length,
       max_length,

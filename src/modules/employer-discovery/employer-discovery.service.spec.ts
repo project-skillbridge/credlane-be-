@@ -6,6 +6,9 @@ import { EmployerSavedCandidate } from './entities/employer-saved-candidate.enti
 import { EmployerContactRequest } from './entities/employer-contact-request.entity';
 import { User } from '../users/entities/user.entity';
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
+import { EmployerVerificationService } from '../employer/employer-verification.service';
+import { ForbiddenError } from '../../shared';
+import { Offer } from '../offers/entities/offer.entity';
 
 describe('EmployerDiscoveryService', () => {
   let service: EmployerDiscoveryService;
@@ -30,8 +33,16 @@ describe('EmployerDiscoveryService', () => {
     findOne: jest.fn(),
   };
 
+  const mockOfferRepo = {
+    createQueryBuilder: jest.fn(),
+  };
+
   const mockNotificationDispatch = {
     dispatch: jest.fn(),
+  };
+
+  const mockVerificationService = {
+    assertEmployerVerified: jest.fn(),
   };
 
   beforeEach(async () => {
@@ -55,14 +66,36 @@ describe('EmployerDiscoveryService', () => {
           useValue: mockUserRepo,
         },
         {
+          provide: getRepositoryToken(Offer),
+          useValue: mockOfferRepo,
+        },
+        {
           provide: NotificationDispatchService,
           useValue: mockNotificationDispatch,
+        },
+        {
+          provide: EmployerVerificationService,
+          useValue: mockVerificationService,
         },
       ],
     }).compile();
 
     service = module.get<EmployerDiscoveryService>(EmployerDiscoveryService);
     jest.clearAllMocks();
+    mockVerificationService.assertEmployerVerified.mockResolvedValue(undefined);
+    mockOfferRepo.createQueryBuilder.mockReturnValue(createOfferQb());
+  });
+
+  const createOfferQb = (
+    rows: Array<{
+      offer_candidate_user_id: string;
+      offer_status: string;
+    }> = [],
+  ) => ({
+    select: jest.fn().mockReturnThis(),
+    where: jest.fn().mockReturnThis(),
+    andWhere: jest.fn().mockReturnThis(),
+    getRawMany: jest.fn().mockResolvedValue(rows),
   });
 
   describe('getCandidateProfile', () => {
@@ -74,17 +107,30 @@ describe('EmployerDiscoveryService', () => {
         track: 'frontend_developer',
       };
       mockPoolProfileRepo.findOne.mockResolvedValue(pool);
+      mockOfferRepo.createQueryBuilder.mockReturnValue(
+        createOfferQb([
+          {
+            offer_candidate_user_id: 'user-1',
+            offer_status: 'pending',
+          },
+        ]),
+      );
 
-      const result = await service.getCandidateProfile('user-1');
-      expect(result).toEqual(pool);
+      const result = await service.getCandidateProfile('employer-1', 'user-1');
+      expect(result.id).toBe(pool.id);
+      expect(result.candidate_id).toBe(pool.candidate_id);
+      expect(result.tier).toBe(pool.tier);
+      expect(result.track).toBe(pool.track);
+      expect(result.offer_sent).toBe(true);
+      expect(result.offer_status).toBe('pending');
     });
 
     it('should throw NotFoundError if candidate not in pool', async () => {
       mockPoolProfileRepo.findOne.mockResolvedValue(null);
 
-      await expect(service.getCandidateProfile('missing')).rejects.toThrow(
-        'Candidate profile not found',
-      );
+      await expect(
+        service.getCandidateProfile('employer-1', 'missing'),
+      ).rejects.toThrow('Candidate profile not found');
     });
 
     it('should throw ForbiddenError if candidate is not job_ready', async () => {
@@ -95,7 +141,9 @@ describe('EmployerDiscoveryService', () => {
       };
       mockPoolProfileRepo.findOne.mockResolvedValue(pool);
 
-      await expect(service.getCandidateProfile('user-1')).rejects.toThrow(
+      await expect(
+        service.getCandidateProfile('employer-1', 'user-1'),
+      ).rejects.toThrow(
         'Only Job Ready candidates are accessible to employers',
       );
     });
@@ -163,6 +211,21 @@ describe('EmployerDiscoveryService', () => {
   });
 
   describe('contactCandidate', () => {
+    it('should throw ForbiddenError if employer is not verified', async () => {
+      mockVerificationService.assertEmployerVerified.mockRejectedValue(
+        new ForbiddenError(
+          'Complete your company profile to access this feature.',
+        ),
+      );
+
+      await expect(
+        service.contactCandidate('employer-1', 'user-1', 'Hello'),
+      ).rejects.toThrow(
+        'Complete your company profile to access this feature.',
+      );
+      expect(mockPoolProfileRepo.findOne).not.toHaveBeenCalled();
+    });
+
     it('should create contact request and trigger notification', async () => {
       const pool = { id: 'pool-1', candidate_id: 'user-1', tier: 'job_ready' };
       mockPoolProfileRepo.findOne.mockResolvedValue(pool);
@@ -279,10 +342,10 @@ describe('EmployerDiscoveryService', () => {
       });
 
       expect(result.total).toBe(1);
-      expect(result.candidates[0].userId).toBe('user-1');
-      expect(result.candidates[0].fullName).toBe('Alice Dev');
-      expect(result.candidates[0].isSaved).toBe(true);
-      expect(result.totalPages).toBe(1);
+      expect(result.candidates[0].user_id).toBe('user-1');
+      expect(result.candidates[0].full_name).toBe('Alice Dev');
+      expect(result.candidates[0].is_saved).toBe(true);
+      expect(result.total_pages).toBe(1);
     });
 
     it('should return empty results when no candidates match', async () => {
@@ -372,8 +435,8 @@ describe('EmployerDiscoveryService', () => {
         limit: 20,
       });
 
-      expect(result.candidates[0].isSaved).toBe(false);
-      expect(result.candidates[0].fullName).toBe('Bob');
+      expect(result.candidates[0].is_saved).toBe(false);
+      expect(result.candidates[0].full_name).toBe('Bob');
     });
   });
 });

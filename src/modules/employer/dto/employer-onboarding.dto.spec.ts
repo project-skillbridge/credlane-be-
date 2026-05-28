@@ -34,9 +34,9 @@ describe('Employer onboarding DTOs', () => {
 
     const errors = await validate(dto);
 
-    expect(errors.some((error) => error.property === 'preferredExperienceLevels')).toBe(
-      true,
-    );
+    expect(
+      errors.some((error) => error.property === 'preferredExperienceLevels'),
+    ).toBe(true);
   });
 
   it('validates the legacy onboarding route with the expanded doc fields', async () => {

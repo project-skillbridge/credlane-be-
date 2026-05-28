@@ -4,6 +4,7 @@ import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
 import { User } from '../users/entities/user.entity';
 import { EmployerController } from './employer.controller';
+import { EmployerPublicController } from './employer-public.controller';
 import { EmployerService } from './employer.service';
 import { EmployerVerificationService } from './employer-verification.service';
 import { EmployerProfile } from './entities/employer-profile.entity';
@@ -14,7 +15,7 @@ import { EmployerProfile } from './entities/employer-profile.entity';
     UsersModule,
     AuthModule,
   ],
-  controllers: [EmployerController],
+  controllers: [EmployerController, EmployerPublicController],
   providers: [EmployerService, EmployerVerificationService],
   exports: [EmployerVerificationService],
 })

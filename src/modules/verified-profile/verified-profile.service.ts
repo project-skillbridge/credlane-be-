@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Not, Repository } from 'typeorm';
+import { In, IsNull, Not, Repository } from 'typeorm';
 import { z } from 'zod';
 import { env } from '../../config/env';
 import {
@@ -12,8 +12,10 @@ import {
 import { OpenRouterService } from '../ai/openrouter.service';
 import {
   AssessmentAttempt,
+  AssessmentQuestion,
   AssessmentResponse,
   AssessmentResult,
+  AssessmentScore,
   AssessmentTier,
   AssessmentType,
   VerifiedLevel,
@@ -26,25 +28,65 @@ import {
 import { User, UserRole } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
 import type { AdvancedAssessmentGeneratedQuestion } from '../talent/assessment/advanced-assessment-ai.service';
-import type { VerifiedProfileResponseDto } from './dto/verified-profile.dto';
+import type {
+  VerifiedProfileAssessmentBreakdownItemDto,
+  VerifiedProfileResponseDto,
+  VerifiedProfileSkillBreakdownItemDto,
+  VerifiedProfileSkillBreakdownTabDto,
+} from './dto/verified-profile.dto';
 import {
   buildQrCodeUrl,
   buildShareUrl,
   categorizeCompetencies,
+  compactStrings,
+  formatSlugLabel,
   readPersonalAnswers,
   readSessionQuestions,
+  resolveAvailabilityLabel,
+  resolveExperienceLabel,
   resolveGoalLabel,
+  resolveJobSearchStatusLabel,
   resolveKeyStrengths,
   resolveRoleLabel,
   resolveSeniorityBadge,
   resolveSkills,
   resolveTierLabel,
+  resolveWorkArrangementLabels,
   rubricScorePercentage,
 } from './verified-profile.utils';
 
 type BlockAggregate = { total: number; count: number };
+type CompetencyBreakdown = {
+  competencyScores: Record<string, number> | undefined;
+  strongCompetencies: string[] | undefined;
+};
+type RatedProfileItem = { label: string; rating: number };
+type GuidanceResourceItem = {
+  title: string;
+  provider: string;
+  url: string;
+  tier: 'free' | 'paid';
+  competency: string;
+  reason: string;
+};
+type GuidanceReportContent = {
+  ai_report?: string;
+  growth_insight?: string;
+  summary?: string;
+  strength_ratings?: RatedProfileItem[];
+  weaknesses?: RatedProfileItem[];
+  recommended_resources?: GuidanceResourceItem[];
+  resource_page_url?: '/resources';
+};
+type AssessmentInsights = {
+  skill_proficiency?: { label: string; insight: string };
+  workplace_readiness?: { label: string; insight: string };
+  practical_application?: { label: string; insight: string };
+};
 
 const SHARE_LINK_TOKEN_PATTERN = /^[a-fA-F0-9]{64}$/;
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 const AI_SUMMARY_SCHEMA = z.object({
   summary: z
@@ -74,6 +116,10 @@ export class VerifiedProfileService {
     private readonly assessmentAttemptRepository: Repository<AssessmentAttempt>,
     @InjectRepository(AssessmentResponse)
     private readonly assessmentResponseRepository: Repository<AssessmentResponse>,
+    @InjectRepository(AssessmentScore)
+    private readonly assessmentScoreRepository: Repository<AssessmentScore>,
+    @InjectRepository(AssessmentQuestion)
+    private readonly assessmentQuestionRepository: Repository<AssessmentQuestion>,
     private readonly usersService: UsersService,
     private readonly openRouterService: OpenRouterService,
   ) {}
@@ -146,6 +192,9 @@ export class VerifiedProfileService {
     );
     const latestSkillResult = await this.getLatestSkillResult(profile.id);
     const blockScores = await this.resolveAdvancedBlockScores(profile.id);
+    const guidanceReport = this.readGuidanceReport(
+      latestAdvancedResult?.guidance_report,
+    );
 
     const validatedLevel =
       profile.validated_level ??
@@ -173,17 +222,26 @@ export class VerifiedProfileService {
     const tierLabel = resolveTierLabel(
       latestAdvancedResult?.tier ?? poolProfile?.tier ?? null,
     );
-    const scorePercentage = latestAdvancedResult?.percentage ?? undefined;
+    const scorePercentage =
+      latestAdvancedResult?.percentage ?? poolProfile?.score ?? undefined;
 
-    const competencyScores = poolProfile?.competency_scores ?? undefined;
-    const strongCompetencies = poolProfile?.strong_competencies ?? undefined;
+    const { competencyScores, strongCompetencies } =
+      await this.resolveCompetencyBreakdown(
+        latestAdvancedResult?.attempt_id,
+        poolProfile,
+      );
 
     const keyStrengths = resolveKeyStrengths(
       competencyScores,
       strongCompetencies,
     );
-    const { professionalSkills, softSkills } =
-      categorizeCompetencies(competencyScores);
+    const { professionalSkills } = categorizeCompetencies(competencyScores);
+    const aboutTags = this.buildAboutTags(
+      personalAnswers,
+      seniorityBadge,
+      tierLabel,
+      poolProfile,
+    );
 
     const shareUrl = buildShareUrl(
       env.FRONTEND_URL,
@@ -191,9 +249,9 @@ export class VerifiedProfileService {
     );
     const qrCodeUrl = buildQrCodeUrl(shareUrl);
 
-    let aiSummary: string | undefined;
-    if (latestAdvancedResult) {
-      aiSummary = await this.generateAiSummary(
+    let aiReport = guidanceReport.ai_report;
+    if (!aiReport && latestAdvancedResult) {
+      aiReport = await this.generateAiSummary(
         user,
         profile,
         latestAdvancedResult,
@@ -201,6 +259,25 @@ export class VerifiedProfileService {
         poolProfile,
       );
     }
+    const workingStyle = this.resolveWorkingStyle(poolProfile, personalAnswers);
+    const assessmentInsights = this.buildAssessmentInsights(
+      skillProficiency,
+      blockScores,
+      guidanceReport,
+    );
+    const growthInsight = guidanceReport.growth_insight ?? '';
+    const skillBreakdownTabs = this.buildSkillBreakdownTabs({
+      scorePercentage,
+      skillProficiency,
+      blockScores,
+      assessmentInsights,
+      professionalSkills,
+      keyStrengths,
+      growthInsight,
+      aiReport: aiReport ?? '',
+    });
+    const tier =
+      latestAdvancedResult?.tier ?? poolProfile?.tier ?? profile.status;
 
     return {
       full_name: `${user.first_name} ${user.last_name}`.trim(),
@@ -212,32 +289,511 @@ export class VerifiedProfileService {
       ),
       goal: resolveGoalLabel(profile.goal),
       about: profile.bio?.trim() ?? '',
-      ...(aiSummary && { ai_summary: aiSummary }),
-      avatar_url: user.avatar_url,
+      about_tags: aboutTags,
+      ai_report: aiReport ?? '',
+      avatar_url: user.avatar_url ?? null,
       verified: true,
-      status: profile.status,
-      ...(seniorityBadge && { seniority_badge: seniorityBadge }),
-      ...(skills && { skills }),
-      ...(tierLabel && { tier_label: tierLabel }),
-      ...(scorePercentage !== undefined && {
-        score_percentage: scorePercentage,
-      }),
-      ...(keyStrengths && { key_strengths: keyStrengths }),
-      ...(professionalSkills && { professional_skills: professionalSkills }),
-      ...(softSkills && { soft_skills: softSkills }),
-      ...(skillProficiency && { skill_proficiency: skillProficiency }),
-      ...(blockScores.workplaceReadiness && {
-        workplace_readiness: blockScores.workplaceReadiness,
-      }),
-      ...(blockScores.practicalApplication && {
-        practical_application: blockScores.practicalApplication,
-      }),
+      status: tier,
+      seniority_badge: seniorityBadge ?? '',
+      tier,
+      tier_label: tierLabel ?? '',
+      score_percentage: scorePercentage ?? 0,
+      skills: skills ?? [],
+      working_style: workingStyle,
+      growth_insight: growthInsight,
+      skill_breakdown_tabs: skillBreakdownTabs,
+      recommended_resources: guidanceReport.recommended_resources ?? [],
+      resource_page_url: '/resources',
+      resume_url: profile.resume_url ?? null,
       share_url: shareUrl,
-      ...(qrCodeUrl && { qr_code_url: qrCodeUrl }),
+      qr_code_url: qrCodeUrl ?? null,
       is_owner: isOwner ?? false,
       verified_at: verifiedAt.toISOString(),
-      ...(latestAdvancedResult?.tier && { tier: latestAdvancedResult.tier }),
     };
+  }
+
+  private buildSkillBreakdownTabs(input: {
+    scorePercentage: number | undefined;
+    skillProficiency:
+      | {
+          validated_level: VerifiedLevel;
+          skill_assessment_percentage?: number;
+        }
+      | undefined;
+    blockScores: {
+      workplaceReadiness?: { percentage: number; label: string };
+      practicalApplication?: { percentage: number; label: string };
+    };
+    assessmentInsights: AssessmentInsights;
+    professionalSkills:
+      | Array<{ label: string; percentage: number }>
+      | undefined;
+    keyStrengths:
+      | Array<{ competency: string; label: string; percentage: number }>
+      | undefined;
+    growthInsight: string;
+    aiReport: string;
+  }): VerifiedProfileSkillBreakdownTabDto[] {
+    const defaultInsight =
+      input.growthInsight.trim() ||
+      input.aiReport.trim() ||
+      'Assessment insights are not available yet.';
+    const skillPercentage =
+      input.scorePercentage ??
+      input.skillProficiency?.skill_assessment_percentage ??
+      0;
+    const skillInsight =
+      input.assessmentInsights.skill_proficiency?.insight ??
+      (input.skillProficiency?.skill_assessment_percentage != null
+        ? `Validated at ${formatSlugLabel(
+            input.skillProficiency.validated_level,
+          )} with a ${input.skillProficiency.skill_assessment_percentage}% skill assessment score.`
+        : defaultInsight);
+    const workplacePercentage =
+      input.blockScores.workplaceReadiness?.percentage ?? 0;
+    const practicalPercentage =
+      input.blockScores.practicalApplication?.percentage ?? 0;
+
+    const assessmentItems: VerifiedProfileAssessmentBreakdownItemDto[] = [
+      {
+        id: 'skill_proficiency',
+        label: 'Skill Proficiency',
+        percentage: skillPercentage,
+        validated_level: input.skillProficiency?.validated_level ?? 'mid',
+        insight: skillInsight,
+      },
+      {
+        id: 'workplace_readiness',
+        label: 'Workplace Readiness',
+        percentage: workplacePercentage,
+        insight:
+          input.assessmentInsights.workplace_readiness?.insight ??
+          defaultInsight,
+      },
+      {
+        id: 'practical_application',
+        label: 'Practical Application',
+        percentage: practicalPercentage,
+        insight:
+          input.assessmentInsights.practical_application?.insight ??
+          defaultInsight,
+      },
+    ];
+
+    const rowInsight = input.growthInsight.trim()
+      ? input.growthInsight
+      : undefined;
+    let professionalItems: VerifiedProfileSkillBreakdownItemDto[] = (
+      input.professionalSkills ?? []
+    ).map(({ label, percentage }) => ({
+      label,
+      percentage,
+      ...(rowInsight && { insight: rowInsight }),
+    }));
+
+    let strengthItems: VerifiedProfileSkillBreakdownItemDto[] = (
+      input.keyStrengths ?? []
+    ).map(({ competency, label, percentage }) => ({
+      competency,
+      label,
+      percentage,
+      ...(rowInsight && { insight: rowInsight }),
+    }));
+
+    if (professionalItems.length === 0 && skillPercentage > 0) {
+      professionalItems = [
+        {
+          label: 'General',
+          percentage: skillPercentage,
+          ...(rowInsight && { insight: rowInsight }),
+        },
+      ];
+    }
+
+    if (strengthItems.length === 0 && skillPercentage > 0) {
+      strengthItems = [
+        {
+          competency: 'general',
+          label: 'General',
+          percentage: skillPercentage,
+          ...(rowInsight && { insight: rowInsight }),
+        },
+      ];
+    }
+
+    return [
+      {
+        id: 'assessment_scores',
+        label: 'Assessment Scores',
+        items: assessmentItems,
+      },
+      {
+        id: 'professional_skills',
+        label: 'Professional Skills',
+        items: professionalItems,
+      },
+      {
+        id: 'key_strengths',
+        label: 'Strengths',
+        items: strengthItems,
+      },
+    ];
+  }
+
+  private readGuidanceReport(
+    report: Record<string, unknown> | null | undefined,
+  ): GuidanceReportContent {
+    if (!report || typeof report !== 'object' || Array.isArray(report)) {
+      return {};
+    }
+
+    return {
+      ...this.readGuidanceString(report, 'ai_summary', 'ai_report'),
+      ...this.readGuidanceString(report, 'growth_insight', 'growth_insight'),
+      ...this.readGuidanceString(report, 'summary', 'summary'),
+      ...this.readRatedItems(report, 'strength_ratings', 'strength_ratings'),
+      ...this.readRatedItems(report, 'weak_area_ratings', 'weaknesses'),
+      ...this.readGuidanceResources(report),
+      ...(report.resource_page_url === '/resources' && {
+        resource_page_url: '/resources' as const,
+      }),
+    };
+  }
+
+  private readGuidanceString(
+    report: Record<string, unknown>,
+    sourceKey: string,
+    targetKey: keyof GuidanceReportContent,
+  ): Partial<GuidanceReportContent> {
+    const value = report[sourceKey];
+    return typeof value === 'string' && value.trim()
+      ? { [targetKey]: value.trim() }
+      : {};
+  }
+
+  private readRatedItems(
+    report: Record<string, unknown>,
+    sourceKey: string,
+    targetKey: 'strength_ratings' | 'weaknesses',
+  ): Partial<GuidanceReportContent> {
+    const rawItems = report[sourceKey];
+    if (!Array.isArray(rawItems)) {
+      return {};
+    }
+
+    const items = rawItems
+      .map((item): RatedProfileItem | null => {
+        if (!item || typeof item !== 'object' || Array.isArray(item)) {
+          return null;
+        }
+        const record = item as Record<string, unknown>;
+        const label = record.item;
+        const rating = record.rating;
+        return typeof label === 'string' &&
+          label.trim() &&
+          typeof rating === 'number' &&
+          Number.isFinite(rating)
+          ? { label: label.trim(), rating }
+          : null;
+      })
+      .filter((item): item is RatedProfileItem => Boolean(item));
+
+    return items.length > 0 ? { [targetKey]: items } : {};
+  }
+
+  private readGuidanceResources(
+    report: Record<string, unknown>,
+  ): Partial<GuidanceReportContent> {
+    const rawResources = report.recommended_resources;
+    if (!Array.isArray(rawResources)) {
+      return {};
+    }
+
+    const resources = rawResources
+      .map((resource): GuidanceResourceItem | null => {
+        if (
+          !resource ||
+          typeof resource !== 'object' ||
+          Array.isArray(resource)
+        ) {
+          return null;
+        }
+
+        const record = resource as Record<string, unknown>;
+        if (
+          typeof record.title !== 'string' ||
+          typeof record.provider !== 'string' ||
+          typeof record.url !== 'string' ||
+          typeof record.competency !== 'string' ||
+          typeof record.reason !== 'string' ||
+          (record.tier !== 'free' && record.tier !== 'paid')
+        ) {
+          return null;
+        }
+
+        return {
+          title: record.title,
+          provider: record.provider,
+          url: record.url,
+          tier: record.tier,
+          competency: record.competency,
+          reason: record.reason,
+        };
+      })
+      .filter((resource): resource is GuidanceResourceItem =>
+        Boolean(resource),
+      );
+
+    return resources.length > 0 ? { recommended_resources: resources } : {};
+  }
+
+  private resolveWorkingStyle(
+    poolProfile: EmployerPoolProfile | null | undefined,
+    personalAnswers: Record<string, unknown>,
+  ): string[] {
+    const source = {
+      ...(poolProfile?.work_preferences ?? {}),
+      work_arrangement_preference: personalAnswers.work_arrangement_preference,
+      remote_experience: personalAnswers.remote_experience,
+      remote_workspace_setup: personalAnswers.remote_workspace_setup,
+    };
+
+    const values: Array<string | null | undefined> = [];
+    for (const value of Object.values(source)) {
+      if (Array.isArray(value)) {
+        values.push(
+          ...value.filter(
+            (item): item is string | null | undefined =>
+              typeof item === 'string' || item == null,
+          ),
+        );
+        continue;
+      }
+
+      if (typeof value === 'string' || value == null) {
+        values.push(value);
+      }
+    }
+
+    return compactStrings(values).map(formatSlugLabel);
+  }
+
+  private buildAssessmentInsights(
+    skillProficiency:
+      | { validated_level: VerifiedLevel; skill_assessment_percentage?: number }
+      | undefined,
+    blockScores: {
+      workplaceReadiness?: { percentage: number; label: string };
+      practicalApplication?: { percentage: number; label: string };
+    },
+    guidanceReport: GuidanceReportContent,
+  ): AssessmentInsights {
+    return {
+      ...(skillProficiency?.skill_assessment_percentage != null && {
+        skill_proficiency: {
+          label: 'Skill Proficiency',
+          insight:
+            guidanceReport.summary ??
+            `Validated at ${formatSlugLabel(
+              skillProficiency.validated_level,
+            )} with a ${skillProficiency.skill_assessment_percentage}% skill assessment score.`,
+        },
+      }),
+      ...(blockScores.workplaceReadiness && {
+        workplace_readiness: {
+          label: blockScores.workplaceReadiness.label,
+          insight:
+            guidanceReport.growth_insight ??
+            `Workplace readiness is currently ${blockScores.workplaceReadiness.percentage}%.`,
+        },
+      }),
+      ...(blockScores.practicalApplication && {
+        practical_application: {
+          label: blockScores.practicalApplication.label,
+          insight:
+            guidanceReport.growth_insight ??
+            `Practical application is currently ${blockScores.practicalApplication.percentage}%.`,
+        },
+      }),
+    };
+  }
+
+  private async resolveCompetencyBreakdown(
+    attemptId: string | undefined,
+    poolProfile?: EmployerPoolProfile | null,
+  ): Promise<CompetencyBreakdown> {
+    const scoreRows = attemptId
+      ? await this.assessmentScoreRepository.find({
+          where: { attempt_id: attemptId },
+        })
+      : [];
+    const scoreBreakdown =
+      this.buildCompetencyBreakdownFromScoreRows(scoreRows);
+    if (scoreBreakdown.competencyScores) {
+      return scoreBreakdown;
+    }
+
+    const competencyScores = poolProfile?.competency_scores ?? undefined;
+    const strongCompetencies = poolProfile?.strong_competencies ?? undefined;
+    if (!competencyScores) {
+      return { competencyScores: undefined, strongCompetencies: undefined };
+    }
+
+    const questionIds = [
+      ...Object.keys(competencyScores),
+      ...(strongCompetencies ?? []),
+    ].filter((value) => UUID_PATTERN.test(value));
+
+    if (questionIds.length === 0) {
+      return { competencyScores, strongCompetencies };
+    }
+
+    const questionCompetencies =
+      await this.resolveQuestionCompetencyMap(questionIds);
+    return this.remapPoolCompetencyBreakdown(
+      competencyScores,
+      strongCompetencies,
+      questionCompetencies,
+    );
+  }
+
+  private buildCompetencyBreakdownFromScoreRows(
+    scoreRows: AssessmentScore[],
+  ): CompetencyBreakdown {
+    const buckets = new Map<string, BlockAggregate>();
+
+    for (const row of scoreRows) {
+      const competency = row.competency?.trim().toLowerCase();
+      if (!competency || UUID_PATTERN.test(competency)) {
+        continue;
+      }
+
+      const bucket = buckets.get(competency) ?? { total: 0, count: 0 };
+      bucket.total += row.pct_score;
+      bucket.count += 1;
+      buckets.set(competency, bucket);
+    }
+
+    return this.toCompetencyBreakdown(buckets);
+  }
+
+  private async resolveQuestionCompetencyMap(
+    questionIds: string[],
+  ): Promise<Map<string, string>> {
+    const uniqueQuestionIds = [...new Set(questionIds)];
+    const questions = await this.assessmentQuestionRepository.find({
+      where: { id: In(uniqueQuestionIds) },
+    });
+
+    return new Map(
+      questions
+        .map((question): [string, string] | null => {
+          const metadata = (question.metadata ?? {}) as Record<string, unknown>;
+          const metadataCompetency =
+            typeof metadata.competency === 'string'
+              ? metadata.competency
+              : null;
+          const competency = (question.competency ?? metadataCompetency ?? '')
+            .trim()
+            .toLowerCase();
+
+          return competency && !UUID_PATTERN.test(competency)
+            ? [question.id, competency]
+            : null;
+        })
+        .filter((entry): entry is [string, string] => Boolean(entry)),
+    );
+  }
+
+  private remapPoolCompetencyBreakdown(
+    competencyScores: Record<string, number>,
+    strongCompetencies: string[] | undefined,
+    questionCompetencies: Map<string, string>,
+  ): CompetencyBreakdown {
+    const buckets = new Map<string, BlockAggregate>();
+
+    for (const [rawCompetency, percentage] of Object.entries(
+      competencyScores,
+    )) {
+      const competency = this.resolveDisplayCompetency(
+        rawCompetency,
+        questionCompetencies,
+      );
+      if (!competency) {
+        continue;
+      }
+
+      const bucket = buckets.get(competency) ?? { total: 0, count: 0 };
+      bucket.total += percentage;
+      bucket.count += 1;
+      buckets.set(competency, bucket);
+    }
+
+    const breakdown = this.toCompetencyBreakdown(buckets);
+    if (breakdown.competencyScores) {
+      return breakdown;
+    }
+
+    return {
+      competencyScores: undefined,
+      strongCompetencies: strongCompetencies
+        ?.map((competency) =>
+          this.resolveDisplayCompetency(competency, questionCompetencies),
+        )
+        .filter((competency): competency is string => Boolean(competency)),
+    };
+  }
+
+  private resolveDisplayCompetency(
+    competency: string,
+    questionCompetencies: Map<string, string>,
+  ): string | null {
+    const trimmed = competency.trim();
+    if (!UUID_PATTERN.test(trimmed)) {
+      return trimmed.toLowerCase();
+    }
+    return questionCompetencies.get(trimmed) ?? null;
+  }
+
+  private toCompetencyBreakdown(
+    buckets: Map<string, BlockAggregate>,
+  ): CompetencyBreakdown {
+    if (buckets.size === 0) {
+      return { competencyScores: undefined, strongCompetencies: undefined };
+    }
+
+    const competencyScores: Record<string, number> = {};
+    const strongCompetencies: string[] = [];
+
+    for (const [competency, { total, count }] of buckets.entries()) {
+      const percentage = Math.round(total / Math.max(count, 1));
+      competencyScores[competency] = percentage;
+      if (percentage >= 70) {
+        strongCompetencies.push(competency);
+      }
+    }
+
+    return { competencyScores, strongCompetencies };
+  }
+
+  private buildAboutTags(
+    personalAnswers: Record<string, unknown>,
+    seniorityBadge: string | undefined,
+    tierLabel: string | undefined,
+    poolProfile?: EmployerPoolProfile | null,
+  ): string[] {
+    return compactStrings([
+      seniorityBadge,
+      tierLabel,
+      resolveJobSearchStatusLabel(personalAnswers.job_search_status),
+      ...resolveWorkArrangementLabels(
+        personalAnswers.work_arrangement_preference,
+      ),
+      resolveExperienceLabel(personalAnswers.years_experience),
+      resolveAvailabilityLabel(
+        poolProfile?.availability ?? personalAnswers.availability,
+      ),
+    ]);
   }
 
   private async generateAiSummary(

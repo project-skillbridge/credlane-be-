@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   HttpException,
   HttpStatus,
@@ -19,12 +20,16 @@ import {
 } from '../talent/entities/talent-profile.entity';
 import { User, UserRole } from '../users/entities/user.entity';
 import { OAUTH_DEFAULT_COUNTRY, UsersService } from '../users/users.service';
+import type { AccountDeletionMetadata } from '../users/users.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { DeleteAccountDto } from './dto/delete-account.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RegisterDto } from './dto/register.dto';
+import { RequestEmailChangeDto } from './dto/request-email-change.dto';
 import { ResendVerificationDto } from './dto/resend-verification.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { VerifyEmailChangeDto } from './dto/verify-email-change.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
 import { VerifyPasswordResetOtpDto } from './dto/verify-password-reset-otp.dto';
 import { VerificationOtpSource } from './entities/verification-otp.entity';
@@ -32,6 +37,7 @@ import { JwtPayload } from './strategies/jwt.strategy';
 import { VerificationOtpService } from './verification-otp.service';
 import { PasswordResetOtpService } from './password-reset-otp.service';
 import { PasswordResetQueueService } from './password-reset-queue.service';
+import { EmailChangeOtpService } from './email-change-otp.service';
 import { GoogleProfile } from './strategies/google.strategy';
 import {
   normalizeOAuthSignupRole,
@@ -56,10 +62,9 @@ export interface AuthUser {
   track?: string | null;
   is_verified: boolean;
   onboarding_complete: boolean;
-  /** LinkedIn URL — only present for talent users; null when not set. */
   linkedin_url?: string | null;
-  /** True when the talent has reached Job Ready status. */
   is_job_ready?: boolean;
+  profile_verified?: boolean;
 }
 
 export interface AuthTokens {
@@ -124,17 +129,18 @@ export class AuthService {
     private readonly passwordResetQueue: PasswordResetQueueService,
     @InjectRepository(TalentProfile)
     private readonly talentProfileRepository: Repository<TalentProfile>,
+    private readonly emailChangeOtpService?: EmailChangeOtpService,
   ) {}
 
   async register(dto: RegisterDto): Promise<{ message: string }> {
     const user = await this.usersService.create({
       email: dto.email,
       password: dto.password,
-      first_name: dto.firstName,
-      last_name: dto.lastName,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
       country: OAUTH_DEFAULT_COUNTRY,
       role: dto.role,
-      signup_reason:
+      signupReason:
         dto.role === UserRole.EMPLOYER ? dto.reasonForJoining : undefined,
     });
 
@@ -318,7 +324,10 @@ export class AuthService {
       throw new BadRequestError(ErrorMessages.AUTH.OAUTH_ACCOUNT_NO_PASSWORD);
     }
 
-    const currentValid = await argon2.verify(user.password, dto.currentPassword);
+    const currentValid = await argon2.verify(
+      user.password,
+      dto.currentPassword,
+    );
     if (!currentValid) {
       throw new BadRequestError(ErrorMessages.AUTH.WRONG_CURRENT_PASSWORD);
     }
@@ -331,7 +340,122 @@ export class AuthService {
     const passwordHash = await argon2.hash(dto.newPassword);
     await this.usersService.updatePassword(userId, passwordHash);
 
-    return { status: 'success', message: SuccessMessages.AUTH.PASSWORD_CHANGED };
+    return {
+      status: 'success',
+      message: SuccessMessages.AUTH.PASSWORD_CHANGED,
+    };
+  }
+
+  async requestEmailChange(
+    userId: string,
+    dto: RequestEmailChangeDto,
+  ): Promise<{ status: 'success'; message: string }> {
+    const user = await this.usersService.findOne(userId);
+    const existing = await this.usersService.findByEmail(dto.newEmail);
+    if (existing && existing.id !== userId) {
+      throw new BadRequestError(ErrorMessages.USER.EMAIL_ALREADY_REGISTERED);
+    }
+    if (existing?.id === userId) {
+      throw new BadRequestError('New email must differ from current email');
+    }
+
+    if (!this.emailChangeOtpService) {
+      throw new Error('EmailChangeOtpService is not configured');
+    }
+
+    const issuedOtp = await this.emailChangeOtpService.issue(
+      userId,
+      dto.newEmail,
+    );
+    await this.mailService.sendVerificationOtp({
+      to: dto.newEmail,
+      otp: issuedOtp.code,
+      expiresAt: issuedOtp.expiresAt,
+      recipientFirstName: user.first_name,
+    });
+
+    return {
+      status: 'success',
+      message: 'Verification OTP sent to new email',
+    };
+  }
+
+  async verifyEmailChange(
+    userId: string,
+    dto: VerifyEmailChangeDto,
+  ): Promise<{ status: 'success'; message: string }> {
+    const user = await this.usersService.findOne(userId);
+    const existing = await this.usersService.findByEmail(dto.newEmail);
+    if (existing && existing.id !== userId) {
+      throw new BadRequestError(ErrorMessages.USER.EMAIL_ALREADY_REGISTERED);
+    }
+    if (existing?.id === user.id) {
+      throw new BadRequestError('New email must differ from current email');
+    }
+
+    if (!this.emailChangeOtpService) {
+      throw new Error('EmailChangeOtpService is not configured');
+    }
+
+    const isValidOtp = await this.emailChangeOtpService.consume(
+      userId,
+      dto.newEmail,
+      dto.otp,
+    );
+    if (!isValidOtp) {
+      throw new BadRequestError(ErrorMessages.AUTH.INVALID_OR_EXPIRED_OTP);
+    }
+
+    await this.usersService.updateEmail(userId, dto.newEmail);
+    return {
+      status: 'success',
+      message: 'Work email changed. Please log in again.',
+    };
+  }
+
+  async deleteAccount(
+    userId: string,
+    dto: DeleteAccountDto,
+    metadata: AccountDeletionMetadata = {},
+  ): Promise<{ status: 'success'; message: string }> {
+    if (dto.confirmation !== 'DELETE') {
+      throw new BadRequestException('Type DELETE to confirm account deletion');
+    }
+    await this.usersService.softDeleteAccountWithAudit(userId, metadata);
+    return { status: 'success', message: 'Account deleted' };
+  }
+
+  async requestDataExport(userId: string): Promise<{
+    status: 'success';
+    message: string;
+    data_export: Record<string, unknown>;
+  }> {
+    const user = await this.usersService.findOne(userId);
+    const talentProfile = await this.talentProfileRepository.findOne({
+      where: { user_id: userId },
+    });
+
+    return {
+      status: 'success',
+      message: 'Data export generated',
+      data_export: {
+        generated_at: new Date().toISOString(),
+        user: {
+          id: user.id,
+          email: user.email,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          country: user.country,
+          role: user.role,
+          avatar_url: user.avatar_url,
+          is_verified: user.is_verified,
+          onboarding_complete: user.onboarding_complete,
+          created_at: user.createdAt,
+          updated_at: user.updatedAt,
+        },
+        talent_profile: talentProfile,
+      },
+    };
   }
 
   async googleCallback(
@@ -490,8 +614,13 @@ export class AuthService {
     const profile =
       user.role === UserRole.TALENT
         ? await this.talentProfileRepository.findOne({
-            where: { user_id: userId },
-            select: { track: true, linkedin_url: true, status: true },
+          where: { user_id: userId },
+            select: {
+              track: true,
+              linkedin_url: true,
+              status: true,
+              profile_verified: true,
+            },
           })
         : null;
 
@@ -500,6 +629,7 @@ export class AuthService {
       track: profile?.track ?? null,
       linkedin_url: profile?.linkedin_url ?? null,
       is_job_ready: profile?.status === TalentProfileStatus.JOB_READY,
+      profile_verified: profile?.profile_verified ?? false,
     };
   }
 

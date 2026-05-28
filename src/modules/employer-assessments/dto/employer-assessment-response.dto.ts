@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional, OmitType } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   EmployerAssessmentExperienceLevel,
   EmployerAssessmentQuestionSource,
@@ -39,9 +39,6 @@ export class PublicEmployerAssessmentQuestionResponseDto {
   @ApiProperty({ format: 'uuid' })
   id: string;
 
-  @ApiProperty({ format: 'uuid' })
-  assessment_id: string;
-
   @ApiProperty()
   position: number;
 
@@ -53,12 +50,6 @@ export class PublicEmployerAssessmentQuestionResponseDto {
 
   @ApiPropertyOptional({ nullable: true, type: [String] })
   options: string[] | null;
-
-  @ApiProperty()
-  created_at: Date;
-
-  @ApiProperty()
-  updated_at: Date;
 }
 
 export class EmployerAssessmentResponseDto {
@@ -111,10 +102,25 @@ export class EmployerAssessmentResponseDto {
   updated_at: Date;
 }
 
-export class PublicEmployerAssessmentResponseDto extends OmitType(
-  EmployerAssessmentResponseDto,
-  ['questions'] as const,
-) {
+export class PublicEmployerAssessmentResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty()
+  title: string;
+
+  @ApiProperty()
+  role_track: string;
+
+  @ApiProperty({ enum: EmployerAssessmentExperienceLevel })
+  experience_level: EmployerAssessmentExperienceLevel;
+
+  @ApiProperty()
+  time_limit_minutes: number;
+
+  @ApiProperty()
+  passing_threshold: number;
+
   @ApiProperty({ type: [PublicEmployerAssessmentQuestionResponseDto] })
   questions: PublicEmployerAssessmentQuestionResponseDto[];
 }

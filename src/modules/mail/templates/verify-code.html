@@ -11,25 +11,22 @@
     {{playStoreLink}}  link target for the Google Play badge
     {{appStoreLink}}   link target for the Mac App Store badge
     {{supportEmail}}   support contact, e.g. faq@skillbridge.com
-    {{unsubscribeUrl}} unsubscribe link
     {{year}}           copyright year, e.g. 2026
 -->
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html
-  lang="en"
-  xmlns="http://www.w3.org/1999/xhtml"
-  xmlns:v="urn:schemas-microsoft-com:vml"
-  xmlns:o="urn:schemas-microsoft-com:office:office"
->
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="x-apple-disable-message-reformatting" />
-    <meta name="color-scheme" content="light only" />
-    <meta name="supported-color-schemes" content="light only" />
-    <title>Verify your SkillBridge account</title>
-    <!--[if mso]>
+<!DOCTYPE html
+  PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html lang="en" xmlns="http://www.w3.org/1999/xhtml" xmlns:v="urn:schemas-microsoft-com:vml"
+  xmlns:o="urn:schemas-microsoft-com:office:office">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="x-apple-disable-message-reformatting" />
+  <meta name="color-scheme" content="light only" />
+  <meta name="supported-color-schemes" content="light only" />
+  <title>Verify your SkillBridge account</title>
+  <!--[if mso]>
       <style type="text/css">
         table,
         td {
@@ -46,54 +43,58 @@
         }
       </style>
     <![endif]-->
-    <style type="text/css">
-      body {
-        margin: 0;
-        padding: 0;
+  <style type="text/css">
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100% !important;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    table {
+      border-collapse: collapse;
+    }
+
+    img {
+      border: 0;
+      outline: none;
+      text-decoration: none;
+      -ms-interpolation-mode: bicubic;
+    }
+
+    a {
+      text-decoration: none;
+    }
+
+    @media only screen and (max-width: 620px) {
+      .container {
         width: 100% !important;
-        -webkit-font-smoothing: antialiased;
       }
-      table {
-        border-collapse: collapse;
+
+      .px {
+        padding-left: 24px !important;
+        padding-right: 24px !important;
       }
-      img {
-        border: 0;
-        outline: none;
-        text-decoration: none;
-        -ms-interpolation-mode: bicubic;
+
+      .digit {
+        width: 48px !important;
+        height: 56px !important;
+        font-size: 24px !important;
       }
-      a {
-        text-decoration: none;
-      }
-      @media only screen and (max-width: 620px) {
-        .container {
-          width: 100% !important;
-        }
-        .px {
-          padding-left: 24px !important;
-          padding-right: 24px !important;
-        }
-        .digit {
-          width: 48px !important;
-          height: 56px !important;
-          font-size: 24px !important;
-        }
-      }
-    </style>
-  </head>
-  <body
-    style="
+    }
+  </style>
+</head>
+
+<body style="
       margin: 0;
       padding: 0;
       background-color: #f4f4f5;
       font-family:
         -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial,
         sans-serif;
-    "
-  >
-    <!-- Preheader (inbox preview text, hidden in body) -->
-    <div
-      style="
+    ">
+  <!-- Preheader (inbox preview text, hidden in body) -->
+  <div style="
         display: none;
         font-size: 1px;
         line-height: 1px;
@@ -102,54 +103,32 @@
         opacity: 0;
         overflow: hidden;
         mso-hide: all;
-      "
-    >
-      Your SkillBridge verification code is
-      {{digit1}}{{digit2}}{{digit3}}{{digit4}}{{digit5}}{{digit6}} — valid for
-      {{expiresMinutes}} minutes.
-    </div>
+      ">
+    Your SkillBridge verification code is
+    {{digit1}}{{digit2}}{{digit3}}{{digit4}}{{digit5}}{{digit6}} — valid for
+    {{expiresMinutes}} minutes.
+  </div>
 
-    <table
-      role="presentation"
-      cellpadding="0"
-      cellspacing="0"
-      border="0"
-      width="100%"
-      bgcolor="#f4f4f5"
-    >
-      <tr>
-        <td align="center" style="padding: 32px 16px">
-          <table
-            role="presentation"
-            cellpadding="0"
-            cellspacing="0"
-            border="0"
-            width="600"
-            class="container"
-            style="
+  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" bgcolor="#f4f4f5">
+    <tr>
+      <td align="center" style="padding: 32px 16px">
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="600" class="container" style="
               max-width: 600px;
               background: #ffffff;
               border-radius: 12px;
               border: 1px solid #e4e4e7;
-            "
-          >
-            <!-- Logo -->
-            <tr>
-              <td class="px" style="padding: 32px 40px 8px 40px">
-                <img
-                  src="{{logoUrl}}"
-                  alt="SkillBridge"
-                  width="140"
-                  style="display: block; height: auto; border: 0"
-                />
-              </td>
-            </tr>
+            ">
+          <!-- Logo -->
+          <tr>
+            <td class="px" style="padding: 32px 40px 8px 40px">
+              <img src="{{logoUrl}}" alt="SkillBridge" width="140" style="display: block; height: auto; border: 0" />
+            </td>
+          </tr>
 
-            <!-- Title -->
-            <tr>
-              <td class="px" style="padding: 24px 40px 0 40px">
-                <h1
-                  style="
+          <!-- Title -->
+          <tr>
+            <td class="px" style="padding: 24px 40px 0 40px">
+              <h1 style="
                     margin: 0;
                     font-family:
                       -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
@@ -158,18 +137,15 @@
                     font-weight: 700;
                     line-height: 1.3;
                     color: #18181b;
-                  "
-                >
-                  Email Verification Code
-                </h1>
-              </td>
-            </tr>
+                  ">
+                Email Verification Code
+              </h1>
+            </td>
+          </tr>
 
-            <!-- Greeting -->
-            <tr>
-              <td
-                class="px"
-                style="
+          <!-- Greeting -->
+          <tr>
+            <td class="px" style="
                   padding: 20px 40px 0 40px;
                   font-family:
                     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
@@ -177,17 +153,14 @@
                   font-size: 16px;
                   line-height: 1.5;
                   color: #27272a;
-                "
-              >
-                Hi <strong>{{name}}</strong>,
-              </td>
-            </tr>
+                ">
+              Hi <strong>{{name}}</strong>,
+            </td>
+          </tr>
 
-            <!-- Intro -->
-            <tr>
-              <td
-                class="px"
-                style="
+          <!-- Intro -->
+          <tr>
+            <td class="px" style="
                   padding: 16px 40px 0 40px;
                   font-family:
                     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
@@ -195,29 +168,17 @@
                   font-size: 15px;
                   line-height: 1.5;
                   color: #52525b;
-                "
-              >
-                Use this code to verify your SkillBridge account:
-              </td>
-            </tr>
+                ">
+              Use this code to verify your SkillBridge account:
+            </td>
+          </tr>
 
-            <!-- Code boxes -->
-            <tr>
-              <td class="px" style="padding: 20px 40px 0 40px">
-                <table
-                  role="presentation"
-                  cellpadding="0"
-                  cellspacing="0"
-                  border="0"
-                >
-                  <tr>
-                    <td
-                      class="digit"
-                      width="56"
-                      height="64"
-                      align="center"
-                      valign="middle"
-                      style="
+          <!-- Code boxes -->
+          <tr>
+            <td class="px" style="padding: 20px 40px 0 40px">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td class="digit" width="56" height="64" align="center" valign="middle" style="
                         border: 1.5px solid #e4e4e7;
                         border-radius: 12px;
                         font-family:
@@ -228,18 +189,11 @@
                         color: #18181b;
                         mso-line-height-rule: exactly;
                         line-height: 64px;
-                      "
-                    >
-                      {{digit1}}
-                    </td>
-                    <td width="12">&nbsp;</td>
-                    <td
-                      class="digit"
-                      width="56"
-                      height="64"
-                      align="center"
-                      valign="middle"
-                      style="
+                      ">
+                    {{digit1}}
+                  </td>
+                  <td width="12">&nbsp;</td>
+                  <td class="digit" width="56" height="64" align="center" valign="middle" style="
                         border: 1.5px solid #e4e4e7;
                         border-radius: 12px;
                         font-family:
@@ -250,18 +204,11 @@
                         color: #18181b;
                         mso-line-height-rule: exactly;
                         line-height: 64px;
-                      "
-                    >
-                      {{digit2}}
-                    </td>
-                    <td width="12">&nbsp;</td>
-                    <td
-                      class="digit"
-                      width="56"
-                      height="64"
-                      align="center"
-                      valign="middle"
-                      style="
+                      ">
+                    {{digit2}}
+                  </td>
+                  <td width="12">&nbsp;</td>
+                  <td class="digit" width="56" height="64" align="center" valign="middle" style="
                         border: 1.5px solid #e4e4e7;
                         border-radius: 12px;
                         font-family:
@@ -272,18 +219,11 @@
                         color: #18181b;
                         mso-line-height-rule: exactly;
                         line-height: 64px;
-                      "
-                    >
-                      {{digit3}}
-                    </td>
-                    <td width="12">&nbsp;</td>
-                    <td
-                      class="digit"
-                      width="56"
-                      height="64"
-                      align="center"
-                      valign="middle"
-                      style="
+                      ">
+                    {{digit3}}
+                  </td>
+                  <td width="12">&nbsp;</td>
+                  <td class="digit" width="56" height="64" align="center" valign="middle" style="
                         border: 1.5px solid #e4e4e7;
                         border-radius: 12px;
                         font-family:
@@ -294,18 +234,11 @@
                         color: #18181b;
                         mso-line-height-rule: exactly;
                         line-height: 64px;
-                      "
-                    >
-                      {{digit4}}
-                    </td>
-                    <td width="12">&nbsp;</td>
-                    <td
-                      class="digit"
-                      width="56"
-                      height="64"
-                      align="center"
-                      valign="middle"
-                      style="
+                      ">
+                    {{digit4}}
+                  </td>
+                  <td width="12">&nbsp;</td>
+                  <td class="digit" width="56" height="64" align="center" valign="middle" style="
                         border: 1.5px solid #e4e4e7;
                         border-radius: 12px;
                         font-family:
@@ -316,18 +249,11 @@
                         color: #18181b;
                         mso-line-height-rule: exactly;
                         line-height: 64px;
-                      "
-                    >
-                      {{digit5}}
-                    </td>
-                    <td width="12">&nbsp;</td>
-                    <td
-                      class="digit"
-                      width="56"
-                      height="64"
-                      align="center"
-                      valign="middle"
-                      style="
+                      ">
+                    {{digit5}}
+                  </td>
+                  <td width="12">&nbsp;</td>
+                  <td class="digit" width="56" height="64" align="center" valign="middle" style="
                         border: 1.5px solid #e4e4e7;
                         border-radius: 12px;
                         font-family:
@@ -338,20 +264,17 @@
                         color: #18181b;
                         mso-line-height-rule: exactly;
                         line-height: 64px;
-                      "
-                    >
-                      {{digit6}}
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
+                      ">
+                    {{digit6}}
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
 
-            <!-- Body copy -->
-            <tr>
-              <td
-                class="px"
-                style="
+          <!-- Body copy -->
+          <tr>
+            <td class="px" style="
                   padding: 20px 40px 0 40px;
                   font-family:
                     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
@@ -359,20 +282,17 @@
                   font-size: 15px;
                   line-height: 1.6;
                   color: #52525b;
-                "
-              >
-                This code is valid for the next {{expiresMinutes}} minutes.
-                If you did not create a SkillBridge account, you can ignore
-                this email safely. If the code does not work, return to the
-                app and request a new code from the verification screen.
-              </td>
-            </tr>
+                ">
+              This code is valid for the next {{expiresMinutes}} minutes.
+              If you did not create a SkillBridge account, you can ignore
+              this email safely. If the code does not work, return to the
+              app and request a new code from the verification screen.
+            </td>
+          </tr>
 
-            <!-- Sign-off -->
-            <tr>
-              <td
-                class="px"
-                style="
+          <!-- Sign-off -->
+          <tr>
+            <td class="px" style="
                   padding: 32px 40px 0 40px;
                   font-family:
                     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
@@ -380,27 +300,22 @@
                   font-size: 15px;
                   line-height: 1.6;
                   color: #27272a;
-                "
-              >
-                Thanks,<br />
-                SkillBridge Team
-              </td>
-            </tr>
+                ">
+              Thanks,<br />
+              SkillBridge Team
+            </td>
+          </tr>
 
-            <!-- Divider -->
-            <tr>
-              <td class="px" style="padding: 32px 40px 0 40px">
-                <hr
-                  style="border: none; border-top: 1px solid #e4e4e7; margin: 0"
-                />
-              </td>
-            </tr>
+          <!-- Divider -->
+          <tr>
+            <td class="px" style="padding: 32px 40px 0 40px">
+              <hr style="border: none; border-top: 1px solid #e4e4e7; margin: 0" />
+            </td>
+          </tr>
 
-            <!-- Footer copy -->
-            <tr>
-              <td
-                class="px"
-                style="
+          <!-- Footer copy -->
+          <tr>
+            <td class="px" style="
                   padding: 24px 40px 0 40px;
                   font-family:
                     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
@@ -408,27 +323,15 @@
                   font-size: 13px;
                   line-height: 1.6;
                   color: #71717a;
-                "
-              >
-                Questions? Contact us at
-                <a
-                  href="mailto:{{supportEmail}}"
-                  style="color: #1f5f6b; text-decoration: underline"
-                  >{{supportEmail}}</a
-                >. If you&rsquo;d rather not receive this kind of email,
-                <a
-                  href="{{unsubscribeUrl}}"
-                  style="color: #1f5f6b; text-decoration: underline"
-                  >unsubscribe</a
-                >.
-              </td>
-            </tr>
+                ">
+              Questions? Contact us at
+              <a href="mailto:{{supportEmail}}" style="color: #1f5f6b; text-decoration: underline">{{supportEmail}}</a>.
+            </td>
+          </tr>
 
-            <!-- Copyright -->
-            <tr>
-              <td
-                class="px"
-                style="
+          <!-- Copyright -->
+          <tr>
+            <td class="px" style="
                   padding: 16px 40px 32px 40px;
                   font-family:
                     -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
@@ -436,14 +339,14 @@
                   font-size: 13px;
                   line-height: 1.6;
                   color: #a1a1aa;
-                "
-              >
-                &copy; {{year}} SkillBridge. All rights reserved.
-              </td>
-            </tr>
-          </table>
-        </td>
-      </tr>
-    </table>
-  </body>
+                ">
+              &copy; {{year}} SkillBridge. All rights reserved.
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+
 </html>

@@ -51,7 +51,7 @@ describe('AuthService.changePassword', () => {
       password: currentPasswordHash,
     });
     argon2Verify
-      .mockResolvedValueOnce(true)  // currentPassword valid
+      .mockResolvedValueOnce(true) // currentPassword valid
       .mockResolvedValueOnce(false); // newPassword != currentPassword
     argon2Hash.mockResolvedValue(newPasswordHash as never);
 
@@ -88,11 +88,15 @@ describe('AuthService.changePassword', () => {
       password: currentPasswordHash,
     });
     argon2Verify
-      .mockResolvedValueOnce(true)  // currentPassword valid
+      .mockResolvedValueOnce(true) // currentPassword valid
       .mockResolvedValueOnce(true); // newPassword == currentPassword → same
 
     await expect(
-      service.changePassword(userId, { ...dto, newPassword: dto.currentPassword, confirmNewPassword: dto.currentPassword }),
+      service.changePassword(userId, {
+        ...dto,
+        newPassword: dto.currentPassword,
+        confirmNewPassword: dto.currentPassword,
+      }),
     ).rejects.toMatchObject({
       message: ErrorMessages.AUTH.SAME_PASSWORD,
     });
@@ -116,15 +120,16 @@ describe('AuthService.changePassword', () => {
       id: userId,
       password: currentPasswordHash,
     });
-    argon2Verify
-      .mockResolvedValueOnce(true)
-      .mockResolvedValueOnce(false);
+    argon2Verify.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
     argon2Hash.mockResolvedValue(newPasswordHash as never);
 
     await service.changePassword(userId, dto);
 
     // updatePassword is called exactly once; session revocation is its responsibility.
     expect(usersService.updatePassword).toHaveBeenCalledTimes(1);
-    expect(usersService.updatePassword).toHaveBeenCalledWith(userId, newPasswordHash);
+    expect(usersService.updatePassword).toHaveBeenCalledWith(
+      userId,
+      newPasswordHash,
+    );
   });
 });

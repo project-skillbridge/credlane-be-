@@ -1,6 +1,6 @@
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import { AuthController } from './auth.controller';
+import { AccountSettingsController } from './account-settings.controller';
 import { AuthService } from './auth.service';
 import { SuccessMessages } from '../../shared';
 import type { ChangePasswordDto } from './dto/change-password.dto';
@@ -16,8 +16,8 @@ import type { Response } from 'express';
  *  - Surfaces the service result directly to the caller
  *  - ThrottlerGuard is applied (cannot brute-force currentPassword)
  */
-describe('AuthController — POST /auth/change-password', () => {
-  let controller: AuthController;
+describe('AccountSettingsController — POST /auth/change-password', () => {
+  let controller: AccountSettingsController;
   let authService: { changePassword: jest.Mock };
 
   const authenticatedUser: AuthenticatedUser = {
@@ -48,17 +48,15 @@ describe('AuthController — POST /auth/change-password', () => {
     authService = { changePassword: jest.fn() };
 
     const moduleRef = await Test.createTestingModule({
-      controllers: [AuthController],
-      providers: [
-        { provide: AuthService, useValue: authService },
-      ],
+      controllers: [AccountSettingsController],
+      providers: [{ provide: AuthService, useValue: authService }],
     })
       // Override the ThrottlerGuard so tests are not blocked by rate-limit infra.
       .overrideGuard(ThrottlerGuard)
       .useValue({ canActivate: () => true })
       .compile();
 
-    controller = moduleRef.get(AuthController);
+    controller = moduleRef.get(AccountSettingsController);
   });
 
   it('delegates to authService.changePassword with the caller user id and DTO', async () => {

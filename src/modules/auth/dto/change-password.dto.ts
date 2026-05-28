@@ -4,7 +4,7 @@ import { MatchField } from '../validators/match-field.decorator';
 
 export class ChangePasswordDto {
   @ApiProperty({
-    description: 'The user\'s current password',
+    description: "The user's current password",
     minLength: 1,
     maxLength: 128,
   })

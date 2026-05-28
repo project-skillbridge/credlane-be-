@@ -47,7 +47,7 @@ export const ErrorMessages = {
     ATTEMPT_CORRUPT:
       'Assessment attempt has no questions; please start a new session',
     PASS_REQUIRED:
-      'You need a score of 70% or higher on your claimed level in the skill assessment before starting the advanced assessment',
+      'Complete the skill assessment with an overall score of at least 50% and a validated level before starting the advanced assessment',
     QUALITY_REQUIRED:
       'You need an overall score of at least 50% on a completed skill assessment before starting the advanced assessment',
     MAX_ATTEMPTS_REACHED:
@@ -133,8 +133,7 @@ export const ErrorMessages = {
     OFFER_EXPIRED: 'This offer has expired',
   },
   EMPLOYER_VERIFICATION: {
-    NOT_VERIFIED:
-      'Complete your company profile to start contacting candidates.',
+    NOT_VERIFIED: 'Complete your company profile to access this feature.',
     WEBSITE_NOT_RESOLVABLE:
       'Company website could not be reached. Please check the URL.',
   },

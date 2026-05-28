@@ -7,7 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Subject } from 'rxjs';
-import { Between, In, LessThan, Repository } from 'typeorm';
+import { Between, In, LessThan, QueryFailedError, Repository } from 'typeorm';
 import {
   BadRequestError,
   ConflictError,
@@ -15,12 +15,14 @@ import {
   NotFoundError,
 } from '../../shared/errors/app.errors';
 import { EmployerPoolProfile } from '../talent/entities/employer-pool-profile.entity';
+import { EmployerProfile } from '../employer/entities/employer-profile.entity';
 import { User } from '../users/entities/user.entity';
 import type {
   OfferReceivedPayload,
   OfferRespondedPayload,
 } from '../notifications/notification-dispatch.service';
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
+import { EmployerVerificationService } from '../employer/employer-verification.service';
 
 /** Narrow port so offers module does not depend on dispatch overload resolution in ESLint. */
 type OffersNotificationPort = {
@@ -43,13 +45,24 @@ import { CreateOfferDto } from './dto/create-offer.dto';
 import { ListOffersQueryDto } from './dto/list-offers-query.dto';
 
 const DEFAULT_MONTHLY_CAP = 50;
+const ACTIVE_OFFER_UNIQUE_INDEX = 'UQ_offers_active_employer_candidate';
+
+function isActiveOfferUniqueViolation(error: unknown): boolean {
+  if (!(error instanceof QueryFailedError)) return false;
+  const code =
+    (error as QueryFailedError & { code?: string }).code ??
+    (error.driverError as { code?: string } | undefined)?.code;
+  const constraint = (error.driverError as { constraint?: string } | undefined)
+    ?.constraint;
+  return code === '23505' && constraint === ACTIVE_OFFER_UNIQUE_INDEX;
+}
 
 export type OfferListResult = {
   offers: Offer[];
   total: number;
   page: number;
   limit: number;
-  totalPages: number;
+  total_pages: number;
 };
 
 /** Candidates tab — Offers subtab row (pending / declined / expired by default). */
@@ -98,21 +111,36 @@ type OfferStatusStreamEntry = {
   subscriberCount: number;
 };
 
+export type EnrichedOffer = Offer & {
+  is_employer_verified: boolean;
+};
+
+export type EnrichedOfferListResult = {
+  offers: EnrichedOffer[];
+  total: number;
+  page: number;
+  limit: number;
+  total_pages: number;
+};
+
 export type OfferAnalytics = {
-  offersThisMonth: number;
-  monthlyCap: number;
+  offers_this_month: number;
+  monthly_cap: number;
   remaining: number;
-  acceptedCount: number;
-  declinedCount: number;
-  pendingCount: number;
-  expiredCount: number;
+  accepted_count: number;
+  declined_count: number;
+  pending_count: number;
+  expired_count: number;
 };
 
 @Injectable()
 export class OffersService {
   private readonly logger = new Logger(OffersService.name);
   private readonly monthlyCap: number;
-  private readonly offerStatusStreams = new Map<string, OfferStatusStreamEntry>();
+  private readonly offerStatusStreams = new Map<
+    string,
+    OfferStatusStreamEntry
+  >();
 
   constructor(
     @InjectRepository(Offer)
@@ -121,10 +149,13 @@ export class OffersService {
     private readonly distributionLogRepo: Repository<OfferDistributionLog>,
     @InjectRepository(EmployerPoolProfile)
     private readonly poolProfileRepo: Repository<EmployerPoolProfile>,
+    @InjectRepository(EmployerProfile)
+    private readonly employerProfileRepo: Repository<EmployerProfile>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     @Inject(NotificationDispatchService)
     private readonly notificationDispatch: OffersNotificationPort,
+    private readonly verificationService: EmployerVerificationService,
   ) {
     this.monthlyCap =
       parseInt(process.env.OFFERS_MONTHLY_CAP ?? '', 10) || DEFAULT_MONTHLY_CAP;
@@ -134,6 +165,8 @@ export class OffersService {
     employerUserId: string,
     dto: CreateOfferDto,
   ): Promise<Offer> {
+    await this.verificationService.assertEmployerVerified(employerUserId);
+
     // Validate candidate is Job Ready
     const poolProfile = await this.poolProfileRepo.findOne({
       where: { candidate_id: dto.candidateUserId },
@@ -165,54 +198,61 @@ export class OffersService {
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + expiresInDays);
 
-    const offer = await this.offerRepo.manager.transaction(async (manager) => {
-      const now = new Date();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
-      const endOfMonth = new Date(
-        now.getFullYear(),
-        now.getMonth() + 1,
-        0,
-        23,
-        59,
-        59,
-        999,
-      );
-      const monthlyCount = await manager.count(OfferDistributionLog, {
-        where: {
-          employer_user_id: employerUserId,
-          sent_at: Between(startOfMonth, endOfMonth),
-        },
-      });
-
-      if (monthlyCount >= this.monthlyCap) {
-        throw new HttpException(
-          `Monthly offer limit reached (${this.monthlyCap}). Try again next month.`,
-          HttpStatus.TOO_MANY_REQUESTS,
+    const offer = await this.offerRepo.manager
+      .transaction(async (manager) => {
+        const now = new Date();
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(
+          now.getFullYear(),
+          now.getMonth() + 1,
+          0,
+          23,
+          59,
+          59,
+          999,
         );
-      }
+        const monthlyCount = await manager.count(OfferDistributionLog, {
+          where: {
+            employer_user_id: employerUserId,
+            sent_at: Between(startOfMonth, endOfMonth),
+          },
+        });
 
-      const created = await manager.save(Offer, {
-        employer_user_id: employerUserId,
-        candidate_user_id: dto.candidateUserId,
-        employer_pool_profile_id: poolProfile.id,
-        role_title: dto.roleTitle,
-        message: dto.message ?? '',
-        role_description: dto.roleDescription ?? null,
-        compensation: dto.compensation,
-        employment_type: dto.employmentType,
-        work_arrangement: dto.workArrangement,
-        application_deadline: dto.applicationDeadline ?? null,
-        status: OfferStatus.PENDING,
-        expires_at: expiresAt,
-      } as Partial<Offer>);
+        if (monthlyCount >= this.monthlyCap) {
+          throw new HttpException(
+            `Monthly offer limit reached (${this.monthlyCap}). Try again next month.`,
+            HttpStatus.TOO_MANY_REQUESTS,
+          );
+        }
 
-      await manager.save(OfferDistributionLog, {
-        employer_user_id: employerUserId,
-        offer_id: created.id,
-      } as Partial<OfferDistributionLog>);
+        const created = await manager.save(Offer, {
+          employer_user_id: employerUserId,
+          candidate_user_id: dto.candidateUserId,
+          employer_pool_profile_id: poolProfile.id,
+          role_title: dto.roleTitle,
+          message: dto.message ?? '',
+          role_description: dto.roleDescription ?? null,
+          compensation: dto.compensation,
+          employment_type: dto.employmentType,
+          work_arrangement: dto.workArrangement,
+          application_deadline: dto.applicationDeadline ?? null,
+          status: OfferStatus.PENDING,
+          expires_at: expiresAt,
+        } as Partial<Offer>);
 
-      return created;
-    });
+        await manager.save(OfferDistributionLog, {
+          employer_user_id: employerUserId,
+          offer_id: created.id,
+        } as Partial<OfferDistributionLog>);
+
+        return created;
+      })
+      .catch((error: unknown) => {
+        if (isActiveOfferUniqueViolation(error)) {
+          throw new ConflictError('Offer already sent to this candidate');
+        }
+        throw error;
+      });
 
     // Notify candidate
     const employer = await this.userRepo.findOne({
@@ -269,7 +309,7 @@ export class OffersService {
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
+      total_pages: Math.ceil(total / limit),
     };
   }
 
@@ -352,7 +392,7 @@ export class OffersService {
   async listCandidateOffers(
     candidateUserId: string,
     query: ListOffersQueryDto,
-  ): Promise<OfferListResult> {
+  ): Promise<EnrichedOfferListResult> {
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
 
@@ -375,12 +415,29 @@ export class OffersService {
       relations: ['employer'],
     });
 
+    // Enrich with employer verification status
+    const employerUserIds = [...new Set(offers.map((o) => o.employer_user_id))];
+    const profiles = employerUserIds.length
+      ? await this.employerProfileRepo.find({
+          where: employerUserIds.map((id) => ({ user_id: id })),
+          select: ['user_id', 'is_verified'],
+        })
+      : [];
+    const verifiedMap = new Map(
+      profiles.map((p) => [p.user_id, p.is_verified]),
+    );
+
+    const enrichedOffers = offers.map((offer) => ({
+      ...offer,
+      is_employer_verified: verifiedMap.get(offer.employer_user_id) ?? false,
+    }));
+
     return {
-      offers,
+      offers: enrichedOffers,
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit),
+      total_pages: Math.ceil(total / limit),
     };
   }
 
@@ -403,7 +460,7 @@ export class OffersService {
   async getOfferForCandidate(
     candidateUserId: string,
     offerId: string,
-  ): Promise<Offer> {
+  ): Promise<EnrichedOffer> {
     const offer = await this.offerRepo.findOne({
       where: { id: offerId, candidate_user_id: candidateUserId },
       relations: ['employer'],
@@ -413,7 +470,16 @@ export class OffersService {
       throw new NotFoundError('Offer not found');
     }
 
-    return this.checkAndUpdateExpiry(offer);
+    const checked = await this.checkAndUpdateExpiry(offer);
+    const profile = await this.employerProfileRepo.findOne({
+      where: { user_id: checked.employer_user_id },
+      select: ['is_verified'],
+    });
+
+    return {
+      ...checked,
+      is_employer_verified: profile?.is_verified ?? false,
+    };
   }
 
   async respondToOffer(
@@ -594,14 +660,55 @@ export class OffersService {
       ]);
 
     return {
-      offersThisMonth: monthlyCount,
-      monthlyCap: this.monthlyCap,
+      offers_this_month: monthlyCount,
+      monthly_cap: this.monthlyCap,
       remaining: Math.max(0, this.monthlyCap - monthlyCount),
-      acceptedCount,
-      declinedCount,
-      pendingCount,
-      expiredCount,
+      accepted_count: acceptedCount,
+      declined_count: declinedCount,
+      pending_count: pendingCount,
+      expired_count: expiredCount,
     };
+  }
+
+  async markHireComplete(
+    employerUserId: string,
+    offerId: string,
+  ): Promise<Offer> {
+    const offer = await this.offerRepo.findOne({
+      where: { id: offerId, employer_user_id: employerUserId },
+    });
+
+    if (!offer) {
+      throw new NotFoundError('Offer not found');
+    }
+
+    if (offer.status !== OfferStatus.ACCEPTED) {
+      throw new BadRequestError('Only accepted offers can be marked as hired');
+    }
+
+    await this.offerRepo.manager.transaction(async (manager) => {
+      const result = await manager.update(
+        Offer,
+        { id: offer.id, status: OfferStatus.ACCEPTED },
+        { status: OfferStatus.HIRED },
+      );
+
+      if (!result.affected || result.affected === 0) {
+        throw new BadRequestError(
+          'Only accepted offers can be marked as hired',
+        );
+      }
+
+      await manager.increment(
+        EmployerProfile,
+        { user_id: employerUserId },
+        'hire_count',
+        1,
+      );
+    });
+
+    offer.status = OfferStatus.HIRED;
+    return offer;
   }
 
   private async getDistributionCount(employerUserId: string): Promise<number> {

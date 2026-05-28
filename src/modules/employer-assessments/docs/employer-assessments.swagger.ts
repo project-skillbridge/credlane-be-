@@ -60,7 +60,9 @@ export const ApiListEmployerAssessments = () =>
 export const ApiSearchAssessmentCandidates = () =>
   applyDecorators(
     ApiBearerAuth(),
-    ApiOperation({ summary: 'Search shortlisted candidates for direct sending' }),
+    ApiOperation({
+      summary: 'Search shortlisted candidates for direct sending',
+    }),
     ApiResponse({
       status: 200,
       description: 'Candidate search results returned',

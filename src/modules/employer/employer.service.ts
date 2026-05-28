@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { AuthResult, AuthService } from '../auth/auth.service';
@@ -6,14 +6,29 @@ import { UsersService } from '../users/users.service';
 import { User } from '../users/entities/user.entity';
 import { CompleteEmployerOnboardingDto } from './dto/complete-employer-onboarding.dto';
 import { SaveEmployerProfileDto } from './dto/save-employer-profile.dto';
+import { UpdateEmployerProfileDto } from './dto/update-employer-profile.dto';
 import { EmployerProfile } from './entities/employer-profile.entity';
 import { EmployerVerificationService } from './employer-verification.service';
 import {
   ConflictError,
   ErrorMessages,
   ForbiddenError,
+  NotFoundError,
   SuccessMessages,
 } from '../../shared';
+
+export type EmployerPublicProfile = {
+  company_name: string | null;
+  industry: string | null;
+  company_size: string | null;
+  company_website: string | null;
+  linkedin_company_url: string | null;
+  region: string | null;
+  is_verified: boolean;
+  is_new_to_platform: boolean;
+  hire_count: number;
+  member_since: string;
+};
 
 export type EmployerOnboardingResult = {
   message: string;
@@ -24,6 +39,8 @@ export type EmployerOnboardingResult = {
 
 @Injectable()
 export class EmployerService {
+  private readonly logger = new Logger(EmployerService.name);
+
   constructor(
     @InjectRepository(EmployerProfile)
     private readonly employerProfileRepository: Repository<EmployerProfile>,
@@ -31,6 +48,16 @@ export class EmployerService {
     private readonly usersService: UsersService,
     private readonly verificationService: EmployerVerificationService,
   ) {}
+
+  async getProfile(userId: string): Promise<EmployerProfile> {
+    const profile = await this.employerProfileRepository.findOne({
+      where: { user_id: userId },
+    });
+    if (!profile) {
+      throw new NotFoundError('Employer profile not found');
+    }
+    return profile;
+  }
 
   async saveProfile(
     userId: string,
@@ -66,10 +93,13 @@ export class EmployerService {
         profile.industry = dto.industry.trim();
         profile.region = dto.region.trim();
         profile.hiring_region = dto.region.trim();
-        profile.linkedin_company_page_url =
-          dto.linkedinCompanyPageUrl?.trim() ?? null;
-        profile.linkedin_company_url =
-          dto.linkedinCompanyPageUrl?.trim() ?? null;
+        if (dto.linkedinCompanyPageUrl !== undefined) {
+          const linkedinCompanyPageUrl = dto.linkedinCompanyPageUrl.trim();
+          if (linkedinCompanyPageUrl !== '') {
+            profile.linkedin_company_page_url = linkedinCompanyPageUrl;
+            profile.linkedin_company_url = linkedinCompanyPageUrl;
+          }
+        }
         profile.hiring_roles = dto.hiringRoles;
         profile.hiring_locations = [dto.region.trim()];
         profile.desired_roles = dto.hiringRoles;
@@ -85,12 +115,111 @@ export class EmployerService {
     );
 
     // Recompute verification status after profile changes (non-blocking)
-    this.verificationService.checkAndUpdateVerification(userId).catch(() => {});
+    this.verificationService
+      .checkAndUpdateVerification(userId)
+      .catch((err) =>
+        this.logger.error(
+          `Verification recompute failed for user ${userId}`,
+          err,
+        ),
+      );
 
     return {
       status: 'success',
       message: SuccessMessages.ONBOARDING.EMPLOYER_PROFILE_SAVED,
     };
+  }
+
+  async updateProfile(
+    userId: string,
+    dto: UpdateEmployerProfileDto,
+  ): Promise<{ status: string; message: string; profile: EmployerProfile }> {
+    const profile = await this.employerProfileRepository.findOne({
+      where: { user_id: userId },
+    });
+    if (!profile) {
+      throw new NotFoundError('Employer profile not found');
+    }
+
+    this.applyProfileUpdates(profile, dto);
+    const savedProfile = await this.employerProfileRepository.manager.save(
+      EmployerProfile,
+      profile,
+    );
+
+    this.verificationService
+      .checkAndUpdateVerification(userId)
+      .catch((err) =>
+        this.logger.error(
+          `Verification recompute failed for user ${userId}`,
+          err,
+        ),
+      );
+
+    return {
+      status: 'success',
+      message: 'Employer profile updated',
+      profile: savedProfile,
+    };
+  }
+
+  private applyProfileUpdates(
+    profile: EmployerProfile,
+    dto: UpdateEmployerProfileDto,
+  ): void {
+    if (dto.employerType !== undefined) {
+      profile.employer_type = dto.employerType;
+    }
+    if (dto.companyName !== undefined) {
+      const companyName = this.trimNonEmpty(dto.companyName);
+      if (companyName) {
+        profile.company_name = companyName;
+      }
+    }
+    if (dto.companySize !== undefined) {
+      profile.company_size = dto.companySize;
+    }
+    if (dto.companyWebsite !== undefined) {
+      const companyWebsite = this.trimNonEmpty(dto.companyWebsite);
+      if (companyWebsite) {
+        profile.company_website = companyWebsite;
+        profile.website_url = companyWebsite;
+      }
+    }
+    if (dto.industry !== undefined) {
+      const industry = this.trimNonEmpty(dto.industry);
+      if (industry) {
+        profile.industry = industry;
+      }
+    }
+    if (dto.region !== undefined) {
+      const region = this.trimNonEmpty(dto.region);
+      if (region) {
+        profile.region = region;
+        profile.hiring_region = region;
+        profile.hiring_locations = [region];
+      }
+    }
+    if (dto.linkedinCompanyPageUrl !== undefined) {
+      profile.linkedin_company_page_url =
+        dto.linkedinCompanyPageUrl?.trim() ?? null;
+      profile.linkedin_company_url = dto.linkedinCompanyPageUrl?.trim() ?? null;
+    }
+    if (dto.hiringRoles !== undefined) {
+      profile.hiring_roles = dto.hiringRoles;
+      profile.desired_roles = dto.hiringRoles;
+    }
+    if (dto.preferredExperienceLevels !== undefined) {
+      profile.preferred_experience_levels = dto.preferredExperienceLevels;
+    }
+    if (dto.hiringCount !== undefined) {
+      profile.hiring_count_range = dto.hiringCount ?? null;
+    }
+  }
+
+  private trimNonEmpty(value: string): string | undefined {
+    const trimmed = value.trim();
+    return trimmed.length > 0 ? trimmed : undefined;
   }
 
   async completeOnboarding(
@@ -157,13 +286,52 @@ export class EmployerService {
     );
 
     // Recompute verification after onboarding (non-blocking)
-    this.verificationService.checkAndUpdateVerification(userId).catch(() => {});
+    this.verificationService
+      .checkAndUpdateVerification(userId)
+      .catch((err) =>
+        this.logger.error(
+          `Verification recompute failed for user ${userId}`,
+          err,
+        ),
+      );
 
     return {
       message: session.message,
       user: session.data.user,
       profile,
       tokens: session.tokens,
+    };
+  }
+
+  async getPublicProfile(
+    employerUserId: string,
+  ): Promise<EmployerPublicProfile> {
+    const profile = await this.employerProfileRepository.findOne({
+      where: { user_id: employerUserId },
+      relations: ['user'],
+    });
+
+    if (!profile) {
+      throw new NotFoundError('Employer profile not found');
+    }
+
+    const accountAge = Date.now() - new Date(profile.user.createdAt).getTime();
+    const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
+    const is_new_to_platform =
+      accountAge < ninetyDaysMs && profile.hire_count === 0;
+
+    return {
+      company_name: profile.company_name,
+      industry: profile.industry,
+      company_size: profile.company_size,
+      company_website: profile.company_website ?? profile.website_url,
+      linkedin_company_url:
+        profile.linkedin_company_page_url ?? profile.linkedin_company_url,
+      region: profile.region ?? profile.hiring_region,
+      is_verified: profile.is_verified,
+      is_new_to_platform,
+      hire_count: profile.hire_count,
+      member_since: profile.user.createdAt.toISOString(),
     };
   }
 }
