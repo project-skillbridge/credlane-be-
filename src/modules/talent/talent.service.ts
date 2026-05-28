@@ -473,11 +473,11 @@ export class TalentService {
       }
 
       profile.region = dto.region ?? null;
-      profile.education_level = dto.education_level ?? null;
-      profile.linkedin_url = dto.linkedin_url ?? null;
+      profile.education_level = dto.educationLevel ?? null;
+      profile.linkedin_url = dto.linkedinProfile ?? null;
       profile.onboarding_step = 3;
       profile.profile_verified =
-        !!dto.region && !!dto.education_level && !!dto.linkedin_url;
+        !!dto.region && !!dto.educationLevel && !!dto.linkedinProfile;
 
       await manager.save(TalentProfile, profile);
 
@@ -640,19 +640,21 @@ export class TalentService {
         if (dto.region !== undefined) {
           talentProfile.region = dto.region;
         }
-        if (dto.education_level !== undefined) {
-          talentProfile.education_level = dto.education_level;
+        if (dto.educationLevel !== undefined) {
+          talentProfile.education_level = dto.educationLevel;
         }
-        if (typeof dto.linkedin_url === 'string') {
-          talentProfile.linkedin_url = dto.linkedin_url.trim();
+        if (dto.linkedinUrl === null) {
+          talentProfile.linkedin_url = null;
+        } else if (typeof dto.linkedinUrl === 'string') {
+          talentProfile.linkedin_url = dto.linkedinUrl.trim();
         }
         talentProfile.onboarding_step = 3;
 
-        if (dto.avatar_url) {
+        if (dto.avatarUrl) {
           await manager.update(
             User,
             { id: userId },
-            { avatar_url: dto.avatar_url },
+            { avatar_url: dto.avatarUrl },
           );
         }
 
