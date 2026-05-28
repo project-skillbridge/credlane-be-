@@ -83,6 +83,7 @@ export interface GeneratedLt3Question {
 
 export interface GuidanceReportInput {
   report_type: 'emerging' | 'job_ready';
+  assessment_type: 'skill' | 'advanced';
   track: string;
   claimed_level: VerifiedLevel;
   validated_level: VerifiedLevel;

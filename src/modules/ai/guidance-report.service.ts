@@ -63,7 +63,7 @@ Generate a personalised guidance report. Return JSON in this exact shape:
       "reason": "why this resource fits this candidate"
     }
   ],
-  ${isJobReady ? '' : '"retake_advice": "one sentence on how to approach the retake in 14 days",'}
+  ${isJobReady ? '' : '"retake_advice": "one sentence on how to approach the retake",'}
   "resource_page_url": "/resources"
 }
 
@@ -87,7 +87,7 @@ Rules:
 - ai_summary must sound like a concise product-facing assessment summary, not a remediation note
 - growth_insight must describe recent readiness trajectory and the highest-leverage growth focus
 - resource_page_url must be "/resources"
-${isJobReady ? '- Do not include retake_advice' : '- retake_advice must mention the 14-day window'}`.trim();
+${isJobReady ? '- Do not include retake_advice' : input.assessment_type === 'advanced' ? '- retake_advice must mention the 14-day window before retaking the advanced assessment' : '- retake_advice must mention that the candidate has limited attempts remaining on the skill assessment'}`.trim();
 
     return this.openRouter.chat(
       SYSTEM_PROMPT,

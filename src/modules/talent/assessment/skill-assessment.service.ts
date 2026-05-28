@@ -842,6 +842,7 @@ export class SkillAssessmentService {
       try {
         guidanceReport = await this.guidanceReport.generate({
           report_type: 'emerging',
+          assessment_type: 'skill',
           track: profile.track ?? 'general',
           claimed_level: claimed,
           validated_level:
