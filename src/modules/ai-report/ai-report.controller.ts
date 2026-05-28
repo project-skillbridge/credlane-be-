@@ -13,8 +13,8 @@ import { UserRole } from '../users/entities/user.entity';
 import { AiReportService } from './ai-report.service';
 
 class GuidanceReportEnvelopeDto {
-  @ApiProperty({ description: 'Score as percentage (0-100)' })
-  percentage: number;
+  @ApiProperty({ description: 'Assessment score (0-100)' })
+  score: number;
 
   @ApiProperty({
     description:

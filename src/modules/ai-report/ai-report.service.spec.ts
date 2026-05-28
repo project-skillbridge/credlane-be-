@@ -112,7 +112,7 @@ describe('AiReportService', () => {
     const result = await service.getGuidanceReports('user-1');
 
     expect(result.skill_guidance_report).toEqual({
-      percentage: 72,
+      score: 72,
       percentile: 70,
       attempt_date: '2025-05-20T10:00:00.000Z',
       report_type: 'emerging',
@@ -127,7 +127,7 @@ describe('AiReportService', () => {
     });
 
     expect(result.advanced_guidance_report).toEqual({
-      percentage: 88,
+      score: 88,
       percentile: 70,
       attempt_date: '2025-05-20T10:00:00.000Z',
       report_type: 'job_ready',
@@ -195,7 +195,7 @@ describe('AiReportService', () => {
     const result = await service.getGuidanceReports('user-1');
 
     expect(result.skill_guidance_report).toEqual({
-      percentage: 50,
+      score: 50,
       percentile: 70,
       attempt_date: null,
       report_type: '',

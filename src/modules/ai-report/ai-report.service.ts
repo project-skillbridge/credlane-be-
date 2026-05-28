@@ -9,7 +9,7 @@ import {
 import { TalentProfile } from '../talent/entities/talent-profile.entity';
 
 export type GuidanceReportEnvelope = {
-  percentage: number;
+  score: number;
   percentile: number;
   attempt_date: string | null;
   report_type: string;
@@ -90,7 +90,7 @@ export class AiReportService {
     const report = result.guidance_report ?? {};
 
     return {
-      percentage: result.percentage ?? 0,
+      score: result.percentage ?? 0,
       percentile,
       attempt_date: result.attempt_completed_at ?? null,
       report_type: (report.report_type as string) ?? '',
