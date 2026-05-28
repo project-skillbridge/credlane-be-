@@ -655,6 +655,7 @@ export class AdvancedAssessmentService {
       : ({
           report_type:
             tier === AssessmentTier.JOB_READY ? 'job_ready' : 'emerging',
+          assessment_type: 'advanced',
           track: profile.track ?? 'general',
           claimed_level: profile.claimed_level ?? VerifiedLevel.JUNIOR,
           validated_level: profile.validated_level ?? VerifiedLevel.JUNIOR,
@@ -729,7 +730,15 @@ export class AdvancedAssessmentService {
     });
 
     if (resultLookup && guidanceInput) {
-      await this.persistGuidanceReport(resultLookup, guidanceInput);
+      try {
+        this.logger.log(`Generating guidance report for attempt=${attempt.id}`);
+        await this.persistGuidanceReport(resultLookup, guidanceInput);
+        this.logger.log(`Guidance report persisted for attempt=${attempt.id}`);
+      } catch (error) {
+        this.logger.error(
+          `Guidance report generation failed for attempt=${attempt.id}: ${String(error)}`,
+        );
+      }
     }
 
     if (!failed && tier === AssessmentTier.JOB_READY && personalContext) {
@@ -828,6 +837,7 @@ export class AdvancedAssessmentService {
       this.scoredTextAnswersFromAssessmentScores(scoreRows);
     const guidanceInput = {
       report_type: tier === AssessmentTier.JOB_READY ? 'job_ready' : 'emerging',
+      assessment_type: 'advanced' as const,
       track: profile.track ?? 'general',
       claimed_level: profile.claimed_level ?? VerifiedLevel.JUNIOR,
       validated_level: profile.validated_level ?? VerifiedLevel.JUNIOR,

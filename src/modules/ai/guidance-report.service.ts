@@ -18,7 +18,9 @@ export class GuidanceReportService {
     const hasWeakCompetencies = input.weak_competencies.length > 0;
     const reportFocus = isJobReady
       ? 'Create a strengths-focused Job Ready report. Keep the tone encouraging, growth-oriented, and lighter than a remediation plan.'
-      : 'Create a targeted improvement plan for an Emerging or Not Ready candidate. Focus on weak areas from the advanced assessment and concrete preparation for a retake.';
+      : input.assessment_type === 'skill'
+        ? 'Create a targeted improvement plan for an Emerging or Not Ready candidate. Focus on weak areas from the skill assessment and concrete preparation for a retake.'
+        : 'Create a targeted improvement plan for an Emerging or Not Ready candidate. Focus on weak areas from the advanced assessment and concrete preparation for a retake.';
 
     const userPrompt = `
 Report type: ${input.report_type}
@@ -63,7 +65,7 @@ Generate a personalised guidance report. Return JSON in this exact shape:
       "reason": "why this resource fits this candidate"
     }
   ],
-  ${isJobReady ? '' : '"retake_advice": "one sentence on how to approach the retake in 14 days",'}
+  ${isJobReady ? '' : '"retake_advice": "one sentence on how to approach the retake",'}
   "resource_page_url": "/resources"
 }
 
@@ -87,7 +89,7 @@ Rules:
 - ai_summary must sound like a concise product-facing assessment summary, not a remediation note
 - growth_insight must describe recent readiness trajectory and the highest-leverage growth focus
 - resource_page_url must be "/resources"
-${isJobReady ? '- Do not include retake_advice' : '- retake_advice must mention the 14-day window'}`.trim();
+${isJobReady ? '- Do not include retake_advice' : input.assessment_type === 'advanced' ? '- retake_advice must mention the 14-day window before retaking the advanced assessment' : '- retake_advice must mention that the candidate has limited attempts remaining on the skill assessment'}`.trim();
 
     return this.openRouter.chat(
       SYSTEM_PROMPT,
