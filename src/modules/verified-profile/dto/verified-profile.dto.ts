@@ -1,4 +1,9 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import {
+  ApiExtraModels,
+  ApiProperty,
+  ApiPropertyOptional,
+  getSchemaPath,
+} from '@nestjs/swagger';
 import { VerifiedLevel } from '../../assessments/entities/assessment-question.entity';
 
 export class VerifiedProfileAssessmentBreakdownItemDto {
@@ -32,6 +37,10 @@ export class VerifiedProfileSkillBreakdownItemDto {
   insight?: string;
 }
 
+@ApiExtraModels(
+  VerifiedProfileAssessmentBreakdownItemDto,
+  VerifiedProfileSkillBreakdownItemDto,
+)
 export class VerifiedProfileSkillBreakdownTabDto {
   @ApiProperty({ example: 'assessment_scores' })
   id: string;
@@ -43,8 +52,8 @@ export class VerifiedProfileSkillBreakdownTabDto {
     type: 'array',
     items: {
       oneOf: [
-        { $ref: '#/components/schemas/VerifiedProfileAssessmentBreakdownItemDto' },
-        { $ref: '#/components/schemas/VerifiedProfileSkillBreakdownItemDto' },
+        { $ref: getSchemaPath(VerifiedProfileAssessmentBreakdownItemDto) },
+        { $ref: getSchemaPath(VerifiedProfileSkillBreakdownItemDto) },
       ],
     },
   })
@@ -95,7 +104,7 @@ export class VerifiedProfileResponseDto {
   })
   about_tags: string[];
 
-  @ApiPropertyOptional({ example: 'https://example.com/avatar.jpg', nullable: true })
+  @ApiProperty({ example: 'https://example.com/avatar.jpg', nullable: true })
   avatar_url: string | null;
 
   @ApiProperty({ example: true })
@@ -148,7 +157,7 @@ export class VerifiedProfileResponseDto {
   @ApiProperty({ example: '/resources' })
   resource_page_url: '/resources';
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: 'https://cdn.example.com/resumes/resume.pdf',
     nullable: true,
   })
