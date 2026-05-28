@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import {
   AssessmentAttempt,
+  AssessmentQuestion,
   AssessmentResult,
   AssessmentType,
 } from '../assessments/entities';
@@ -71,23 +72,30 @@ export class AiReportService {
     ]);
 
     return {
-      skill_guidance_report: this.buildEnvelope(skillResult, skillPercentile),
-      advanced_guidance_report: this.buildEnvelope(
+      skill_guidance_report: await this.buildEnvelope(
+        skillResult,
+        skillPercentile,
+      ),
+      advanced_guidance_report: await this.buildEnvelope(
         advancedResult,
         advancedPercentile,
       ),
     };
   }
 
-  private buildEnvelope(
+  private async buildEnvelope(
     result:
       | (AssessmentResult & { attempt_completed_at?: string | null })
       | null,
     percentile: number,
-  ): GuidanceReportEnvelope {
+  ): Promise<GuidanceReportEnvelope> {
     if (!result) return null;
 
     const report = result.guidance_report ?? {};
+    const rawResources =
+      (report.recommended_resources as Record<string, unknown>[]) ?? [];
+
+    const resources = await this.resolveResourceCompetencies(rawResources);
 
     return {
       score: result.percentage ?? 0,
@@ -101,8 +109,63 @@ export class AiReportService {
       strength_ratings: (report.strength_ratings as unknown[]) ?? [],
       resource_page_url: (report.resource_page_url as string) ?? '/resources',
       weak_area_ratings: (report.weak_area_ratings as unknown[]) ?? [],
-      recommended_resources: (report.recommended_resources as unknown[]) ?? [],
+      recommended_resources: resources,
     };
+  }
+
+  /**
+   * If resources have a `competencies` array of UUIDs (legacy format),
+   * resolve them to human-readable competency names from the questions table.
+   */
+  private async resolveResourceCompetencies(
+    resources: Record<string, unknown>[],
+  ): Promise<Record<string, unknown>[]> {
+    if (resources.length === 0) return [];
+
+    // Collect all unique UUIDs from competencies arrays
+    const uuidPattern =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const allIds = new Set<string>();
+
+    for (const resource of resources) {
+      const comps = resource.competencies;
+      if (Array.isArray(comps)) {
+        for (const id of comps) {
+          if (typeof id === 'string' && uuidPattern.test(id)) {
+            allIds.add(id);
+          }
+        }
+      }
+    }
+
+    if (allIds.size === 0) return resources;
+
+    // Batch-resolve UUIDs to competency names
+    const ids = [...allIds];
+    const questions = await this.assessmentResultRepo.manager
+      .createQueryBuilder(AssessmentQuestion, 'q')
+      .select(['q.id', 'q.competency'])
+      .where('q.id IN (:...ids)', { ids })
+      .getMany();
+
+    const idToName = new Map<string, string>();
+    for (const q of questions) {
+      if (q.competency) {
+        idToName.set(q.id, q.competency);
+      }
+    }
+
+    // Replace UUID arrays with resolved name arrays
+    return resources.map((resource) => {
+      const comps = resource.competencies;
+      if (!Array.isArray(comps)) return resource;
+
+      const names = comps
+        .map((id) => (typeof id === 'string' ? idToName.get(id) : undefined))
+        .filter((name): name is string => !!name);
+
+      return { ...resource, competencies: names };
+    });
   }
 
   /**
