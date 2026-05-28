@@ -28,27 +28,27 @@ export class SetProfileDto {
   })
   @IsOptional()
   @IsIn(TALENT_EDUCATION_LEVELS, {
-    message: `educationLevel must be one of: ${TALENT_EDUCATION_LEVELS.join(', ')}`,
+    message: `education_level must be one of: ${TALENT_EDUCATION_LEVELS.join(', ')}`,
   })
-  educationLevel?: string;
+  education_level?: string;
 
   @ApiPropertyOptional({
     example: 'https://www.linkedin.com/in/alexsmith',
     description: 'LinkedIn profile URL',
   })
   @IsOptional()
-  @IsUrl({}, { message: 'linkedinUrl must be a valid URL' })
+  @IsUrl({}, { message: 'linkedin_url must be a valid URL' })
   @Matches(LINKEDIN_REGEX, {
     message:
-      'linkedinUrl must be a valid LinkedIn profile URL (linkedin.com/in/...)',
+      'linkedin_url must be a valid LinkedIn profile URL (linkedin.com/in/...)',
   })
-  linkedinUrl?: string;
+  linkedin_url?: string;
 
   @ApiPropertyOptional({
     example: 'https://bucket.s3.region.amazonaws.com/avatars/user.jpg',
     description: 'Avatar URL returned from the avatar upload endpoint',
   })
   @IsOptional()
-  @IsUrl({}, { message: 'avatarUrl must be a valid URL' })
-  avatarUrl?: string;
+  @IsUrl({}, { message: 'avatar_url must be a valid URL' })
+  avatar_url?: string;
 }
