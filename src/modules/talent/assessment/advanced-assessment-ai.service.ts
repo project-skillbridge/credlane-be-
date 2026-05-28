@@ -99,7 +99,9 @@ export class AdvancedAssessmentAiService {
       question_text: question.question_text,
       options: question.options,
       slot_type: question.slot_type,
-      metadata: question.metadata,
+      metadata: question.competency
+        ? { ...question.metadata, competency: question.competency }
+        : question.metadata,
       correct_answer: question.correct_answer,
       min_length,
       max_length,
