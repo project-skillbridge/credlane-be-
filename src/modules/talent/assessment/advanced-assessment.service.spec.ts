@@ -334,10 +334,19 @@ describe('AdvancedAssessmentService', () => {
 
     const entityManager = {
       findOne: entityManagerFindOne,
+      find: jest.fn().mockResolvedValue([]),
       increment: entityManagerIncrement,
       count: jest.fn().mockResolvedValue(1),
       save: jest.fn().mockImplementation((entity: unknown, data: unknown) => {
         entityManagerSaveCalls.push({ entity, data });
+        if (
+          entity === AssessmentAttempt &&
+          data &&
+          typeof data === 'object' &&
+          'generated_questions_json' in data
+        ) {
+          Object.assign(attemptData.current, data);
+        }
         return Promise.resolve(data);
       }),
       create: jest
@@ -488,6 +497,67 @@ describe('AdvancedAssessmentService', () => {
         answers: dto.answers,
       });
       expect(rubricScoring.scoreAnswers).not.toHaveBeenCalled();
+      const attemptSave = entityManagerSaveCalls.find(
+        (call) => call.entity === AssessmentAttempt,
+      );
+      expect(attemptSave?.data).toEqual(
+        expect.objectContaining({
+          generated_questions_json: expect.objectContaining({
+            context: expect.objectContaining({
+              submit_enqueued_at: expect.any(String),
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('rejects with 409 when another advanced submission is still processing', async () => {
+      const processingAttempt = makeAttempt({
+        id: 'attempt-processing',
+        generated_questions_json: {
+          ...makeSessionJson(),
+          context: {
+            verified_level: VerifiedLevel.MID,
+            submit_enqueued_at: new Date().toISOString(),
+          },
+        },
+      });
+      const txManager = {
+        findOne: jest.fn().mockResolvedValue(makeAttempt()),
+        find: jest.fn().mockResolvedValue([processingAttempt]),
+        save: jest.fn(),
+      };
+      talentProfileRepo.manager.transaction.mockImplementationOnce(
+        (work: (em: typeof txManager) => Promise<unknown>) => work(txManager),
+      );
+
+      await expect(
+        service.submit(userId, makeSubmitDto() as never),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          error: 'ADVANCED_SUBMIT_PROCESSING',
+          session_id: 'attempt-processing',
+        }),
+      });
+      expect(submitQueue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('clears submit_enqueued_at when enqueue fails', async () => {
+      submitQueue.enqueue.mockRejectedValueOnce(new Error('redis down'));
+
+      await expect(
+        service.submit(userId, makeSubmitDto() as never),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+      expect(attemptRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          generated_questions_json: expect.objectContaining({
+            context: expect.not.objectContaining({
+              submit_enqueued_at: expect.anything(),
+            }),
+          }),
+        }),
+      );
     });
 
     it('rejects with 422 LT2_NOT_SUBMITTED when reflection slot is missing', async () => {
@@ -1294,6 +1364,68 @@ describe('AdvancedAssessmentService', () => {
   // ── start — retake gate ─────────────────────────────────────────────────────
 
   describe('start() retake gate', () => {
+    it('throws 409 when a previous advanced submission is still processing', async () => {
+      const processingAttempt = makeAttempt({
+        id: 'attempt-processing',
+        expires_at: new Date(Date.now() - 1000),
+        generated_questions_json: {
+          ...makeSessionJson(),
+          context: {
+            verified_level: VerifiedLevel.MID,
+            submit_enqueued_at: new Date().toISOString(),
+          },
+        },
+      });
+      const profile = makeTalentProfile({
+        validated_level: VerifiedLevel.MID,
+        personal_assessment_completed_at: new Date(),
+        skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
+        assessment_locked_until: null,
+      });
+
+      const skillResultQuery = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue({
+          percentage: 80,
+          claimed_percentage: 80,
+          validated_level: VerifiedLevel.MID,
+        } as AssessmentResult),
+      };
+
+      const activeSessionQuery = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      };
+
+      const entityManager = {
+        findOne: jest.fn().mockResolvedValue(profile),
+        count: jest.fn().mockResolvedValue(1),
+        find: jest.fn().mockResolvedValue([processingAttempt]),
+        createQueryBuilder: jest
+          .fn()
+          .mockReturnValueOnce(skillResultQuery)
+          .mockReturnValueOnce(activeSessionQuery),
+      };
+
+      talentProfileRepo.manager.transaction.mockImplementationOnce(
+        (work: (em: typeof entityManager) => Promise<unknown>) =>
+          work(entityManager),
+      );
+
+      await expect(service.start(userId)).rejects.toMatchObject({
+        response: expect.objectContaining({
+          error: 'ADVANCED_SUBMIT_PROCESSING',
+          session_id: 'attempt-processing',
+        }),
+      });
+    });
+
     it('throws 403 when assessment_locked_until is in the future', async () => {
       const lockedFrom = new Date('2026-05-01T00:00:00.000Z');
       const lockedUntil = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
@@ -1321,6 +1453,7 @@ describe('AdvancedAssessmentService', () => {
 
       const lockedEntityManager = {
         findOne: jest.fn().mockResolvedValue(lockedProfile),
+        find: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(1),
         createQueryBuilder: jest.fn().mockReturnValue(skillResultQuery),
       };
@@ -1348,6 +1481,7 @@ describe('AdvancedAssessmentService', () => {
 
       const entityManager = {
         findOne: jest.fn().mockResolvedValue(profile),
+        find: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(0),
         createQueryBuilder: jest.fn(),
       };
@@ -1413,6 +1547,7 @@ describe('AdvancedAssessmentService', () => {
 
       const entityManager = {
         findOne: jest.fn().mockResolvedValue(profile),
+        find: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(1),
         create: jest
           .fn()
@@ -1471,6 +1606,7 @@ describe('AdvancedAssessmentService', () => {
 
       const entityManager = {
         findOne: jest.fn().mockResolvedValue(profile),
+        find: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(1),
         create: jest
           .fn()
