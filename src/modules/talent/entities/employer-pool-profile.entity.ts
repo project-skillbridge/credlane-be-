@@ -73,6 +73,10 @@ export class EmployerPoolProfile {
   availability: string | null;
 
   @ApiProperty({ required: false, nullable: true })
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  job_search_status: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
   @Column({ type: 'varchar', length: 200, nullable: true })
   location: string | null;
 

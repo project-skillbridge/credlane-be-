@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from '../users/users.module';
 import { AuthModule } from '../auth/auth.module';
 import { UploadModule } from '../upload/upload.module';
+import { AiResourcesModule } from '../ai-resources/ai-resources.module';
 import { TalentProfile } from './entities/talent-profile.entity';
 import { EmployerPoolProfile } from './entities/employer-pool-profile.entity';
 import {
@@ -48,6 +49,7 @@ import { TalentService } from './talent.service';
     UploadModule,
     NotificationsModule,
     MailModule,
+    AiResourcesModule,
   ],
   controllers: [
     TalentController,

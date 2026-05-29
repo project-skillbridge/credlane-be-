@@ -73,6 +73,7 @@ export class EmployerPoolProfileService {
       industry_background: this.resolveIndustryBackground(personalContext),
       work_preferences: this.resolveWorkPreferences(personalContext),
       availability: this.resolveAvailability(personalContext),
+      job_search_status: this.resolveJobSearchStatus(personalContext),
       location: this.resolveLocation(profile, personalContext),
       integrity_clean: integrityClean,
       shareable_link_token: existing?.shareable_link_token ?? token,
@@ -174,6 +175,21 @@ export class EmployerPoolProfileService {
   ): string | null {
     const val = ctx['availability'] ?? ctx['availableFrom'] ?? null;
     return typeof val === 'string' ? val : null;
+  }
+
+  private resolveJobSearchStatus(
+    ctx: TalentPersonalAssessmentContext,
+  ): string | null {
+    const val = ctx['job_search_status'] ?? null;
+    if (typeof val !== 'string') return null;
+
+    // Map personal assessment values to TalentAvailabilityStatus equivalents
+    const mapping: Record<string, string> = {
+      actively_looking: 'actively_looking',
+      open_to_right_opportunity: 'open_to_opportunities',
+      just_exploring: 'not_looking',
+    };
+    return mapping[val] ?? val;
   }
 
   private resolveLocation(

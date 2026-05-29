@@ -5,6 +5,7 @@ import { OpenRouterService } from './openrouter.service';
 import { QuestionGenerationService } from './question-generation.service';
 import { RubricScoringService } from './rubric-scoring.service';
 import { ResourceGenerationService } from './resource-generation.service';
+import { UrlResolutionService } from './url-resolution.service';
 
 @Global()
 @Module({
@@ -15,6 +16,7 @@ import { ResourceGenerationService } from './resource-generation.service';
     Lt3GenerationService,
     GuidanceReportService,
     ResourceGenerationService,
+    UrlResolutionService,
   ],
   exports: [
     OpenRouterService,
@@ -23,6 +25,7 @@ import { ResourceGenerationService } from './resource-generation.service';
     Lt3GenerationService,
     GuidanceReportService,
     ResourceGenerationService,
+    UrlResolutionService,
   ],
 })
 export class AiModule {}
