@@ -36,6 +36,7 @@ import {
   ADVANCED_ASSESSMENT_BASE_QUESTIONS,
   ADVANCED_ASSESSMENT_MCQ_COUNT,
   ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT,
+  ADVANCED_ASSESSMENT_TOTAL_QUESTIONS,
   AdvancedAssessmentAiService,
   AdvancedAssessmentGeneratedQuestion,
   blockLengthLimits,
@@ -113,6 +114,8 @@ export interface AdvancedAssessmentSessionResult {
   remaining_seconds: number;
   verified_level: string;
   question_count: number;
+  /** True when a 15th question (LT-3) will be generated after lt2-submit. */
+  pending_lt3: boolean;
   questions: AdvancedAssessmentGeneratedQuestion[];
 }
 
@@ -142,6 +145,7 @@ type ScoreReadyDispatchPayload = {
 type AdvancedAssessmentSessionPayload = {
   context?: {
     verified_level?: unknown;
+    submit_enqueued_at?: string;
   };
   questions?: unknown;
 };
@@ -257,6 +261,14 @@ export class AdvancedAssessmentService {
         }
 
         this.assertAdvancedRetakeUnlocked(profile);
+
+        const inFlightSubmit = await this.findInFlightAdvancedSubmit(
+          manager,
+          profile.id,
+        );
+        if (inFlightSubmit) {
+          throw this.buildAdvancedSubmitProcessingConflict(inFlightSubmit.id);
+        }
 
         const activeAttempt = await manager
           .createQueryBuilder(AssessmentAttempt, 'attempt')
@@ -402,7 +414,7 @@ export class AdvancedAssessmentService {
     userId: string,
     dto: SubmitAdvancedAssessmentDto,
   ): Promise<AdvancedAssessmentSubmitResult> {
-    const { attempt, sessionQuestions } = await this.validateSubmitForEnqueue(
+    const { profile, sessionQuestions } = await this.validateSubmitForEnqueue(
       userId,
       dto,
     );
@@ -420,6 +432,52 @@ export class AdvancedAssessmentService {
       this.assertTextLength(question, answer);
     }
 
+    await this.talentProfileRepo.manager.transaction(async (manager) => {
+      const lockedAttempt = await manager.findOne(AssessmentAttempt, {
+        where: {
+          id: dto.sessionId,
+          talent_profile_id: profile.id,
+          assessment_type: AssessmentType.ADVANCED,
+        },
+        lock: { mode: 'pessimistic_write' },
+      });
+      if (!lockedAttempt) {
+        throw new NotFoundException(
+          ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_NOT_FOUND,
+        );
+      }
+      if (lockedAttempt.completed_at) {
+        throw new BadRequestException(
+          ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_ALREADY_SUBMITTED,
+        );
+      }
+      if (lockedAttempt.force_submitted) {
+        throw new BadRequestException(
+          ErrorMessages.ADVANCED_ASSESSMENT.SESSION_VOIDED,
+        );
+      }
+      if (this.isAdvancedSubmitInFlight(lockedAttempt)) {
+        throw new BadRequestException(
+          ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_ALREADY_SUBMITTED,
+        );
+      }
+
+      const otherInFlight = await this.findInFlightAdvancedSubmit(
+        manager,
+        profile.id,
+        lockedAttempt.id,
+      );
+      if (otherInFlight) {
+        throw this.buildAdvancedSubmitProcessingConflict(otherInFlight.id);
+      }
+
+      lockedAttempt.generated_questions_json = this.withSubmitEnqueuedAt(
+        lockedAttempt,
+        new Date().toISOString(),
+      );
+      await manager.save(AssessmentAttempt, lockedAttempt);
+    });
+
     try {
       await this.submitQueue.enqueue({
         userId,
@@ -431,6 +489,7 @@ export class AdvancedAssessmentService {
         })),
       });
     } catch {
+      await this.clearSubmitEnqueuedAt(dto.sessionId);
       throw new ServiceUnavailableException({
         error: 'SUBMIT_QUEUE_UNAVAILABLE',
         message: ErrorMessages.ADVANCED_ASSESSMENT.SUBMIT_QUEUE_UNAVAILABLE,
@@ -438,13 +497,13 @@ export class AdvancedAssessmentService {
     }
 
     this.logger.log(
-      `Advanced assessment submit queued: attempt=${attempt.id} user=${userId}`,
+      `Advanced assessment submit queued: attempt=${dto.sessionId} user=${userId}`,
     );
 
     return {
       status: 'processing',
       message: SuccessMessages.ADVANCED_ASSESSMENT.QUEUED,
-      session_id: attempt.id,
+      session_id: dto.sessionId,
     };
   }
 
@@ -937,6 +996,7 @@ export class AdvancedAssessmentService {
     userId: string,
     dto: SubmitAdvancedAssessmentDto,
   ): Promise<{
+    profile: TalentProfile;
     attempt: AssessmentAttempt;
     sessionQuestions: AdvancedAssessmentGeneratedQuestion[];
   }> {
@@ -972,6 +1032,11 @@ export class AdvancedAssessmentService {
         ErrorMessages.ADVANCED_ASSESSMENT.SESSION_VOIDED,
       );
     }
+    if (this.isAdvancedSubmitInFlight(attempt)) {
+      throw new BadRequestException(
+        ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_ALREADY_SUBMITTED,
+      );
+    }
 
     const sessionQuestions = this.readSessionQuestions(attempt);
     if (sessionQuestions.length === 0) {
@@ -990,7 +1055,7 @@ export class AdvancedAssessmentService {
       });
     }
 
-    return { attempt, sessionQuestions };
+    return { profile, attempt, sessionQuestions };
   }
 
   /**
@@ -1402,6 +1467,85 @@ export class AdvancedAssessmentService {
     return 'high';
   }
 
+  private isAdvancedSubmitInFlight(attempt: AssessmentAttempt): boolean {
+    if (attempt.completed_at || attempt.force_submitted) {
+      return false;
+    }
+    const enqueuedAt =
+      this.readSessionPayload(attempt).context?.submit_enqueued_at;
+    return typeof enqueuedAt === 'string' && enqueuedAt.length > 0;
+  }
+
+  private async findInFlightAdvancedSubmit(
+    manager: EntityManager,
+    talentProfileId: string,
+    excludeAttemptId?: string,
+  ): Promise<AssessmentAttempt | null> {
+    const attempts = await manager.find(AssessmentAttempt, {
+      where: {
+        talent_profile_id: talentProfileId,
+        assessment_type: AssessmentType.ADVANCED,
+        completed_at: IsNull(),
+        force_submitted: false,
+      },
+    });
+
+    return (
+      attempts.find(
+        (attempt) =>
+          attempt.id !== excludeAttemptId &&
+          this.isAdvancedSubmitInFlight(attempt),
+      ) ?? null
+    );
+  }
+
+  private buildAdvancedSubmitProcessingConflict(
+    sessionId: string,
+  ): ConflictException {
+    return new ConflictException({
+      error: 'ADVANCED_SUBMIT_PROCESSING',
+      message: ErrorMessages.ADVANCED_ASSESSMENT.SUBMIT_PROCESSING,
+      session_id: sessionId,
+    });
+  }
+
+  private withSubmitEnqueuedAt(
+    attempt: AssessmentAttempt,
+    enqueuedAt: string,
+  ): Record<string, any> {
+    const payload = this.readSessionPayload(attempt);
+    return {
+      ...payload,
+      context: {
+        ...(payload.context ?? {}),
+        submit_enqueued_at: enqueuedAt,
+      },
+      questions: payload.questions,
+    };
+  }
+
+  private async clearSubmitEnqueuedAt(sessionId: string): Promise<void> {
+    const attempt = await this.attemptRepo.findOne({
+      where: { id: sessionId },
+    });
+    if (!attempt?.generated_questions_json) {
+      return;
+    }
+
+    const payload = this.readSessionPayload(attempt);
+    const context = { ...(payload.context ?? {}) };
+    delete context.submit_enqueued_at;
+
+    const clearedPayload = {
+      ...payload,
+      context,
+      questions: payload.questions,
+    };
+
+    attempt.generated_questions_json = clearedPayload as Record<string, any>;
+    await this.attemptRepo.save(attempt);
+  }
+
   private assertAdvancedRetakeUnlocked(profile: TalentProfile): void {
     if (
       !profile.advanced_retake_required ||
@@ -1563,12 +1707,37 @@ export class AdvancedAssessmentService {
     return rows;
   }
 
-  private remainingSeconds(attempt: AssessmentAttempt): number {
-    if (!attempt.expires_at) return 0;
-    return Math.max(
+  private resolveSessionTimerState(
+    attempt: AssessmentAttempt,
+    expiresAt: Date,
+  ): { remaining_seconds: number; is_expired: boolean } {
+    if (attempt.completed_at) {
+      return { remaining_seconds: 0, is_expired: true };
+    }
+
+    if (this.isAdvancedSubmitInFlight(attempt)) {
+      const wallExpired = expiresAt.getTime() <= Date.now();
+      return { remaining_seconds: 0, is_expired: wallExpired };
+    }
+
+    const remaining_seconds = Math.max(
       0,
-      Math.floor((attempt.expires_at.getTime() - Date.now()) / 1000),
+      Math.floor((expiresAt.getTime() - Date.now()) / 1000),
     );
+
+    return {
+      remaining_seconds,
+      is_expired: remaining_seconds === 0,
+    };
+  }
+
+  private remainingSeconds(attempt: AssessmentAttempt): number {
+    if (!attempt.expires_at) {
+      return 0;
+    }
+
+    return this.resolveSessionTimerState(attempt, attempt.expires_at)
+      .remaining_seconds;
   }
 
   private assertTextLength(
@@ -2030,6 +2199,8 @@ export class AdvancedAssessmentService {
       );
     }
 
+    const timer = this.resolveSessionTimerState(attempt, expiresAt);
+
     return {
       status: 'success',
       message,
@@ -2037,13 +2208,13 @@ export class AdvancedAssessmentService {
       started_at: attempt.started_at.toISOString(),
       expires_at: expiresAt.toISOString(),
       completed_at: attempt.completed_at?.toISOString() ?? null,
-      is_expired: expiresAt.getTime() <= Date.now(),
-      remaining_seconds: Math.max(
-        0,
-        Math.floor((expiresAt.getTime() - Date.now()) / 1000),
-      ),
+      is_expired: timer.is_expired,
+      remaining_seconds: timer.remaining_seconds,
       verified_level: this.readSessionVerifiedLevel(attempt),
       question_count: questions.length,
+      pending_lt3:
+        questions.length < ADVANCED_ASSESSMENT_TOTAL_QUESTIONS &&
+        !attempt.completed_at,
       questions,
     };
   }

@@ -12,9 +12,15 @@ export class CaseTransformMiddleware implements NestMiddleware {
   use(req: Request, _res: Response, next: NextFunction): void {
     if (req.body && typeof req.body === 'object' && !Array.isArray(req.body)) {
       try {
-        req.body = keysToCamel(req.body as Record<string, unknown>, REQUEST_CASE_TRANSFORM_OPTIONS);
+        req.body = keysToCamel(
+          req.body as Record<string, unknown>,
+          REQUEST_CASE_TRANSFORM_OPTIONS,
+        );
       } catch (err) {
-        this.logger.error('Failed to transform request body keys to camelCase', err);
+        this.logger.error(
+          'Failed to transform request body keys to camelCase',
+          err,
+        );
         return next(err);
       }
     }
@@ -23,7 +29,10 @@ export class CaseTransformMiddleware implements NestMiddleware {
       try {
         this.applyCamelCaseToQuery(req);
       } catch (err) {
-        this.logger.error('Failed to transform request query keys to camelCase', err);
+        this.logger.error(
+          'Failed to transform request query keys to camelCase',
+          err,
+        );
         return next(err);
       }
     }

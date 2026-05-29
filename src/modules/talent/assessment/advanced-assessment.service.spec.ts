@@ -53,12 +53,12 @@ function makeAttempt(
 }
 
 /**
- * 5 MCQ + 5 short text + 2 LT-1 (SITUATIONAL) + 2 LT-2 (WORK_TASK) + 1
+ * 8 MCQ + 2 short text + 2 LT-1 (SITUATIONAL) + 2 LT-2 (WORK_TASK) + 1
  * LT-3 (REFLECTION, runtime-generated). For tests we pre-populate the
  * reflection slot so submit() doesn't hit the LT2_NOT_SUBMITTED guard.
  */
 function makeSessionJson() {
-  const mcqQuestions = Array.from({ length: 5 }, (_, i) => ({
+  const mcqQuestions = Array.from({ length: 8 }, (_, i) => ({
     question_id: `mcq-${i + 1}`,
     question_number: i + 1,
     block: 'mcq',
@@ -67,12 +67,12 @@ function makeSessionJson() {
     options: ['Option A', 'Option B', 'Option C', 'Option D'],
     slot_type: null,
     metadata: { competency: 'sql_queries' },
-    correct_answer: i < 4 ? 'Option A' : 'Option B',
+    correct_answer: i < 7 ? 'Option A' : 'Option B',
   }));
 
-  const shortTextQuestions = Array.from({ length: 5 }, (_, i) => ({
+  const shortTextQuestions = Array.from({ length: 2 }, (_, i) => ({
     question_id: `short-${i + 1}`,
-    question_number: 6 + i,
+    question_number: 9 + i,
     block: 'short_text',
     question_type: QuestionType.REQUIRED_TEXT,
     question_text: `Short text question ${i + 1}`,
@@ -136,16 +136,16 @@ function makeSubmitJobData(overrides: Record<string, unknown> = {}) {
 }
 
 /**
- * Returns 10 scored text answers in the canonical scoring shape:
- * 5 short (max 12) + 2 LT-1 (max 12) + 2 LT-2 (max 12) + 1 LT-3 (max 8).
+ * Returns 7 scored text answers in the canonical scoring shape:
+ * 2 short (max 12) + 2 LT-1 (max 12) + 2 LT-2 (max 12) + 1 LT-3 (max 8).
  * The caller distributes total raw across all answers proportionally.
  */
-function makeScoredAnswers(rawTotal: number, maxTotal = 116) {
-  // 9 full-rubric questions (max 12 each = 108) + 1 LT-3 (max 8) = 116
+function makeScoredAnswers(rawTotal: number, maxTotal = 80) {
+  // 6 full-rubric questions (max 12 each = 72) + 1 LT-3 (max 8) = 80
   const proportion = rawTotal / maxTotal;
   const result = [];
 
-  for (let i = 0; i < 5; i++) {
+  for (let i = 0; i < 2; i++) {
     const raw = Math.round(12 * proportion);
     result.push({
       question_id: `short-${i + 1}`,
@@ -200,7 +200,7 @@ function makeScoredAnswers(rawTotal: number, maxTotal = 116) {
 }
 
 function makePerfectScoredAnswers() {
-  return makeScoredAnswers(116, 116);
+  return makeScoredAnswers(80, 80);
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -334,10 +334,19 @@ describe('AdvancedAssessmentService', () => {
 
     const entityManager = {
       findOne: entityManagerFindOne,
+      find: jest.fn().mockResolvedValue([]),
       increment: entityManagerIncrement,
       count: jest.fn().mockResolvedValue(1),
       save: jest.fn().mockImplementation((entity: unknown, data: unknown) => {
         entityManagerSaveCalls.push({ entity, data });
+        if (
+          entity === AssessmentAttempt &&
+          data &&
+          typeof data === 'object' &&
+          'generated_questions_json' in data
+        ) {
+          Object.assign(attemptData.current, data);
+        }
         return Promise.resolve(data);
       }),
       create: jest
@@ -374,9 +383,9 @@ describe('AdvancedAssessmentService', () => {
     };
 
     rubricScoring = {
-      // 53/116 ≈ 46% raw text yield → still emerging band by default
-      // max-total 116 = 5 short×12 + 4 long×12 + 1 LT-3×8
-      scoreAnswers: jest.fn().mockResolvedValue(makeScoredAnswers(53, 116)),
+      // 37/80 ≈ 46% raw text yield → still emerging band by default
+      // max-total 80 = 2 short×12 + 4 long×12 + 1 LT-3×8
+      scoreAnswers: jest.fn().mockResolvedValue(makeScoredAnswers(37, 80)),
     };
 
     guidanceReport = {
@@ -488,6 +497,67 @@ describe('AdvancedAssessmentService', () => {
         answers: dto.answers,
       });
       expect(rubricScoring.scoreAnswers).not.toHaveBeenCalled();
+      const attemptSave = entityManagerSaveCalls.find(
+        (call) => call.entity === AssessmentAttempt,
+      );
+      expect(attemptSave?.data).toEqual(
+        expect.objectContaining({
+          generated_questions_json: expect.objectContaining({
+            context: expect.objectContaining({
+              submit_enqueued_at: expect.any(String),
+            }),
+          }),
+        }),
+      );
+    });
+
+    it('rejects with 409 when another advanced submission is still processing', async () => {
+      const processingAttempt = makeAttempt({
+        id: 'attempt-processing',
+        generated_questions_json: {
+          ...makeSessionJson(),
+          context: {
+            verified_level: VerifiedLevel.MID,
+            submit_enqueued_at: new Date().toISOString(),
+          },
+        },
+      });
+      const txManager = {
+        findOne: jest.fn().mockResolvedValue(makeAttempt()),
+        find: jest.fn().mockResolvedValue([processingAttempt]),
+        save: jest.fn(),
+      };
+      talentProfileRepo.manager.transaction.mockImplementationOnce(
+        (work: (em: typeof txManager) => Promise<unknown>) => work(txManager),
+      );
+
+      await expect(
+        service.submit(userId, makeSubmitDto() as never),
+      ).rejects.toMatchObject({
+        response: expect.objectContaining({
+          error: 'ADVANCED_SUBMIT_PROCESSING',
+          session_id: 'attempt-processing',
+        }),
+      });
+      expect(submitQueue.enqueue).not.toHaveBeenCalled();
+    });
+
+    it('clears submit_enqueued_at when enqueue fails', async () => {
+      submitQueue.enqueue.mockRejectedValueOnce(new Error('redis down'));
+
+      await expect(
+        service.submit(userId, makeSubmitDto() as never),
+      ).rejects.toBeInstanceOf(ServiceUnavailableException);
+
+      expect(attemptRepo.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          generated_questions_json: expect.objectContaining({
+            context: expect.not.objectContaining({
+              submit_enqueued_at: expect.anything(),
+            }),
+          }),
+        }),
+      );
     });
 
     it('rejects with 422 LT2_NOT_SUBMITTED when reflection slot is missing', async () => {
@@ -620,7 +690,7 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('routes the REFLECTION slot through is_lt3=true and others through full rubric', async () => {
-      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(53, 116));
+      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(37, 80));
       await service.processSubmitJob(makeSubmitJobData() as never);
 
       const inputs = rubricScoring.scoreAnswers.mock.calls[0][0];
@@ -681,14 +751,19 @@ describe('AdvancedAssessmentService', () => {
       expect(resultSave).toBeDefined();
     });
 
-    it('can still be job_ready with high text scores and at least one correct MCQ', async () => {
+    it('can still be job_ready with high text scores and at least 2 correct MCQs', async () => {
+      // With 8 MCQs (30% weight): 1/8 correct = 73.75% total (below 75% threshold).
+      // 2/8 correct = 77.5% total — clears the job_ready threshold with perfect text.
       rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
       const dto = makeSubmitDto();
+      const correctIds = new Set(['mcq-1', 'mcq-2']);
       dto.answers = dto.answers.map((answer) => {
         if (!String(answer.questionId).startsWith('mcq-')) return answer;
         return {
           ...answer,
-          answer: answer.questionId === 'mcq-1' ? 'Option A' : 'Option C',
+          answer: correctIds.has(String(answer.questionId))
+            ? 'Option A'
+            : 'Option C',
         };
       });
 
@@ -751,7 +826,7 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('places tier at Emerging when pct < 75%', async () => {
-      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(76, 116));
+      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(53, 80));
       await service.processSubmitJob(makeSubmitJobData() as never);
 
       const resultSave = entityManagerSaveCalls.find(
@@ -763,7 +838,7 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('marks sub-50% as failed without profile completion or guidance report', async () => {
-      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(0, 116));
+      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(0, 80));
       await service.processSubmitJob(
         makeSubmitJobData({ answers: [] }) as never,
       );
@@ -812,15 +887,15 @@ describe('AdvancedAssessmentService', () => {
       const longRows = rows.filter(
         (r) => r.question_type === AssessmentScoreQuestionType.LONG_TEXT,
       );
-      expect(mcqRows).toHaveLength(5);
-      expect(shortRows).toHaveLength(5);
+      expect(mcqRows).toHaveLength(8);
+      expect(shortRows).toHaveLength(2);
       expect(longRows).toHaveLength(5);
       // LT-3 row carries max_score=8
       expect(longRows.find((r) => r.max_score === 8)).toBeDefined();
     });
 
     it('sets retake gate (assessment_locked_until) when tier is not job_ready', async () => {
-      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(66, 116));
+      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(55, 80));
 
       await service.processSubmitJob(makeSubmitJobData() as never);
       expect(entityManagerUpdate).toHaveBeenCalledWith(
@@ -941,7 +1016,7 @@ describe('AdvancedAssessmentService', () => {
     describe('tier boundary cases', () => {
       it('49% → Not Ready', async () => {
         rubricScoring.scoreAnswers.mockResolvedValue(
-          makeScoredAnswers(56, 116),
+          makeScoredAnswers(38, 80),
         );
         await service.processSubmitJob(
           makeSubmitJobData({ answers: [] }) as never,
@@ -1156,6 +1231,66 @@ describe('AdvancedAssessmentService', () => {
   // ── getSession ──────────────────────────────────────────────────────────────
 
   describe('getSession()', () => {
+    it('returns pending_lt3: true when session has 14 questions and is not completed', async () => {
+      // Session starts with 14 questions; LT-3 arrives only after lt2-submit.
+      // The frontend needs pending_lt3 to know to call lt2-submit before Q15.
+      const session = await service.getSession(userId, 'attempt-1');
+
+      expect(session.question_count).toBe(15); // makeSessionJson pre-populates all 15
+      expect(session.pending_lt3).toBe(false); // all 15 present → no longer pending
+    });
+
+    it('returns pending_lt3: true when only 14 base questions are present', async () => {
+      const base14Json = makeSessionJson();
+      // Strip LT-3 (the last question, REFLECTION slot) to simulate session start
+      base14Json.questions = base14Json.questions.filter(
+        (q) => q.slot_type !== SlotType.REFLECTION,
+      );
+      attemptData.current = makeAttempt({
+        generated_questions_json: base14Json as never,
+        completed_at: null,
+      });
+
+      const session = await service.getSession(userId, 'attempt-1');
+
+      expect(session.question_count).toBe(14);
+      expect(session.pending_lt3).toBe(true);
+    });
+
+    it('returns remaining_seconds 0 when submit is queued but scoring is pending', async () => {
+      attemptRepo.findOne.mockResolvedValue(
+        makeAttempt({
+          generated_questions_json: {
+            ...makeSessionJson(),
+            context: {
+              verified_level: VerifiedLevel.MID,
+              submit_enqueued_at: new Date().toISOString(),
+            },
+          },
+        }),
+      );
+
+      const result = await service.getSession(userId, 'attempt-1');
+
+      expect(result.remaining_seconds).toBe(0);
+      expect(result.is_expired).toBe(false);
+      expect(result.completed_at).toBeNull();
+    });
+
+    it('returns remaining_seconds 0 and is_expired true when attempt is completed', async () => {
+      attemptRepo.findOne.mockResolvedValue(
+        makeAttempt({
+          completed_at: new Date('2026-05-01T12:00:00.000Z'),
+        }),
+      );
+
+      const result = await service.getSession(userId, 'attempt-1');
+
+      expect(result.remaining_seconds).toBe(0);
+      expect(result.is_expired).toBe(true);
+      expect(result.completed_at).toBe('2026-05-01T12:00:00.000Z');
+    });
+
     it('throws 403 with probation metadata when profile lock is active', async () => {
       const lockedFrom = new Date('2026-05-01T00:00:00.000Z');
       const lockedUntil = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
@@ -1291,9 +1426,98 @@ describe('AdvancedAssessmentService', () => {
     });
   });
 
+  // ── question composition constants ──────────────────────────────────────────
+
+  describe('question composition constants', () => {
+    it('MCQ count is 8 (spec requirement)', () => {
+      // Regression guard: the spec mandates 8 MCQ / 2 short-text / 5 long-text.
+      // Previously the constants were 5 / 5, causing wrong composition.
+      const {
+        ADVANCED_ASSESSMENT_MCQ_COUNT,
+      } = require('./advanced-assessment-ai.service');
+      expect(ADVANCED_ASSESSMENT_MCQ_COUNT).toBe(8);
+    });
+
+    it('short-text count is 2 (spec requirement)', () => {
+      const {
+        ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT,
+      } = require('./advanced-assessment-ai.service');
+      expect(ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT).toBe(2);
+    });
+
+    it('base questions total is 14 (8 MCQ + 2 short + 4 long, LT-3 added mid-session)', () => {
+      const {
+        ADVANCED_ASSESSMENT_BASE_QUESTIONS,
+      } = require('./advanced-assessment-ai.service');
+      expect(ADVANCED_ASSESSMENT_BASE_QUESTIONS).toBe(14);
+    });
+  });
+
   // ── start — retake gate ─────────────────────────────────────────────────────
 
   describe('start() retake gate', () => {
+    it('throws 409 when a previous advanced submission is still processing', async () => {
+      const processingAttempt = makeAttempt({
+        id: 'attempt-processing',
+        expires_at: new Date(Date.now() - 1000),
+        generated_questions_json: {
+          ...makeSessionJson(),
+          context: {
+            verified_level: VerifiedLevel.MID,
+            submit_enqueued_at: new Date().toISOString(),
+          },
+        },
+      });
+      const profile = makeTalentProfile({
+        validated_level: VerifiedLevel.MID,
+        personal_assessment_completed_at: new Date(),
+        skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
+        assessment_locked_until: null,
+      });
+
+      const skillResultQuery = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue({
+          percentage: 80,
+          claimed_percentage: 80,
+          validated_level: VerifiedLevel.MID,
+        } as AssessmentResult),
+      };
+
+      const activeSessionQuery = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      };
+
+      const entityManager = {
+        findOne: jest.fn().mockResolvedValue(profile),
+        count: jest.fn().mockResolvedValue(1),
+        find: jest.fn().mockResolvedValue([processingAttempt]),
+        createQueryBuilder: jest
+          .fn()
+          .mockReturnValueOnce(skillResultQuery)
+          .mockReturnValueOnce(activeSessionQuery),
+      };
+
+      talentProfileRepo.manager.transaction.mockImplementationOnce(
+        (work: (em: typeof entityManager) => Promise<unknown>) =>
+          work(entityManager),
+      );
+
+      await expect(service.start(userId)).rejects.toMatchObject({
+        response: expect.objectContaining({
+          error: 'ADVANCED_SUBMIT_PROCESSING',
+          session_id: 'attempt-processing',
+        }),
+      });
+    });
+
     it('throws 403 when assessment_locked_until is in the future', async () => {
       const lockedFrom = new Date('2026-05-01T00:00:00.000Z');
       const lockedUntil = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
@@ -1321,6 +1545,7 @@ describe('AdvancedAssessmentService', () => {
 
       const lockedEntityManager = {
         findOne: jest.fn().mockResolvedValue(lockedProfile),
+        find: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(1),
         createQueryBuilder: jest.fn().mockReturnValue(skillResultQuery),
       };
@@ -1348,6 +1573,7 @@ describe('AdvancedAssessmentService', () => {
 
       const entityManager = {
         findOne: jest.fn().mockResolvedValue(profile),
+        find: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(0),
         createQueryBuilder: jest.fn(),
       };
@@ -1413,6 +1639,7 @@ describe('AdvancedAssessmentService', () => {
 
       const entityManager = {
         findOne: jest.fn().mockResolvedValue(profile),
+        find: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(1),
         create: jest
           .fn()
@@ -1471,6 +1698,7 @@ describe('AdvancedAssessmentService', () => {
 
       const entityManager = {
         findOne: jest.fn().mockResolvedValue(profile),
+        find: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(1),
         create: jest
           .fn()
