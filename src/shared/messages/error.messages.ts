@@ -70,6 +70,8 @@ export const ErrorMessages = {
     ATTEMPT_NOT_FOUND: 'Assessment session not found',
     ATTEMPT_ALREADY_SUBMITTED:
       'This assessment session has already been submitted',
+    SUBMIT_PROCESSING:
+      'Your previous advanced assessment submission is still being processed. Please wait for results before starting again.',
     SESSION_EXPIRED: 'Assessment session has expired',
     RETAKE_LOCKED: (unlocksAt: string) =>
       `Advanced assessment is locked until ${unlocksAt}. Retakes are available after a 14-day gate.`,
