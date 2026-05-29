@@ -19,7 +19,7 @@ export class MailService {
 
   constructor(private readonly outboundEmailQueue: OutboundEmailQueueService) {}
 
-  async send({ to, subject, html, text, from }: SendMailOptions) {
+  async send({ to, subject, html, text, from, attachments }: SendMailOptions) {
     if (!html && !text) {
       throw new Error('Sending a mail requires either `html` or `text`.');
     }
@@ -28,6 +28,7 @@ export class MailService {
       from: from ?? env.RESEND_MAIL_FROM,
       to,
       subject,
+      ...(attachments?.length ? { attachments } : {}),
     };
 
     const payload: Parameters<Resend['emails']['send']>[0] = html

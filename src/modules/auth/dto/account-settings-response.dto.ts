@@ -77,9 +77,13 @@ export class AccountDataExportResponseDto {
   @ApiProperty({ example: 'success' })
   status: 'success';
 
-  @ApiProperty({ example: 'Data export generated' })
+  @ApiProperty({ example: 'Data export emailed to user@example.com' })
   message: string;
 
-  @ApiProperty({ type: AccountDataExportPayloadDto })
-  data_export: AccountDataExportPayloadDto;
+  @ApiProperty({
+    example: 'data:application/json;base64,...',
+    description:
+      'Base64 data-URI of the JSON export. Pass as href to an <a download> element for an immediate browser download. Also delivered as an email attachment.',
+  })
+  download_url: string;
 }

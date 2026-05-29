@@ -4,6 +4,7 @@ export type SendMailOptions = {
   html?: string;
   text?: string;
   from?: string;
+  attachments?: Array<{ filename: string; content: string | Buffer }>;
 };
 
 /** Payload for queued or immediate password-reset email send. */
