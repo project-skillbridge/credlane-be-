@@ -64,6 +64,9 @@ export class TalentSettingsProfileDto {
   })
   resume_url: string | null;
 
+  @ApiPropertyOptional({ nullable: true, example: 'my-cv-2026.pdf' })
+  resume_filename: string | null;
+
   @ApiProperty({
     enum: TalentAvailabilityStatus,
     example: TalentAvailabilityStatus.OPEN_TO_OPPORTUNITIES,
@@ -149,6 +152,17 @@ export class TalentResumeUploadResponseDto {
 
   @ApiProperty({ example: 'https://cdn.example.com/resumes/resume.pdf' })
   resume_url: string;
+
+  @ApiProperty({ example: 'my-cv-2026.pdf' })
+  resume_filename: string;
+}
+
+export class TalentResumeDeleteResponseDto {
+  @ApiProperty({ example: 'success' })
+  status: string;
+
+  @ApiProperty({ example: 'Resume deleted' })
+  message: string;
 }
 
 export class TalentAvailabilityUpdatedResponseDto {

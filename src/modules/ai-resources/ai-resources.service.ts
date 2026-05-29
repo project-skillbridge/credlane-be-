@@ -16,10 +16,15 @@ import {
 import { ErrorMessages } from '../../shared';
 import { AI_RESOURCE_CONSTANTS } from './ai-resources.constants';
 
+interface GenerationLock {
+  promise: Promise<AiLearningResource>;
+  isBackground: boolean;
+}
+
 @Injectable()
 export class AiResourcesService {
   private readonly logger = new Logger(AiResourcesService.name);
-  private generationLocks = new Map<string, Promise<AiLearningResource>>();
+  private generationLocks = new Map<string, GenerationLock>();
 
   constructor(
     @InjectRepository(TalentProfile)
@@ -36,6 +41,51 @@ export class AiResourcesService {
 
     private readonly resourceGenerationService: ResourceGenerationService,
   ) {}
+
+  /**
+   * Warm the cache for a given track. Called in the background after
+   * a user selects their track during onboarding — so that when they
+   * navigate to the resources page, data is already cached.
+   */
+  async warmCache(track: string): Promise<void> {
+    const trackKey = track.toLowerCase().trim();
+    // New users have no assessment, so warm the "general" threshold
+    const thresholdGroup = ScoreThresholdGroup.GENERAL;
+    const cacheKey = `${trackKey}-${thresholdGroup}`;
+
+    const existing = await this.aiLearningResourceRepo.findOne({
+      where: { track: trackKey, threshold_group: thresholdGroup },
+    });
+    if (existing) return; // already cached
+
+    if (this.generationLocks.has(cacheKey)) return; // already generating
+
+    this.logger.log(
+      `Cache warming: generating resources for track=${trackKey} threshold=${thresholdGroup}`,
+    );
+
+    const generationPromise = this.generateAndSaveResources(
+      trackKey,
+      thresholdGroup,
+      AI_RESOURCE_CONSTANTS.BACKGROUND_TIMEOUT_MS,
+    );
+    this.generationLocks.set(cacheKey, {
+      promise: generationPromise,
+      isBackground: true,
+    });
+
+    try {
+      await generationPromise;
+      this.logger.log(
+        `Cache warming complete: track=${trackKey} threshold=${thresholdGroup}`,
+      );
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      this.logger.error(`Cache warming failed: ${message}`);
+    } finally {
+      this.generationLocks.delete(cacheKey);
+    }
+  }
 
   async getResourcesForUser(userId: string): Promise<AiLearningResource> {
     // 1. Fetch talent profile
@@ -122,11 +172,13 @@ export class AiResourcesService {
     }
 
     // 6. Check for in-flight generation to prevent concurrent LLM calls
-    if (this.generationLocks.has(cacheKey)) {
+    const existingLock = this.generationLocks.get(cacheKey);
+    if (existingLock && !existingLock.isBackground) {
+      // Another inline request is already generating — join it
       this.logger.log(
-        `Cache miss but generation in-flight for: track=${trackKey} threshold=${thresholdGroup}. Awaiting existing promise...`,
+        `Cache miss but inline generation in-flight for: track=${trackKey} threshold=${thresholdGroup}. Awaiting existing promise...`,
       );
-      const generatedRecord = await this.generationLocks.get(cacheKey)!;
+      const generatedRecord = await existingLock.promise;
       const clone = { ...generatedRecord };
       clone.resources = this.getRandomSubset(
         clone.resources,
@@ -139,6 +191,45 @@ export class AiResourcesService {
       return clone;
     }
 
+    if (existingLock?.isBackground) {
+      // Background warming is in-flight — race it against the inline timeout
+      // so the user never waits longer than INLINE_TIMEOUT_MS
+      this.logger.log(
+        `Cache miss, background generation in-flight for: track=${trackKey} threshold=${thresholdGroup}. Racing with inline timeout...`,
+      );
+      const inlineDeadline = new Promise<never>((_, reject) =>
+        setTimeout(
+          () => reject(new Error('inline_timeout')),
+          AI_RESOURCE_CONSTANTS.INLINE_TIMEOUT_MS,
+        ),
+      );
+      try {
+        const generatedRecord = await Promise.race([
+          existingLock.promise,
+          inlineDeadline,
+        ]);
+        const clone = { ...generatedRecord };
+        clone.resources = this.getRandomSubset(
+          clone.resources,
+          AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT,
+        );
+        clone.videos = this.getRandomSubset(
+          clone.videos,
+          AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT,
+        );
+        return clone;
+      } catch (err) {
+        if (err instanceof Error && err.message === 'inline_timeout') {
+          this.logger.warn(
+            `Background generation did not finish within inline timeout for: track=${trackKey} threshold=${thresholdGroup}. Starting own inline generation...`,
+          );
+          // Fall through to start own inline generation below
+        } else {
+          throw err;
+        }
+      }
+    }
+
     // 7. Invoke AI resource generation and lock
     this.logger.log(
       `Cache miss for resources: track=${trackKey} threshold=${thresholdGroup}. Generating via AI...`,
@@ -146,8 +237,12 @@ export class AiResourcesService {
     const generationPromise = this.generateAndSaveResources(
       trackKey,
       thresholdGroup,
+      AI_RESOURCE_CONSTANTS.INLINE_TIMEOUT_MS,
     );
-    this.generationLocks.set(cacheKey, generationPromise);
+    this.generationLocks.set(cacheKey, {
+      promise: generationPromise,
+      isBackground: false,
+    });
 
     try {
       const savedRecord = await generationPromise;
@@ -169,10 +264,12 @@ export class AiResourcesService {
   private async generateAndSaveResources(
     trackKey: string,
     thresholdGroup: ScoreThresholdGroup,
+    timeoutMs?: number,
   ): Promise<AiLearningResource> {
     const generated = await this.resourceGenerationService.generate(
       trackKey,
       thresholdGroup,
+      timeoutMs,
     );
 
     const newRecord = this.aiLearningResourceRepo.create({

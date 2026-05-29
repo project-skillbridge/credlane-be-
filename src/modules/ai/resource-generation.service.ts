@@ -1,22 +1,29 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { OpenRouterService } from './openrouter.service';
+import { UrlResolutionService } from './url-resolution.service';
 import { aiResourcesPayloadSchema } from './ai.schemas';
 import { AiResourcesPayload } from './ai.types';
 import { AI_RESOURCE_CONSTANTS } from '../ai-resources/ai-resources.constants';
 
 const SYSTEM_PROMPT = `You are a professional career advisor, mentor, and learning curator.
-Your task is to perform deep web research to recommend high-quality, practical learning resources (articles, documentations, courses, and videos) to help candidates level up their skills.
-CRITICAL: You MUST use your web search capabilities to find REAL, ACTIVE, and highly recognizable learning platforms (e.g., MDN Web Docs, freeCodeCamp, official docs, YouTube tutorials, Coursera, etc.).
-NEVER generate dummy, placeholder, or hallucinated URLs. Every URL must be a real, accessible link discovered through your web search.
+Your task is to recommend high-quality, practical learning resources (articles, documentations, courses, and videos) to help candidates level up their skills.
+Focus on generating accurate TITLES and DESCRIPTIONS that clearly identify real, well-known resources from recognizable platforms (e.g., MDN Web Docs, freeCodeCamp, official docs, YouTube tutorials, Coursera, etc.).
+For the URL field, provide your best guess of the URL — it will be verified and replaced by an external search API after generation.
 Return ONLY valid JSON matching the schema — do not wrap in markdown unless requested by the model driver, and output no conversational text.`;
 
 @Injectable()
 export class ResourceGenerationService {
-  constructor(private readonly openRouter: OpenRouterService) {}
+  private readonly logger = new Logger(ResourceGenerationService.name);
+
+  constructor(
+    private readonly openRouter: OpenRouterService,
+    private readonly urlResolution: UrlResolutionService,
+  ) {}
 
   async generate(
     track: string,
     thresholdGroup: string,
+    timeoutMs?: number,
   ): Promise<AiResourcesPayload> {
     let focusGuide: string;
     if (thresholdGroup === 'general') {
@@ -49,9 +56,9 @@ Please generate a LARGE POOL of learning resources and return them in this JSON 
   "resources": [
     // GENERATE AT LEAST ${AI_RESOURCE_CONSTANTS.POOL_GENERATION_COUNT} ITEMS HERE!
     {
-      "title": "Clear, concise resource title",
+      "title": "Clear, concise resource title — use the EXACT title of a real resource you know",
       "description": "Short summary of what this article/course covers.",
-      "url": "https://example.com/actual-path",
+      "url": "https://example.com/your-best-guess-url",
       "duration": "5 min read" or "2 hours",
       "type": "article" or "course"
     }
@@ -59,9 +66,9 @@ Please generate a LARGE POOL of learning resources and return them in this JSON 
   "videos": [
     // GENERATE AT LEAST ${AI_RESOURCE_CONSTANTS.POOL_GENERATION_COUNT} ITEMS HERE!
     {
-      "title": "Clear, concise video title",
-      "description": "Short summary of what this video/tutorial covers.",
-      "url": "https://youtube.com/watch?v=someVideoId",
+      "title": "Clear, concise video title — use the EXACT title of a real YouTube video you know",
+      "description": "Short summary of what this video/tutorial covers. Include the channel name if possible.",
+      "url": "https://youtube.com/watch?v=placeholder",
       "duration": "15 mins" or "1 hour",
       "type": "video"
     }
@@ -71,15 +78,42 @@ Please generate a LARGE POOL of learning resources and return them in this JSON 
 Rules:
 - Generate 8 to 10 items for "resources" and 5 to 8 items for "videos".
 - Make resources directly relevant to the ${track} track and the indicated depth (${thresholdGroup}).
-- Ensure URLs look like real learning resources (e.g., MDN, freeCodeCamp, official docs, dev.to, YouTube).
+- Focus on providing ACCURATE TITLES of real, well-known resources. The titles will be used to search for correct URLs via external APIs.
+- Include the creator/channel name in video descriptions (e.g., "by Traversy Media", "by Fireship").
+- For articles, reference well-known platforms: MDN, freeCodeCamp, dev.to, official docs, CSS-Tricks, etc.
 `.trim();
 
-    return this.openRouter.chat(
+    const payload = await this.openRouter.chat(
       SYSTEM_PROMPT,
       userPrompt,
       aiResourcesPayloadSchema,
       0.6,
-      true,
+      false, // no web search needed — we verify URLs externally
+      timeoutMs,
     );
+
+    // Resolve URLs via YouTube Data API and Google Custom Search API
+    this.logger.log(
+      `Resolving URLs for ${payload.resources.length} resources and ${payload.videos.length} videos...`,
+    );
+
+    const [resolvedResources, resolvedVideos] = await Promise.all([
+      this.urlResolution.resolveAllUrls(payload.resources),
+      this.urlResolution.resolveAllUrls(payload.videos),
+    ]);
+
+    // Move any resource items that were reclassified as 'video' into the videos array
+    const finalResources = resolvedResources.filter(
+      (r) => (r.type as string) !== 'video',
+    );
+    const movedToVideos = resolvedResources
+      .filter((r) => (r.type as string) === 'video')
+      .map((r) => ({ ...r, type: 'video' as const }));
+
+    return {
+      ...payload,
+      resources: finalResources,
+      videos: [...resolvedVideos, ...movedToVideos],
+    };
   }
 }

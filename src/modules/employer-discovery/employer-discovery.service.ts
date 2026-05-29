@@ -90,7 +90,11 @@ export class EmployerDiscoveryService {
     const qb = this.poolProfileRepo
       .createQueryBuilder('pool')
       .innerJoin(User, 'u', 'u.id = pool.candidate_id')
-      .where('pool.tier = :tier', { tier: 'job_ready' });
+      .where('pool.tier = :tier', { tier: 'job_ready' })
+      .andWhere(
+        '(pool.job_search_status IS NULL OR pool.job_search_status != :notLooking)',
+        { notLooking: 'not_looking' },
+      );
 
     if (query.roleTrack) {
       qb.andWhere('pool.track = :roleTrack', { roleTrack: query.roleTrack });

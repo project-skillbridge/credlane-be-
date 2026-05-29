@@ -220,11 +220,18 @@ describe('AiReportService', () => {
       entities: [resultData],
       raw: [{ attempt_completed_at: null }],
     });
+    // Skill result returns null (no result), advanced returns the one with null guidance_report
+    const nullQb = createQueryBuilderMock(null);
+    nullQb.getRawAndEntities.mockResolvedValue({ entities: [], raw: [] });
     let call = 0;
     const repo = {
       createQueryBuilder: jest.fn(() => {
         call += 1;
-        return call <= 2 ? emptyQb : createQueryBuilderMock(null);
+        // call 1 = skill result (null), call 2 = advanced result (emptyQb)
+        // call 3+ = percentile queries
+        if (call === 1) return nullQb;
+        if (call === 2) return emptyQb;
+        return createQueryBuilderMock(null);
       }),
       manager: {
         find: jest.fn().mockResolvedValue([]),
@@ -254,7 +261,7 @@ describe('AiReportService', () => {
         guidance_report: expect.any(Object),
       }),
     );
-    expect(result.skill_guidance_report).toEqual({
+    expect(result.advanced_guidance_report).toEqual({
       score: 50,
       percentile: 70,
       attempt_date: null,

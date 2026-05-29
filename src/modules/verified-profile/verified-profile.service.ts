@@ -244,6 +244,7 @@ export class VerifiedProfileService {
       hasValidatedLevel,
       tierLabel,
       poolProfile,
+      profile.availability_status,
     );
 
     const shareUrl = buildShareUrl(
@@ -790,24 +791,26 @@ export class VerifiedProfileService {
     hasValidatedLevel: boolean,
     tierLabel: string | undefined,
     poolProfile?: EmployerPoolProfile | null,
+    profileAvailabilityStatus?: string | null,
   ): string[] {
+    const jobSearchStatus =
+      profileAvailabilityStatus ?? personalAnswers.job_search_status;
+
     return compactStrings([
       seniorityBadge,
       tierLabel,
-      resolveJobSearchStatusLabel(personalAnswers.job_search_status),
+      resolveJobSearchStatusLabel(jobSearchStatus),
       ...resolveWorkArrangementLabels(
         personalAnswers.work_arrangement_preference,
       ),
-      // Omit the self-reported experience label when a persisted validated level
-      // exists — showing both would contradict (e.g. "Senior Level, 1-3 yrs").
-      // Gate on hasValidatedLevel, not seniorityBadge, since the latter is always
-      // set (JUNIOR fallback) even when no real validated level is stored.
       hasValidatedLevel
         ? undefined
         : resolveExperienceLabel(personalAnswers.years_experience),
-      resolveAvailabilityLabel(
-        poolProfile?.availability ?? personalAnswers.availability,
-      ),
+      jobSearchStatus !== 'not_looking'
+        ? resolveAvailabilityLabel(
+            poolProfile?.availability ?? personalAnswers.availability,
+          )
+        : undefined,
     ]);
   }
 

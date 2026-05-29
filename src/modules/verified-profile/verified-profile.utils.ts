@@ -348,8 +348,11 @@ export function resolveJobSearchStatusLabel(
   switch (value) {
     case 'actively_looking':
       return 'Actively Looking';
+    case 'open_to_opportunities':
     case 'open_to_right_opportunity':
       return 'Open to Work';
+    case 'not_looking':
+      return 'Not Looking';
     case 'just_exploring':
       return 'Just Exploring';
     default:

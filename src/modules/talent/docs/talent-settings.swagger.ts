@@ -10,6 +10,7 @@ import {
   CommunicationPreferencesEnvelopeDto,
   CommunicationPreferencesUpdatedResponseDto,
   TalentAvailabilityUpdatedResponseDto,
+  TalentResumeDeleteResponseDto,
   TalentResumeUploadResponseDto,
   TalentSettingsProfileUpdatedResponseDto,
   TalentSettingsResponseDto,
@@ -98,6 +99,16 @@ export const ApiUploadTalentSettingsResume = () =>
       description: 'File upload is not configured on this server',
     }),
     ApiResponse({ status: 500, description: 'Internal server error' }),
+  );
+
+export const ApiDeleteTalentSettingsResume = () =>
+  applyDecorators(
+    ApiTalentSettingsTags(),
+    ApiBearerAuth(),
+    ApiOperation({ summary: 'Delete uploaded resume/CV' }),
+    ApiResponse({ status: 200, description: 'Resume deleted', type: TalentResumeDeleteResponseDto }),
+    ApiResponse({ status: 401, description: 'Authentication required' }),
+    ApiResponse({ status: 403, description: 'Talent access required' }),
   );
 
 export const ApiUpdateTalentAvailability = () =>

@@ -62,9 +62,9 @@ const guidanceResourceSchema = z.object({
 });
 
 const guidanceReportBaseSchema = z.object({
-  ai_summary: z.string(),
-  growth_insight: z.string(),
-  summary: z.string(),
+  ai_summary: z.string().min(20),
+  growth_insight: z.string().min(20),
+  summary: z.string().min(20),
   strength_ratings: z
     .array(
       z.object({
@@ -106,7 +106,7 @@ export const guidanceReportSchema = z.discriminatedUnion('report_type', [
 const generatedResourceBaseSchema = z.object({
   title: z.string(),
   description: z.string(),
-  url: z.string().url(),
+  url: z.string(),
   duration: z.string(),
 });
 

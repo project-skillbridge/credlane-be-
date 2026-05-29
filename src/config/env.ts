@@ -116,6 +116,9 @@ export const env = createEnv({
 
     GEMINI_API_KEY: z.string().min(1).optional(),
     GEMINI_MODEL: z.string().default('gemini-3.5-flash'),
+
+    YOUTUBE_API_KEY: z.string().min(1).optional(),
+    SERPER_API_KEY: z.string().min(1).optional(),
   },
   runtimeEnv: process.env,
   emptyStringAsUndefined: true,

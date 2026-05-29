@@ -16,6 +16,7 @@ type AiProviderFactory = (modelId: string, options?: unknown) => LanguageModel;
 export class OpenRouterService {
   private readonly logger = new Logger(OpenRouterService.name);
   private readonly maxRetries = 4;
+  private readonly defaultTimeoutMs = 300_000; // 5 minutes
   private readonly useAnthropic: boolean;
   private readonly useGemini: boolean;
 
@@ -91,10 +92,13 @@ export class OpenRouterService {
     schema: z.ZodType<T>,
     temperature = 0.2,
     useWebSearch = false,
+    timeoutMs?: number,
   ): Promise<T> {
     if (!this.useAnthropic && !this.useGemini && !env.OPENROUTER_API_KEY) {
       throw new ServiceUnavailableException('AI service is not configured');
     }
+
+    const timeout = timeoutMs ?? this.defaultTimeoutMs;
 
     try {
       const result = await generateObject({
@@ -104,9 +108,14 @@ export class OpenRouterService {
         maxRetries: this.maxRetries,
         system: systemPrompt,
         prompt: userPrompt,
+        abortSignal: AbortSignal.timeout(timeout),
       });
       return result.object;
     } catch (error: unknown) {
+      if (error instanceof Error && error.name === 'TimeoutError') {
+        this.logger.error(`AI call timed out after ${timeout}ms`);
+        throw new ServiceUnavailableException('AI service request timed out');
+      }
       this.logger.error(this.formatError(error));
       throw new ServiceUnavailableException(
         'AI service temporarily unavailable',

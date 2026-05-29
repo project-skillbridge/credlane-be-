@@ -79,20 +79,19 @@ export class AiReportService {
         : 0,
     ]);
 
-    return {
-      skill_guidance_report: await this.buildEnvelope(
-        skillResult,
-        skillPercentile,
-        profile,
-        'skill',
-      ),
-      advanced_guidance_report: await this.buildEnvelope(
-        advancedResult,
-        advancedPercentile,
-        profile,
-        'advanced',
-      ),
-    };
+    const [skill_guidance_report, advanced_guidance_report] = await Promise.all(
+      [
+        this.buildEnvelope(skillResult, skillPercentile, null, 'skill'),
+        this.buildEnvelope(
+          advancedResult,
+          advancedPercentile,
+          profile,
+          'advanced',
+        ),
+      ],
+    );
+
+    return { skill_guidance_report, advanced_guidance_report };
   }
 
   private async buildEnvelope(
@@ -105,7 +104,7 @@ export class AiReportService {
   ): Promise<GuidanceReportEnvelope> {
     if (!result) return null;
 
-    // Generate guidance report on demand if missing
+    // Generate guidance report on demand if missing (fallback if worker failed)
     if (!result.guidance_report && profile) {
       result = await this.generateAndPersist(
         result,
