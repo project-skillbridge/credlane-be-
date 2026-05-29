@@ -1226,6 +1226,40 @@ describe('AdvancedAssessmentService', () => {
   // ── getSession ──────────────────────────────────────────────────────────────
 
   describe('getSession()', () => {
+    it('returns remaining_seconds 0 when submit is queued but scoring is pending', async () => {
+      attemptRepo.findOne.mockResolvedValue(
+        makeAttempt({
+          generated_questions_json: {
+            ...makeSessionJson(),
+            context: {
+              verified_level: VerifiedLevel.MID,
+              submit_enqueued_at: new Date().toISOString(),
+            },
+          },
+        }),
+      );
+
+      const result = await service.getSession(userId, 'attempt-1');
+
+      expect(result.remaining_seconds).toBe(0);
+      expect(result.is_expired).toBe(false);
+      expect(result.completed_at).toBeNull();
+    });
+
+    it('returns remaining_seconds 0 and is_expired true when attempt is completed', async () => {
+      attemptRepo.findOne.mockResolvedValue(
+        makeAttempt({
+          completed_at: new Date('2026-05-01T12:00:00.000Z'),
+        }),
+      );
+
+      const result = await service.getSession(userId, 'attempt-1');
+
+      expect(result.remaining_seconds).toBe(0);
+      expect(result.is_expired).toBe(true);
+      expect(result.completed_at).toBe('2026-05-01T12:00:00.000Z');
+    });
+
     it('throws 403 with probation metadata when profile lock is active', async () => {
       const lockedFrom = new Date('2026-05-01T00:00:00.000Z');
       const lockedUntil = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
