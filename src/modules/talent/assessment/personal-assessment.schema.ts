@@ -10,6 +10,7 @@ export type PersonalAssessmentQuestion = {
   inputType: PersonalAssessmentInputType;
   required: boolean;
   minLength?: number;
+  maxLength?: number;
   options?: readonly string[];
   otherTextKey?: string;
   followUpKey?: string;
@@ -390,6 +391,7 @@ export const PERSONAL_ASSESSMENT_SECTIONS: Record<
       inputType: 'text_required',
       required: true,
       minLength: 2,
+      maxLength: 150,
     },
     {
       key: 'years_experience',
@@ -441,6 +443,7 @@ export const PERSONAL_ASSESSMENT_SECTIONS: Record<
       inputType: 'text_required',
       required: true,
       minLength: 2,
+      maxLength: 100,
       skipStorage: true,
       profileField: 'country',
     },
@@ -450,6 +453,7 @@ export const PERSONAL_ASSESSMENT_SECTIONS: Record<
       inputType: 'text_required',
       required: true,
       minLength: 2,
+      maxLength: 100,
       skipStorage: true,
       profileField: 'region',
     },
@@ -519,6 +523,7 @@ export const PERSONAL_ASSESSMENT_SECTIONS: Record<
       questionNumber: 18,
       inputType: 'text_optional',
       required: false,
+      maxLength: 500,
       skipStorage: true,
       profileField: 'linkedin_url',
     },
@@ -544,6 +549,7 @@ export const PERSONAL_ASSESSMENT_SECTIONS: Record<
       inputType: 'text_required',
       required: true,
       minLength: 80,
+      maxLength: 1000,
     },
     {
       key: 'led_project_unsupervised',
@@ -618,6 +624,7 @@ export const PERSONAL_ASSESSMENT_SECTIONS: Record<
       inputType: 'text_required',
       required: true,
       minLength: 60,
+      maxLength: 1000,
     },
     {
       key: 'ideal_work_environment',
@@ -625,6 +632,7 @@ export const PERSONAL_ASSESSMENT_SECTIONS: Record<
       inputType: 'text_required',
       required: true,
       minLength: 60,
+      maxLength: 1000,
     },
     {
       key: 'feedback_preference',
@@ -639,6 +647,7 @@ export const PERSONAL_ASSESSMENT_SECTIONS: Record<
       inputType: 'text_optional',
       required: false,
       minLength: 60,
+      maxLength: 1000,
     },
     {
       key: 'workload_management',
@@ -646,6 +655,7 @@ export const PERSONAL_ASSESSMENT_SECTIONS: Record<
       inputType: 'text_required',
       required: true,
       minLength: 60,
+      maxLength: 1000,
     },
     {
       key: 'quick_learning_narrative',
@@ -653,6 +663,7 @@ export const PERSONAL_ASSESSMENT_SECTIONS: Record<
       inputType: 'text_required',
       required: true,
       minLength: 60,
+      maxLength: 1000,
     },
   ],
   6: [
@@ -662,12 +673,14 @@ export const PERSONAL_ASSESSMENT_SECTIONS: Record<
       inputType: 'text_required',
       required: true,
       minLength: 100,
+      maxLength: 1000,
     },
     {
       key: 'measurable_impact',
       questionNumber: 38,
       inputType: 'text_optional',
       required: false,
+      maxLength: 1000,
     },
     {
       key: 'professional_recognition',
@@ -683,12 +696,14 @@ export const PERSONAL_ASSESSMENT_SECTIONS: Record<
       questionNumber: 40,
       inputType: 'text_optional',
       required: false,
+      maxLength: 500,
     },
     {
       key: 'background_context',
       questionNumber: 41,
       inputType: 'text_optional',
       required: false,
+      maxLength: 1000,
     },
   ],
   7: [
@@ -719,6 +734,7 @@ export const PERSONAL_ASSESSMENT_SECTIONS: Record<
       inputType: 'text_required',
       required: true,
       minLength: 2,
+      maxLength: 150,
     },
     {
       key: 'compensation_expectation',
@@ -740,6 +756,7 @@ export const PERSONAL_ASSESSMENT_SECTIONS: Record<
       inputType: 'text_required',
       required: true,
       minLength: 80,
+      maxLength: 1000,
     },
   ],
 };

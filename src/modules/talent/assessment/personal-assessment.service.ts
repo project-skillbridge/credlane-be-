@@ -58,6 +58,7 @@ export type GeneratedPersonalAssessmentQuestion = {
   inputType: PersonalAssessmentInputType;
   required: boolean;
   minLength?: number;
+  maxLength?: number;
   prompt: string;
   helperText: string | null;
   options?: readonly string[];
@@ -477,6 +478,7 @@ export class PersonalAssessmentService {
         base_prompt: this.defaultQuestionPrompt(question),
         options: this.resolveQuestionOptions(question, profile) ?? null,
         min_length: question.minLength ?? null,
+        max_length: question.maxLength ?? null,
       }),
     );
 
@@ -509,6 +511,7 @@ export class PersonalAssessmentService {
         questions: [
           {
             source_key: 'one source_key from question_bank',
+            input_type: 'preserve exactly from question_bank (single|multi|text_required|text_optional)',
             prompt: 'candidate-facing question text',
             helper_text: 'short optional hint or null',
           },
@@ -611,6 +614,9 @@ export class PersonalAssessmentService {
       required: question.required,
       ...(question.minLength !== undefined && {
         minLength: question.minLength,
+      }),
+      ...(question.maxLength !== undefined && {
+        maxLength: question.maxLength,
       }),
       prompt,
       helperText,
