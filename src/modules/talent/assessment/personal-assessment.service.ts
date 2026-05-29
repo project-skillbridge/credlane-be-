@@ -10,7 +10,7 @@ import { randomUUID } from 'crypto';
 import { EntityManager, Repository } from 'typeorm';
 import { ErrorMessages, SuccessMessages } from '../../../shared';
 import { camelToSnake } from '../../../common/utils/case-transform';
-import { personalAssessmentGenerationSchema } from '../../ai/ai.schemas';
+
 import { OpenRouterService } from '../../ai/openrouter.service';
 import { UsersService } from '../../users/users.service';
 import { TALENT_CLAIMED_LEVELS } from '../talent.constants';
@@ -428,9 +428,10 @@ export class PersonalAssessmentService {
     };
   }
 
+  // eslint-disable-next-line @typescript-eslint/require-await
   private async tryGeneratePersonalAssessment(
-    profile: TalentProfile,
-    user: Awaited<ReturnType<UsersService['findOne']>>,
+    _profile: TalentProfile,
+    _user: Awaited<ReturnType<UsersService['findOne']>>,
   ): Promise<{
     source: 'ai' | 'fallback';
     questions: Array<{
@@ -439,29 +440,10 @@ export class PersonalAssessmentService {
       helper_text: string | null;
     }>;
   }> {
-    if (!this.openRouter) {
-      return { source: 'fallback', questions: [] };
-    }
-
-    try {
-      const result = await this.openRouter.chat(
-        [
-          'You are a senior talent assessor generating a focused personal assessment form.',
-          'Use the provided 48-question framework as the source payload.',
-          'Generate role-aware questions for the candidate based on their selected role, goal, level, and onboarding context.',
-          'Return only valid JSON.',
-        ].join(' '),
-        this.buildPersonalAssessmentGenerationPrompt(profile, user),
-        personalAssessmentGenerationSchema,
-        0.5,
-      );
-      return { source: 'ai', questions: result.questions };
-    } catch (error) {
-      this.logger.warn(
-        `Personal assessment generation fell back to deterministic questions: ${String(error)}`,
-      );
-      return { source: 'fallback', questions: [] };
-    }
+    // Skip AI generation — deterministic fallback is instant (<30ms) vs
+    // minutes for the AI call. The fallback uses the same question bank,
+    // just with the default prompts instead of AI-rewritten ones.
+    return { source: 'fallback', questions: [] };
   }
 
   private buildPersonalAssessmentGenerationPrompt(
