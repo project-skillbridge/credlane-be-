@@ -424,33 +424,58 @@ export class AuthService {
   async requestDataExport(userId: string): Promise<{
     status: 'success';
     message: string;
-    data_export: Record<string, unknown>;
+    download_url: string;
   }> {
     const user = await this.usersService.findOne(userId);
     const talentProfile = await this.talentProfileRepository.findOne({
       where: { user_id: userId },
     });
 
+    const exportPayload = {
+      generated_at: new Date().toISOString(),
+      user: {
+        id: user.id,
+        email: user.email,
+        first_name: user.first_name,
+        last_name: user.last_name,
+        country: user.country,
+        role: user.role,
+        avatar_url: user.avatar_url,
+        is_verified: user.is_verified,
+        onboarding_complete: user.onboarding_complete,
+        created_at: user.createdAt,
+        updated_at: user.updatedAt,
+      },
+      talent_profile: talentProfile,
+    };
+
+    const json = JSON.stringify(exportPayload, null, 2);
+    const namePart = `${user.first_name ?? ''}-${user.last_name ?? ''}`
+      .toLowerCase()
+      .replace(/[^a-z0-9-]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '');
+    const filename = `skillbridge-data-export-${namePart}-${new Date().toISOString().slice(0, 10)}.json`;
+
+    // Send email with the export as an attachment
+    await this.mailService.send({
+      to: user.email,
+      subject: 'Your SkillBridge data export',
+      text:
+        `Hi ${user.first_name ?? 'there'},\n\n` +
+        `Your data export is attached to this email as ${filename}.\n\n` +
+        `If you did not request this export, please contact support.\n`,
+      attachments: [{ filename, content: Buffer.from(json) }],
+    });
+
+    // Also return a data-URI so the frontend can trigger an immediate download
+    const base64 = Buffer.from(json).toString('base64');
+    const downloadUrl = `data:application/json;base64,${base64}`;
+
     return {
       status: 'success',
-      message: 'Data export generated',
-      data_export: {
-        generated_at: new Date().toISOString(),
-        user: {
-          id: user.id,
-          email: user.email,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          country: user.country,
-          role: user.role,
-          avatar_url: user.avatar_url,
-          is_verified: user.is_verified,
-          onboarding_complete: user.onboarding_complete,
-          created_at: user.createdAt,
-          updated_at: user.updatedAt,
-        },
-        talent_profile: talentProfile,
-      },
+      message: `Data export emailed to ${user.email}`,
+      download_url: downloadUrl,
     };
   }
 
