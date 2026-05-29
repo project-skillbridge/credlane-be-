@@ -36,6 +36,7 @@ import {
   ADVANCED_ASSESSMENT_BASE_QUESTIONS,
   ADVANCED_ASSESSMENT_MCQ_COUNT,
   ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT,
+  ADVANCED_ASSESSMENT_TOTAL_QUESTIONS,
   AdvancedAssessmentAiService,
   AdvancedAssessmentGeneratedQuestion,
   blockLengthLimits,
@@ -113,6 +114,8 @@ export interface AdvancedAssessmentSessionResult {
   remaining_seconds: number;
   verified_level: string;
   question_count: number;
+  /** True when a 15th question (LT-3) will be generated after lt2-submit. */
+  pending_lt3: boolean;
   questions: AdvancedAssessmentGeneratedQuestion[];
 }
 
@@ -2209,6 +2212,9 @@ export class AdvancedAssessmentService {
       remaining_seconds: timer.remaining_seconds,
       verified_level: this.readSessionVerifiedLevel(attempt),
       question_count: questions.length,
+      pending_lt3:
+        questions.length < ADVANCED_ASSESSMENT_TOTAL_QUESTIONS &&
+        !attempt.completed_at,
       questions,
     };
   }
