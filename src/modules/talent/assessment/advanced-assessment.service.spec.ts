@@ -751,14 +751,19 @@ describe('AdvancedAssessmentService', () => {
       expect(resultSave).toBeDefined();
     });
 
-    it('can still be job_ready with high text scores and at least one correct MCQ', async () => {
+    it('can still be job_ready with high text scores and at least 2 correct MCQs', async () => {
+      // With 8 MCQs (30% weight): 1/8 correct = 73.75% total (below 75% threshold).
+      // 2/8 correct = 77.5% total — clears the job_ready threshold with perfect text.
       rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
       const dto = makeSubmitDto();
+      const correctIds = new Set(['mcq-1', 'mcq-2']);
       dto.answers = dto.answers.map((answer) => {
         if (!String(answer.questionId).startsWith('mcq-')) return answer;
         return {
           ...answer,
-          answer: answer.questionId === 'mcq-1' ? 'Option A' : 'Option C',
+          answer: correctIds.has(String(answer.questionId))
+            ? 'Option A'
+            : 'Option C',
         };
       });
 
