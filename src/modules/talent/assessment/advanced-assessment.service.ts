@@ -1468,8 +1468,8 @@ export class AdvancedAssessmentService {
     if (attempt.completed_at || attempt.force_submitted) {
       return false;
     }
-    const enqueuedAt = this.readSessionPayload(attempt).context
-      ?.submit_enqueued_at;
+    const enqueuedAt =
+      this.readSessionPayload(attempt).context?.submit_enqueued_at;
     return typeof enqueuedAt === 'string' && enqueuedAt.length > 0;
   }
 
