@@ -1704,12 +1704,37 @@ export class AdvancedAssessmentService {
     return rows;
   }
 
-  private remainingSeconds(attempt: AssessmentAttempt): number {
-    if (!attempt.expires_at) return 0;
-    return Math.max(
+  private resolveSessionTimerState(
+    attempt: AssessmentAttempt,
+    expiresAt: Date,
+  ): { remaining_seconds: number; is_expired: boolean } {
+    if (attempt.completed_at) {
+      return { remaining_seconds: 0, is_expired: true };
+    }
+
+    if (this.isAdvancedSubmitInFlight(attempt)) {
+      const wallExpired = expiresAt.getTime() <= Date.now();
+      return { remaining_seconds: 0, is_expired: wallExpired };
+    }
+
+    const remaining_seconds = Math.max(
       0,
-      Math.floor((attempt.expires_at.getTime() - Date.now()) / 1000),
+      Math.floor((expiresAt.getTime() - Date.now()) / 1000),
     );
+
+    return {
+      remaining_seconds,
+      is_expired: remaining_seconds === 0,
+    };
+  }
+
+  private remainingSeconds(attempt: AssessmentAttempt): number {
+    if (!attempt.expires_at) {
+      return 0;
+    }
+
+    return this.resolveSessionTimerState(attempt, attempt.expires_at)
+      .remaining_seconds;
   }
 
   private assertTextLength(
@@ -2171,6 +2196,8 @@ export class AdvancedAssessmentService {
       );
     }
 
+    const timer = this.resolveSessionTimerState(attempt, expiresAt);
+
     return {
       status: 'success',
       message,
@@ -2178,11 +2205,8 @@ export class AdvancedAssessmentService {
       started_at: attempt.started_at.toISOString(),
       expires_at: expiresAt.toISOString(),
       completed_at: attempt.completed_at?.toISOString() ?? null,
-      is_expired: expiresAt.getTime() <= Date.now(),
-      remaining_seconds: Math.max(
-        0,
-        Math.floor((expiresAt.getTime() - Date.now()) / 1000),
-      ),
+      is_expired: timer.is_expired,
+      remaining_seconds: timer.remaining_seconds,
       verified_level: this.readSessionVerifiedLevel(attempt),
       question_count: questions.length,
       questions,
