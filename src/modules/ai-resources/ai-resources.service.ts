@@ -69,10 +69,11 @@ export class AiResourcesService {
       thresholdGroup,
       AI_RESOURCE_CONSTANTS.BACKGROUND_TIMEOUT_MS,
     );
-    this.generationLocks.set(cacheKey, {
+    const localLock: GenerationLock = {
       promise: generationPromise,
       isBackground: true,
-    });
+    };
+    this.generationLocks.set(cacheKey, localLock);
 
     try {
       await generationPromise;
@@ -83,7 +84,9 @@ export class AiResourcesService {
       const message = err instanceof Error ? err.message : 'Unknown error';
       this.logger.error(`Cache warming failed: ${message}`);
     } finally {
-      this.generationLocks.delete(cacheKey);
+      if (this.generationLocks.get(cacheKey) === localLock) {
+        this.generationLocks.delete(cacheKey);
+      }
     }
   }
 
@@ -197,17 +200,19 @@ export class AiResourcesService {
       this.logger.log(
         `Cache miss, background generation in-flight for: track=${trackKey} threshold=${thresholdGroup}. Racing with inline timeout...`,
       );
-      const inlineDeadline = new Promise<never>((_, reject) =>
-        setTimeout(
+      let timeoutId: ReturnType<typeof setTimeout>;
+      const inlineDeadline = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(
           () => reject(new Error('inline_timeout')),
           AI_RESOURCE_CONSTANTS.INLINE_TIMEOUT_MS,
-        ),
-      );
+        );
+      });
       try {
         const generatedRecord = await Promise.race([
           existingLock.promise,
           inlineDeadline,
         ]);
+        clearTimeout(timeoutId!);
         const clone = { ...generatedRecord };
         clone.resources = this.getRandomSubset(
           clone.resources,
@@ -223,10 +228,12 @@ export class AiResourcesService {
           this.logger.warn(
             `Background generation did not finish within inline timeout for: track=${trackKey} threshold=${thresholdGroup}. Starting own inline generation...`,
           );
-          // Fall through to start own inline generation below
         } else {
-          throw err;
+          this.logger.warn(
+            `Background generation failed for track=${trackKey} threshold=${thresholdGroup}. Starting inline generation... Error: ${err instanceof Error ? err.message : String(err)}`,
+          );
         }
+        // Fall through to start own inline generation below
       }
     }
 
@@ -239,10 +246,11 @@ export class AiResourcesService {
       thresholdGroup,
       AI_RESOURCE_CONSTANTS.INLINE_TIMEOUT_MS,
     );
-    this.generationLocks.set(cacheKey, {
+    const localLock: GenerationLock = {
       promise: generationPromise,
       isBackground: false,
-    });
+    };
+    this.generationLocks.set(cacheKey, localLock);
 
     try {
       const savedRecord = await generationPromise;
@@ -257,7 +265,9 @@ export class AiResourcesService {
       );
       return clone;
     } finally {
-      this.generationLocks.delete(cacheKey);
+      if (this.generationLocks.get(cacheKey) === localLock) {
+        this.generationLocks.delete(cacheKey);
+      }
     }
   }
 
