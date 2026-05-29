@@ -131,6 +131,10 @@ export class TalentProfile {
   @Column({ type: 'varchar', length: 500, nullable: true })
   resume_url: string | null;
 
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ type: 'varchar', length: 255, nullable: true })
+  resume_filename: string | null;
+
   @ApiProperty({
     enum: TalentAvailabilityStatus,
     default: TalentAvailabilityStatus.OPEN_TO_OPPORTUNITIES,

@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
@@ -20,6 +21,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { ErrorMessages } from '../../shared';
 import { UserRole } from '../users/entities/user.entity';
 import {
+  ApiDeleteTalentSettingsResume,
   ApiGetCommunicationPreferences,
   ApiGetTalentSettings,
   ApiUnsubscribeEmailNotifications,
@@ -97,6 +99,13 @@ export class TalentSettingsController {
       throw new BadRequestException(ErrorMessages.ONBOARDING.NO_FILE);
     }
     return this.talentService.updateResume(userId, file);
+  }
+
+  @Delete('resume')
+  @HttpCode(HttpStatus.OK)
+  @ApiDeleteTalentSettingsResume()
+  async deleteSettingsResume(@CurrentUser('sub') userId: string) {
+    return this.talentService.deleteResume(userId);
   }
 
   @Patch('availability')

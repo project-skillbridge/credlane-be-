@@ -119,6 +119,7 @@ export class TalentService {
         bio: profile.bio,
         personal_website: profile.personal_website,
         resume_url: profile.resume_url,
+        resume_filename: profile.resume_filename,
         availability_status: profile.availability_status,
         is_published: profile.is_published,
         status: profile.status,
@@ -197,12 +198,22 @@ export class TalentService {
     const resumeUrl = await this.uploadService.uploadResume(file);
     const profile = await this.findOrCreateProfile(userId);
     profile.resume_url = resumeUrl;
+    profile.resume_filename = file.originalname;
     await this.talentProfileRepository.save(profile);
     return {
       status: 'success',
       message: 'Resume uploaded',
       resume_url: resumeUrl,
+      resume_filename: file.originalname,
     };
+  }
+
+  async deleteResume(userId: string) {
+    const profile = await this.findOrCreateProfile(userId);
+    profile.resume_url = null;
+    profile.resume_filename = null;
+    await this.talentProfileRepository.save(profile);
+    return { status: 'success', message: 'Resume deleted' };
   }
 
   async updateAvailability(userId: string, dto: UpdateTalentAvailabilityDto) {
