@@ -1244,7 +1244,7 @@ describe('AdvancedAssessmentService', () => {
       const base14Json = makeSessionJson();
       // Strip LT-3 (the last question, REFLECTION slot) to simulate session start
       base14Json.questions = base14Json.questions.filter(
-        (q) => q.slot_type !== 'REFLECTION',
+        (q) => q.slot_type !== SlotType.REFLECTION,
       );
       attemptData.current = makeAttempt({
         generated_questions_json: base14Json as never,
