@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, Not, Repository } from 'typeorm';
+import { Repository } from 'typeorm';
 import { ErrorMessages, ForbiddenError } from '../../shared';
 import {
   TalentProfile,
@@ -100,7 +100,6 @@ export class DashboardService {
         where: {
           talent_profile_id: profile.id,
           assessment_type: AssessmentType.SKILL,
-          completed_at: Not(IsNull()),
         },
       }),
     ]);
@@ -315,14 +314,15 @@ export class DashboardService {
     ];
   }
 
-  private countCompletedSkillAttempts(
-    talentProfileId: string,
-  ): Promise<number> {
+  /**
+   * Count all skill attempts (started + completed) so the frontend shows
+   * 3/3 as soon as the user starts their last session, not only after submit.
+   */
+  private countSkillAttempts(talentProfileId: string): Promise<number> {
     return this.assessmentAttemptRepository.count({
       where: {
         talent_profile_id: talentProfileId,
         assessment_type: AssessmentType.SKILL,
-        completed_at: Not(IsNull()),
       },
     });
   }
@@ -367,7 +367,7 @@ export class DashboardService {
         : DashboardJourneyStatus.LOCKED;
 
     const [completedSkillAttempts, latestSkillResult] = await Promise.all([
-      this.countCompletedSkillAttempts(profile.id),
+      this.countSkillAttempts(profile.id),
       this.getLatestResult(profile.id, AssessmentType.SKILL),
     ]);
     const hasCompletedSkillOnce = latestSkillResult != null;
