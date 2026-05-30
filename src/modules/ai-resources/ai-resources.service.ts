@@ -165,11 +165,11 @@ export class AiResourcesService {
       // Return a randomized subset of the massive cached pool
       cached.resources = this.getRandomSubset(
         cached.resources,
-        AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT,
+        AI_RESOURCE_CONSTANTS.RANDOM_RESOURCE_RETURN_COUNT,
       );
       cached.videos = this.getRandomSubset(
         cached.videos,
-        AI_RESOURCE_CONSTANTS.RANDOM_RETURN_COUNT,
+        AI_RESOURCE_CONSTANTS.RANDOM_VIDEO_RETURN_COUNT,
       );
       return cached;
     }

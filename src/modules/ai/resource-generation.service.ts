@@ -76,7 +76,7 @@ Please generate a LARGE POOL of learning resources and return them in this JSON 
 }
 
 Rules:
-- Generate 8 to 10 items for "resources" and 5 to 8 items for "videos".
+- Generate at least ${AI_RESOURCE_CONSTANTS.POOL_GENERATION_COUNT} items for "resources" and at least ${AI_RESOURCE_CONSTANTS.POOL_GENERATION_COUNT} items for "videos".
 - Make resources directly relevant to the ${track} track and the indicated depth (${thresholdGroup}).
 - Focus on providing ACCURATE TITLES of real, well-known resources. The titles will be used to search for correct URLs via external APIs.
 - Include the creator/channel name in video descriptions (e.g., "by Traversy Media", "by Fireship").
