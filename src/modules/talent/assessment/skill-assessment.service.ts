@@ -48,22 +48,14 @@ import {
   AssessmentAnswerBlock,
   textLengthBoundsForBlock,
 } from './assessment-answer-blocks.constants';
-import { RubricScoringService } from '../../ai/rubric-scoring.service';
 import { GuidanceReportService } from '../../ai/guidance-report.service';
 import { QuestionGenerationService } from '../../ai/question-generation.service';
-import {
-  GeneratedQuestion,
-  GuidanceReport,
-  ScoredTextAnswer,
-} from '../../ai/ai.types';
+import { GeneratedQuestion, GuidanceReport } from '../../ai/ai.types';
 import { BankExhaustedAlertService } from '../../mail/bank-exhausted-alert.service';
 
-const SKILL_ASSESSMENT_MCQ_COUNT = 13;
-const SKILL_ASSESSMENT_TEXT_COUNT = 3;
-const SKILL_PROBE_MCQ_COUNT = 1;
-const SKILL_PROBE_TEXT_COUNT = 1;
+const SKILL_ASSESSMENT_MCQ_COUNT = 16;
+const SKILL_PROBE_MCQ_COUNT = 2;
 const SKILL_ASSESSMENT_TOTAL = 20;
-const SKILL_MCQ_SECTION_WEIGHT = 0.4;
 
 type ProbeDirection = 'above' | 'below';
 
@@ -166,7 +158,6 @@ export class SkillAssessmentService {
     @InjectRepository(TalentQuestionHistory)
     private readonly historyRepo: Repository<TalentQuestionHistory>,
 
-    private readonly rubricScoring: RubricScoringService,
     private readonly guidanceReport: GuidanceReportService,
     private readonly questionGeneration: QuestionGenerationService,
     private readonly bankExhaustedAlert: BankExhaustedAlertService,
@@ -620,71 +611,35 @@ export class SkillAssessmentService {
     let aboveProbeMcqTotal = 0;
     let belowProbeMcqCorrect = 0;
     let belowProbeMcqTotal = 0;
-    const primaryTextAnswers: Array<{
-      question: SkillAssessmentSessionQuestion;
-      answer: string;
-      grading_rubric: Record<string, unknown> | null;
-    }> = [];
-    const aboveProbeTextAnswers: Array<{
-      question: SkillAssessmentSessionQuestion;
-      answer: string;
-      grading_rubric: Record<string, unknown> | null;
-    }> = [];
-    const belowProbeTextAnswers: Array<{
-      question: SkillAssessmentSessionQuestion;
-      answer: string;
-      grading_rubric: Record<string, unknown> | null;
-    }> = [];
     const responsesToSave: Partial<AssessmentResponse>[] = [];
     const historyPatches = new Map<string, Partial<TalentQuestionHistory>>();
 
     for (const question of sessionQuestions) {
       const submitted = answerMap.get(question.question_id);
-      const isMcq =
-        question.question_type === QuestionType.SINGLE_PICK ||
-        question.question_type === QuestionType.MULTI_PICK;
       const entity = entityMap.get(question.question_id);
-      const metadata = (entity?.metadata ?? {}) as Record<string, unknown>;
-      const gradingRubric =
-        metadata.grading_rubric && typeof metadata.grading_rubric === 'object'
-          ? (metadata.grading_rubric as Record<string, unknown>)
-          : null;
 
-      let isCorrect: boolean | null = null;
-      if (isMcq) {
-        if (question.is_probe) {
-          if (question.probe_direction === 'below') {
-            belowProbeMcqTotal++;
-          } else {
-            aboveProbeMcqTotal++;
-          }
+      if (question.is_probe) {
+        if (question.probe_direction === 'below') {
+          belowProbeMcqTotal++;
         } else {
-          primaryMcqTotal++;
-        }
-        isCorrect = this.scoreGeneratedMcq(question, submitted?.answer ?? null);
-        if (isCorrect) {
-          if (question.is_probe) {
-            if (question.probe_direction === 'below') {
-              belowProbeMcqCorrect++;
-            } else {
-              aboveProbeMcqCorrect++;
-            }
-          } else {
-            primaryMcqCorrect++;
-          }
+          aboveProbeMcqTotal++;
         }
       } else {
-        const answer = submitted ? String(submitted.answer) : '';
-        this.assertTextLength(question, answer);
-        const payload = { question, answer, grading_rubric: gradingRubric };
+        primaryMcqTotal++;
+      }
+      const isCorrect = this.scoreGeneratedMcq(
+        question,
+        submitted?.answer ?? null,
+      );
+      if (isCorrect) {
         if (question.is_probe) {
           if (question.probe_direction === 'below') {
-            belowProbeTextAnswers.push(payload);
+            belowProbeMcqCorrect++;
           } else {
-            aboveProbeTextAnswers.push(payload);
+            aboveProbeMcqCorrect++;
           }
         } else {
-          primaryTextAnswers.push(payload);
+          primaryMcqCorrect++;
         }
       }
 
@@ -701,106 +656,30 @@ export class SkillAssessmentService {
         historyPatches.set(question.question_id, {
           user_answer: submitted?.answer ?? null,
           is_correct: isCorrect,
-          raw_score: isCorrect === null ? null : isCorrect ? 1 : 0,
-          max_score: isCorrect === null ? null : 1,
+          raw_score: isCorrect ? 1 : 0,
+          max_score: 1,
           answered_at: new Date(),
         });
       }
     }
 
-    const scoreTextBatch = async (
-      items: Array<{
-        question: SkillAssessmentSessionQuestion;
-        answer: string;
-        grading_rubric: Record<string, unknown> | null;
-      }>,
-    ) => {
-      if (items.length === 0) {
-        return { score: 0, maxScore: 0, scored: [] as ScoredTextAnswer[] };
-      }
-
-      const scored = await this.rubricScoring.scoreAnswers(
-        items.map(({ question, answer, grading_rubric }) => ({
-          question_id: question.question_id,
-          question_text: question.question_text,
-          answer,
-          grading_rubric: grading_rubric as never,
-        })),
-      );
-
-      let score = 0;
-      let maxScore = 0;
-      for (const entry of scored) {
-        score += entry.raw_score;
-        maxScore += entry.max_score;
-      }
-
-      return { score, maxScore, scored };
-    };
-
-    const primaryText = await scoreTextBatch(primaryTextAnswers);
-    const aboveProbeText = await scoreTextBatch(aboveProbeTextAnswers);
-    const belowProbeText = await scoreTextBatch(belowProbeTextAnswers);
-
-    for (const scored of [
-      ...primaryText.scored,
-      ...aboveProbeText.scored,
-      ...belowProbeText.scored,
-    ]) {
-      const response = responsesToSave.find(
-        (entry) => entry.question_id === scored.question_id,
-      );
-      if (response) {
-        response.ai_evaluation_json = { ...scored.rubric };
-      }
-
-      const historyEntry = historyPatches.get(scored.question_id);
-      if (historyEntry) {
-        historyEntry.raw_score = scored.raw_score;
-        historyEntry.max_score = scored.max_score;
-      }
-    }
-
-    const aboveProbeMaxScore = aboveProbeMcqTotal + aboveProbeText.maxScore;
-    const primaryWeighted = this.toWeightedSectionScore(
+    const claimedPercentage = this.toPercentage(
       primaryMcqCorrect,
       primaryMcqTotal,
-      primaryText.score,
-      primaryText.maxScore,
-      SKILL_MCQ_SECTION_WEIGHT,
     );
-    const aboveWeighted = this.toWeightedSectionScore(
+    const aboveLevelPercentage = this.toPercentage(
       aboveProbeMcqCorrect,
       aboveProbeMcqTotal,
-      aboveProbeText.score,
-      aboveProbeText.maxScore,
-      SKILL_MCQ_SECTION_WEIGHT,
     );
-    const belowWeighted = this.toWeightedSectionScore(
+    const belowLevelPercentage = this.toPercentage(
       belowProbeMcqCorrect,
       belowProbeMcqTotal,
-      belowProbeText.score,
-      belowProbeText.maxScore,
-      SKILL_MCQ_SECTION_WEIGHT,
     );
 
-    const claimedPercentage = primaryWeighted.percentage;
-    const aboveLevelPercentage = aboveWeighted.percentage;
-    const belowLevelPercentage = belowWeighted.percentage;
-
-    const weightedSections = [
-      primaryWeighted,
-      aboveWeighted,
-      belowWeighted,
-    ].filter((section) => section.maxScore > 0);
-    const totalScore = weightedSections.reduce(
-      (sum, section) => sum + section.score,
-      0,
-    );
-    const totalMaxScore = weightedSections.reduce(
-      (sum, section) => sum + section.maxScore,
-      0,
-    );
+    const totalScore =
+      primaryMcqCorrect + aboveProbeMcqCorrect + belowProbeMcqCorrect;
+    const totalMaxScore =
+      primaryMcqTotal + aboveProbeMcqTotal + belowProbeMcqTotal;
     const percentage = this.toPercentage(totalScore, totalMaxScore);
     const primaryMcqGatePassed = primaryMcqTotal === 0 || primaryMcqCorrect > 0;
     const aboveProbeMcqGatePassed =
@@ -811,7 +690,7 @@ export class SkillAssessmentService {
         `Skill assessment primary MCQ gate bypassed: no primary MCQs attempt=${attempt.id} user=${userId}`,
       );
     }
-    if (aboveProbeMaxScore > 0 && aboveProbeMcqTotal === 0) {
+    if (aboveProbeMcqTotal > 0 && aboveProbeMcqCorrect === 0) {
       this.logger.warn(
         `Skill assessment above-level MCQ gate bypassed: no above-level MCQs attempt=${attempt.id} user=${userId}`,
       );
@@ -848,22 +727,8 @@ export class SkillAssessmentService {
           validated_level:
             validatedLevel ?? profile.validated_level ?? VerifiedLevel.JUNIOR,
           percentage,
-          strong_competencies: this.extractStrongCompetencies(
-            [
-              ...primaryText.scored,
-              ...aboveProbeText.scored,
-              ...belowProbeText.scored,
-            ],
-            entityMap,
-          ),
-          weak_competencies: this.extractWeakCompetencies(
-            [
-              ...primaryText.scored,
-              ...aboveProbeText.scored,
-              ...belowProbeText.scored,
-            ],
-            entityMap,
-          ),
+          strong_competencies: [],
+          weak_competencies: [],
         });
       } catch (error) {
         this.logger.warn(
@@ -1000,45 +865,27 @@ export class SkillAssessmentService {
     bankQuestions: AssessmentQuestion[],
   ): Promise<AssessmentQuestion[]> {
     const mcqs = bankQuestions.filter((q) => this.isPickQuestion(q));
-    const texts = bankQuestions.filter((q) => !this.isPickQuestion(q));
 
-    // Generate enough MCQs to cover both the minimum mix AND the deficit filler
-    // (SKILL_ASSESSMENT_TOTAL may exceed MCQ_COUNT + TEXT_COUNT; extras fill the gap)
-    const targetMcqs = SKILL_ASSESSMENT_TOTAL - SKILL_ASSESSMENT_TEXT_COUNT;
+    const targetMcqs = SKILL_ASSESSMENT_TOTAL;
     const neededMcqs = Math.max(0, targetMcqs - mcqs.length);
-    const neededTexts = Math.max(0, SKILL_ASSESSMENT_TEXT_COUNT - texts.length);
 
-    if (neededMcqs === 0 && neededTexts === 0) {
+    if (neededMcqs === 0) {
       return bankQuestions;
     }
 
     this.logger.log(
-      `Generating AI questions for track=${profile.track} level=${verifiedLevel}: ${neededMcqs} MCQ, ${neededTexts} text`,
+      `Generating AI questions for track=${profile.track} level=${verifiedLevel}: ${neededMcqs} MCQ`,
     );
 
     let generatedMcqs: GeneratedQuestion[];
-    let generatedTexts: GeneratedQuestion[];
     try {
-      [generatedMcqs, generatedTexts] = await Promise.all([
-        neededMcqs > 0
-          ? this.questionGeneration.generateQuestions({
-              track: profile.track!,
-              verified_level: verifiedLevel,
-              assessment_type: 'skill',
-              question_type: QuestionType.SINGLE_PICK,
-              count: neededMcqs,
-            })
-          : Promise.resolve([]),
-        neededTexts > 0
-          ? this.questionGeneration.generateQuestions({
-              track: profile.track!,
-              verified_level: verifiedLevel,
-              assessment_type: 'skill',
-              question_type: QuestionType.REQUIRED_TEXT,
-              count: neededTexts,
-            })
-          : Promise.resolve([]),
-      ]);
+      generatedMcqs = await this.questionGeneration.generateQuestions({
+        track: profile.track!,
+        verified_level: verifiedLevel,
+        assessment_type: 'skill',
+        question_type: QuestionType.SINGLE_PICK,
+        count: neededMcqs,
+      });
     } catch (error) {
       this.logger.warn(
         `AI question generation failed for track=${profile.track} level=${verifiedLevel}: ${String(error)}`,
@@ -1046,8 +893,7 @@ export class SkillAssessmentService {
       return bankQuestions;
     }
 
-    const allGenerated = [...generatedMcqs, ...generatedTexts];
-    if (allGenerated.length === 0) {
+    if (generatedMcqs.length === 0) {
       return bankQuestions;
     }
 
@@ -1062,7 +908,7 @@ export class SkillAssessmentService {
 
     const persistedEntities = await manager.save(
       AssessmentQuestion,
-      allGenerated.map((q, i) =>
+      generatedMcqs.map((q, i) =>
         manager.create(AssessmentQuestion, {
           assessment_type: AssessmentType.SKILL,
           question_type: q.question_type,
@@ -1092,21 +938,15 @@ export class SkillAssessmentService {
     const mcqs = bankQuestions
       .filter((question) => this.isPickQuestion(question))
       .slice(0, SKILL_ASSESSMENT_MCQ_COUNT);
-    const text = bankQuestions
-      .filter((question) => !this.isPickQuestion(question))
-      .slice(0, SKILL_ASSESSMENT_TEXT_COUNT);
 
-    if (
-      mcqs.length < SKILL_ASSESSMENT_MCQ_COUNT ||
-      text.length < SKILL_ASSESSMENT_TEXT_COUNT
-    ) {
+    if (mcqs.length < SKILL_ASSESSMENT_MCQ_COUNT) {
       // Throw a plain Error so the caller (start()) can retry before alerting.
       throw new Error(
-        `Primary bank mix insufficient: mcq=${mcqs.length}/${SKILL_ASSESSMENT_MCQ_COUNT} text=${text.length}/${SKILL_ASSESSMENT_TEXT_COUNT}`,
+        `Primary bank mix insufficient: mcq=${mcqs.length}/${SKILL_ASSESSMENT_MCQ_COUNT}`,
       );
     }
 
-    return [...mcqs, ...text];
+    return mcqs;
   }
 
   private isPickQuestion(question: AssessmentQuestion): boolean {
@@ -1210,22 +1050,15 @@ export class SkillAssessmentService {
     const mcqs = bankQuestions
       .filter((question) => this.isPickQuestion(question))
       .slice(0, SKILL_PROBE_MCQ_COUNT);
-    const text = bankQuestions
-      .filter((question) => !this.isPickQuestion(question))
-      .slice(0, SKILL_PROBE_TEXT_COUNT);
 
-    if (
-      mcqs.length < SKILL_PROBE_MCQ_COUNT ||
-      text.length < SKILL_PROBE_TEXT_COUNT
-    ) {
+    if (mcqs.length < SKILL_PROBE_MCQ_COUNT) {
       // Probe questions are best-effort; deficit filler handles the gap
       this.logger.warn(
-        `Probe bank mix insufficient: mcq=${mcqs.length}/${SKILL_PROBE_MCQ_COUNT} text=${text.length}/${SKILL_PROBE_TEXT_COUNT}`,
+        `Probe bank mix insufficient: mcq=${mcqs.length}/${SKILL_PROBE_MCQ_COUNT}`,
       );
-      return [...mcqs, ...text];
     }
 
-    return [...mcqs, ...text];
+    return mcqs;
   }
 
   private throwSkillBankExhausted(
@@ -1257,38 +1090,6 @@ export class SkillAssessmentService {
 
   private toPercentage(score: number, maxScore: number): number {
     return maxScore > 0 ? Math.round((score / maxScore) * 100) : 0;
-  }
-
-  private toWeightedSectionScore(
-    mcqScore: number,
-    mcqMaxScore: number,
-    textScore: number,
-    textMaxScore: number,
-    mcqWeight: number,
-  ): { score: number; maxScore: number; percentage: number } {
-    const hasMcq = mcqMaxScore > 0;
-    const hasText = textMaxScore > 0;
-    if (!hasMcq && !hasText) {
-      return { score: 0, maxScore: 0, percentage: 0 };
-    }
-
-    const mcqPercentage = this.toPercentage(mcqScore, mcqMaxScore);
-    const textPercentage = this.toPercentage(textScore, textMaxScore);
-    let percentage: number;
-
-    if (hasMcq && hasText) {
-      percentage = Math.round(
-        mcqPercentage * mcqWeight + textPercentage * (1 - mcqWeight),
-      );
-    } else {
-      percentage = hasMcq ? mcqPercentage : textPercentage;
-    }
-
-    return {
-      score: percentage,
-      maxScore: 100,
-      percentage,
-    };
   }
 
   private levelAbove(level: VerifiedLevel): VerifiedLevel | null {
@@ -1369,52 +1170,6 @@ export class SkillAssessmentService {
       return TalentProfileStatus.IN_PROGRESS;
     }
     return tier;
-  }
-
-  private extractStrongCompetencies(
-    scored: ScoredTextAnswer[],
-    questionById: Map<string, AssessmentQuestion>,
-  ): string[] {
-    return this.resolveScoredCompetencies(
-      scored.filter(
-        (score) =>
-          score.max_score > 0 && score.raw_score / score.max_score >= 0.7,
-      ),
-      questionById,
-    );
-  }
-
-  private extractWeakCompetencies(
-    scored: ScoredTextAnswer[],
-    questionById: Map<string, AssessmentQuestion>,
-  ): string[] {
-    return this.resolveScoredCompetencies(
-      scored.filter(
-        (score) =>
-          score.max_score > 0 && score.raw_score / score.max_score < 0.5,
-      ),
-      questionById,
-    );
-  }
-
-  private resolveScoredCompetencies(
-    scored: ScoredTextAnswer[],
-    questionById: Map<string, AssessmentQuestion>,
-  ): string[] {
-    const competencies = new Set<string>();
-    for (const score of scored) {
-      const question = questionById.get(score.question_id);
-      const metadata = (question?.metadata ?? {}) as Record<string, unknown>;
-      const competency =
-        question?.competency ??
-        (typeof metadata.competency === 'string' ? metadata.competency : null);
-
-      if (competency?.trim()) {
-        competencies.add(competency.trim());
-      }
-    }
-
-    return [...competencies];
   }
 
   async flag(
