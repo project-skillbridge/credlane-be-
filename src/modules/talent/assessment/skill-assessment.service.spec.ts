@@ -21,10 +21,6 @@ import {
   SKILL_ASSESSMENT_MAX_ATTEMPTS,
   SKILL_ASSESSMENT_SESSION_TIMEOUT_MS,
 } from '../talent.constants';
-import {
-  ASSESSMENT_LONG_TEXT_MAX_CHARS,
-  ASSESSMENT_LONG_TEXT_MIN_CHARS,
-} from './assessment-answer-blocks.constants';
 import { SkillAssessmentService } from './skill-assessment.service';
 import { makeTalentProfile } from './personal-assessment.test-fixtures';
 import { IntegrityEventType } from './dto/integrity-event.dto';
@@ -44,7 +40,7 @@ describe('SkillAssessmentService', () => {
     update: jest.Mock;
   };
   let questionRepo: Record<string, jest.Mock>;
-  let rubricScoring: { scoreAnswers: jest.Mock };
+
   let bankExhaustedAlert: { notify: jest.Mock };
   let eligibleSkillQuestions: AssessmentQuestion[];
 
@@ -135,7 +131,6 @@ describe('SkillAssessmentService', () => {
 
     mockTransaction(makeProbeQuestions());
 
-    rubricScoring = { scoreAnswers: jest.fn().mockResolvedValue([]) };
     bankExhaustedAlert = { notify: jest.fn() };
 
     service = new SkillAssessmentService(
@@ -145,7 +140,6 @@ describe('SkillAssessmentService', () => {
       {} as never,
       {} as never,
       {} as never,
-      rubricScoring as never,
       { generate: jest.fn() } as never,
       { generateQuestions: jest.fn().mockResolvedValue([]) } as never,
       bankExhaustedAlert as never,
@@ -235,7 +229,7 @@ describe('SkillAssessmentService', () => {
     expect(result).not.toHaveProperty('attempt_id');
     expect(result.questions).toHaveLength(20);
     expect(result.questions[0].block).toBe('mcq');
-    expect(result.questions[15].block).toBe('long_text');
+    expect(result.questions[19].block).toBe('mcq');
     expect(attemptRepo.save).toHaveBeenCalledWith(
       expect.objectContaining({
         generated_questions_json: expect.objectContaining({
@@ -541,9 +535,7 @@ describe('SkillAssessmentService', () => {
     expect(result.retake_available).toBe(true);
   });
 
-  it('does not pass or keep claimed level when primary MCQs are wrong even with high text scores', async () => {
-    const validTextAnswer =
-      'I would clarify the expected outcome, inspect the available evidence, isolate the most likely cause, and communicate tradeoffs clearly before choosing the next step.';
+  it('does not pass when all primary MCQs are wrong', async () => {
     const attempt = Object.assign(new AssessmentAttempt(), {
       id: 'attempt-1',
       talent_profile_id: profile.id,
@@ -563,13 +555,13 @@ describe('SkillAssessmentService', () => {
             correct_answer: 'First key action',
           },
           {
-            question_id: 'question-text-1',
+            question_id: 'question-mcq-2',
             question_number: 2,
-            block: 'long_text',
-            question_type: QuestionType.REQUIRED_TEXT,
-            question_text: 'Describe your approach.',
-            options: null,
-            correct_answer: null,
+            block: 'mcq',
+            question_type: QuestionType.SINGLE_PICK,
+            question_text: 'What is the primary goal?',
+            options: ['Growth', 'Retention', 'Awareness'],
+            correct_answer: 'Growth',
           },
         ],
       },
@@ -581,43 +573,26 @@ describe('SkillAssessmentService', () => {
         metadata: {},
       }),
       Object.assign(new AssessmentQuestion(), {
-        id: 'question-text-1',
+        id: 'question-mcq-2',
         metadata: {},
       }),
-    ]);
-    rubricScoring.scoreAnswers.mockResolvedValue([
-      {
-        question_id: 'question-text-1',
-        rubric: {
-          relevance: 3,
-          reasoning: 3,
-          specificity: 3,
-          completeness: 3,
-          total: 12,
-          feedback: 'Strong.',
-        },
-        raw_score: 12,
-        max_score: 12,
-      },
     ]);
 
     const result = await service.submit(userId, {
       attemptId: 'attempt-1',
       answers: [
         { questionId: 'question-mcq-1', answer: 'Signups' },
-        { questionId: 'question-text-1', answer: validTextAnswer },
+        { questionId: 'question-mcq-2', answer: 'Retention' },
       ],
     });
 
-    expect(result.percentage).toBeLessThan(70);
-    expect(result.passed).toBe(true);
-    expect(result.failed).toBe(false);
-    expect(result.validated_level).toBe(VerifiedLevel.JUNIOR);
+    expect(result.percentage).toBe(0);
+    expect(result.passed).toBe(false);
+    expect(result.failed).toBe(true);
+    expect(result.validated_level).toBeNull();
   });
 
   it('returns failed without profile verification when overall is below 50%', async () => {
-    const validTextAnswer =
-      'I would clarify the expected outcome, inspect the available evidence, isolate the most likely cause, and communicate tradeoffs clearly before choosing the next step.';
     const attempt = Object.assign(new AssessmentAttempt(), {
       id: 'attempt-1',
       talent_profile_id: profile.id,
@@ -637,13 +612,13 @@ describe('SkillAssessmentService', () => {
             correct_answer: 'First key action',
           },
           {
-            question_id: 'question-text-1',
+            question_id: 'question-mcq-2',
             question_number: 2,
-            block: 'long_text',
-            question_type: QuestionType.REQUIRED_TEXT,
-            question_text: 'Describe your approach.',
-            options: null,
-            correct_answer: null,
+            block: 'mcq',
+            question_type: QuestionType.SINGLE_PICK,
+            question_text: 'What is the primary goal?',
+            options: ['Growth', 'Retention', 'Awareness'],
+            correct_answer: 'Growth',
           },
         ],
       },
@@ -655,24 +630,9 @@ describe('SkillAssessmentService', () => {
         metadata: {},
       }),
       Object.assign(new AssessmentQuestion(), {
-        id: 'question-text-1',
+        id: 'question-mcq-2',
         metadata: {},
       }),
-    ]);
-    rubricScoring.scoreAnswers.mockResolvedValue([
-      {
-        question_id: 'question-text-1',
-        rubric: {
-          relevance: 0,
-          reasoning: 0,
-          specificity: 0,
-          completeness: 0,
-          total: 0,
-          feedback: 'Weak.',
-        },
-        raw_score: 0,
-        max_score: 12,
-      },
     ]);
 
     const updateMock = jest.fn();
@@ -694,7 +654,7 @@ describe('SkillAssessmentService', () => {
       attemptId: 'attempt-1',
       answers: [
         { questionId: 'question-mcq-1', answer: 'Signups' },
-        { questionId: 'question-text-1', answer: validTextAnswer },
+        { questionId: 'question-mcq-2', answer: 'Retention' },
       ],
     });
 
@@ -717,7 +677,7 @@ describe('SkillAssessmentService', () => {
     );
   });
 
-  it('rejects skill text answers outside the allowed length range', async () => {
+  it('scores MCQ answers correctly as pass when majority are correct', async () => {
     const attempt = Object.assign(new AssessmentAttempt(), {
       id: 'attempt-1',
       talent_profile_id: profile.id,
@@ -728,13 +688,22 @@ describe('SkillAssessmentService', () => {
         context: { verified_level: VerifiedLevel.MID },
         questions: [
           {
-            question_id: 'question-text-1',
-            question_number: 7,
-            block: 'long_text',
-            question_type: QuestionType.REQUIRED_TEXT,
-            question_text: 'Describe your approach.',
-            options: null,
-            correct_answer: null,
+            question_id: 'question-mcq-1',
+            question_number: 1,
+            block: 'mcq',
+            question_type: QuestionType.SINGLE_PICK,
+            question_text: 'Q1?',
+            options: ['A', 'B'],
+            correct_answer: 'A',
+          },
+          {
+            question_id: 'question-mcq-2',
+            question_number: 2,
+            block: 'mcq',
+            question_type: QuestionType.SINGLE_PICK,
+            question_text: 'Q2?',
+            options: ['A', 'B'],
+            correct_answer: 'A',
           },
         ],
       },
@@ -742,19 +711,26 @@ describe('SkillAssessmentService', () => {
     attemptRepo.findOne.mockResolvedValue(attempt);
     questionRepo.findBy.mockResolvedValue([
       Object.assign(new AssessmentQuestion(), {
-        id: 'question-text-1',
+        id: 'question-mcq-1',
+        metadata: {},
+      }),
+      Object.assign(new AssessmentQuestion(), {
+        id: 'question-mcq-2',
         metadata: {},
       }),
     ]);
 
-    await expect(
-      service.submit(userId, {
-        attemptId: 'attempt-1',
-        answers: [{ questionId: 'question-text-1', answer: 'Too short' }],
-      }),
-    ).rejects.toMatchObject({
-      message: `Question 7 must be between ${ASSESSMENT_LONG_TEXT_MIN_CHARS} and ${ASSESSMENT_LONG_TEXT_MAX_CHARS} characters`,
+    const result = await service.submit(userId, {
+      attemptId: 'attempt-1',
+      answers: [
+        { questionId: 'question-mcq-1', answer: 'A' },
+        { questionId: 'question-mcq-2', answer: 'A' },
+      ],
     });
+
+    expect(result.percentage).toBe(100);
+    expect(result.passed).toBe(true);
+    expect(result.failed).toBe(false);
   });
 
   it('resolves Stage 2 confirmed-level outcomes from claimed-level score', () => {
@@ -895,26 +871,15 @@ type EntityManagerLike = {
 };
 
 function makeSkillBankQuestions(): AssessmentQuestion[] {
-  return [
-    ...Array.from({ length: 13 }, (_ignored, index) =>
-      Object.assign(new AssessmentQuestion(), {
-        id: `skill-mcq-${index + 1}`,
-        question_type: QuestionType.SINGLE_PICK,
-        question_text: `Skill MCQ ${index + 1}`,
-        options: ['A', 'B'],
-        correct_answer: 'A',
-      }),
-    ),
-    ...Array.from({ length: 3 }, (_ignored, index) =>
-      Object.assign(new AssessmentQuestion(), {
-        id: `skill-text-${index + 1}`,
-        question_type: QuestionType.REQUIRED_TEXT,
-        question_text: `Skill text ${index + 1}`,
-        options: null,
-        correct_answer: null,
-      }),
-    ),
-  ];
+  return Array.from({ length: 16 }, (_ignored, index) =>
+    Object.assign(new AssessmentQuestion(), {
+      id: `skill-mcq-${index + 1}`,
+      question_type: QuestionType.SINGLE_PICK,
+      question_text: `Skill MCQ ${index + 1}`,
+      options: ['A', 'B'],
+      correct_answer: 'A',
+    }),
+  );
 }
 
 function makeProbeQuestions(): AssessmentQuestion[] {
@@ -927,11 +892,11 @@ function makeProbeQuestions(): AssessmentQuestion[] {
       correct_answer: 'A',
     }),
     Object.assign(new AssessmentQuestion(), {
-      id: 'probe-text-1',
-      question_type: QuestionType.REQUIRED_TEXT,
-      question_text: 'Probe text 1',
-      options: null,
-      correct_answer: null,
+      id: 'probe-mcq-2',
+      question_type: QuestionType.SINGLE_PICK,
+      question_text: 'Probe MCQ 2',
+      options: ['A', 'B'],
+      correct_answer: 'A',
     }),
   ];
 }
