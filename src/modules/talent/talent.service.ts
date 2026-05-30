@@ -733,6 +733,7 @@ export class TalentService {
 
         const nextProfile = manager.create(TalentProfile, {
           user_id: userId,
+          track: dto.roleTrack.trim(),
           role_track: dto.roleTrack.trim(),
           bio: dto.bio?.trim() || null,
           status: TalentProfileStatus.NOT_STARTED,
