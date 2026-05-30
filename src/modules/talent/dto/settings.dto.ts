@@ -14,6 +14,7 @@ import {
 import { Type } from 'class-transformer';
 
 import { TalentAvailabilityStatus } from '../entities/talent-profile.entity';
+import { TALENT_ROLE_TRACKS } from '../talent.constants';
 
 export class UpdateTalentSettingsProfileDto {
   @ApiPropertyOptional({ example: 'Alex' })
@@ -33,7 +34,9 @@ export class UpdateTalentSettingsProfileDto {
   @ApiPropertyOptional({ example: 'frontend_developer' })
   @IsOptional()
   @IsString()
-  @MaxLength(100)
+  @IsIn(TALENT_ROLE_TRACKS as unknown as string[], {
+    message: `roleTrack must be one of: ${TALENT_ROLE_TRACKS.join(', ')}`,
+  })
   roleTrack?: string;
 
   @ApiPropertyOptional({ example: 'https://www.linkedin.com/in/alexsmith' })
