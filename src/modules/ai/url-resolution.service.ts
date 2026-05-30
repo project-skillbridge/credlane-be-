@@ -151,8 +151,38 @@ export class UrlResolutionService {
       }),
     );
 
-    return resolved.map((r, i) =>
+    const withUrls = resolved.map((r, i) =>
       r.status === 'fulfilled' ? r.value : items[i],
     );
+
+    // Verification pass: HEAD-check each URL and drop items with dead links
+    const verified = await Promise.allSettled(
+      withUrls.map(async (item) => {
+        if (!item.url) return null; // no URL at all — drop
+        const alive = await this.isUrlAlive(item.url);
+        return alive ? item : null;
+      }),
+    );
+
+    return verified
+      .map((r) => (r.status === 'fulfilled' ? r.value : null))
+      .filter((item): item is NonNullable<typeof item> => item !== null) as T[];
+  }
+
+  /**
+   * Quick HEAD check to verify a URL is reachable (2xx/3xx).
+   * Returns false on timeout, network error, or 4xx/5xx.
+   */
+  private async isUrlAlive(url: string): Promise<boolean> {
+    try {
+      const response = await fetch(url, {
+        method: 'HEAD',
+        signal: AbortSignal.timeout(5_000),
+        redirect: 'follow',
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
   }
 }
