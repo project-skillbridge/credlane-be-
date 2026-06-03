@@ -27,7 +27,7 @@ async function bootstrap() {
   });
   app.enable('trust proxy');
   app.setGlobalPrefix('api/v1', {
-    exclude: ['/', 'health', 'api', 'api/v1', 'api/docs', 'probe'],
+    exclude: ['/', 'health', 'api', 'api/v1', 'api/docs', 'probe', 'metrics'],
   });
   app.useGlobalInterceptors(new ClassSerializerInterceptor(app.get(Reflector)));
   app.enableShutdownHooks();
