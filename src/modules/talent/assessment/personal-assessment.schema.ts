@@ -4,6 +4,11 @@ export type PersonalAssessmentInputType =
   | 'text_required'
   | 'text_optional';
 
+export type PersonalAssessmentQuestionOption = {
+  value: string;
+  label: string;
+};
+
 export type PersonalAssessmentQuestion = {
   key: string;
   questionNumber: number;
@@ -23,9 +28,38 @@ export type PersonalAssessmentQuestion = {
     | 'linkedin_url'
     | 'claimed_level'
     | 'country';
+  /** Stable content id, e.g. PA-GEN-INT-001 */
+  externalId?: string;
+  /** Section slug from the database row */
+  sectionSlug?: string;
+  /** Full candidate-facing question text */
+  prompt?: string;
+  /** Track scope: "all" or a specific onboarding track slug */
+  track?: string;
+  /** Labelled options preserved for API enrichment */
+  optionItems?: readonly PersonalAssessmentQuestionOption[];
 };
 
-export const PERSONAL_ASSESSMENT_SECTION_COUNT = 7;
+/** Maps section slugs to legacy numeric section ids used in session responses. */
+export const PERSONAL_ASSESSMENT_SECTION_SLUG_TO_NUMBER: Record<string, number> =
+  {
+    professional_background: 1,
+    skills_and_expertise: 2,
+    leadership_and_responsibility: 3,
+    international_and_remote_experience: 4,
+    work_style: 5,
+  };
+
+export const PERSONAL_ASSESSMENT_SECTION_NUMBER_TO_SLUG: Record<number, string> =
+  {
+    1: 'professional_background',
+    2: 'skills_and_expertise',
+    3: 'leadership_and_responsibility',
+    4: 'international_and_remote_experience',
+    5: 'work_style',
+  };
+
+export const PERSONAL_ASSESSMENT_SECTION_COUNT = 5;
 
 export const PERSONAL_ASSESSMENT_SECTION_TITLES: Record<number, string> = {
   1: 'Professional Background',
@@ -33,8 +67,6 @@ export const PERSONAL_ASSESSMENT_SECTION_TITLES: Record<number, string> = {
   3: 'Leadership & Responsibility',
   4: 'International & Remote Experience',
   5: 'Work Style',
-  6: 'Achievements & Proof',
-  7: 'Availability & Intent',
 };
 
 /** Ignored in section POST bodies — sourced from onboarding / user profile. */
@@ -200,47 +232,6 @@ export const FEEDBACK_PREFERENCE = [
   'no_preference',
 ] as const;
 
-export const PROFESSIONAL_RECOGNITION = ['yes', 'no'] as const;
-
-export const JOB_SEARCH_STATUS = [
-  'actively_looking',
-  'open_to_right_opportunity',
-  'just_exploring',
-] as const;
-
-export const AVAILABILITY = [
-  'immediately_available',
-  'on_notice_under_1_month',
-  'on_notice_1_3_months',
-  'employed_flexible',
-] as const;
-
-export const ENGAGEMENT_TYPES = [
-  'full_time',
-  'part_time',
-  'contract',
-  'freelance',
-  'open_to_all',
-] as const;
-
-export const COMPENSATION_EXPECTATION = [
-  'no_preference',
-  'below_market',
-  'market_rate',
-  'above_market',
-] as const;
-
-export const COMPENSATION_CURRENCY = [
-  'ngn',
-  'usd',
-  'gbp',
-  'kes',
-  'ghs',
-  'zar',
-  'eur',
-  'other',
-] as const;
-
 export const ONBOARDING_TRACK_TO_ASSESSMENT_TRACK: Record<string, string> = {
   product_designer: 'design_ui_ux',
   frontend_developer: 'frontend_engineering',
@@ -379,409 +370,3 @@ export const TOOLS_BY_TRACK: Record<string, readonly string[]> = {
   ],
   other: ['other'],
 };
-
-export const PERSONAL_ASSESSMENT_SECTIONS: Record<
-  number,
-  PersonalAssessmentQuestion[]
-> = {
-  1: [
-    {
-      key: 'job_title',
-      questionNumber: 1,
-      inputType: 'text_required',
-      required: true,
-      minLength: 2,
-      maxLength: 150,
-    },
-    {
-      key: 'years_experience',
-      questionNumber: 2,
-      inputType: 'single',
-      required: true,
-      options: YEARS_EXPERIENCE,
-    },
-    {
-      key: 'industries',
-      questionNumber: 3,
-      inputType: 'multi',
-      required: true,
-      options: INDUSTRIES,
-      otherTextKey: 'industries_other',
-    },
-    {
-      key: 'largest_org_size',
-      questionNumber: 4,
-      inputType: 'single',
-      required: true,
-      options: LARGEST_ORG_SIZE,
-    },
-    {
-      key: 'org_types',
-      questionNumber: 5,
-      inputType: 'multi',
-      required: true,
-      options: ORG_TYPES,
-    },
-    {
-      key: 'education_level',
-      questionNumber: 6,
-      inputType: 'single',
-      required: true,
-      skipStorage: true,
-      profileField: 'education_level',
-    },
-    {
-      key: 'student_status',
-      questionNumber: 7,
-      inputType: 'single',
-      required: true,
-      options: STUDENT_STATUS,
-    },
-    {
-      key: 'country',
-      questionNumber: 8,
-      inputType: 'text_required',
-      required: true,
-      minLength: 2,
-      maxLength: 100,
-      skipStorage: true,
-      profileField: 'country',
-    },
-    {
-      key: 'region',
-      questionNumber: 9,
-      inputType: 'text_required',
-      required: true,
-      minLength: 2,
-      maxLength: 100,
-      skipStorage: true,
-      profileField: 'region',
-    },
-    {
-      key: 'primary_language',
-      questionNumber: 10,
-      inputType: 'single',
-      required: true,
-      options: PRIMARY_LANGUAGE,
-      otherTextKey: 'primary_language_other',
-    },
-  ],
-  2: [
-    {
-      key: 'skill_track',
-      questionNumber: 11,
-      inputType: 'single',
-      required: true,
-      skipStorage: true,
-      profileField: 'track',
-    },
-    {
-      key: 'specialization',
-      questionNumber: 12,
-      inputType: 'single',
-      required: true,
-      // Options from SPECIALIZATIONS_BY_TRACK at runtime (validated in personal-assessment.validation).
-    },
-    {
-      key: 'claimed_level',
-      questionNumber: 13,
-      inputType: 'single',
-      required: true,
-    },
-    {
-      key: 'tools',
-      questionNumber: 14,
-      inputType: 'multi',
-      required: false,
-      otherTextKey: 'tools_other',
-      // Options from TOOLS_BY_TRACK at runtime (validated in personal-assessment.validation).
-    },
-    {
-      key: 'primary_tool_duration',
-      questionNumber: 15,
-      inputType: 'single',
-      required: true,
-      options: PRIMARY_TOOL_DURATION,
-    },
-    {
-      key: 'mentoring_experience',
-      questionNumber: 16,
-      inputType: 'single',
-      required: true,
-      options: MENTORING_EXPERIENCE,
-    },
-    {
-      key: 'shipped_deliverable',
-      questionNumber: 17,
-      inputType: 'single',
-      required: true,
-      options: SHIPPED_DELIVERABLE,
-    },
-    // skipStorage: ignored on section POST; profileField supplies linkedin_url for context/complete.
-    {
-      key: 'portfolio_url',
-      questionNumber: 18,
-      inputType: 'text_optional',
-      required: false,
-      maxLength: 500,
-      skipStorage: true,
-      profileField: 'linkedin_url',
-    },
-  ],
-  3: [
-    {
-      key: 'managed_team',
-      questionNumber: 19,
-      inputType: 'single',
-      required: true,
-      options: MANAGED_TEAM,
-    },
-    {
-      key: 'leadership_titles',
-      questionNumber: 20,
-      inputType: 'multi',
-      required: true,
-      options: LEADERSHIP_TITLES,
-    },
-    {
-      key: 'difficult_decision_narrative',
-      questionNumber: 21,
-      inputType: 'text_required',
-      required: true,
-      minLength: 80,
-      maxLength: 1000,
-    },
-    {
-      key: 'led_project_unsupervised',
-      questionNumber: 22,
-      inputType: 'single',
-      required: true,
-      options: LED_PROJECT_UNSUPERVISED,
-    },
-    {
-      key: 'hiring_experience',
-      questionNumber: 23,
-      inputType: 'single',
-      required: true,
-      options: YES_NO,
-    },
-    {
-      key: 'budget_responsibility',
-      questionNumber: 24,
-      inputType: 'single',
-      required: true,
-      options: BUDGET_RESPONSIBILITY,
-    },
-  ],
-  4: [
-    {
-      key: 'international_org_experience',
-      questionNumber: 25,
-      inputType: 'single',
-      required: true,
-      options: INTERNATIONAL_ORG_EXPERIENCE,
-    },
-    {
-      key: 'remote_experience',
-      questionNumber: 26,
-      inputType: 'single',
-      required: true,
-      options: REMOTE_EXPERIENCE,
-    },
-    {
-      key: 'time_zones_collaborated',
-      questionNumber: 27,
-      inputType: 'single',
-      required: true,
-      options: TIME_ZONES_COLLABORATED,
-    },
-    {
-      key: 'international_stakeholders',
-      questionNumber: 28,
-      inputType: 'single',
-      required: true,
-      options: INTERNATIONAL_STAKEHOLDERS,
-    },
-    {
-      key: 'work_arrangement_preference',
-      questionNumber: 29,
-      inputType: 'multi',
-      required: true,
-      options: WORK_ARRANGEMENT_PREFERENCE,
-    },
-    {
-      key: 'remote_workspace_setup',
-      questionNumber: 30,
-      inputType: 'single',
-      required: true,
-      options: REMOTE_WORKSPACE_SETUP,
-    },
-  ],
-  5: [
-    {
-      key: 'deadline_handling',
-      questionNumber: 31,
-      inputType: 'text_required',
-      required: true,
-      minLength: 60,
-      maxLength: 1000,
-    },
-    {
-      key: 'ideal_work_environment',
-      questionNumber: 32,
-      inputType: 'text_required',
-      required: true,
-      minLength: 60,
-      maxLength: 1000,
-    },
-    {
-      key: 'feedback_preference',
-      questionNumber: 33,
-      inputType: 'single',
-      required: true,
-      options: FEEDBACK_PREFERENCE,
-    },
-    {
-      key: 'professional_disagreement',
-      questionNumber: 34,
-      inputType: 'text_optional',
-      required: false,
-      minLength: 60,
-      maxLength: 1000,
-    },
-    {
-      key: 'workload_management',
-      questionNumber: 35,
-      inputType: 'text_required',
-      required: true,
-      minLength: 60,
-      maxLength: 1000,
-    },
-    {
-      key: 'quick_learning_narrative',
-      questionNumber: 36,
-      inputType: 'text_required',
-      required: true,
-      minLength: 60,
-      maxLength: 1000,
-    },
-  ],
-  6: [
-    {
-      key: 'proudest_achievement',
-      questionNumber: 37,
-      inputType: 'text_required',
-      required: true,
-      minLength: 100,
-      maxLength: 1000,
-    },
-    {
-      key: 'measurable_impact',
-      questionNumber: 38,
-      inputType: 'text_optional',
-      required: false,
-      maxLength: 1000,
-    },
-    {
-      key: 'professional_recognition',
-      questionNumber: 39,
-      inputType: 'single',
-      required: true,
-      options: PROFESSIONAL_RECOGNITION,
-      followUpKey: 'professional_recognition_details',
-      followUpWhen: 'yes',
-    },
-    {
-      key: 'public_work_links',
-      questionNumber: 40,
-      inputType: 'text_optional',
-      required: false,
-      maxLength: 500,
-    },
-    {
-      key: 'background_context',
-      questionNumber: 41,
-      inputType: 'text_optional',
-      required: false,
-      maxLength: 1000,
-    },
-  ],
-  7: [
-    {
-      key: 'job_search_status',
-      questionNumber: 42,
-      inputType: 'single',
-      required: true,
-      options: JOB_SEARCH_STATUS,
-    },
-    {
-      key: 'availability',
-      questionNumber: 43,
-      inputType: 'single',
-      required: true,
-      options: AVAILABILITY,
-    },
-    {
-      key: 'engagement_types',
-      questionNumber: 44,
-      inputType: 'multi',
-      required: true,
-      options: ENGAGEMENT_TYPES,
-    },
-    {
-      key: 'preferred_work_location',
-      questionNumber: 45,
-      inputType: 'text_required',
-      required: true,
-      minLength: 2,
-      maxLength: 150,
-    },
-    {
-      key: 'compensation_expectation',
-      questionNumber: 46,
-      inputType: 'single',
-      required: true,
-      options: COMPENSATION_EXPECTATION,
-    },
-    {
-      key: 'compensation_currency',
-      questionNumber: 47,
-      inputType: 'single',
-      required: true,
-      options: COMPENSATION_CURRENCY,
-    },
-    {
-      key: 'next_role_narrative',
-      questionNumber: 48,
-      inputType: 'text_required',
-      required: true,
-      minLength: 80,
-      maxLength: 1000,
-    },
-  ],
-};
-
-export function getSectionQuestions(
-  section: number,
-): PersonalAssessmentQuestion[] {
-  return PERSONAL_ASSESSMENT_SECTIONS[section] ?? [];
-}
-
-export function getAllPersonalAssessmentQuestions(): PersonalAssessmentQuestion[] {
-  const questions: PersonalAssessmentQuestion[] = [];
-  for (
-    let section = 1;
-    section <= PERSONAL_ASSESSMENT_SECTION_COUNT;
-    section++
-  ) {
-    questions.push(...getSectionQuestions(section));
-  }
-  return questions;
-}
-
-/** Question keys filled from onboarding / user profile — not collected via section POST. */
-export function getOnboardingBackedQuestionKeys(): readonly string[] {
-  return getAllPersonalAssessmentQuestions()
-    .filter((question) => question.skipStorage)
-    .map((question) => question.key);
-}
