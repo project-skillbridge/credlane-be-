@@ -308,7 +308,10 @@ export class PersonalAssessmentService {
           });
         }
 
-        const sourceQuestions = this.resolveGeneratedSourceQuestions(session);
+        const sourceQuestions = this.resolveGeneratedSourceQuestions(
+          session,
+          profile,
+        );
         const normalizedAnswers = this.normalizeAnswerAliases(rawAnswers);
         const filtered = Object.fromEntries(
           Object.entries(normalizedAnswers).filter(
@@ -453,7 +456,7 @@ export class PersonalAssessmentService {
     const bank = this.personalAssessmentGenerationBank(profile).map(
       (question) => ({
         source_key: question.key,
-        section: this.findQuestionSection(question.key),
+        section: this.findQuestionSection(question.key, profile.track),
         question_number: question.questionNumber,
         input_type: question.inputType,
         required: question.required,
@@ -505,15 +508,7 @@ export class PersonalAssessmentService {
   private personalAssessmentGenerationBank(
     profile: TalentProfile,
   ): PersonalAssessmentQuestion[] {
-    return this.questionCatalog.getAllQuestions().filter((question) => {
-      if (
-        question.track &&
-        question.track !== 'all' &&
-        question.track !== profile.track
-      ) {
-        return false;
-      }
-
+    return this.questionCatalog.getAllQuestions(profile.track).filter((question) => {
       if (question.skipStorage && question.key !== 'claimed_level') {
         return false;
       }
@@ -566,12 +561,12 @@ export class PersonalAssessmentService {
 
   private resolveGeneratedSourceQuestions(
     session: GeneratedPersonalAssessmentSession,
+    profile: TalentProfile,
   ): PersonalAssessmentQuestion[] {
     const byKey = new Map(
-      this.questionCatalog.getAllQuestions().map((question) => [
-        question.key,
-        question,
-      ]),
+      this.questionCatalog
+        .getAllQuestions(profile.track)
+        .map((question) => [question.key, question]),
     );
 
     return session.questions
@@ -588,7 +583,7 @@ export class PersonalAssessmentService {
     profile: TalentProfile,
   ): GeneratedPersonalAssessmentQuestion {
     const options = this.resolveQuestionOptions(question, profile);
-    const sourceSection = this.findQuestionSection(question.key);
+    const sourceSection = this.findQuestionSection(question.key, profile.track);
     return {
       id: randomUUID(),
       key: question.key,
@@ -634,8 +629,11 @@ export class PersonalAssessmentService {
     return question.options;
   }
 
-  private findQuestionSection(key: string): number {
-    return this.questionCatalog.findQuestionSection(key);
+  private findQuestionSection(
+    key: string,
+    track?: string | null,
+  ): number {
+    return this.questionCatalog.findQuestionSection(key, track);
   }
 
   private sectionTitle(section: number): string {
@@ -699,7 +697,7 @@ export class PersonalAssessmentService {
         section,
         filtered,
         profile,
-        this.questionCatalog.getSectionQuestions(section),
+        this.questionCatalog.getSectionQuestions(section, profile.track),
       );
       if (typeof validated.claimed_level === 'string') {
         profile.claimed_level =
@@ -756,7 +754,10 @@ export class PersonalAssessmentService {
           });
         }
 
-        const sourceQuestions = this.resolveGeneratedSourceQuestions(session);
+        const sourceQuestions = this.resolveGeneratedSourceQuestions(
+          session,
+          profile,
+        );
         const completionAnswers = this.resolveGeneratedAnswers(
           this.withoutMeta(store),
           profile,

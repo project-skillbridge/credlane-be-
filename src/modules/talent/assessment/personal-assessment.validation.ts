@@ -569,7 +569,7 @@ export function assertAssessmentReadyForComplete(
       });
     }
 
-    for (const question of catalog.getSectionQuestions(section)) {
+    for (const question of catalog.getSectionQuestions(section, profile.track)) {
       issues.push(
         ...collectQuestionCompleteIssues(
           question,

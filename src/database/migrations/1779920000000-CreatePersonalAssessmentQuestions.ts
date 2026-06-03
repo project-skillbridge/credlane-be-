@@ -17,7 +17,7 @@ export class CreatePersonalAssessmentQuestions1779920000000 implements Migration
         "created_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(),
         CONSTRAINT "PK_personal_assessment_questions" PRIMARY KEY ("id"),
-        CONSTRAINT "UQ_personal_assessment_questions_field_name" UNIQUE ("field_name")
+        CONSTRAINT "UQ_personal_assessment_questions_field_name_track" UNIQUE ("field_name", "track")
       )
     `);
 

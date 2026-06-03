@@ -6,9 +6,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import {
-  PersonalAssessmentQuestionEntity,
-} from '../entities/personal-assessment-question.entity';
+import { PersonalAssessmentQuestionEntity } from '../entities/personal-assessment-question.entity';
 import {
   PERSONAL_ASSESSMENT_SECTION_COUNT,
   PERSONAL_ASSESSMENT_SECTION_SLUG_TO_NUMBER,
@@ -17,11 +15,16 @@ import {
 } from './personal-assessment.schema';
 import { PERSONAL_ASSESSMENT_TEST_QUESTIONS } from './personal-assessment.test-questions';
 
+export const PERSONAL_ASSESSMENT_GLOBAL_TRACK = 'all';
+
 export type PersonalAssessmentQuestionCatalog = {
-  getSectionQuestions(section: number): PersonalAssessmentQuestion[];
-  getAllQuestions(): PersonalAssessmentQuestion[];
-  getOnboardingBackedQuestionKeys(): readonly string[];
-  findQuestionSection(key: string): number;
+  getSectionQuestions(
+    section: number,
+    track?: string | null,
+  ): PersonalAssessmentQuestion[];
+  getAllQuestions(track?: string | null): PersonalAssessmentQuestion[];
+  getOnboardingBackedQuestionKeys(track?: string | null): readonly string[];
+  findQuestionSection(key: string, track?: string | null): number;
 };
 
 function mapFormatToInputType(format: string): PersonalAssessmentInputType {
@@ -43,6 +46,21 @@ function resolveSectionNumber(sectionSlug: string): number {
   return PERSONAL_ASSESSMENT_SECTION_SLUG_TO_NUMBER[sectionSlug] ?? 0;
 }
 
+function normalizeTrack(track?: string | null): string {
+  const trimmed = track?.trim();
+  return trimmed && trimmed.length > 0
+    ? trimmed
+    : PERSONAL_ASSESSMENT_GLOBAL_TRACK;
+}
+
+function resolveTracksForLookup(track?: string | null): string[] {
+  const normalized = normalizeTrack(track);
+  if (normalized === PERSONAL_ASSESSMENT_GLOBAL_TRACK) {
+    return [PERSONAL_ASSESSMENT_GLOBAL_TRACK];
+  }
+  return [PERSONAL_ASSESSMENT_GLOBAL_TRACK, normalized];
+}
+
 function toPersonalAssessmentQuestion(
   row: PersonalAssessmentQuestionEntity,
 ): PersonalAssessmentQuestion {
@@ -55,7 +73,7 @@ function toPersonalAssessmentQuestion(
     required: row.required,
     sectionSlug: row.section,
     prompt: row.question,
-    track: row.track,
+    track: normalizeTrack(row.track),
   };
 
   if (optionItems?.length) {
@@ -71,9 +89,12 @@ export class PersonalAssessmentQuestionService
   implements OnModuleInit, PersonalAssessmentQuestionCatalog
 {
   private readonly logger = new Logger(PersonalAssessmentQuestionService.name);
-  private bySection = new Map<number, PersonalAssessmentQuestion[]>();
-  private keyToSection = new Map<string, number>();
-  private allQuestions: PersonalAssessmentQuestion[] = [];
+  private byTrackSection = new Map<
+    string,
+    Map<number, PersonalAssessmentQuestion[]>
+  >();
+  private keyToSectionByTrack = new Map<string, Map<string, number>>();
+  private allQuestionsByTrack = new Map<string, PersonalAssessmentQuestion[]>();
   private ready = false;
 
   constructor(
@@ -121,9 +142,9 @@ export class PersonalAssessmentQuestionService
   private indexRows(
     entries: Array<{ section: number; question: PersonalAssessmentQuestion }>,
   ): void {
-    this.bySection.clear();
-    this.keyToSection.clear();
-    this.allQuestions = [];
+    this.byTrackSection.clear();
+    this.keyToSectionByTrack.clear();
+    this.allQuestionsByTrack.clear();
 
     for (const { section, question } of entries) {
       if (section <= 0) {
@@ -133,11 +154,24 @@ export class PersonalAssessmentQuestionService
         continue;
       }
 
-      this.keyToSection.set(question.key, section);
-      const sectionQuestions = this.bySection.get(section) ?? [];
+      const track = normalizeTrack(question.track);
+      const sectionMap =
+        this.byTrackSection.get(track) ??
+        new Map<number, PersonalAssessmentQuestion[]>();
+      const sectionQuestions = sectionMap.get(section) ?? [];
       sectionQuestions.push(question);
-      this.bySection.set(section, sectionQuestions);
-      this.allQuestions.push(question);
+      sectionMap.set(section, sectionQuestions);
+      this.byTrackSection.set(track, sectionMap);
+
+      const keyMap =
+        this.keyToSectionByTrack.get(track) ?? new Map<string, number>();
+      keyMap.set(question.key, section);
+      this.keyToSectionByTrack.set(track, keyMap);
+
+      const trackQuestions =
+        this.allQuestionsByTrack.get(track) ?? [];
+      trackQuestions.push(question);
+      this.allQuestionsByTrack.set(track, trackQuestions);
     }
 
     this.ready = true;
@@ -151,25 +185,48 @@ export class PersonalAssessmentQuestionService
     }
   }
 
-  getSectionQuestions(section: number): PersonalAssessmentQuestion[] {
+  getSectionQuestions(
+    section: number,
+    track?: string | null,
+  ): PersonalAssessmentQuestion[] {
     this.assertReady();
-    return [...(this.bySection.get(section) ?? [])];
+    const merged = new Map<string, PersonalAssessmentQuestion>();
+    for (const trackKey of resolveTracksForLookup(track)) {
+      for (const question of this.byTrackSection.get(trackKey)?.get(section) ??
+        []) {
+        merged.set(question.key, question);
+      }
+    }
+    return [...merged.values()];
   }
 
-  getAllQuestions(): PersonalAssessmentQuestion[] {
+  getAllQuestions(track?: string | null): PersonalAssessmentQuestion[] {
     this.assertReady();
-    return [...this.allQuestions];
+    const merged = new Map<string, PersonalAssessmentQuestion>();
+    for (const trackKey of resolveTracksForLookup(track)) {
+      for (const question of this.allQuestionsByTrack.get(trackKey) ?? []) {
+        merged.set(question.key, question);
+      }
+    }
+    return [...merged.values()];
   }
 
-  getOnboardingBackedQuestionKeys(): readonly string[] {
-    return this.getAllQuestions()
+  getOnboardingBackedQuestionKeys(track?: string | null): readonly string[] {
+    return this.getAllQuestions(track)
       .filter((question) => question.skipStorage)
       .map((question) => question.key);
   }
 
-  findQuestionSection(key: string): number {
+  findQuestionSection(key: string, track?: string | null): number {
     this.assertReady();
-    return this.keyToSection.get(key) ?? 0;
+    const normalized = normalizeTrack(track);
+    if (normalized !== PERSONAL_ASSESSMENT_GLOBAL_TRACK) {
+      const trackSection = this.keyToSectionByTrack.get(normalized)?.get(key);
+      if (trackSection) {
+        return trackSection;
+      }
+    }
+    return this.keyToSectionByTrack.get(PERSONAL_ASSESSMENT_GLOBAL_TRACK)?.get(key) ?? 0;
   }
 
   getSectionCount(): number {

@@ -41,4 +41,50 @@ describe('PersonalAssessmentQuestionService', () => {
       expect(service.findQuestionSection(question.key)).toBe(sectionNumber);
     }
   });
+
+  it('isolates the same field_name across tracks', async () => {
+    const questionRepo = {
+      find: jest.fn().mockResolvedValue([
+        {
+          id: 'PA-GEN-ALL-001',
+          section: 'work_style',
+          track: 'all',
+          question: 'Global prompt',
+          field_name: 'work_arrangement',
+          format: 'single_select',
+          required: true,
+          options: [{ value: 'remote', label: 'Remote' }],
+          display_order: 1,
+          is_live: true,
+        },
+        {
+          id: 'PA-FED-001',
+          section: 'skills_and_expertise',
+          track: 'frontend_developer',
+          question: 'Track prompt',
+          field_name: 'work_arrangement',
+          format: 'text_required',
+          required: true,
+          options: null,
+          display_order: 1,
+          is_live: true,
+        },
+      ]),
+    };
+
+    const trackService = new PersonalAssessmentQuestionService(
+      questionRepo as never,
+    );
+    await trackService.reloadFromDatabase();
+
+    expect(trackService.findQuestionSection('work_arrangement')).toBe(5);
+    expect(
+      trackService.findQuestionSection('work_arrangement', 'frontend_developer'),
+    ).toBe(2);
+    expect(trackService.getAllQuestions('frontend_developer')).toHaveLength(1);
+    expect(trackService.getAllQuestions('frontend_developer')[0].prompt).toBe(
+      'Track prompt',
+    );
+    expect(trackService.getAllQuestions('backend_developer')).toHaveLength(1);
+  });
 });

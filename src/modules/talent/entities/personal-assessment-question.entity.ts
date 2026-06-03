@@ -5,6 +5,7 @@ import {
   Entity,
   Index,
   PrimaryColumn,
+  Unique,
   UpdateDateColumn,
 } from 'typeorm';
 
@@ -14,6 +15,10 @@ export type PersonalAssessmentQuestionOption = {
 };
 
 @Entity('personal_assessment_questions')
+@Unique('UQ_personal_assessment_questions_field_name_track', [
+  'field_name',
+  'track',
+])
 export class PersonalAssessmentQuestionEntity {
   @ApiProperty({ example: 'PA-GEN-INT-001' })
   @PrimaryColumn({ type: 'varchar', length: 50 })
@@ -34,7 +39,7 @@ export class PersonalAssessmentQuestionEntity {
   question: string;
 
   @ApiProperty({ example: 'cross_border_team_experience' })
-  @Column({ type: 'varchar', length: 100, unique: true })
+  @Column({ type: 'varchar', length: 100 })
   field_name: string;
 
   @ApiProperty({ example: 'single_select' })
