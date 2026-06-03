@@ -40,6 +40,8 @@ export class CreatePersonalAssessmentQuestions1779920000000 implements Migration
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`DROP TABLE IF EXISTS "personal_assessment_questions"`);
+    await queryRunner.query(
+      `DROP TABLE IF EXISTS "personal_assessment_questions"`,
+    );
   }
 }

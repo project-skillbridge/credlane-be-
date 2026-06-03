@@ -385,7 +385,9 @@ export class PersonalAssessmentService {
       seen.add(requiredQuestion.key);
       selected.push({
         question: requiredQuestion,
-        prompt: requiredQuestion.prompt ?? this.defaultQuestionPrompt(requiredQuestion),
+        prompt:
+          requiredQuestion.prompt ??
+          this.defaultQuestionPrompt(requiredQuestion),
         helperText: null,
       });
     }
@@ -508,21 +510,23 @@ export class PersonalAssessmentService {
   private personalAssessmentGenerationBank(
     profile: TalentProfile,
   ): PersonalAssessmentQuestion[] {
-    return this.questionCatalog.getAllQuestions(profile.track).filter((question) => {
-      if (question.skipStorage && question.key !== 'claimed_level') {
-        return false;
-      }
+    return this.questionCatalog
+      .getAllQuestions(profile.track)
+      .filter((question) => {
+        if (question.skipStorage && question.key !== 'claimed_level') {
+          return false;
+        }
 
-      const options = this.resolveQuestionOptions(question, profile);
-      if (
-        (question.key === 'specialization' || question.key === 'tools') &&
-        (!options || options.length === 0)
-      ) {
-        return false;
-      }
+        const options = this.resolveQuestionOptions(question, profile);
+        if (
+          (question.key === 'specialization' || question.key === 'tools') &&
+          (!options || options.length === 0)
+        ) {
+          return false;
+        }
 
-      return true;
-    });
+        return true;
+      });
   }
 
   private fallbackPersonalAssessmentQuestions(
@@ -629,10 +633,7 @@ export class PersonalAssessmentService {
     return question.options;
   }
 
-  private findQuestionSection(
-    key: string,
-    track?: string | null,
-  ): number {
+  private findQuestionSection(key: string, track?: string | null): number {
     return this.questionCatalog.findQuestionSection(key, track);
   }
 

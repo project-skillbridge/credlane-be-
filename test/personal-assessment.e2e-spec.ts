@@ -40,7 +40,9 @@ type AuthUser = {
   onboarding_complete: boolean;
 };
 
-function mapInputTypeToDbFormat(inputType: PersonalAssessmentInputType): string {
+function mapInputTypeToDbFormat(
+  inputType: PersonalAssessmentInputType,
+): string {
   switch (inputType) {
     case 'single':
       return 'single_select';
@@ -107,9 +109,7 @@ describe('Personal assessment (e2e)', () => {
 
   beforeEach(async () => {
     profileStore = makeTalentProfile({ user_id: talentUser.id });
-    questionRepoFind = jest
-      .fn()
-      .mockResolvedValue(buildDbBackedQuestionRows());
+    questionRepoFind = jest.fn().mockResolvedValue(buildDbBackedQuestionRows());
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [PersonalAssessmentController],

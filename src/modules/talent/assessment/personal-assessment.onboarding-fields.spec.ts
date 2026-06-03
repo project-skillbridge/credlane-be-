@@ -37,7 +37,8 @@ const ONBOARDING_ONLY_FIELD_KEYS = new Set<string>([
 describe('personal assessment onboarding overlap', () => {
   const catalog = createTestPersonalAssessmentQuestionService();
   const allQuestions = PERSONAL_ASSESSMENT_TEST_QUESTIONS;
-  const onboardingBackedKeys = getOnboardingBackedQuestionKeysFromTestQuestions();
+  const onboardingBackedKeys =
+    getOnboardingBackedQuestionKeysFromTestQuestions();
 
   it('defines exactly 36 questions across 5 sections', () => {
     expect(allQuestions).toHaveLength(36);

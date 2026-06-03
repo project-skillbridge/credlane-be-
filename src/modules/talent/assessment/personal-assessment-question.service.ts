@@ -27,7 +27,9 @@ export type PersonalAssessmentQuestionCatalog = {
   findQuestionSection(key: string, track?: string | null): number;
 };
 
-function mapFormatToInputType(format: string): PersonalAssessmentInputType | null {
+function mapFormatToInputType(
+  format: string,
+): PersonalAssessmentInputType | null {
   switch (format) {
     case 'single_select':
       return 'single';
@@ -200,8 +202,7 @@ export class PersonalAssessmentQuestionService
       keyMap.set(question.key, section);
       this.keyToSectionByTrack.set(track, keyMap);
 
-      const trackQuestions =
-        this.allQuestionsByTrack.get(track) ?? [];
+      const trackQuestions = this.allQuestionsByTrack.get(track) ?? [];
       trackQuestions.push(question);
       this.allQuestionsByTrack.set(track, trackQuestions);
     }
@@ -258,7 +259,11 @@ export class PersonalAssessmentQuestionService
         return trackSection;
       }
     }
-    return this.keyToSectionByTrack.get(PERSONAL_ASSESSMENT_GLOBAL_TRACK)?.get(key) ?? 0;
+    return (
+      this.keyToSectionByTrack
+        .get(PERSONAL_ASSESSMENT_GLOBAL_TRACK)
+        ?.get(key) ?? 0
+    );
   }
 
   getSectionCount(): number {

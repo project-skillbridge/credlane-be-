@@ -79,7 +79,10 @@ describe('PersonalAssessmentQuestionService', () => {
 
     expect(trackService.findQuestionSection('work_arrangement')).toBe(5);
     expect(
-      trackService.findQuestionSection('work_arrangement', 'frontend_developer'),
+      trackService.findQuestionSection(
+        'work_arrangement',
+        'frontend_developer',
+      ),
     ).toBe(2);
     expect(trackService.getAllQuestions('frontend_developer')).toHaveLength(1);
     expect(trackService.getAllQuestions('frontend_developer')[0].prompt).toBe(

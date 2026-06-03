@@ -41,23 +41,27 @@ export type PersonalAssessmentQuestion = {
 };
 
 /** Maps section slugs to legacy numeric section ids used in session responses. */
-export const PERSONAL_ASSESSMENT_SECTION_SLUG_TO_NUMBER: Record<string, number> =
-  {
-    professional_background: 1,
-    skills_and_expertise: 2,
-    leadership_and_responsibility: 3,
-    international_and_remote_experience: 4,
-    work_style: 5,
-  };
+export const PERSONAL_ASSESSMENT_SECTION_SLUG_TO_NUMBER: Record<
+  string,
+  number
+> = {
+  professional_background: 1,
+  skills_and_expertise: 2,
+  leadership_and_responsibility: 3,
+  international_and_remote_experience: 4,
+  work_style: 5,
+};
 
-export const PERSONAL_ASSESSMENT_SECTION_NUMBER_TO_SLUG: Record<number, string> =
-  {
-    1: 'professional_background',
-    2: 'skills_and_expertise',
-    3: 'leadership_and_responsibility',
-    4: 'international_and_remote_experience',
-    5: 'work_style',
-  };
+export const PERSONAL_ASSESSMENT_SECTION_NUMBER_TO_SLUG: Record<
+  number,
+  string
+> = {
+  1: 'professional_background',
+  2: 'skills_and_expertise',
+  3: 'leadership_and_responsibility',
+  4: 'international_and_remote_experience',
+  5: 'work_style',
+};
 
 export const PERSONAL_ASSESSMENT_SECTION_COUNT = 5;
 

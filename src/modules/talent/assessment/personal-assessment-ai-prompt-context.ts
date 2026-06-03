@@ -43,7 +43,10 @@ function collectMergedAnswers(
     section <= PERSONAL_ASSESSMENT_SECTION_COUNT;
     section++
   ) {
-    for (const question of catalog.getSectionQuestions(section, profile.track)) {
+    for (const question of catalog.getSectionQuestions(
+      section,
+      profile.track,
+    )) {
       answers[question.key] = resolveContextAnswer(
         question,
         stored,

@@ -390,7 +390,7 @@ export const PERSONAL_ASSESSMENT_TEST_QUESTIONS: TestQuestionSeed[] = [
 ];
 
 export function getOnboardingBackedQuestionKeysFromTestQuestions(): readonly string[] {
-  return PERSONAL_ASSESSMENT_TEST_QUESTIONS.filter((question) => question.skipStorage).map(
-    (question) => question.key,
-  );
+  return PERSONAL_ASSESSMENT_TEST_QUESTIONS.filter(
+    (question) => question.skipStorage,
+  ).map((question) => question.key);
 }

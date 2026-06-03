@@ -17,7 +17,9 @@ import {
 
 describe('PersonalAssessmentService', () => {
   let service: PersonalAssessmentService;
-  let questionCatalog: ReturnType<typeof createTestPersonalAssessmentQuestionService>;
+  let questionCatalog: ReturnType<
+    typeof createTestPersonalAssessmentQuestionService
+  >;
   let usersService: Pick<UsersService, 'findOne'>;
   let repository: {
     findOne: jest.Mock;

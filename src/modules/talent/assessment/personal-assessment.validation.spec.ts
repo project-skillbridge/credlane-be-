@@ -121,7 +121,8 @@ describe('validateSectionAnswers', () => {
 
 describe('validateGeneratedPersonalAssessmentAnswers', () => {
   const profile = makeTalentProfile();
-  const questions = createTestPersonalAssessmentQuestionService().getAllQuestions();
+  const questions =
+    createTestPersonalAssessmentQuestionService().getAllQuestions();
 
   it('accepts sparse generated answers when claimed_level is present', () => {
     const result = validateGeneratedPersonalAssessmentAnswers(
