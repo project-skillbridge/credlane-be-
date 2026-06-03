@@ -20,10 +20,10 @@ import { RolesGuard } from '../src/modules/auth/guards/roles.guard';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
 import { PersonalAssessmentController } from '../src/modules/talent/assessment/personal-assessment.controller';
 import { PersonalAssessmentService } from '../src/modules/talent/assessment/personal-assessment.service';
-import {
-  createTestPersonalAssessmentQuestionService,
-  PersonalAssessmentQuestionService,
-} from '../src/modules/talent/assessment/personal-assessment-question.service';
+import { PersonalAssessmentQuestionService } from '../src/modules/talent/assessment/personal-assessment-question.service';
+import type { PersonalAssessmentInputType } from '../src/modules/talent/assessment/personal-assessment.schema';
+import { PERSONAL_ASSESSMENT_TEST_QUESTIONS } from '../src/modules/talent/assessment/personal-assessment.test-questions';
+import { PersonalAssessmentQuestionEntity } from '../src/modules/talent/entities/personal-assessment-question.entity';
 import {
   makeTalentProfile,
   makeTalentUser,
@@ -39,6 +39,42 @@ type AuthUser = {
   role: UserRole;
   onboarding_complete: boolean;
 };
+
+function mapInputTypeToDbFormat(inputType: PersonalAssessmentInputType): string {
+  switch (inputType) {
+    case 'single':
+      return 'single_select';
+    case 'multi':
+      return 'multi_select';
+    default:
+      return inputType;
+  }
+}
+
+function buildDbBackedQuestionRows(): PersonalAssessmentQuestionEntity[] {
+  return PERSONAL_ASSESSMENT_TEST_QUESTIONS.map((question) => ({
+    id: question.externalId ?? `PA-TEST-${question.questionNumber}`,
+    section: question.sectionSlug,
+    track: question.track ?? 'all',
+    question: question.prompt ?? question.key,
+    field_name: question.key,
+    format: mapInputTypeToDbFormat(question.inputType),
+    required: question.required,
+    options:
+      question.optionItems ??
+      question.options?.map((value) => ({ value, label: value })) ??
+      null,
+    skip_storage: question.skipStorage ?? false,
+    profile_field: question.profileField ?? null,
+    min_length: question.minLength ?? null,
+    max_length: question.maxLength ?? null,
+    other_text_key: question.otherTextKey ?? null,
+    follow_up_key: question.followUpKey ?? null,
+    follow_up_when: question.followUpWhen ?? null,
+    display_order: question.questionNumber,
+    is_live: true,
+  })) as PersonalAssessmentQuestionEntity[];
+}
 
 @Injectable()
 class MockJwtAuthGuard implements CanActivate {
@@ -67,17 +103,22 @@ describe('Personal assessment (e2e)', () => {
   });
 
   let profileStore: TalentProfile;
+  let questionRepoFind: jest.Mock;
 
   beforeEach(async () => {
     profileStore = makeTalentProfile({ user_id: talentUser.id });
+    questionRepoFind = jest
+      .fn()
+      .mockResolvedValue(buildDbBackedQuestionRows());
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       controllers: [PersonalAssessmentController],
       providers: [
         PersonalAssessmentService,
+        PersonalAssessmentQuestionService,
         {
-          provide: PersonalAssessmentQuestionService,
-          useFactory: () => createTestPersonalAssessmentQuestionService(),
+          provide: getRepositoryToken(PersonalAssessmentQuestionEntity),
+          useValue: { find: questionRepoFind },
         },
         {
           provide: UsersService,
@@ -188,6 +229,13 @@ describe('Personal assessment (e2e)', () => {
     if (app) await app.close();
   });
 
+  it('loads the question catalog from the database on module init', () => {
+    expect(questionRepoFind).toHaveBeenCalledWith({
+      where: { is_live: true },
+      order: { section: 'ASC', display_order: 'ASC', id: 'ASC' },
+    });
+  });
+
   it('POST /api/v1/talent/assessment/personal/section/1 saves answers', async () => {
     MockJwtAuthGuard.nextUser = {
       sub: talentUser.id,
@@ -226,7 +274,7 @@ describe('Personal assessment (e2e)', () => {
       .post('/api/v1/talent/assessment/personal/start')
       .expect(201);
 
-    expect(startResponse.body.data.session).toBeDefined();
+    expect(startResponse.body.session).toBeDefined();
 
     await request(app.getHttpServer())
       .post('/api/v1/talent/assessment/personal/submit')
