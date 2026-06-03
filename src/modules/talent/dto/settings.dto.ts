@@ -34,7 +34,7 @@ export class UpdateTalentSettingsProfileDto {
   @ApiPropertyOptional({ example: 'frontend_developer' })
   @IsOptional()
   @IsString()
-  @IsIn(TALENT_ROLE_TRACKS as unknown as string[], {
+  @IsIn(TALENT_ROLE_TRACKS, {
     message: `roleTrack must be one of: ${TALENT_ROLE_TRACKS.join(', ')}`,
   })
   roleTrack?: string;
