@@ -14,6 +14,8 @@ import {
   AssessmentScore,
   TalentQuestionHistory,
 } from '../assessments/entities';
+import { PersonalAssessmentQuestionEntity } from './entities/personal-assessment-question.entity';
+import { PersonalAssessmentQuestionService } from './assessment/personal-assessment-question.service';
 import { PersonalAssessmentController } from './assessment/personal-assessment.controller';
 import { PersonalAssessmentService } from './assessment/personal-assessment.service';
 import { AdvancedAssessmentAiService } from './assessment/advanced-assessment-ai.service';
@@ -36,6 +38,7 @@ import { TalentService } from './talent.service';
     TypeOrmModule.forFeature([
       TalentProfile,
       EmployerPoolProfile,
+      PersonalAssessmentQuestionEntity,
       AssessmentQuestion,
       AssessmentAttempt,
       AssessmentResponse,
@@ -60,6 +63,7 @@ import { TalentService } from './talent.service';
   ],
   providers: [
     TalentService,
+    PersonalAssessmentQuestionService,
     PersonalAssessmentService,
     SkillAssessmentService,
     AdvancedAssessmentAiService,
@@ -68,5 +72,6 @@ import { TalentService } from './talent.service';
     AdvancedAssessmentQueueService,
     EmployerPoolProfileService,
   ],
+  exports: [PersonalAssessmentQuestionService],
 })
 export class TalentModule {}

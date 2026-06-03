@@ -7,8 +7,6 @@ import { User, UserRole } from '../../users/entities/user.entity';
 
 const NARRATIVE_80 =
   'This is a detailed narrative with more than eighty characters for validation purposes.';
-const NARRATIVE_100 =
-  'This is a detailed narrative with more than one hundred characters so it passes the minimum length requirement easily.';
 
 export function makeTalentUser(overrides: Partial<User> = {}): User {
   return Object.assign(new User(), {
@@ -66,7 +64,7 @@ export function makeTalentProfile(
   });
 }
 
-/** All required stored answers across sections 1–7 (non-skipped questions only). */
+/** All required stored answers across sections 1–5 (non-skipped questions only). */
 export function buildFullPersonalAssessmentAnswers(): Record<string, unknown> {
   return {
     job_title: 'Software Engineer',
@@ -98,15 +96,6 @@ export function buildFullPersonalAssessmentAnswers(): Record<string, unknown> {
     feedback_preference: 'no_preference',
     workload_management: NARRATIVE_80,
     quick_learning_narrative: NARRATIVE_80,
-    proudest_achievement: NARRATIVE_100,
-    professional_recognition: 'no',
-    job_search_status: 'actively_looking',
-    availability: 'immediately_available',
-    engagement_types: ['full_time'],
-    preferred_work_location: 'Lagos, Nigeria',
-    compensation_expectation: 'market_rate',
-    compensation_currency: 'ngn',
-    next_role_narrative: NARRATIVE_80,
   };
 }
 

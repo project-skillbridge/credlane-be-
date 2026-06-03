@@ -36,15 +36,13 @@ import {
   ADVANCED_ASSESSMENT_BASE_QUESTIONS,
   ADVANCED_ASSESSMENT_MCQ_COUNT,
   ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT,
-  ADVANCED_ASSESSMENT_TOTAL_QUESTIONS,
   AdvancedAssessmentAiService,
   AdvancedAssessmentGeneratedQuestion,
-  blockLengthLimits,
 } from './advanced-assessment-ai.service';
 import { PersonalAssessmentService } from './personal-assessment.service';
 import { RubricScoringService } from '../../ai/rubric-scoring.service';
 import { GuidanceReportService } from '../../ai/guidance-report.service';
-import { Lt3GenerationService } from '../../ai/lt3-generation.service';
+
 import { EmployerPoolProfileService } from './employer-pool-profile.service';
 import { BankExhaustedAlertService } from '../../mail/bank-exhausted-alert.service';
 import {
@@ -62,7 +60,6 @@ import {
   FlagIntegrityEventDto,
   IntegrityEventType,
   SubmitAdvancedAssessmentDto,
-  SubmitLt2Dto,
 } from './dto/advanced-assessment.dto';
 import { IntegrityFlagResult } from './dto/integrity-event.dto';
 import {
@@ -83,7 +80,7 @@ import {
 import { AdvancedAssessmentQueueService } from './advanced-assessment-queue.service';
 import type { AdvancedAssessmentSubmitJobData } from './advanced-assessment-submit.types';
 
-const ADVANCED_ASSESSMENT_DURATION_MINUTES = 90;
+const ADVANCED_ASSESSMENT_DURATION_MINUTES = 25;
 const RETAKE_GATE_DAYS = 14;
 const ABNORMAL_LONG_TEXT_SECONDS = 5;
 const ADVANCED_SHORT_TEXT_MIN_CHARS = 10;
@@ -92,16 +89,13 @@ const ADVANCED_LONG_TEXT_MIN_CHARS = 60;
 const ADVANCED_LONG_TEXT_MAX_CHARS = 2000;
 const ADVANCED_MCQ_SCORE_WEIGHT = 0.3;
 
-// Long-text block = 2 situational (LT-1) + 2 work-task (LT-2) + 1 reflection
-// (LT-3). LT-3 is runtime-generated, served via /lt2-submit, not pre-selected
-// here.
+// Long-text block = 2 situational (LT-1) + 3 work-task (LT-2).
 const ADVANCED_LT1_COUNT = 2;
-const ADVANCED_LT2_COUNT = 2;
+const ADVANCED_LT2_COUNT = 3;
 
 // Text questions keep their rubric max scores for per-question analytics.
 // Final attempt percentage is weighted separately: MCQ 30%, text 70%.
 const TEXT_FULL_RUBRIC_MAX = 12;
-const LT3_RUBRIC_MAX = 8;
 
 export interface AdvancedAssessmentSessionResult {
   status: string;
@@ -123,16 +117,6 @@ export interface AdvancedAssessmentSubmitResult {
   status: 'processing';
   message: string;
   session_id: string;
-}
-
-export interface SubmitLt2Result {
-  status: string;
-  message: string;
-  session_id: string;
-  question_id: string;
-  question_number: number;
-  question_text: string;
-  max_seconds_remaining: number;
 }
 
 type ScoreReadyDispatchPayload = {
@@ -177,7 +161,6 @@ export class AdvancedAssessmentService {
     private readonly advancedAssessmentAiService: AdvancedAssessmentAiService,
     private readonly rubricScoring: RubricScoringService,
     private readonly guidanceReport: GuidanceReportService,
-    private readonly lt3Generation: Lt3GenerationService,
     private readonly employerPoolProfileService: EmployerPoolProfileService,
     private readonly questionGeneration: QuestionGenerationService,
     private readonly usersService: UsersService,
@@ -476,6 +459,19 @@ export class AdvancedAssessmentService {
         new Date().toISOString(),
       );
       await manager.save(AssessmentAttempt, lockedAttempt);
+
+      const lockedFrom = new Date();
+      const unlocksAt = new Date(lockedFrom);
+      unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
+      await manager.update(
+        TalentProfile,
+        { id: profile.id },
+        {
+          assessment_locked_from: lockedFrom,
+          assessment_locked_until: unlocksAt,
+          advanced_retake_required: true,
+        },
+      );
     });
 
     try {
@@ -490,6 +486,14 @@ export class AdvancedAssessmentService {
       });
     } catch {
       await this.clearSubmitEnqueuedAt(dto.sessionId);
+      await this.talentProfileRepo.update(
+        { id: profile.id },
+        {
+          assessment_locked_from: null,
+          assessment_locked_until: null,
+          advanced_retake_required: false,
+        },
+      );
       throw new ServiceUnavailableException({
         error: 'SUBMIT_QUEUE_UNAVAILABLE',
         message: ErrorMessages.ADVANCED_ASSESSMENT.SUBMIT_QUEUE_UNAVAILABLE,
@@ -561,16 +565,6 @@ export class AdvancedAssessmentService {
       throw new BadRequestException(
         ErrorMessages.ADVANCED_ASSESSMENT.SESSION_CORRUPT,
       );
-    }
-
-    const hasReflectionSlot = sessionQuestions.some(
-      (question) => question.slot_type === SlotType.REFLECTION,
-    );
-    if (!hasReflectionSlot) {
-      throw new UnprocessableEntityException({
-        error: 'LT2_NOT_SUBMITTED',
-        message: ErrorMessages.ADVANCED_ASSESSMENT.LT2_NOT_SUBMITTED,
-      });
     }
 
     const userId = data.userId;
@@ -766,23 +760,17 @@ export class AdvancedAssessmentService {
         : { attempt_id: attempt.id };
 
       if (!failed) {
+        const lockedFrom = new Date();
+        const unlocksAt = new Date(lockedFrom);
+        unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
+
         const profilePatch: Partial<TalentProfile> = {
           advanced_assessment_completed_at: new Date(),
           status: this.tierToProfileStatus(tier),
+          assessment_locked_from: lockedFrom,
+          assessment_locked_until: unlocksAt,
+          advanced_retake_required: true,
         };
-
-        if (tier !== AssessmentTier.JOB_READY) {
-          const lockedFrom = new Date();
-          const unlocksAt = new Date(lockedFrom);
-          unlocksAt.setDate(unlocksAt.getDate() + RETAKE_GATE_DAYS);
-          profilePatch.assessment_locked_from = lockedFrom;
-          profilePatch.assessment_locked_until = unlocksAt;
-          profilePatch.advanced_retake_required = true;
-        } else {
-          profilePatch.assessment_locked_from = null;
-          profilePatch.assessment_locked_until = null;
-          profilePatch.advanced_retake_required = false;
-        }
 
         await manager.update(TalentProfile, { id: profile.id }, profilePatch);
       }
@@ -1045,241 +1033,7 @@ export class AdvancedAssessmentService {
       );
     }
 
-    const hasReflectionSlot = sessionQuestions.some(
-      (question) => question.slot_type === SlotType.REFLECTION,
-    );
-    if (!hasReflectionSlot) {
-      throw new UnprocessableEntityException({
-        error: 'LT2_NOT_SUBMITTED',
-        message: ErrorMessages.ADVANCED_ASSESSMENT.LT2_NOT_SUBMITTED,
-      });
-    }
-
     return { profile, attempt, sessionQuestions };
-  }
-
-  /**
-   * Generate LT-3 from the candidate's LT-2 answer and append it to the
-   * session payload. Idempotent: a repeated call returns the LT-3 that was
-   * generated on the first call without invoking the LLM again.
-   */
-  async submitLt2(
-    userId: string,
-    sessionId: string,
-    dto: SubmitLt2Dto,
-  ): Promise<SubmitLt2Result> {
-    const profile = await this.talentProfileRepo.findOne({
-      where: { user_id: userId },
-    });
-    if (!profile) {
-      throw new NotFoundException(
-        ErrorMessages.ADVANCED_ASSESSMENT.PROFILE_NOT_FOUND,
-      );
-    }
-    this.assertAdvancedRetakeUnlocked(profile);
-
-    const attempt = await this.attemptRepo.findOne({
-      where: {
-        id: sessionId,
-        talent_profile_id: profile.id,
-        assessment_type: AssessmentType.ADVANCED,
-      },
-    });
-    if (!attempt) {
-      throw new NotFoundException(
-        ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_NOT_FOUND,
-      );
-    }
-    if (attempt.completed_at) {
-      throw new BadRequestException(
-        ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_ALREADY_SUBMITTED,
-      );
-    }
-    if (attempt.force_submitted) {
-      throw new BadRequestException(
-        ErrorMessages.ADVANCED_ASSESSMENT.SESSION_VOIDED,
-      );
-    }
-    if (attempt.expires_at && attempt.expires_at <= new Date()) {
-      throw new UnprocessableEntityException(
-        ErrorMessages.ADVANCED_ASSESSMENT.SESSION_EXPIRED,
-      );
-    }
-
-    const sessionQuestions = this.readSessionQuestions(attempt);
-    if (sessionQuestions.length === 0) {
-      throw new BadRequestException(
-        ErrorMessages.ADVANCED_ASSESSMENT.SESSION_CORRUPT,
-      );
-    }
-
-    // Locate the LT-2 (last WORK_TASK long-text) and confirm the client posted
-    // an answer for the right question_id.
-    const workTaskQuestions = sessionQuestions.filter(
-      (question) =>
-        question.block === 'long_text' &&
-        question.slot_type === SlotType.WORK_TASK,
-    );
-    const lt2Question = workTaskQuestions[workTaskQuestions.length - 1];
-    if (!lt2Question) {
-      throw new BadRequestException(
-        ErrorMessages.ADVANCED_ASSESSMENT.SESSION_CORRUPT,
-      );
-    }
-    if (lt2Question.question_id !== dto.questionId) {
-      throw new UnprocessableEntityException({
-        error: 'LT2_QUESTION_MISMATCH',
-        message: ErrorMessages.ADVANCED_ASSESSMENT.LT2_QUESTION_MISMATCH,
-      });
-    }
-
-    // Idempotency: if LT-3 has already been generated for this attempt,
-    // return it as-is. Prevents flaky-connection retries from spawning
-    // a different reflection question.
-    const existingLt3 = sessionQuestions.find(
-      (question) => question.slot_type === SlotType.REFLECTION,
-    );
-    if (existingLt3) {
-      this.logger.log(
-        `LT-3 already generated for attempt=${attempt.id}; returning existing.`,
-      );
-      return {
-        status: 'success',
-        message: SuccessMessages.ADVANCED_ASSESSMENT.LT2_SUBMITTED,
-        session_id: attempt.id,
-        question_id: existingLt3.question_id,
-        question_number: existingLt3.question_number,
-        question_text: existingLt3.question_text,
-        max_seconds_remaining: this.remainingSeconds(attempt),
-      };
-    }
-
-    const verifiedLevel = profile.validated_level ?? VerifiedLevel.JUNIOR;
-    const track = profile.track ?? 'general';
-
-    let generatedLt3Text: string;
-    try {
-      const generated = await this.lt3Generation.generate({
-        track,
-        verified_level: verifiedLevel,
-        lt2_question_text: lt2Question.question_text,
-        lt2_answer: dto.answer,
-      });
-      generatedLt3Text = generated.question_text;
-    } catch (error) {
-      this.logger.error(
-        `LT-3 generation failed for attempt=${attempt.id}: ${String(error)}`,
-      );
-      throw new ServiceUnavailableException({
-        error: 'LT3_GENERATION_FAILED',
-        message: ErrorMessages.ADVANCED_ASSESSMENT.LT3_GENERATION_FAILED,
-      });
-    }
-
-    const nextQuestionNumber = sessionQuestions.length + 1;
-    const result = await this.talentProfileRepo.manager.transaction(
-      async (manager) => {
-        // Persist a stable AssessmentQuestion row for the runtime LT-3 so it
-        // has a UUID we can use in responses + score rows + history.
-        const lt3Question = await manager.save(
-          AssessmentQuestion,
-          manager.create(AssessmentQuestion, {
-            assessment_type: AssessmentType.ADVANCED,
-            question_type: QuestionType.OPTIONAL_TEXT,
-            question_text: generatedLt3Text,
-            question_number: nextQuestionNumber,
-            options: null,
-            correct_answer: null,
-            track,
-            verified_level: verifiedLevel,
-            competency: normaliseCompetency(track, null),
-            slot_type: SlotType.REFLECTION,
-            // CHK_assessment_questions_metadata_valid requires difficulty,
-            // estimated_time_seconds, and a tags array. We extend the base
-            // generated-question metadata with the LT-2 linkage for audit.
-            metadata: {
-              ...this.buildGeneratedQuestionMetadata({
-                track,
-                verifiedLevel,
-                questionType: QuestionType.OPTIONAL_TEXT,
-                competency: null,
-                slotType: SlotType.REFLECTION,
-                block: 'long_text',
-                industryContext: null,
-              }),
-              lt3_runtime: true,
-              lt2_question_id: lt2Question.question_id,
-            },
-            is_live: false,
-          }),
-        );
-
-        // Block this specific LT-3 question from ever being re-served.
-        await manager.save(
-          TalentQuestionHistory,
-          manager.create(TalentQuestionHistory, {
-            talent_profile_id: profile.id,
-            question_id: lt3Question.id,
-            attempt_id: attempt.id,
-            user_answer: { lt3_runtime: true },
-            is_correct: null,
-            raw_score: null,
-            max_score: null,
-            answered_at: new Date(),
-          }),
-        );
-
-        // Append LT-3 to the session jsonb so subsequent /session/:id reads
-        // and the final /advanced/submit see all 25 questions. Mirror the
-        // exact metadata we just persisted so the session view and the DB
-        // row stay in sync.
-        const updatedQuestions: AdvancedAssessmentGeneratedQuestion[] = [
-          ...sessionQuestions,
-          {
-            question_id: lt3Question.id,
-            question_number: nextQuestionNumber,
-            block: 'long_text',
-            question_type: QuestionType.OPTIONAL_TEXT,
-            question_text: generatedLt3Text,
-            options: null,
-            slot_type: SlotType.REFLECTION,
-            metadata: lt3Question.metadata as Record<string, unknown>,
-            correct_answer: null,
-            ...blockLengthLimits('long_text'),
-          },
-        ];
-
-        const payload = this.readSessionPayload(attempt);
-        const updatedJson = { ...payload, questions: updatedQuestions };
-        await manager.update(
-          AssessmentAttempt,
-          { id: attempt.id },
-          {
-            generated_questions_json: updatedJson as unknown as Record<
-              string,
-              any
-            >,
-          },
-        );
-        attempt.generated_questions_json = updatedJson;
-
-        return lt3Question;
-      },
-    );
-
-    this.logger.log(
-      `LT-3 generated: attempt=${attempt.id} user=${userId} lt3=${result.id}`,
-    );
-
-    return {
-      status: 'success',
-      message: SuccessMessages.ADVANCED_ASSESSMENT.LT2_SUBMITTED,
-      session_id: attempt.id,
-      question_id: result.id,
-      question_number: nextQuestionNumber,
-      question_text: generatedLt3Text,
-      max_seconds_remaining: this.remainingSeconds(attempt),
-    };
   }
 
   async flag(
@@ -1677,11 +1431,7 @@ export class AdvancedAssessmentService {
 
       const scored = scoredByQuestion.get(question.question_id);
       const rawScore = scored?.raw_score ?? 0;
-      const maxScore =
-        scored?.max_score ??
-        (question.slot_type === SlotType.REFLECTION
-          ? LT3_RUBRIC_MAX
-          : TEXT_FULL_RUBRIC_MAX);
+      const maxScore = scored?.max_score ?? TEXT_FULL_RUBRIC_MAX;
       const pctScore = maxScore > 0 ? (rawScore / maxScore) * 100 : 0;
       const integrityFlag =
         abnormalTimingByQuestion.get(question.question_id) === true;
@@ -1852,9 +1602,7 @@ export class AdvancedAssessmentService {
     const bankShort = bankText.filter(
       (question) => this.textBlock(question) === 'short_text',
     );
-    // Long-text base = 2 SITUATIONAL (LT-1) + 2 WORK_TASK (LT-2). LT-3
-    // (REFLECTION) is runtime-generated by submitLt2() and never seeded
-    // from the bank.
+    // Long-text base = 2 SITUATIONAL (LT-1) + 3 WORK_TASK (LT-2).
     const bankLongSituational = bankText.filter(
       (question) =>
         this.textBlock(question) === 'long_text' &&
@@ -2212,9 +1960,7 @@ export class AdvancedAssessmentService {
       remaining_seconds: timer.remaining_seconds,
       verified_level: this.readSessionVerifiedLevel(attempt),
       question_count: questions.length,
-      pending_lt3:
-        questions.length < ADVANCED_ASSESSMENT_TOTAL_QUESTIONS &&
-        !attempt.completed_at,
+      pending_lt3: false,
       questions,
     };
   }

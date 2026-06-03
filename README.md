@@ -71,6 +71,19 @@ Open `http://localhost:3000/docs` for the Swagger UI.
 | `pnpm seed` | Run all seeders |
 | `pnpm db:reset` | Drop schema, run migrations, run seeders |
 
+### Question bank
+| Script | Purpose |
+|---|---|
+| `pnpm generate:question-bank` | Run the scheduled question-bank generator |
+
+Example dry run:
+
+```bash
+pnpm generate:question-bank -- --dry-run --batch-size 5
+```
+
+For PM2, use `dist/scripts/generate-question-bank.js` as a one-shot app and trigger it from host cron with `pm2 startOrReload ecosystem.config.cjs --only question-generator --env production --update-env`.
+
 > The `migration:generate` script requires a live database connection so TypeORM can diff against the current schema.
 
 ## Folder structure
