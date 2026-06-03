@@ -493,7 +493,8 @@ export class PersonalAssessmentService {
         questions: [
           {
             source_key: 'one source_key from question_bank',
-            input_type: 'preserve exactly from question_bank (single|multi|text_required|text_optional)',
+            input_type:
+              'preserve exactly from question_bank (single|multi|text_required|text_optional)',
             prompt: 'candidate-facing question text',
             helper_text: 'short optional hint or null',
           },

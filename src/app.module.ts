@@ -37,6 +37,8 @@ import { AdminQuestionsModule } from './modules/admin/questions/admin-questions.
 import { EmployerDiscoveryModule } from './modules/employer-discovery/employer-discovery.module';
 import { OffersModule } from './modules/offers/offers.module';
 import { EmployerAssessmentsModule } from './modules/employer-assessments/employer-assessments.module';
+import { MetricsModule } from './modules/metrics/metrics.module';
+import { MetricsInterceptor } from './modules/metrics/metrics.interceptor';
 
 @Module({
   imports: [
@@ -66,6 +68,7 @@ import { EmployerAssessmentsModule } from './modules/employer-assessments/employ
     EmployerDiscoveryModule,
     OffersModule,
     EmployerAssessmentsModule,
+    MetricsModule,
   ],
   providers: [
     {
@@ -82,6 +85,7 @@ import { EmployerAssessmentsModule } from './modules/employer-assessments/employ
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
+    { provide: APP_INTERCEPTOR, useClass: MetricsInterceptor },
   ],
   controllers: [ProbeController, WelcomeController],
 })
