@@ -18,15 +18,14 @@ import { TalentProfile } from '../entities/talent-profile.entity';
 import {
   ONBOARDING_TRACK_TO_ASSESSMENT_TRACK,
   PERSONAL_ASSESSMENT_SECTION_COUNT,
-  PERSONAL_ASSESSMENT_SECTIONS,
   PERSONAL_ASSESSMENT_SECTION_TITLES,
   PersonalAssessmentInputType,
   PersonalAssessmentQuestion,
   SKIPPED_ONBOARDING_ANSWER_KEYS,
   SPECIALIZATIONS_BY_TRACK,
   TOOLS_BY_TRACK,
-  getAllPersonalAssessmentQuestions,
 } from './personal-assessment.schema';
+import { PersonalAssessmentQuestionService } from './personal-assessment-question.service';
 import {
   buildPersonalAssessmentAiPromptContext,
   type PersonalAssessmentAiPromptContextPayload,
@@ -96,6 +95,7 @@ export class PersonalAssessmentService {
     @InjectRepository(TalentProfile)
     private readonly talentProfileRepository: Repository<TalentProfile>,
     private readonly usersService: UsersService,
+    private readonly questionCatalog: PersonalAssessmentQuestionService,
     @Optional() private readonly openRouter?: OpenRouterService,
   ) {}
 
@@ -382,7 +382,7 @@ export class PersonalAssessmentService {
       seen.add(requiredQuestion.key);
       selected.push({
         question: requiredQuestion,
-        prompt: this.defaultQuestionPrompt(requiredQuestion),
+        prompt: requiredQuestion.prompt ?? this.defaultQuestionPrompt(requiredQuestion),
         helperText: null,
       });
     }
@@ -397,7 +397,7 @@ export class PersonalAssessmentService {
       seen.add(fallback.key);
       selected.push({
         question: fallback,
-        prompt: this.defaultQuestionPrompt(fallback),
+        prompt: fallback.prompt ?? this.defaultQuestionPrompt(fallback),
         helperText: null,
       });
     }
@@ -466,7 +466,7 @@ export class PersonalAssessmentService {
 
     return JSON.stringify({
       instruction:
-        'Generate a personal assessment with 15 to 20 questions. Use the 48-question question_bank as context and source material, then pick the best source questions for this candidate role. Preserve each selected source_key exactly so the frontend answer payload can be validated. Rewrite prompt in a natural candidate-facing voice for the candidate role and claimed level. Include a mix of single-pick, multi-pick, and written-answer questions; written-answer questions are any source question whose input_type is text_required or text_optional. Do not invent new answer keys, input types, or option values.',
+        'Generate a personal assessment with 15 to 20 questions. Use the 36-question question_bank as context and source material, then pick the best source questions for this candidate role. Preserve each selected source_key exactly so the frontend answer payload can be validated. Rewrite prompt in a natural candidate-facing voice for the candidate role and claimed level. Include a mix of single-pick, multi-pick, and written-answer questions; written-answer questions are any source question whose input_type is text_required or text_optional. Do not invent new answer keys, input types, or option values.',
       candidate: {
         track: profile.track,
         claimed_level: profile.claimed_level,
@@ -486,7 +486,6 @@ export class PersonalAssessmentService {
         include_background: true,
         include_skills: true,
         include_work_style: true,
-        include_availability: true,
       },
       question_bank: bank,
       response_schema: {
@@ -505,7 +504,15 @@ export class PersonalAssessmentService {
   private personalAssessmentGenerationBank(
     profile: TalentProfile,
   ): PersonalAssessmentQuestion[] {
-    return getAllPersonalAssessmentQuestions().filter((question) => {
+    return this.questionCatalog.getAllQuestions().filter((question) => {
+      if (
+        question.track &&
+        question.track !== 'all' &&
+        question.track !== profile.track
+      ) {
+        return false;
+      }
+
       if (question.skipStorage && question.key !== 'claimed_level') {
         return false;
       }
@@ -543,11 +550,6 @@ export class PersonalAssessmentService {
       'work_arrangement_preference',
       'deadline_handling',
       'ideal_work_environment',
-      'proudest_achievement',
-      'job_search_status',
-      'availability',
-      'engagement_types',
-      'next_role_narrative',
     ];
     const byKey = new Map(bank.map((question) => [question.key, question]));
 
@@ -565,7 +567,7 @@ export class PersonalAssessmentService {
     session: GeneratedPersonalAssessmentSession,
   ): PersonalAssessmentQuestion[] {
     const byKey = new Map(
-      getAllPersonalAssessmentQuestions().map((question) => [
+      this.questionCatalog.getAllQuestions().map((question) => [
         question.key,
         question,
       ]),
@@ -632,20 +634,7 @@ export class PersonalAssessmentService {
   }
 
   private findQuestionSection(key: string): number {
-    for (
-      let section = 1;
-      section <= PERSONAL_ASSESSMENT_SECTION_COUNT;
-      section++
-    ) {
-      if (
-        PERSONAL_ASSESSMENT_SECTIONS[section].some(
-          (question) => question.key === key,
-        )
-      ) {
-        return section;
-      }
-    }
-    return 0;
+    return this.questionCatalog.findQuestionSection(key);
   }
 
   private sectionTitle(section: number): string {
@@ -653,6 +642,10 @@ export class PersonalAssessmentService {
   }
 
   private defaultQuestionPrompt(question: PersonalAssessmentQuestion): string {
+    if (question.prompt?.trim()) {
+      return question.prompt.trim();
+    }
+
     return question.key
       .split('_')
       .map((part) => part[0]?.toUpperCase() + part.slice(1))
@@ -701,7 +694,12 @@ export class PersonalAssessmentService {
         this.readStore(profile),
       );
 
-      const validated = validateSectionAnswers(section, filtered, profile);
+      const validated = validateSectionAnswers(
+        section,
+        filtered,
+        profile,
+        this.questionCatalog.getSectionQuestions(section),
+      );
       if (typeof validated.claimed_level === 'string') {
         profile.claimed_level =
           validated.claimed_level as TalentProfile['claimed_level'];
@@ -815,6 +813,7 @@ export class PersonalAssessmentService {
       profile ?? emptyProfile,
       user,
       profile ? this.withoutMeta(this.readStore(profile)) : {},
+      this.questionCatalog,
     );
   }
 }

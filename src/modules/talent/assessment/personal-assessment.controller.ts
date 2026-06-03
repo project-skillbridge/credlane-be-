@@ -37,7 +37,7 @@ export class PersonalAssessmentController {
   @ApiOperation({
     summary: 'Generate a personal assessment session',
     description:
-      'Generates and stores a frontend-renderable 15-20 question personal assessment from the 48-question framework and candidate onboarding context.',
+      'Generates and stores a frontend-renderable 15-20 question personal assessment from the database question bank (sections 1–5) and candidate onboarding context.',
   })
   @ApiUnprocessableEntityResponse({
     description: 'Missing onboarding fields or assessment already completed',
@@ -84,7 +84,7 @@ export class PersonalAssessmentController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
-      'Deprecated: Save personal assessment answers for one section (1–7)',
+      'Deprecated: Save personal assessment answers for one section (1–5)',
     description:
       'Legacy compatibility route for the old staged flow. Prefer POST /submit for the generated assessment experience. Ignores track, educationLevel, region, and linkedinProfile - those come from onboarding on the talent profile. claimedLevel/claimed_level is collected during personal assessment and saved to the talent profile.',
     deprecated: true,
