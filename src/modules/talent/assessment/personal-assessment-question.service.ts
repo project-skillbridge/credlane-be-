@@ -86,6 +86,29 @@ function toPersonalAssessmentQuestion(
     question.options = optionItems.map((option) => option.value);
   }
 
+  if (row.skip_storage) {
+    question.skipStorage = true;
+  }
+  if (row.profile_field) {
+    question.profileField =
+      row.profile_field as PersonalAssessmentQuestion['profileField'];
+  }
+  if (row.min_length != null) {
+    question.minLength = row.min_length;
+  }
+  if (row.max_length != null) {
+    question.maxLength = row.max_length;
+  }
+  if (row.other_text_key) {
+    question.otherTextKey = row.other_text_key;
+  }
+  if (row.follow_up_key) {
+    question.followUpKey = row.follow_up_key;
+  }
+  if (row.follow_up_when) {
+    question.followUpWhen = row.follow_up_when;
+  }
+
   return question;
 }
 

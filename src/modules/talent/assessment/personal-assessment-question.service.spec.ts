@@ -127,4 +127,63 @@ describe('PersonalAssessmentQuestionService', () => {
     expect(trackService.findQuestionSection('work_arrangement')).toBe(5);
     expect(trackService.findQuestionSection('bad_field')).toBe(0);
   });
+
+  it('maps validation metadata from database rows', async () => {
+    const questionRepo = {
+      find: jest.fn().mockResolvedValue([
+        {
+          id: 'PA-TEST-META-001',
+          section: 'professional_background',
+          track: 'all',
+          question: 'Highest education level',
+          field_name: 'education_level',
+          format: 'single_select',
+          required: true,
+          options: [{ value: 'bachelor', label: 'Bachelor' }],
+          skip_storage: true,
+          profile_field: 'education_level',
+          min_length: null,
+          max_length: null,
+          other_text_key: null,
+          follow_up_key: null,
+          follow_up_when: null,
+          display_order: 1,
+          is_live: true,
+        },
+        {
+          id: 'PA-TEST-META-002',
+          section: 'work_style',
+          track: 'all',
+          question: 'Describe your ideal environment',
+          field_name: 'ideal_work_environment',
+          format: 'text_required',
+          required: true,
+          options: null,
+          skip_storage: false,
+          profile_field: null,
+          min_length: 60,
+          max_length: 1000,
+          other_text_key: null,
+          follow_up_key: null,
+          follow_up_when: null,
+          display_order: 2,
+          is_live: true,
+        },
+      ]),
+    };
+
+    const trackService = new PersonalAssessmentQuestionService(
+      questionRepo as never,
+    );
+    await trackService.reloadFromDatabase();
+
+    expect(trackService.getOnboardingBackedQuestionKeys()).toEqual([
+      'education_level',
+    ]);
+    const narrative = trackService
+      .getAllQuestions()
+      .find((question) => question.key === 'ideal_work_environment');
+    expect(narrative?.minLength).toBe(60);
+    expect(narrative?.maxLength).toBe(1000);
+  });
 });

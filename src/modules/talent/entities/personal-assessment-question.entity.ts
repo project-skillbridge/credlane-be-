@@ -61,6 +61,38 @@ export class PersonalAssessmentQuestionEntity {
   @Column({ type: 'jsonb', nullable: true })
   options: PersonalAssessmentQuestionOption[] | null;
 
+  @ApiProperty({ default: false })
+  @Column({ type: 'boolean', default: false })
+  skip_storage: boolean;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    example: 'education_level',
+  })
+  @Column({ type: 'varchar', length: 50, nullable: true })
+  profile_field: string | null;
+
+  @ApiProperty({ required: false, nullable: true, example: 80 })
+  @Column({ type: 'integer', nullable: true })
+  min_length: number | null;
+
+  @ApiProperty({ required: false, nullable: true, example: 1000 })
+  @Column({ type: 'integer', nullable: true })
+  max_length: number | null;
+
+  @ApiProperty({ required: false, nullable: true, example: 'industries_other' })
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  other_text_key: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  follow_up_key: string | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ type: 'varchar', length: 100, nullable: true })
+  follow_up_when: string | null;
+
   @ApiProperty({ default: 0 })
   @Column({ type: 'integer', default: 0 })
   display_order: number;
