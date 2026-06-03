@@ -8,8 +8,8 @@ import {
   PersonalAssessmentQuestion,
   SPECIALIZATIONS_BY_TRACK,
   TOOLS_BY_TRACK,
-  getSectionQuestions,
 } from './personal-assessment.schema';
+import type { PersonalAssessmentQuestionCatalog } from './personal-assessment-question.service';
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === 'string' && value.trim().length > 0;
@@ -258,8 +258,8 @@ export function validateSectionAnswers(
   section: number,
   answers: Record<string, unknown>,
   profile: TalentProfile,
+  questions: PersonalAssessmentQuestion[],
 ): Record<string, unknown> {
-  const questions = getSectionQuestions(section);
   if (questions.length === 0) {
     throw new UnprocessableEntityException({
       message: 'Invalid section number',
@@ -551,6 +551,7 @@ export function assertAssessmentReadyForComplete(
   completedSections: number[],
   profile: TalentProfile,
   user: User,
+  catalog: PersonalAssessmentQuestionCatalog,
 ): void {
   const issues: PersonalAssessmentFieldIssue[] = [];
   const completedSet = new Set(completedSections);
@@ -568,7 +569,10 @@ export function assertAssessmentReadyForComplete(
       });
     }
 
-    for (const question of getSectionQuestions(section)) {
+    for (const question of catalog.getSectionQuestions(
+      section,
+      profile.track,
+    )) {
       issues.push(
         ...collectQuestionCompleteIssues(
           question,

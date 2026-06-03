@@ -1,10 +1,13 @@
 import {
   PERSONAL_ASSESSMENT_SECTION_COUNT,
+  PERSONAL_ASSESSMENT_SECTION_SLUG_TO_NUMBER,
   SKIPPED_ONBOARDING_ANSWER_KEYS,
-  getAllPersonalAssessmentQuestions,
-  getOnboardingBackedQuestionKeys,
-  getSectionQuestions,
 } from './personal-assessment.schema';
+import { createTestPersonalAssessmentQuestionService } from './personal-assessment-question.service';
+import {
+  getOnboardingBackedQuestionKeysFromTestQuestions,
+  PERSONAL_ASSESSMENT_TEST_QUESTIONS,
+} from './personal-assessment.test-questions';
 import { validateSectionAnswers } from './personal-assessment.validation';
 import {
   makeTalentProfile,
@@ -32,16 +35,18 @@ const ONBOARDING_ONLY_FIELD_KEYS = new Set<string>([
 ]);
 
 describe('personal assessment onboarding overlap', () => {
-  const allQuestions = getAllPersonalAssessmentQuestions();
-  const onboardingBackedKeys = getOnboardingBackedQuestionKeys();
+  const catalog = createTestPersonalAssessmentQuestionService();
+  const allQuestions = PERSONAL_ASSESSMENT_TEST_QUESTIONS;
+  const onboardingBackedKeys =
+    getOnboardingBackedQuestionKeysFromTestQuestions();
 
-  it('defines exactly 48 questions across 7 sections', () => {
-    expect(allQuestions).toHaveLength(48);
+  it('defines exactly 36 questions across 5 sections', () => {
+    expect(allQuestions).toHaveLength(36);
     expect(
       allQuestions
         .map((question) => question.questionNumber)
         .sort((a, b) => a - b),
-    ).toEqual([...Array(48)].map((_, index) => index + 1));
+    ).toEqual([...Array(36)].map((_, index) => index + 1));
   });
 
   it('has at least one question per section', () => {
@@ -50,7 +55,7 @@ describe('personal assessment onboarding overlap', () => {
       section <= PERSONAL_ASSESSMENT_SECTION_COUNT;
       section++
     ) {
-      expect(getSectionQuestions(section).length).toBeGreaterThan(0);
+      expect(catalog.getSectionQuestions(section).length).toBeGreaterThan(0);
     }
   });
 
@@ -78,6 +83,17 @@ describe('personal assessment onboarding overlap', () => {
     expect(SKIPPED_ONBOARDING_ANSWER_KEYS.has('linkedinProfile')).toBe(true);
     expect(SKIPPED_ONBOARDING_ANSWER_KEYS.has('claimed_level')).toBe(false);
     expect(SKIPPED_ONBOARDING_ANSWER_KEYS.has('claimedLevel')).toBe(false);
+  });
+
+  it('maps every test question section slug to a legacy section number', () => {
+    for (const question of allQuestions) {
+      const sectionNumber =
+        PERSONAL_ASSESSMENT_SECTION_SLUG_TO_NUMBER[question.sectionSlug];
+      expect(sectionNumber).toBeGreaterThanOrEqual(1);
+      expect(sectionNumber).toBeLessThanOrEqual(
+        PERSONAL_ASSESSMENT_SECTION_COUNT,
+      );
+    }
   });
 
   it('does not include goal as an assessment question', () => {
@@ -111,6 +127,7 @@ describe('personal assessment onboarding overlap', () => {
         linkedinProfile: 'https://linkedin.com/in/other',
       },
       profile,
+      catalog.getSectionQuestions(1),
     );
 
     expect(result.education_level).toBeUndefined();
