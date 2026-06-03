@@ -50,7 +50,7 @@ import {
 } from './assessment-answer-blocks.constants';
 import { GuidanceReportService } from '../../ai/guidance-report.service';
 import { QuestionGenerationService } from '../../ai/question-generation.service';
-import { GeneratedQuestion, GuidanceReport } from '../../ai/ai.types';
+import { GuidanceReport } from '../../ai/ai.types';
 import { BankExhaustedAlertService } from '../../mail/bank-exhausted-alert.service';
 
 const SKILL_ASSESSMENT_MCQ_COUNT = 16;
@@ -858,78 +858,17 @@ export class SkillAssessmentService {
     return qb.orderBy('RANDOM()').getMany();
   }
 
+  // AI question fallback disabled — use only seeded bank questions.
+  // If the bank is insufficient, selectSkillQuestionMix will throw and
+  // the caller surfaces BANK_EXHAUSTED so admins can seed more questions.
+  // eslint-disable-next-line @typescript-eslint/require-await
   private async ensureSkillQuestionsWithAI(
-    manager: EntityManager,
-    profile: TalentProfile,
-    verifiedLevel: VerifiedLevel,
+    _manager: EntityManager,
+    _profile: TalentProfile,
+    _verifiedLevel: VerifiedLevel,
     bankQuestions: AssessmentQuestion[],
   ): Promise<AssessmentQuestion[]> {
-    const mcqs = bankQuestions.filter((q) => this.isPickQuestion(q));
-
-    const targetMcqs = SKILL_ASSESSMENT_TOTAL;
-    const neededMcqs = Math.max(0, targetMcqs - mcqs.length);
-
-    if (neededMcqs === 0) {
-      return bankQuestions;
-    }
-
-    this.logger.log(
-      `Generating AI questions for track=${profile.track} level=${verifiedLevel}: ${neededMcqs} MCQ`,
-    );
-
-    let generatedMcqs: GeneratedQuestion[];
-    try {
-      generatedMcqs = await this.questionGeneration.generateQuestions({
-        track: profile.track!,
-        verified_level: verifiedLevel,
-        assessment_type: 'skill',
-        question_type: QuestionType.SINGLE_PICK,
-        count: neededMcqs,
-      });
-    } catch (error) {
-      this.logger.warn(
-        `AI question generation failed for track=${profile.track} level=${verifiedLevel}: ${String(error)}`,
-      );
-      return bankQuestions;
-    }
-
-    if (generatedMcqs.length === 0) {
-      return bankQuestions;
-    }
-
-    const questionRepo = manager.getRepository(AssessmentQuestion);
-    const existingCount = await questionRepo.count({
-      where: {
-        assessment_type: AssessmentType.SKILL,
-        track: profile.track ?? undefined,
-        verified_level: verifiedLevel,
-      },
-    });
-
-    const persistedEntities = await manager.save(
-      AssessmentQuestion,
-      generatedMcqs.map((q, i) =>
-        manager.create(AssessmentQuestion, {
-          assessment_type: AssessmentType.SKILL,
-          question_type: q.question_type,
-          question_text: q.question_text,
-          question_number: existingCount + i + 1,
-          options: q.options,
-          correct_answer: q.correct_answer,
-          track: profile.track,
-          verified_level: verifiedLevel,
-          competency: q.competency,
-          slot_type: q.slot_type,
-          is_live: true,
-        }),
-      ),
-    );
-
-    this.logger.log(
-      `Persisted ${persistedEntities.length} AI-generated questions for track=${profile.track} level=${verifiedLevel}`,
-    );
-
-    return [...bankQuestions, ...persistedEntities];
+    return bankQuestions;
   }
 
   private selectSkillQuestionMix(
