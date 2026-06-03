@@ -14,11 +14,11 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { Roles } from '../../../common/decorators/roles.decorator';
-import {
-  PersonalAssessmentQuestionService,
-  type PersonalAssessmentQuestionImportItem,
-  type PersonalAssessmentQuestionImportResult,
-} from '../../talent/assessment/personal-assessment-question.service';
+import { PersonalAssessmentQuestionService } from '../../talent/assessment/personal-assessment-question.service';
+import type {
+  PersonalAssessmentQuestionImportItem,
+  PersonalAssessmentQuestionImportResult,
+} from '../../talent/assessment/personal-assessment-question-import.types';
 import { UserRole } from '../../users/entities/user.entity';
 import { ImportPersonalAssessmentQuestionsDto } from './dto/import-personal-assessment-questions.dto';
 

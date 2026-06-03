@@ -7,6 +7,10 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PersonalAssessmentQuestionEntity } from '../entities/personal-assessment-question.entity';
+import type {
+  PersonalAssessmentQuestionImportItem,
+  PersonalAssessmentQuestionImportResult,
+} from './personal-assessment-question-import.types';
 import {
   PERSONAL_ASSESSMENT_SECTION_COUNT,
   PERSONAL_ASSESSMENT_SECTION_SLUG_TO_NUMBER,
@@ -268,6 +272,57 @@ export class PersonalAssessmentQuestionService
 
   getSectionCount(): number {
     return PERSONAL_ASSESSMENT_SECTION_COUNT;
+  }
+
+  async importQuestions(
+    items: PersonalAssessmentQuestionImportItem[],
+  ): Promise<PersonalAssessmentQuestionImportResult> {
+    let inserted = 0;
+    let updated = 0;
+    let skipped = 0;
+    const errors: string[] = [];
+
+    for (const item of items) {
+      try {
+        const existing = await this.questionRepo.findOne({
+          where: { id: item.id },
+        });
+        if (existing) {
+          await this.questionRepo.update(item.id, {
+            section: item.section,
+            track: item.track,
+            question: item.question,
+            field_name: item.fieldName,
+            format: item.format,
+            required: item.required,
+            options: item.options ?? null,
+          });
+          updated++;
+        } else {
+          await this.questionRepo.save(
+            this.questionRepo.create({
+              id: item.id,
+              section: item.section,
+              track: item.track,
+              question: item.question,
+              field_name: item.fieldName,
+              format: item.format,
+              required: item.required,
+              options: item.options ?? null,
+              is_live: true,
+            }),
+          );
+          inserted++;
+        }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(`${item.id}: ${msg}`);
+        skipped++;
+      }
+    }
+
+    await this.reloadFromDatabase();
+    return { inserted, updated, skipped, errors };
   }
 }
 
