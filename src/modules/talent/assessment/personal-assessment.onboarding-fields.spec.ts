@@ -86,8 +86,11 @@ describe('personal assessment onboarding overlap', () => {
 
   it('maps every test question section slug to a legacy section number', () => {
     for (const question of allQuestions) {
-      expect(PERSONAL_ASSESSMENT_SECTION_SLUG_TO_NUMBER[question.sectionSlug]).toBeGreaterThan(
-        0,
+      const sectionNumber =
+        PERSONAL_ASSESSMENT_SECTION_SLUG_TO_NUMBER[question.sectionSlug];
+      expect(sectionNumber).toBeGreaterThanOrEqual(1);
+      expect(sectionNumber).toBeLessThanOrEqual(
+        PERSONAL_ASSESSMENT_SECTION_COUNT,
       );
     }
   });
