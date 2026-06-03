@@ -131,12 +131,7 @@ function makeSessionJson() {
     question_type: QuestionType.REQUIRED_TEXT,
     question_text: `Long text ${i + 1}`,
     options: null,
-    slot_type:
-      i === 4
-        ? SlotType.REFLECTION
-        : i < 2
-          ? SlotType.SITUATIONAL
-          : SlotType.WORK_TASK,
+    slot_type: i < 2 ? SlotType.SITUATIONAL : SlotType.WORK_TASK,
     metadata: null,
   }));
 

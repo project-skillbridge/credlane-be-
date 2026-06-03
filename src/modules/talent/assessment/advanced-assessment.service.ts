@@ -36,7 +36,6 @@ import {
   ADVANCED_ASSESSMENT_BASE_QUESTIONS,
   ADVANCED_ASSESSMENT_MCQ_COUNT,
   ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT,
-  ADVANCED_ASSESSMENT_TOTAL_QUESTIONS,
   AdvancedAssessmentAiService,
   AdvancedAssessmentGeneratedQuestion,
   blockLengthLimits,
@@ -92,11 +91,9 @@ const ADVANCED_LONG_TEXT_MIN_CHARS = 60;
 const ADVANCED_LONG_TEXT_MAX_CHARS = 2000;
 const ADVANCED_MCQ_SCORE_WEIGHT = 0.3;
 
-// Long-text block = 2 situational (LT-1) + 2 work-task (LT-2) + 1 reflection
-// (LT-3). LT-3 is runtime-generated, served via /lt2-submit, not pre-selected
-// here.
+// Long-text block = 2 situational (LT-1) + 3 work-task (LT-2).
 const ADVANCED_LT1_COUNT = 2;
-const ADVANCED_LT2_COUNT = 2;
+const ADVANCED_LT2_COUNT = 3;
 
 // Text questions keep their rubric max scores for per-question analytics.
 // Final attempt percentage is weighted separately: MCQ 30%, text 70%.
@@ -561,16 +558,6 @@ export class AdvancedAssessmentService {
       throw new BadRequestException(
         ErrorMessages.ADVANCED_ASSESSMENT.SESSION_CORRUPT,
       );
-    }
-
-    const hasReflectionSlot = sessionQuestions.some(
-      (question) => question.slot_type === SlotType.REFLECTION,
-    );
-    if (!hasReflectionSlot) {
-      throw new UnprocessableEntityException({
-        error: 'LT2_NOT_SUBMITTED',
-        message: ErrorMessages.ADVANCED_ASSESSMENT.LT2_NOT_SUBMITTED,
-      });
     }
 
     const userId = data.userId;
@@ -1043,16 +1030,6 @@ export class AdvancedAssessmentService {
       throw new BadRequestException(
         ErrorMessages.ADVANCED_ASSESSMENT.SESSION_CORRUPT,
       );
-    }
-
-    const hasReflectionSlot = sessionQuestions.some(
-      (question) => question.slot_type === SlotType.REFLECTION,
-    );
-    if (!hasReflectionSlot) {
-      throw new UnprocessableEntityException({
-        error: 'LT2_NOT_SUBMITTED',
-        message: ErrorMessages.ADVANCED_ASSESSMENT.LT2_NOT_SUBMITTED,
-      });
     }
 
     return { profile, attempt, sessionQuestions };
@@ -2212,9 +2189,7 @@ export class AdvancedAssessmentService {
       remaining_seconds: timer.remaining_seconds,
       verified_level: this.readSessionVerifiedLevel(attempt),
       question_count: questions.length,
-      pending_lt3:
-        questions.length < ADVANCED_ASSESSMENT_TOTAL_QUESTIONS &&
-        !attempt.completed_at,
+      pending_lt3: false,
       questions,
     };
   }
