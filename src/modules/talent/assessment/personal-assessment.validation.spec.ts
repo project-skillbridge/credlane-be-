@@ -186,7 +186,7 @@ describe('assertAssessmentReadyForComplete', () => {
       const body = getExceptionBody(error);
       expect(body.message).toBe('Personal assessment is incomplete');
       expect(body.incompleteSections).toEqual(
-        expect.arrayContaining([2, 3, 4, 5]),
+        expect.arrayContaining([1, 2, 3, 4, 5]),
       );
       expect(body.missingFields).toEqual(
         expect.arrayContaining([
