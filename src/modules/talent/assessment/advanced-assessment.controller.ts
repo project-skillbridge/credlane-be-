@@ -31,7 +31,6 @@ import {
   FlagIntegrityEventDto,
   StartAdvancedAssessmentDto,
   SubmitAdvancedAssessmentDto,
-  SubmitLt2Dto,
 } from './dto/advanced-assessment.dto';
 
 @ApiTags('talent-assessment')
@@ -50,8 +49,7 @@ export class AdvancedAssessmentController {
     description:
       'Requires completed personal assessment, a completed skill assessment, and a verified level. ' +
       'Enforces the 14-day retake gate, blocks duplicate active sessions, excludes previously served questions, ' +
-      'and returns 24 ordered questions: 10 MCQ, 10 short-text, and 4 long-text prompts. ' +
-      'The final LT-3 reflection question is generated later through POST /session/:id/lt2-submit.',
+      'and returns ordered questions: 8 MCQ, 2 short-text, and 5 long-text prompts.',
   })
   @ApiCreatedResponse({ description: 'Advanced assessment session created' })
   @ApiConflictResponse({
@@ -100,44 +98,6 @@ export class AdvancedAssessmentController {
     return this.advancedAssessmentService.getSession(userId, sessionId);
   }
 
-  @Post('session/:id/lt2-submit')
-  @HttpCode(HttpStatus.OK)
-  @ApiOperation({
-    summary: 'Submit LT-2 answer and receive runtime-generated LT-3',
-    description:
-      'LT-3 (reflection) is generated at runtime from the candidate\u2019s LT-2 answer. ' +
-      'POST this endpoint immediately after the candidate ' +
-      'submits LT-2; the response contains the LT-3 question to render next. ' +
-      'Idempotent: a second call returns the LT-3 that was generated on the first call ' +
-      'without invoking the LLM again. Returns 503 LT3_GENERATION_FAILED if the LLM ' +
-      'fails (client should retry).',
-  })
-  @ApiParam({ name: 'id', format: 'uuid', description: 'Session ID' })
-  @ApiOkResponse({ description: 'LT-3 generated and appended to session' })
-  @ApiNotFoundResponse({ description: 'Session not found' })
-  @ApiForbiddenResponse({ description: 'Not a talent user' })
-  @ApiServiceUnavailableResponse({
-    description: 'LT3_GENERATION_FAILED when the LLM call fails',
-  })
-  @ApiUnprocessableEntityResponse({
-    description:
-      'question_id does not match the LT-2 slot, or session has expired / completed / been voided',
-  })
-  @UsePipes(
-    new ValidationPipe({
-      whitelist: true,
-      transform: true,
-      errorHttpStatusCode: HttpStatus.UNPROCESSABLE_ENTITY,
-    }),
-  )
-  submitLt2(
-    @CurrentUser('sub') userId: string,
-    @Param('id') sessionId: string,
-    @Body() dto: SubmitLt2Dto,
-  ) {
-    return this.advancedAssessmentService.submitLt2(userId, sessionId, dto);
-  }
-
   @Post('advanced/submit')
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({
@@ -147,7 +107,6 @@ export class AdvancedAssessmentController {
       'Returns immediately with status=processing and session_id. ' +
       'Poll GET /talent/ai-report/guidance-report for guidance reports; GET /dashboard/home for score and tier. ' +
       'Optional: GET /session/:id until completed_at is set. ' +
-      'Returns 422 LT2_NOT_SUBMITTED if /lt2-submit was never called. ' +
       'Duplicate submits while a job is in flight are deduped by attempt id.',
   })
   @ApiAcceptedResponse({

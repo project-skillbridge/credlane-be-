@@ -41,7 +41,7 @@ function makeAttempt(
     assessment_type: AssessmentType.ADVANCED,
     started_at: new Date(),
     completed_at: null,
-    expires_at: new Date(Date.now() + 90 * 60 * 1000),
+    expires_at: new Date(Date.now() + 25 * 60 * 1000),
     tab_switch_count: 0,
     copy_paste_count: 0,
     force_submitted: false,
@@ -53,9 +53,7 @@ function makeAttempt(
 }
 
 /**
- * 8 MCQ + 2 short text + 2 LT-1 (SITUATIONAL) + 2 LT-2 (WORK_TASK) + 1
- * LT-3 (REFLECTION, runtime-generated). For tests we pre-populate the
- * reflection slot so submit() doesn't hit the LT2_NOT_SUBMITTED guard.
+ * 8 MCQ + 2 short text + 2 LT-1 (SITUATIONAL) + 3 LT-2 (WORK_TASK).
  */
 function makeSessionJson() {
   const mcqQuestions = Array.from({ length: 8 }, (_, i) => ({
@@ -87,7 +85,7 @@ function makeSessionJson() {
     SlotType.SITUATIONAL, // LT-1 (b)
     SlotType.WORK_TASK, // LT-2 (a)
     SlotType.WORK_TASK, // LT-2 (b)
-    SlotType.REFLECTION, // LT-3 (runtime-generated)
+    SlotType.WORK_TASK, // LT-2 (c)
   ];
   const longTextQuestions = longTextSlots.map((slot_type, i) => ({
     question_id: `long-${i + 1}`,
@@ -137,10 +135,10 @@ function makeSubmitJobData(overrides: Record<string, unknown> = {}) {
 
 /**
  * Returns 7 scored text answers in the canonical scoring shape:
- * 2 short (max 12) + 2 LT-1 (max 12) + 2 LT-2 (max 12) + 1 LT-3 (max 8).
+ * 2 short (max 12) + 5 long (max 12) = 84 total max.
  * The caller distributes total raw across all answers proportionally.
  */
-function makeScoredAnswers(rawTotal: number, maxTotal = 80) {
+function makeScoredAnswers(rawTotal: number, maxTotal = 84) {
   // 6 full-rubric questions (max 12 each = 72) + 1 LT-3 (max 8) = 80
   const proportion = rawTotal / maxTotal;
   const result = [];
@@ -162,8 +160,8 @@ function makeScoredAnswers(rawTotal: number, maxTotal = 80) {
     });
   }
 
-  // LT-1 (a), LT-1 (b), LT-2 (a), LT-2 (b)
-  for (let i = 0; i < 4; i++) {
+  // LT-1 (a), LT-1 (b), LT-2 (a), LT-2 (b), LT-2 (c)
+  for (let i = 0; i < 5; i++) {
     const raw = Math.round(12 * proportion);
     result.push({
       question_id: `long-${i + 1}`,
@@ -180,27 +178,11 @@ function makeScoredAnswers(rawTotal: number, maxTotal = 80) {
     });
   }
 
-  // LT-3 (reflection): 2 dims 0-4, max 8
-  const lt3Raw = Math.round(8 * proportion);
-  result.push({
-    question_id: 'long-5',
-    rubric: {
-      relevance: 2,
-      reasoning: 2,
-      specificity: 0,
-      completeness: 0,
-      total: lt3Raw,
-      feedback: 'Reflective.',
-    },
-    raw_score: lt3Raw,
-    max_score: 8,
-  });
-
   return result;
 }
 
 function makePerfectScoredAnswers() {
-  return makeScoredAnswers(80, 80);
+  return makeScoredAnswers(84, 84);
 }
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -225,7 +207,6 @@ describe('AdvancedAssessmentService', () => {
   let advancedAssessmentAiService: { generateQuestions: jest.Mock };
   let rubricScoring: { scoreAnswers: jest.Mock };
   let guidanceReport: { generate: jest.Mock };
-  let lt3Generation: { generate: jest.Mock };
   let employerPoolProfileService: { upsert: jest.Mock };
   let questionGeneration: { generateQuestions?: jest.Mock };
   let usersService: { findOne: jest.Mock };
@@ -383,9 +364,9 @@ describe('AdvancedAssessmentService', () => {
     };
 
     rubricScoring = {
-      // 37/80 ≈ 46% raw text yield → still emerging band by default
-      // max-total 80 = 2 short×12 + 4 long×12 + 1 LT-3×8
-      scoreAnswers: jest.fn().mockResolvedValue(makeScoredAnswers(37, 80)),
+      // 37/84 ≈ 44% raw text yield → still emerging band by default
+      // max-total 84 = 2 short×12 + 5 long×12
+      scoreAnswers: jest.fn().mockResolvedValue(makeScoredAnswers(37, 84)),
     };
 
     guidanceReport = {
@@ -428,13 +409,6 @@ describe('AdvancedAssessmentService', () => {
       ),
     };
 
-    lt3Generation = {
-      generate: jest.fn().mockResolvedValue({
-        question_text:
-          'You mentioned aligning stakeholders on tradeoffs. Why did you choose that path, and what would you do differently next time?',
-      }),
-    };
-
     employerPoolProfileService = {
       upsert: jest.fn().mockResolvedValue({}),
     };
@@ -469,7 +443,6 @@ describe('AdvancedAssessmentService', () => {
       advancedAssessmentAiService as never,
       rubricScoring as never,
       guidanceReport as never,
-      lt3Generation as never,
       employerPoolProfileService as never,
       questionGeneration as never,
       usersService as never,
@@ -558,23 +531,6 @@ describe('AdvancedAssessmentService', () => {
           }),
         }),
       );
-    });
-
-    it('rejects with 422 LT2_NOT_SUBMITTED when reflection slot is missing', async () => {
-      const sessionWithoutLt3 = makeSessionJson();
-      sessionWithoutLt3.questions = sessionWithoutLt3.questions.filter(
-        (q) => q.slot_type !== SlotType.REFLECTION,
-      );
-      attemptRepo.findOne.mockResolvedValue(
-        makeAttempt({ generated_questions_json: sessionWithoutLt3 }),
-      );
-
-      await expect(
-        service.submit(userId, makeSubmitDto() as never),
-      ).rejects.toMatchObject({
-        response: expect.objectContaining({ error: 'LT2_NOT_SUBMITTED' }),
-      });
-      expect(submitQueue.enqueue).not.toHaveBeenCalled();
     });
 
     it('throws 403 with probation metadata when profile lock is active', async () => {
@@ -687,23 +643,6 @@ describe('AdvancedAssessmentService', () => {
           tier: AssessmentTier.JOB_READY,
         },
       );
-    });
-
-    it('routes the REFLECTION slot through is_lt3=true and others through full rubric', async () => {
-      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(37, 80));
-      await service.processSubmitJob(makeSubmitJobData() as never);
-
-      const inputs = rubricScoring.scoreAnswers.mock.calls[0][0];
-      const lt3 = inputs.find(
-        (i: { is_lt3?: boolean; question_id: string }) =>
-          i.question_id === 'long-5',
-      );
-      const lt1 = inputs.find(
-        (i: { is_lt3?: boolean; question_id: string }) =>
-          i.question_id === 'long-1',
-      );
-      expect(lt3.is_lt3).toBe(true);
-      expect(lt1.is_lt3).toBe(false);
     });
 
     it('scores with weighted max 100 and persists job_ready tier', async () => {
@@ -826,7 +765,7 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('places tier at Emerging when pct < 75%', async () => {
-      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(53, 80));
+      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(53, 84));
       await service.processSubmitJob(makeSubmitJobData() as never);
 
       const resultSave = entityManagerSaveCalls.find(
@@ -838,7 +777,7 @@ describe('AdvancedAssessmentService', () => {
     });
 
     it('marks sub-50% as failed without profile completion or guidance report', async () => {
-      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(0, 80));
+      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(0, 84));
       await service.processSubmitJob(
         makeSubmitJobData({ answers: [] }) as never,
       );
@@ -890,12 +829,10 @@ describe('AdvancedAssessmentService', () => {
       expect(mcqRows).toHaveLength(8);
       expect(shortRows).toHaveLength(2);
       expect(longRows).toHaveLength(5);
-      // LT-3 row carries max_score=8
-      expect(longRows.find((r) => r.max_score === 8)).toBeDefined();
     });
 
     it('sets retake gate (assessment_locked_until) when tier is not job_ready', async () => {
-      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(55, 80));
+      rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(55, 84));
 
       await service.processSubmitJob(makeSubmitJobData() as never);
       expect(entityManagerUpdate).toHaveBeenCalledWith(
@@ -924,7 +861,7 @@ describe('AdvancedAssessmentService', () => {
       expect(diffDays).toBe(14);
     });
 
-    it('clears retake lock dates when tier is job_ready', async () => {
+    it('sets retake gate (assessment_locked_until) when tier is job_ready', async () => {
       rubricScoring.scoreAnswers.mockResolvedValue(makePerfectScoredAnswers());
 
       await service.processSubmitJob(makeSubmitJobData() as never);
@@ -933,9 +870,9 @@ describe('AdvancedAssessmentService', () => {
         TalentProfile,
         { id: profileStore.id },
         expect.objectContaining({
-          assessment_locked_from: null,
-          assessment_locked_until: null,
-          advanced_retake_required: false,
+          assessment_locked_from: expect.any(Date),
+          assessment_locked_until: expect.any(Date),
+          advanced_retake_required: true,
         }),
       );
     });
@@ -1015,7 +952,7 @@ describe('AdvancedAssessmentService', () => {
 
     describe('tier boundary cases', () => {
       it('49% → Not Ready', async () => {
-        rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(38, 80));
+        rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(40, 84));
         await service.processSubmitJob(
           makeSubmitJobData({ answers: [] }) as never,
         );
@@ -1042,217 +979,14 @@ describe('AdvancedAssessmentService', () => {
     });
   });
 
-  // ── submitLt2 ───────────────────────────────────────────────────────────────
-
-  describe('submitLt2()', () => {
-    const validAnswer = LT_ANSWER;
-
-    beforeEach(() => {
-      // Strip the pre-baked REFLECTION question so submitLt2 has work to do.
-      const sessionNoLt3 = makeSessionJson();
-      sessionNoLt3.questions = sessionNoLt3.questions.filter(
-        (q) => q.slot_type !== SlotType.REFLECTION,
-      );
-      attemptStore = makeAttempt({ generated_questions_json: sessionNoLt3 });
-      attemptRepo.findOne.mockResolvedValue(attemptStore);
-    });
-
-    it('generates an LT-3 question and appends it to the session', async () => {
-      const result = await service.submitLt2(userId, 'attempt-1', {
-        questionId: 'long-4', // last WORK_TASK
-        answer: validAnswer,
-      });
-
-      expect(result.status).toBe('success');
-      expect(result.question_text).toContain('aligning stakeholders');
-      expect(lt3Generation.generate).toHaveBeenCalledTimes(1);
-    });
-
-    it('is idempotent: second call returns the same LT-3 without re-invoking the LLM', async () => {
-      // First call: prime the session
-      await service.submitLt2(userId, 'attempt-1', {
-        questionId: 'long-4',
-        answer: validAnswer,
-      });
-
-      // The attempt was mutated in-place by the first call. Reset the
-      // findOne mock to return that updated attempt for the second call.
-      attemptRepo.findOne.mockResolvedValue(attemptStore);
-      lt3Generation.generate.mockClear();
-
-      const second = await service.submitLt2(userId, 'attempt-1', {
-        questionId: 'long-4',
-        answer: validAnswer,
-      });
-
-      expect(second.status).toBe('success');
-      expect(lt3Generation.generate).not.toHaveBeenCalled();
-    });
-
-    it('throws 422 LT2_QUESTION_MISMATCH when question_id is not LT-2', async () => {
-      await expect(
-        service.submitLt2(userId, 'attempt-1', {
-          questionId: 'long-1', // SITUATIONAL, not WORK_TASK
-          answer: validAnswer,
-        }),
-      ).rejects.toThrow(UnprocessableEntityException);
-    });
-
-    it('throws 503 LT3_GENERATION_FAILED when the LLM call fails', async () => {
-      lt3Generation.generate.mockRejectedValue(new Error('openrouter 500'));
-
-      await expect(
-        service.submitLt2(userId, 'attempt-1', {
-          questionId: 'long-4',
-          answer: validAnswer,
-        }),
-      ).rejects.toThrow(ServiceUnavailableException);
-    });
-
-    it('throws 400 when attempt has already been submitted', async () => {
-      attemptRepo.findOne.mockResolvedValue(
-        makeAttempt({ completed_at: new Date() }),
-      );
-      await expect(
-        service.submitLt2(userId, 'attempt-1', {
-          questionId: 'long-4',
-          answer: validAnswer,
-        }),
-      ).rejects.toThrow(BadRequestException);
-    });
-
-    it('throws 422 SESSION_EXPIRED when the timer has run out', async () => {
-      attemptRepo.findOne.mockResolvedValue(
-        makeAttempt({ expires_at: new Date(Date.now() - 1000) }),
-      );
-      await expect(
-        service.submitLt2(userId, 'attempt-1', {
-          questionId: 'long-4',
-          answer: validAnswer,
-        }),
-      ).rejects.toThrow(UnprocessableEntityException);
-    });
-
-    it('calls manager.update (not manager.save) to persist the LT-3 session update', async () => {
-      await service.submitLt2(userId, 'attempt-1', {
-        questionId: 'long-4',
-        answer: LT_ANSWER,
-      });
-
-      const attemptUpdateCall = entityManagerUpdate.mock.calls.find(
-        ([entity, criteria]) =>
-          entity === AssessmentAttempt &&
-          (criteria as Record<string, unknown>).id === 'attempt-1',
-      );
-      expect(attemptUpdateCall).toBeDefined();
-    });
-
-    it('includes the REFLECTION slot in the generated_questions_json written by manager.update', async () => {
-      await service.submitLt2(userId, 'attempt-1', {
-        questionId: 'long-4',
-        answer: LT_ANSWER,
-      });
-
-      const attemptUpdateCall = entityManagerUpdate.mock.calls.find(
-        ([entity, criteria]) =>
-          entity === AssessmentAttempt &&
-          (criteria as Record<string, unknown>).id === 'attempt-1',
-      );
-      const [, , patch] = attemptUpdateCall as [
-        unknown,
-        unknown,
-        Record<string, unknown>,
-      ];
-      const updatedJson = patch.generated_questions_json as {
-        questions: Array<{ slot_type: string }>;
-      };
-      expect(
-        updatedJson.questions.some((q) => q.slot_type === SlotType.REFLECTION),
-      ).toBe(true);
-    });
-
-    it('does not call manager.save for the attempt entity when persisting LT-3', async () => {
-      await service.submitLt2(userId, 'attempt-1', {
-        questionId: 'long-4',
-        answer: LT_ANSWER,
-      });
-
-      const attemptSaveCall = entityManagerSaveCalls.find(
-        ({ entity }) => entity === AssessmentAttempt,
-      );
-      expect(attemptSaveCall).toBeUndefined();
-    });
-
-    it('updates attempt.generated_questions_json in-memory after manager.update so the idempotency guard sees LT-3', async () => {
-      await service.submitLt2(userId, 'attempt-1', {
-        questionId: 'long-4',
-        answer: LT_ANSWER,
-      });
-
-      // attemptStore is the same object returned by findOne (mockResolvedValue returns same ref)
-      const inMemoryQuestions = (
-        attemptStore.generated_questions_json as {
-          questions: Array<{ slot_type: string }>;
-        }
-      ).questions;
-      expect(
-        inMemoryQuestions.some((q) => q.slot_type === SlotType.REFLECTION),
-      ).toBe(true);
-    });
-
-    it('throws 403 with probation metadata when profile lock is active', async () => {
-      const lockedFrom = new Date('2026-05-01T00:00:00.000Z');
-      const lockedUntil = new Date(Date.now() + 10 * 24 * 60 * 60 * 1000);
-      talentProfileRepo.findOne.mockResolvedValue(
-        makeTalentProfile({
-          advanced_retake_required: true,
-          assessment_locked_from: lockedFrom,
-          assessment_locked_until: lockedUntil,
-        }),
-      );
-
-      await expect(
-        service.submitLt2(userId, 'attempt-1', {
-          questionId: 'long-4',
-          answer: validAnswer,
-        }),
-      ).rejects.toMatchObject({
-        response: expect.objectContaining({
-          error: 'ADVANCED_RETAKE_LOCKED',
-          probation_started_at: lockedFrom.toISOString(),
-          probation_ends_at: lockedUntil.toISOString(),
-        }),
-      });
-    });
-  });
-
   // ── getSession ──────────────────────────────────────────────────────────────
 
   describe('getSession()', () => {
-    it('returns pending_lt3: true when session has 14 questions and is not completed', async () => {
-      // Session starts with 14 questions; LT-3 arrives only after lt2-submit.
-      // The frontend needs pending_lt3 to know to call lt2-submit before Q15.
+    it('returns pending_lt3: false and correct question_count', async () => {
       const session = await service.getSession(userId, 'attempt-1');
 
-      expect(session.question_count).toBe(15); // makeSessionJson pre-populates all 15
-      expect(session.pending_lt3).toBe(false); // all 15 present → no longer pending
-    });
-
-    it('returns pending_lt3: true when only 14 base questions are present', async () => {
-      const base14Json = makeSessionJson();
-      // Strip LT-3 (the last question, REFLECTION slot) to simulate session start
-      base14Json.questions = base14Json.questions.filter(
-        (q) => q.slot_type !== SlotType.REFLECTION,
-      );
-      attemptData.current = makeAttempt({
-        generated_questions_json: base14Json as never,
-        completed_at: null,
-      });
-
-      const session = await service.getSession(userId, 'attempt-1');
-
-      expect(session.question_count).toBe(14);
-      expect(session.pending_lt3).toBe(true);
+      expect(session.question_count).toBe(15);
+      expect(session.pending_lt3).toBe(false);
     });
 
     it('returns remaining_seconds 0 when submit is queued but scoring is pending', async () => {
@@ -1443,11 +1177,11 @@ describe('AdvancedAssessmentService', () => {
       expect(ADVANCED_ASSESSMENT_SHORT_TEXT_COUNT).toBe(2);
     });
 
-    it('base questions total is 14 (8 MCQ + 2 short + 4 long, LT-3 added mid-session)', () => {
+    it('base questions total is 15 (8 MCQ + 2 short + 5 long)', () => {
       const {
         ADVANCED_ASSESSMENT_BASE_QUESTIONS,
       } = require('./advanced-assessment-ai.service');
-      expect(ADVANCED_ASSESSMENT_BASE_QUESTIONS).toBe(14);
+      expect(ADVANCED_ASSESSMENT_BASE_QUESTIONS).toBe(15);
     });
   });
 
@@ -1742,7 +1476,7 @@ describe('AdvancedAssessmentService', () => {
       expect(bankExhaustedAlert.notify).toHaveBeenCalledWith(
         expect.objectContaining({
           assessmentType: 'advanced',
-          expectedQuestions: 14,
+          expectedQuestions: 15,
           gotQuestions: 10,
         }),
       );

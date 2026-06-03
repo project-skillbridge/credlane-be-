@@ -72,5 +72,6 @@ import { TalentService } from './talent.service';
     AdvancedAssessmentQueueService,
     EmployerPoolProfileService,
   ],
+  exports: [PersonalAssessmentQuestionService],
 })
 export class TalentModule {}
