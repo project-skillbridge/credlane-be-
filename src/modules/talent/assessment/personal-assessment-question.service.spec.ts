@@ -87,4 +87,44 @@ describe('PersonalAssessmentQuestionService', () => {
     );
     expect(trackService.getAllQuestions('backend_developer')).toHaveLength(1);
   });
+
+  it('skips rows with unsupported formats during reload', async () => {
+    const questionRepo = {
+      find: jest.fn().mockResolvedValue([
+        {
+          id: 'PA-GEN-VALID-001',
+          section: 'work_style',
+          track: 'all',
+          question: 'Valid prompt',
+          field_name: 'work_arrangement',
+          format: 'single_select',
+          required: true,
+          options: [{ value: 'remote', label: 'Remote' }],
+          display_order: 1,
+          is_live: true,
+        },
+        {
+          id: 'PA-GEN-BAD-001',
+          section: 'work_style',
+          track: 'all',
+          question: 'Bad prompt',
+          field_name: 'bad_field',
+          format: 'typo_select',
+          required: true,
+          options: null,
+          display_order: 2,
+          is_live: true,
+        },
+      ]),
+    };
+
+    const trackService = new PersonalAssessmentQuestionService(
+      questionRepo as never,
+    );
+    await trackService.reloadFromDatabase();
+
+    expect(trackService.getAllQuestions()).toHaveLength(1);
+    expect(trackService.findQuestionSection('work_arrangement')).toBe(5);
+    expect(trackService.findQuestionSection('bad_field')).toBe(0);
+  });
 });

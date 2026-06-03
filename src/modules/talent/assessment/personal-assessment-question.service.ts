@@ -27,7 +27,7 @@ export type PersonalAssessmentQuestionCatalog = {
   findQuestionSection(key: string, track?: string | null): number;
 };
 
-function mapFormatToInputType(format: string): PersonalAssessmentInputType {
+function mapFormatToInputType(format: string): PersonalAssessmentInputType | null {
   switch (format) {
     case 'single_select':
       return 'single';
@@ -38,7 +38,7 @@ function mapFormatToInputType(format: string): PersonalAssessmentInputType {
     case 'text_optional':
       return 'text_optional';
     default:
-      return format as PersonalAssessmentInputType;
+      return null;
   }
 }
 
@@ -63,13 +63,18 @@ function resolveTracksForLookup(track?: string | null): string[] {
 
 function toPersonalAssessmentQuestion(
   row: PersonalAssessmentQuestionEntity,
-): PersonalAssessmentQuestion {
+): PersonalAssessmentQuestion | null {
+  const inputType = mapFormatToInputType(row.format);
+  if (!inputType) {
+    return null;
+  }
+
   const optionItems = row.options ?? undefined;
   const question: PersonalAssessmentQuestion = {
     externalId: row.id,
     key: row.field_name,
     questionNumber: row.display_order,
-    inputType: mapFormatToInputType(row.format),
+    inputType,
     required: row.required,
     sectionSlug: row.section,
     prompt: row.question,
@@ -119,12 +124,16 @@ export class PersonalAssessmentQuestionService
     }
 
     this.indexRows(
-      rows.map((row) => {
+      rows.flatMap((row) => {
         const sectionNumber = resolveSectionNumber(row.section);
-        return {
-          section: sectionNumber,
-          question: toPersonalAssessmentQuestion(row),
-        };
+        const question = toPersonalAssessmentQuestion(row);
+        if (!question) {
+          this.logger.warn(
+            `Skipping personal assessment question "${row.id}" with unsupported format "${row.format}"`,
+          );
+          return [];
+        }
+        return [{ section: sectionNumber, question }];
       }),
     );
   }
