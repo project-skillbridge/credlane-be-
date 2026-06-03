@@ -1,4 +1,5 @@
 import { buildPersonalAssessmentAiPromptContext } from './personal-assessment-ai-prompt-context';
+import { createTestPersonalAssessmentQuestionService } from './personal-assessment-question.service';
 import {
   buildFullPersonalAssessmentAnswers,
   makeTalentProfile,
@@ -7,11 +8,14 @@ import {
 } from './personal-assessment.test-fixtures';
 
 describe('buildPersonalAssessmentAiPromptContext', () => {
+  const catalog = createTestPersonalAssessmentQuestionService();
+
   it('returns a flat object with onboarding fields then answer keys', () => {
     const context = buildPersonalAssessmentAiPromptContext(
       makeTalentProfile(),
       makeTalentUser(),
       buildFullPersonalAssessmentAnswers(),
+      catalog,
     );
 
     expect(context).not.toHaveProperty('answers');
@@ -30,6 +34,7 @@ describe('buildPersonalAssessmentAiPromptContext', () => {
       makeTalentProfile(),
       makeTalentUser(),
       section1Answers(),
+      catalog,
     );
 
     expect(context.job_title).toBe('Software Engineer');

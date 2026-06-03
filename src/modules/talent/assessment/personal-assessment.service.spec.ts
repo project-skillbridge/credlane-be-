@@ -8,6 +8,7 @@ import { UserRole } from '../../users/entities/user.entity';
 import { TalentProfile } from '../entities/talent-profile.entity';
 import { UsersService } from '../../users/users.service';
 import { PersonalAssessmentService } from './personal-assessment.service';
+import { createTestPersonalAssessmentQuestionService } from './personal-assessment-question.service';
 import {
   makeTalentProfile,
   makeTalentUser,
@@ -16,6 +17,7 @@ import {
 
 describe('PersonalAssessmentService', () => {
   let service: PersonalAssessmentService;
+  let questionCatalog: ReturnType<typeof createTestPersonalAssessmentQuestionService>;
   let usersService: Pick<UsersService, 'findOne'>;
   let repository: {
     findOne: jest.Mock;
@@ -94,9 +96,12 @@ describe('PersonalAssessmentService', () => {
       },
     };
 
+    questionCatalog = createTestPersonalAssessmentQuestionService();
+
     service = new PersonalAssessmentService(
       repository as unknown as Repository<TalentProfile>,
       usersService as UsersService,
+      questionCatalog,
     );
   });
 
@@ -110,7 +115,7 @@ describe('PersonalAssessmentService', () => {
       progress: {
         completedSections: [1],
         nextSection: 2,
-        totalSections: 7,
+        totalSections: 5,
         sectionsCompleted: 1,
         isComplete: false,
       },
@@ -126,7 +131,7 @@ describe('PersonalAssessmentService', () => {
     await expect(service.saveSection(userId, 0, {})).rejects.toBeInstanceOf(
       BadRequestException,
     );
-    await expect(service.saveSection(userId, 8, {})).rejects.toBeInstanceOf(
+    await expect(service.saveSection(userId, 6, {})).rejects.toBeInstanceOf(
       BadRequestException,
     );
   });
@@ -134,7 +139,7 @@ describe('PersonalAssessmentService', () => {
   it('saveSection returns 409 when all sections are already complete', async () => {
     profileStore.personal_assessment_answers = {
       ...section1Answers(),
-      _meta: { completedSections: [1, 2, 3, 4, 5, 6, 7] },
+      _meta: { completedSections: [1, 2, 3, 4, 5] },
     };
 
     const promise = service.saveSection(userId, 1, section1Answers());
@@ -176,7 +181,7 @@ describe('PersonalAssessmentService', () => {
         generatedSession: expect.objectContaining({
           sessionId: startResult.session.sessionId,
         }),
-        completedSections: [1, 2, 3, 4, 5, 6, 7],
+        completedSections: [1, 2, 3, 4, 5],
       },
     });
   });
@@ -200,7 +205,7 @@ describe('PersonalAssessmentService', () => {
         generatedSession: expect.objectContaining({
           sessionId: startResult.session.sessionId,
         }),
-        completedSections: [1, 2, 3, 4, 5, 6, 7],
+        completedSections: [1, 2, 3, 4, 5],
       },
     });
   });
@@ -216,7 +221,7 @@ describe('PersonalAssessmentService', () => {
     expect(resume.progress).toEqual({
       completedSections: [1],
       nextSection: 2,
-      totalSections: 7,
+      totalSections: 5,
       sectionsCompleted: 1,
       isComplete: false,
     });

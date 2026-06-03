@@ -11,7 +11,7 @@ import {
   makeTalentUser,
   section1Answers,
 } from './personal-assessment.test-fixtures';
-import { getAllPersonalAssessmentQuestions } from './personal-assessment.schema';
+import { createTestPersonalAssessmentQuestionService } from './personal-assessment-question.service';
 
 function getExceptionBody(error: unknown): Record<string, unknown> {
   expect(error).toBeInstanceOf(UnprocessableEntityException);
@@ -23,9 +23,15 @@ function getExceptionBody(error: unknown): Record<string, unknown> {
 
 describe('validateSectionAnswers', () => {
   const profile = makeTalentProfile();
+  const catalog = createTestPersonalAssessmentQuestionService();
 
   it('returns sanitized section 1 answers', () => {
-    const result = validateSectionAnswers(1, section1Answers(), profile);
+    const result = validateSectionAnswers(
+      1,
+      section1Answers(),
+      profile,
+      catalog.getSectionQuestions(1),
+    );
 
     expect(result.job_title).toBe('Software Engineer');
     expect(result.years_experience).toBe('3_5_yrs');
@@ -39,6 +45,7 @@ describe('validateSectionAnswers', () => {
         1,
         { ...section1Answers(), years_experience: 'not_a_valid_slug' },
         profile,
+        catalog.getSectionQuestions(1),
       );
       fail('expected UnprocessableEntityException');
     } catch (error: unknown) {
@@ -65,6 +72,7 @@ describe('validateSectionAnswers', () => {
         tools: [],
       },
       profile,
+      catalog.getSectionQuestions(2),
     );
 
     expect(result.tools).toEqual([]);
@@ -82,6 +90,7 @@ describe('validateSectionAnswers', () => {
           shipped_deliverable: 'yes_multiple',
         },
         profile,
+        catalog.getSectionQuestions(2),
       );
       fail('expected UnprocessableEntityException');
     } catch (error: unknown) {
@@ -99,6 +108,7 @@ describe('validateSectionAnswers', () => {
         2,
         { specialization: 'web_apps' },
         profileWithoutTrack,
+        catalog.getSectionQuestions(2),
       );
       fail('expected UnprocessableEntityException');
     } catch (error: unknown) {
@@ -111,7 +121,7 @@ describe('validateSectionAnswers', () => {
 
 describe('validateGeneratedPersonalAssessmentAnswers', () => {
   const profile = makeTalentProfile();
-  const questions = getAllPersonalAssessmentQuestions();
+  const questions = createTestPersonalAssessmentQuestionService().getAllQuestions();
 
   it('accepts sparse generated answers when claimed_level is present', () => {
     const result = validateGeneratedPersonalAssessmentAnswers(
@@ -148,27 +158,35 @@ describe('validateGeneratedPersonalAssessmentAnswers', () => {
 describe('assertAssessmentReadyForComplete', () => {
   const profile = makeTalentProfile();
   const user = makeTalentUser();
+  const catalog = createTestPersonalAssessmentQuestionService();
 
   it('passes when all sections are saved and answers are valid', () => {
     expect(() =>
       assertAssessmentReadyForComplete(
         buildFullPersonalAssessmentAnswers(),
-        [1, 2, 3, 4, 5, 6, 7],
+        [1, 2, 3, 4, 5],
         profile,
         user,
+        catalog,
       ),
     ).not.toThrow();
   });
 
   it('aggregates missing sections and invalid required fields', () => {
     try {
-      assertAssessmentReadyForComplete({ job_title: 'x' }, [1], profile, user);
+      assertAssessmentReadyForComplete(
+        { job_title: 'x' },
+        [1],
+        profile,
+        user,
+        catalog,
+      );
       fail('expected UnprocessableEntityException');
     } catch (error: unknown) {
       const body = getExceptionBody(error);
       expect(body.message).toBe('Personal assessment is incomplete');
       expect(body.incompleteSections).toEqual(
-        expect.arrayContaining([2, 3, 4, 5, 6, 7]),
+        expect.arrayContaining([2, 3, 4, 5]),
       );
       expect(body.missingFields).toEqual(
         expect.arrayContaining([

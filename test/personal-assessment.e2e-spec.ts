@@ -21,6 +21,10 @@ import { TransformInterceptor } from '../src/common/interceptors/transform.inter
 import { PersonalAssessmentController } from '../src/modules/talent/assessment/personal-assessment.controller';
 import { PersonalAssessmentService } from '../src/modules/talent/assessment/personal-assessment.service';
 import {
+  createTestPersonalAssessmentQuestionService,
+  PersonalAssessmentQuestionService,
+} from '../src/modules/talent/assessment/personal-assessment-question.service';
+import {
   makeTalentProfile,
   makeTalentUser,
   section1Answers,
@@ -71,6 +75,10 @@ describe('Personal assessment (e2e)', () => {
       controllers: [PersonalAssessmentController],
       providers: [
         PersonalAssessmentService,
+        {
+          provide: PersonalAssessmentQuestionService,
+          useFactory: () => createTestPersonalAssessmentQuestionService(),
+        },
         {
           provide: UsersService,
           useValue: {
@@ -199,7 +207,7 @@ describe('Personal assessment (e2e)', () => {
         expect(res.body.progress).toEqual({
           completedSections: [1],
           nextSection: 2,
-          totalSections: 7,
+          totalSections: 5,
           sectionsCompleted: 1,
           isComplete: false,
         });
@@ -250,7 +258,7 @@ describe('Personal assessment (e2e)', () => {
         expect(res.body.data.progress).toEqual({
           completedSections: [1, 2],
           nextSection: 3,
-          totalSections: 7,
+          totalSections: 5,
           sectionsCompleted: 2,
           isComplete: false,
         });
