@@ -49,7 +49,7 @@ export class AdvancedAssessmentController {
     description:
       'Requires completed personal assessment, a completed skill assessment, and a verified level. ' +
       'Enforces the 14-day retake gate, blocks duplicate active sessions, excludes previously served questions, ' +
-      'and returns ordered questions: 8 MCQ, 2 short-text, and 4 long-text prompts.',
+      'and returns ordered questions: 8 MCQ, 2 short-text, and 5 long-text prompts.',
   })
   @ApiCreatedResponse({ description: 'Advanced assessment session created' })
   @ApiConflictResponse({

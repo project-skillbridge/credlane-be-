@@ -48,7 +48,6 @@ import {
 import { EmployerPoolProfile } from '../src/modules/talent/entities/employer-pool-profile.entity';
 import { VerifiedLevel } from '../src/modules/assessments/entities/assessment-question.entity';
 import { AssessmentTier } from '../src/modules/assessments/entities/assessment-result.entity';
-import { Lt3GenerationService } from '../src/modules/ai/lt3-generation.service';
 import { QuestionGenerationService } from '../src/modules/ai/question-generation.service';
 import { MailService } from '../src/modules/mail/mail.service';
 import { NotificationDispatchService } from '../src/modules/notifications/notification-dispatch.service';
@@ -153,7 +152,7 @@ function makeActiveAttempt(
     assessment_type: AssessmentType.ADVANCED,
     started_at: new Date(),
     completed_at: null,
-    expires_at: new Date(Date.now() + 90 * 60 * 1000),
+    expires_at: new Date(Date.now() + 25 * 60 * 1000),
     tab_switch_count: 0,
     copy_paste_count: 0,
     force_submitted: false,
@@ -443,10 +442,6 @@ describe('Advanced assessment (e2e)', () => {
         {
           provide: EmployerPoolProfileService,
           useValue: { upsert: jest.fn().mockResolvedValue({}) },
-        },
-        {
-          provide: Lt3GenerationService,
-          useValue: { generate: jest.fn() },
         },
         {
           provide: QuestionGenerationService,
