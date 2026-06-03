@@ -1015,9 +1015,7 @@ describe('AdvancedAssessmentService', () => {
 
     describe('tier boundary cases', () => {
       it('49% → Not Ready', async () => {
-        rubricScoring.scoreAnswers.mockResolvedValue(
-          makeScoredAnswers(38, 80),
-        );
+        rubricScoring.scoreAnswers.mockResolvedValue(makeScoredAnswers(38, 80));
         await service.processSubmitJob(
           makeSubmitJobData({ answers: [] }) as never,
         );

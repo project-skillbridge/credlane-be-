@@ -106,7 +106,11 @@ export const ApiDeleteTalentSettingsResume = () =>
     ApiTalentSettingsTags(),
     ApiBearerAuth(),
     ApiOperation({ summary: 'Delete uploaded resume/CV' }),
-    ApiResponse({ status: 200, description: 'Resume deleted', type: TalentResumeDeleteResponseDto }),
+    ApiResponse({
+      status: 200,
+      description: 'Resume deleted',
+      type: TalentResumeDeleteResponseDto,
+    }),
     ApiResponse({ status: 401, description: 'Authentication required' }),
     ApiResponse({ status: 403, description: 'Talent access required' }),
   );
