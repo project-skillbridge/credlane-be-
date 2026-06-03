@@ -5,7 +5,7 @@ import { TALENT_ROLE_TRACKS } from '../talent.constants';
 export class CompleteTalentOnboardingDto {
   @ApiProperty({ example: 'frontend_developer' })
   @IsString()
-  @IsIn(TALENT_ROLE_TRACKS as unknown as string[], {
+  @IsIn(TALENT_ROLE_TRACKS, {
     message: `roleTrack must be one of: ${TALENT_ROLE_TRACKS.join(', ')}`,
   })
   roleTrack: string;

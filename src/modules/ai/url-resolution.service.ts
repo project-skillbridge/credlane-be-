@@ -166,7 +166,7 @@ export class UrlResolutionService {
 
     return verified
       .map((r) => (r.status === 'fulfilled' ? r.value : null))
-      .filter((item): item is NonNullable<typeof item> => item !== null) as T[];
+      .filter((item): item is NonNullable<typeof item> => item !== null);
   }
 
   /**
