@@ -31,5 +31,22 @@ module.exports = {
         NODE_ENV: 'production',
       },
     },
+    {
+      name: 'question-generator',
+      script: 'dist/scripts/generate-question-bank.js',
+      instances: 1,
+      exec_mode: 'fork',
+      autorestart: false,
+      max_restarts: 0,
+      env_dev: {
+        NODE_ENV: 'production',
+      },
+      env_staging: {
+        NODE_ENV: 'production',
+      },
+      env_production: {
+        NODE_ENV: 'production',
+      },
+    },
   ],
 };
