@@ -134,6 +134,40 @@ describe('EmployerService', () => {
     );
   });
 
+  it('completes onboarding with only required fields', async () => {
+    manager.findOne.mockResolvedValue(null);
+
+    const result = await service.completeOnboarding(userId, {
+      joiningAs: 'recruiter',
+      desiredRoles: ['frontend_developer'],
+      region: 'Africa',
+      hiringCountRange: '6_10',
+      companyWebsite: 'https://acmelabs.example',
+    });
+
+    expect(manager.create).toHaveBeenCalledWith(
+      EmployerProfile,
+      expect.objectContaining({
+        employer_type: 'recruiter',
+        joining_as: 'recruiter',
+        company_name: null,
+        company_size: null,
+        industry: null,
+        desired_roles: ['frontend_developer'],
+        hiring_locations: ['Africa'],
+        region: 'Africa',
+        hiring_count_range: '6_10',
+        company_website: 'https://acmelabs.example',
+        website_url: 'https://acmelabs.example',
+        preferred_experience_levels: null,
+      }),
+    );
+    expect(result.profile).toMatchObject({
+      desired_roles: ['frontend_developer'],
+      company_website: 'https://acmelabs.example',
+    });
+  });
+
   it('maps expanded legacy onboarding fields onto the employer profile', async () => {
     manager.findOne.mockResolvedValue(null);
 

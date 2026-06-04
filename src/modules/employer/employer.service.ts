@@ -250,24 +250,25 @@ export class EmployerService {
           );
         }
 
+        const companyWebsite = dto.companyWebsite.trim();
         const nextProfile = manager.create(EmployerProfile, {
           user_id: userId,
           employer_type: dto.joiningAs,
           joining_as: dto.joiningAs,
-          company_name: dto.companyName.trim(),
-          company_size: dto.companySize,
-          industry: dto.industry.trim(),
+          company_name: dto.companyName?.trim() || null,
+          company_size: dto.companySize ?? null,
+          industry: dto.industry?.trim() || null,
           desired_roles: dto.desiredRoles,
           hiring_roles: dto.desiredRoles,
           hiring_locations: [dto.region.trim()],
           region: dto.region.trim(),
           hiring_region: dto.region.trim(),
           hiring_count_range: dto.hiringCountRange,
-          company_website: dto.companyWebsite?.trim() || null,
-          website_url: dto.companyWebsite?.trim() || null,
+          company_website: companyWebsite,
+          website_url: companyWebsite,
           linkedin_company_page_url: dto.linkedinCompanyPageUrl?.trim() || null,
           linkedin_company_url: dto.linkedinCompanyPageUrl?.trim() || null,
-          preferred_experience_levels: dto.preferredExperienceLevels,
+          preferred_experience_levels: dto.preferredExperienceLevels ?? null,
         });
 
         const savedProfile = await manager.save(EmployerProfile, nextProfile);

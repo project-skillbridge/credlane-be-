@@ -39,7 +39,19 @@ describe('Employer onboarding DTOs', () => {
     ).toBe(true);
   });
 
-  it('validates the legacy onboarding route with the expanded doc fields', async () => {
+  it('validates employer onboarding with only required fields', async () => {
+    const dto = plainToInstance(CompleteEmployerOnboardingDto, {
+      joiningAs: 'recruiter',
+      desiredRoles: ['backend_developer'],
+      region: 'Kenya',
+      hiringCountRange: '1_5',
+      companyWebsite: 'https://acme.example',
+    });
+
+    await expect(validate(dto)).resolves.toHaveLength(0);
+  });
+
+  it('validates employer onboarding with optional legacy fields', async () => {
     const dto = plainToInstance(CompleteEmployerOnboardingDto, {
       joiningAs: 'recruiter',
       companyName: 'Acme Labs',
@@ -53,5 +65,20 @@ describe('Employer onboarding DTOs', () => {
     });
 
     await expect(validate(dto)).resolves.toHaveLength(0);
+  });
+
+  it('rejects employer onboarding without companyWebsite', async () => {
+    const dto = plainToInstance(CompleteEmployerOnboardingDto, {
+      joiningAs: 'recruiter',
+      desiredRoles: ['backend_developer'],
+      region: 'Kenya',
+      hiringCountRange: '1_5',
+    });
+
+    const errors = await validate(dto);
+
+    expect(errors.some((error) => error.property === 'companyWebsite')).toBe(
+      true,
+    );
   });
 });
