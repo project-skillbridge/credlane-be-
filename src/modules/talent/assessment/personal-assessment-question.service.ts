@@ -7,6 +7,7 @@ import {
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PersonalAssessmentQuestionEntity } from '../entities/personal-assessment-question.entity';
+import { expandPersonalAssessmentImportItems } from './personal-assessment-import.expand';
 import type {
   PersonalAssessmentQuestionImportItem,
   PersonalAssessmentQuestionImportResult,
@@ -283,41 +284,39 @@ export class PersonalAssessmentQuestionService
     const errors: string[] = [];
 
     for (const item of items) {
-      try {
-        const existing = await this.questionRepo.findOne({
-          where: { id: item.id },
-        });
-        if (existing) {
-          await this.questionRepo.update(item.id, {
-            section: item.section,
-            track: item.track,
-            question: item.question,
-            field_name: item.fieldName,
-            format: item.format,
-            required: item.required,
-            options: item.options ?? null,
+      const rows = expandPersonalAssessmentImportItems(item);
+      for (const row of rows) {
+        try {
+          const existing = await this.questionRepo.findOne({
+            where: { id: row.id },
           });
-          updated++;
-        } else {
-          await this.questionRepo.save(
-            this.questionRepo.create({
-              id: item.id,
-              section: item.section,
-              track: item.track,
-              question: item.question,
-              field_name: item.fieldName,
-              format: item.format,
-              required: item.required,
-              options: item.options ?? null,
-              is_live: true,
-            }),
-          );
-          inserted++;
+          const payload = {
+            section: row.section,
+            track: row.track,
+            question: row.question,
+            field_name: row.fieldName,
+            format: row.format,
+            required: row.required,
+            options: row.options,
+          };
+          if (existing) {
+            await this.questionRepo.update(row.id, payload);
+            updated++;
+          } else {
+            await this.questionRepo.save(
+              this.questionRepo.create({
+                id: row.id,
+                ...payload,
+                is_live: true,
+              }),
+            );
+            inserted++;
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : String(err);
+          errors.push(`${row.id}: ${msg}`);
+          skipped++;
         }
-      } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        errors.push(`${item.id}: ${msg}`);
-        skipped++;
       }
     }
 

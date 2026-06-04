@@ -131,6 +131,49 @@ describe('PersonalAssessmentQuestionService', () => {
     expect(trackService.findQuestionSection('bad_field')).toBe(0);
   });
 
+  it('imports track_variants as per-track question rows', async () => {
+    const find = jest.fn().mockResolvedValue([]);
+    const findOne = jest.fn().mockResolvedValue(null);
+    const save = jest.fn().mockImplementation((_entity, payload) =>
+      Promise.resolve(payload),
+    );
+    const create = jest.fn().mockImplementation((_entity, payload) => payload);
+    const update = jest.fn().mockResolvedValue(undefined);
+    const questionRepo = { find, findOne, save, create, update };
+
+    const importService = new PersonalAssessmentQuestionService(
+      questionRepo as never,
+    );
+
+    const result = await importService.importQuestions([
+      {
+        id: 'PA-GEN-PRO-013',
+        section: 'professional_background',
+        track: 'all',
+        question: 'Specialisation?',
+        fieldName: 'track_specialisation',
+        format: 'single_select',
+        required: true,
+        trackVariants: {
+          FED: {
+            options: [{ value: 'ui_focused', label: 'UI-focused' }],
+          },
+        },
+      },
+    ]);
+
+    expect(result.inserted).toBe(1);
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'PA-GEN-PRO-013__FED',
+        track: 'frontend_developer',
+        field_name: 'track_specialisation',
+        options: [{ value: 'ui_focused', label: 'UI-focused' }],
+      }),
+    );
+    expect(find).toHaveBeenCalled();
+  });
+
   it('maps validation metadata from database rows', async () => {
     const questionRepo = {
       find: jest.fn().mockResolvedValue([
