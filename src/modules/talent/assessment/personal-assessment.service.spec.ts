@@ -170,6 +170,69 @@ describe('PersonalAssessmentService', () => {
     });
   });
 
+  it('includes optionItems with labels for track-specific imported questions', async () => {
+    profileStore.track = 'backend_developer';
+    const trackCatalog = {
+      getAllQuestions: jest.fn((track?: string | null) => {
+        const shared = [
+          {
+            key: 'claimed_level',
+            questionNumber: 1,
+            inputType: 'single' as const,
+            required: true,
+            sectionSlug: 'skills_and_expertise',
+            options: ['junior', 'mid'],
+          },
+        ];
+        if (track === 'backend_developer') {
+          return [
+            ...shared,
+            {
+              key: 'track_specialisation',
+              questionNumber: 13,
+              inputType: 'single' as const,
+              required: true,
+              sectionSlug: 'professional_background',
+              prompt: 'Specialisation?',
+              optionItems: [
+                {
+                  value: 'api_services',
+                  label:
+                    'API and services; I build and maintain APIs and microservices',
+                },
+              ],
+              options: ['api_services'],
+            },
+          ];
+        }
+        return shared;
+      }),
+      findQuestionSection: jest.fn().mockReturnValue(1),
+      getSectionQuestions: jest.fn().mockReturnValue([]),
+      getOnboardingBackedQuestionKeys: jest.fn().mockReturnValue([]),
+    };
+
+    const trackService = new PersonalAssessmentService(
+      repository as unknown as Repository<TalentProfile>,
+      usersService as UsersService,
+      trackCatalog as never,
+    );
+
+    const result = await trackService.startGenerated(userId);
+    const specialisation = result.session.questions.find(
+      (question) => question.key === 'track_specialisation',
+    );
+
+    expect(specialisation?.options).toEqual(['api_services']);
+    expect(specialisation?.optionItems).toEqual([
+      {
+        value: 'api_services',
+        label:
+          'API and services; I build and maintain APIs and microservices',
+      },
+    ]);
+  });
+
   it('submitGenerated saves sparse generated answers and completes the assessment', async () => {
     const startResult = await service.startGenerated(userId);
 
