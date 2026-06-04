@@ -174,6 +174,45 @@ describe('PersonalAssessmentQuestionService', () => {
     expect(find).toHaveBeenCalled();
   });
 
+  it('imports text_required questions without options or track_variants', async () => {
+    const find = jest.fn().mockResolvedValue([]);
+    const findOne = jest.fn().mockResolvedValue(null);
+    const save = jest.fn().mockImplementation((payload) => Promise.resolve(payload));
+    const create = jest.fn().mockImplementation((payload) => payload);
+    const update = jest.fn().mockResolvedValue(undefined);
+    const questionRepo = { find, findOne, save, create, update };
+
+    const importService = new PersonalAssessmentQuestionService(
+      questionRepo as never,
+    );
+
+    const result = await importService.importQuestions([
+      {
+        id: 'PA-GEN-PRO-014',
+        section: 'work_style',
+        track: 'all',
+        question: 'Describe your ideal work environment',
+        fieldName: 'ideal_work_environment',
+        format: 'text_required',
+        required: true,
+      },
+    ]);
+
+    expect(result.inserted).toBe(1);
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'PA-GEN-PRO-014',
+        track: 'all',
+        field_name: 'ideal_work_environment',
+        format: 'text_required',
+        options: null,
+        is_live: true,
+      }),
+    );
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(find).toHaveBeenCalled();
+  });
+
   it('maps validation metadata from database rows', async () => {
     const questionRepo = {
       find: jest.fn().mockResolvedValue([
