@@ -10,6 +10,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { Type } from 'class-transformer';
 
@@ -19,11 +20,22 @@ export class CreateOfferDto {
   @IsUUID()
   candidateUserId: string;
 
-  @ApiProperty({ description: 'Job role title' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Role to attach this offer to',
+  })
+  @IsOptional()
+  @IsUUID()
+  roleId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Job role title. Defaults from role when roleId is supplied.',
+  })
+  @ValidateIf((dto: CreateOfferDto) => !dto.roleId || dto.roleTitle !== undefined)
   @IsNotEmpty()
   @IsString()
   @MaxLength(255)
-  roleTitle: string;
+  roleTitle?: string;
 
   @ApiPropertyOptional({ description: 'Role description', maxLength: 500 })
   @IsOptional()
@@ -40,23 +52,39 @@ export class CreateOfferDto {
   @MaxLength(2000)
   message?: string;
 
-  @ApiProperty({ description: 'Compensation or salary range' })
+  @ApiPropertyOptional({
+    description:
+      'Compensation or salary range. Defaults from role salary when roleId is supplied.',
+  })
+  @ValidateIf(
+    (dto: CreateOfferDto) => !dto.roleId || dto.compensation !== undefined,
+  )
   @IsNotEmpty()
   @IsString()
   @MaxLength(255)
-  compensation: string;
+  compensation?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     enum: ['Full-time', 'Part-time', 'Contract', 'Internship'],
+    description: 'Defaults from role when roleId is supplied.',
   })
+  @ValidateIf(
+    (dto: CreateOfferDto) => !dto.roleId || dto.employmentType !== undefined,
+  )
   @IsNotEmpty()
   @IsIn(['Full-time', 'Part-time', 'Contract', 'Internship'])
-  employmentType: string;
+  employmentType?: string;
 
-  @ApiProperty({ enum: ['Remote', 'Hybrid', 'On-site'] })
+  @ApiPropertyOptional({
+    enum: ['Remote', 'Hybrid', 'On-site'],
+    description: 'Defaults from role when roleId is supplied.',
+  })
+  @ValidateIf(
+    (dto: CreateOfferDto) => !dto.roleId || dto.workArrangement !== undefined,
+  )
   @IsNotEmpty()
   @IsIn(['Remote', 'Hybrid', 'On-site'])
-  workArrangement: string;
+  workArrangement?: string;
 
   @ApiProperty({ required: false, type: String, format: 'date' })
   @IsOptional()

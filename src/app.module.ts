@@ -37,6 +37,7 @@ import { AdminQuestionsModule } from './modules/admin/questions/admin-questions.
 import { EmployerDiscoveryModule } from './modules/employer-discovery/employer-discovery.module';
 import { OffersModule } from './modules/offers/offers.module';
 import { EmployerAssessmentsModule } from './modules/employer-assessments/employer-assessments.module';
+import { EmployerRolesModule } from './modules/employer-roles/employer-roles.module';
 import { QuestionBankGeneratorModule } from './tasks/question-bank-generator.module';
 import { MetricsModule } from './modules/metrics/metrics.module';
 import { MetricsInterceptor } from './modules/metrics/metrics.interceptor';
@@ -69,6 +70,7 @@ import { MetricsInterceptor } from './modules/metrics/metrics.interceptor';
     EmployerDiscoveryModule,
     OffersModule,
     EmployerAssessmentsModule,
+    EmployerRolesModule,
     QuestionBankGeneratorModule,
     MetricsModule,
   ],

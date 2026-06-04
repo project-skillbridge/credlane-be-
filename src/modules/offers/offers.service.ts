@@ -23,6 +23,8 @@ import type {
 } from '../notifications/notification-dispatch.service';
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
 import { EmployerVerificationService } from '../employer/employer-verification.service';
+import { EmployerRolesService } from '../employer-roles/employer-roles.service';
+import { EmployerRole } from '../employer-roles/entities/employer-role.entity';
 
 /** Narrow port so offers module does not depend on dispatch overload resolution in ESLint. */
 type OffersNotificationPort = {
@@ -42,6 +44,7 @@ type OffersNotificationPort = {
 import { Offer, OfferStatus } from './entities/offer.entity';
 import { OfferDistributionLog } from './entities/offer-distribution-log.entity';
 import { CreateOfferDto } from './dto/create-offer.dto';
+import { BulkCreateOffersDto } from './dto/bulk-create-offers.dto';
 import { ListOffersQueryDto } from './dto/list-offers-query.dto';
 
 const DEFAULT_MONTHLY_CAP = 50;
@@ -96,15 +99,41 @@ export type OfferStatusChangeEvent = {
   candidateUserId: string;
   candidateName: string;
   roleTitle: string;
-  status: OfferStatus.ACCEPTED | OfferStatus.DECLINED;
+  status:
+    | OfferStatus.ACCEPTED
+    | OfferStatus.ASSESSMENT_UNLOCKED
+    | OfferStatus.DECLINED;
   respondedAt: string;
+};
+
+export type BulkCreateOffersResult = {
+  offers: Offer[];
+  failures: Array<{
+    candidateUserId: string;
+    message: string;
+  }>;
 };
 
 const CANDIDATES_OFFERS_SUBTAB_STATUSES = [
   OfferStatus.PENDING,
+  OfferStatus.ASSESSMENT_UNLOCKED,
+  OfferStatus.ASSESSMENT_COMPLETED,
+  OfferStatus.PASSED,
+  OfferStatus.FAILED,
   OfferStatus.DECLINED,
   OfferStatus.EXPIRED,
+  OfferStatus.WITHDRAWN,
 ] as const;
+
+const ACTIVE_OFFER_STATUSES = [
+  OfferStatus.PENDING,
+  OfferStatus.ASSESSMENT_UNLOCKED,
+  OfferStatus.ASSESSMENT_COMPLETED,
+  OfferStatus.PASSED,
+  OfferStatus.ACCEPTED,
+] as const;
+
+const OFFER_ASSESSMENT_WINDOW_DAYS = 5;
 
 type OfferStatusStreamEntry = {
   subject: Subject<OfferStatusChangeEvent>;
@@ -156,6 +185,7 @@ export class OffersService {
     @Inject(NotificationDispatchService)
     private readonly notificationDispatch: OffersNotificationPort,
     private readonly verificationService: EmployerVerificationService,
+    private readonly employerRolesService: EmployerRolesService,
   ) {
     this.monthlyCap =
       parseInt(process.env.OFFERS_MONTHLY_CAP ?? '', 10) || DEFAULT_MONTHLY_CAP;
@@ -182,11 +212,20 @@ export class OffersService {
       );
     }
 
+    const role = dto.roleId
+      ? await this.employerRolesService.findActiveRoleForOffer(
+          employerUserId,
+          dto.roleId,
+        )
+      : null;
+
+    const offerDetails = this.resolveOfferDetails(dto, role);
+
     const existingOffer = await this.offerRepo.findOne({
       where: {
         employer_user_id: employerUserId,
         candidate_user_id: dto.candidateUserId,
-        status: In([OfferStatus.PENDING, OfferStatus.ACCEPTED]),
+        status: In([...ACTIVE_OFFER_STATUSES]),
       },
     });
     if (existingOffer) {
@@ -229,12 +268,13 @@ export class OffersService {
           employer_user_id: employerUserId,
           candidate_user_id: dto.candidateUserId,
           employer_pool_profile_id: poolProfile.id,
-          role_title: dto.roleTitle,
+          role_id: role?.id ?? null,
+          role_title: offerDetails.roleTitle,
           message: dto.message ?? '',
-          role_description: dto.roleDescription ?? null,
-          compensation: dto.compensation,
-          employment_type: dto.employmentType,
-          work_arrangement: dto.workArrangement,
+          role_description: offerDetails.roleDescription,
+          compensation: offerDetails.compensation,
+          employment_type: offerDetails.employmentType,
+          work_arrangement: offerDetails.workArrangement,
           application_deadline: dto.applicationDeadline ?? null,
           status: OfferStatus.PENDING,
           expires_at: expiresAt,
@@ -244,6 +284,15 @@ export class OffersService {
           employer_user_id: employerUserId,
           offer_id: created.id,
         } as Partial<OfferDistributionLog>);
+
+        if (role) {
+          await manager.increment(
+            EmployerRole,
+            { id: role.id, employer_user_id: employerUserId },
+            'offers_sent_count',
+            1,
+          );
+        }
 
         return created;
       })
@@ -267,7 +316,7 @@ export class OffersService {
         offerId: offer.id,
         employerUserId,
         employerName,
-        roleTitle: dto.roleTitle,
+        roleTitle: offer.role_title,
       });
     } catch (notifyError: unknown) {
       this.logger.error(
@@ -276,6 +325,87 @@ export class OffersService {
     }
 
     return offer;
+  }
+
+  async bulkCreateOffers(
+    employerUserId: string,
+    dto: BulkCreateOffersDto,
+  ): Promise<BulkCreateOffersResult> {
+    const offers: Offer[] = [];
+    const failures: BulkCreateOffersResult['failures'] = [];
+    const { candidateUserIds, ...offerDetails } = dto;
+
+    for (const candidateUserId of candidateUserIds) {
+      try {
+        const offer = await this.createOffer(employerUserId, {
+          ...offerDetails,
+          candidateUserId,
+        });
+        offers.push(offer);
+      } catch (error: unknown) {
+        failures.push({
+          candidateUserId,
+          message:
+            error instanceof Error ? error.message : 'Offer could not be sent',
+        });
+      }
+    }
+
+    return { offers, failures };
+  }
+
+  private resolveOfferDetails(
+    dto: CreateOfferDto,
+    role: EmployerRole | null,
+  ): {
+    roleTitle: string;
+    roleDescription: string | null;
+    compensation: string;
+    employmentType: string;
+    workArrangement: string;
+  } {
+    const roleTitle = dto.roleTitle?.trim() || role?.title?.trim();
+    const compensation =
+      dto.compensation?.trim() || this.formatRoleCompensation(role);
+    const employmentType = dto.employmentType ?? role?.employment_type ?? null;
+    const workArrangement =
+      dto.workArrangement ?? role?.work_arrangement ?? null;
+
+    if (!roleTitle) {
+      throw new BadRequestError('roleTitle is required');
+    }
+    if (!compensation) {
+      throw new BadRequestError('compensation is required');
+    }
+    if (!employmentType) {
+      throw new BadRequestError('employmentType is required');
+    }
+    if (!workArrangement) {
+      throw new BadRequestError('workArrangement is required');
+    }
+
+    return {
+      roleTitle,
+      roleDescription: dto.roleDescription?.trim() || role?.description || null,
+      compensation,
+      employmentType,
+      workArrangement,
+    };
+  }
+
+  private formatRoleCompensation(role: EmployerRole | null): string | null {
+    if (!role || (role.salary_min == null && role.salary_max == null)) {
+      return null;
+    }
+
+    const currency = role.currency ? `${role.currency} ` : '';
+    if (role.salary_min != null && role.salary_max != null) {
+      return `${currency}${role.salary_min}-${role.salary_max}`;
+    }
+    if (role.salary_min != null) {
+      return `${currency}${role.salary_min}+`;
+    }
+    return `${currency}${role.salary_max}`;
   }
 
   async listEmployerOffers(
@@ -489,6 +619,7 @@ export class OffersService {
   ): Promise<Offer> {
     const offer = await this.offerRepo.findOne({
       where: { id: offerId, candidate_user_id: candidateUserId },
+      relations: ['role'],
     });
 
     if (!offer) {
@@ -501,9 +632,18 @@ export class OffersService {
       );
     }
 
+    const hasRoleAssessment = !!offer.role?.assessment_id;
     const newStatus =
-      responseAction === 'accept' ? OfferStatus.ACCEPTED : OfferStatus.DECLINED;
+      responseAction === 'decline'
+        ? OfferStatus.DECLINED
+        : hasRoleAssessment
+          ? OfferStatus.ASSESSMENT_UNLOCKED
+          : OfferStatus.ACCEPTED;
     const respondedAt = new Date();
+    const assessmentDeadline =
+      newStatus === OfferStatus.ASSESSMENT_UNLOCKED
+        ? this.addDays(respondedAt, OFFER_ASSESSMENT_WINDOW_DAYS)
+        : null;
 
     // Atomic conditional update to prevent race conditions
     const result = await this.offerRepo.update(
@@ -523,7 +663,13 @@ export class OffersService {
     // Now atomically set the response (only if still PENDING)
     const updateResult = await this.offerRepo.update(
       { id: offer.id, status: OfferStatus.PENDING },
-      { status: newStatus, responded_at: respondedAt },
+      {
+        status: newStatus,
+        responded_at: respondedAt,
+        assessment_unlocked_at:
+          newStatus === OfferStatus.ASSESSMENT_UNLOCKED ? respondedAt : null,
+        assessment_deadline: assessmentDeadline,
+      },
     );
 
     if (!updateResult.affected || updateResult.affected === 0) {
@@ -534,6 +680,9 @@ export class OffersService {
 
     offer.status = newStatus;
     offer.responded_at = respondedAt;
+    offer.assessment_unlocked_at =
+      newStatus === OfferStatus.ASSESSMENT_UNLOCKED ? respondedAt : null;
+    offer.assessment_deadline = assessmentDeadline;
 
     // Notify employer
     const candidate = await this.userRepo.findOne({
@@ -711,6 +860,73 @@ export class OffersService {
     return offer;
   }
 
+  async withdrawOffer(
+    employerUserId: string,
+    offerId: string,
+  ): Promise<{ status: string; message: string }> {
+    const offer = await this.offerRepo.findOne({
+      where: { id: offerId, employer_user_id: employerUserId },
+    });
+
+    if (!offer) {
+      throw new NotFoundError('Offer not found');
+    }
+
+    if (offer.status !== OfferStatus.PENDING) {
+      throw new BadRequestError('Only pending offers can be withdrawn');
+    }
+
+    await this.offerRepo.update(
+      { id: offer.id, status: OfferStatus.PENDING },
+      { status: OfferStatus.WITHDRAWN },
+    );
+
+    return { status: 'success', message: 'Offer withdrawn' };
+  }
+
+  async extendAssessmentWindow(
+    employerUserId: string,
+    offerId: string,
+  ): Promise<Offer> {
+    const offer = await this.offerRepo.findOne({
+      where: { id: offerId, employer_user_id: employerUserId },
+    });
+
+    if (!offer) {
+      throw new NotFoundError('Offer not found');
+    }
+    if (offer.status !== OfferStatus.ASSESSMENT_UNLOCKED) {
+      throw new BadRequestError(
+        'Only unlocked assessment offers can be extended',
+      );
+    }
+    if (offer.extension_used) {
+      throw new BadRequestError('Assessment window extension already used');
+    }
+
+    const currentDeadline = offer.assessment_deadline ?? new Date();
+    const nextDeadline = this.addDays(
+      currentDeadline > new Date() ? currentDeadline : new Date(),
+      OFFER_ASSESSMENT_WINDOW_DAYS,
+    );
+
+    const result = await this.offerRepo.update(
+      {
+        id: offer.id,
+        status: OfferStatus.ASSESSMENT_UNLOCKED,
+        extension_used: false,
+      },
+      { assessment_deadline: nextDeadline, extension_used: true },
+    );
+    if (!result.affected || result.affected === 0) {
+      throw new BadRequestError('Assessment window extension already used');
+    }
+
+    offer.assessment_deadline = nextDeadline;
+    offer.extension_used = true;
+    return offer;
+  }
+
   private async getDistributionCount(employerUserId: string): Promise<number> {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -751,6 +967,14 @@ export class OffersService {
       },
       { status: OfferStatus.EXPIRED },
     );
+    await this.offerRepo.update(
+      {
+        employer_user_id: employerUserId,
+        status: OfferStatus.ASSESSMENT_UNLOCKED,
+        assessment_deadline: LessThan(new Date()),
+      },
+      { status: OfferStatus.EXPIRED },
+    );
   }
 
   private async expireStaleOffersForCandidate(
@@ -764,5 +988,17 @@ export class OffersService {
       },
       { status: OfferStatus.EXPIRED },
     );
+    await this.offerRepo.update(
+      {
+        candidate_user_id: candidateUserId,
+        status: OfferStatus.ASSESSMENT_UNLOCKED,
+        assessment_deadline: LessThan(new Date()),
+      },
+      { status: OfferStatus.EXPIRED },
+    );
+  }
+
+  private addDays(date: Date, days: number): Date {
+    return new Date(date.getTime() + days * 24 * 60 * 60 * 1000);
   }
 }

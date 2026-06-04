@@ -106,8 +106,17 @@ export class OfferStatusChangeEventDto {
   @ApiProperty({ example: 'Senior Frontend Engineer' })
   roleTitle: string;
 
-  @ApiProperty({ enum: [OfferStatus.ACCEPTED, OfferStatus.DECLINED] })
-  status: OfferStatus.ACCEPTED | OfferStatus.DECLINED;
+  @ApiProperty({
+    enum: [
+      OfferStatus.ACCEPTED,
+      OfferStatus.ASSESSMENT_UNLOCKED,
+      OfferStatus.DECLINED,
+    ],
+  })
+  status:
+    | OfferStatus.ACCEPTED
+    | OfferStatus.ASSESSMENT_UNLOCKED
+    | OfferStatus.DECLINED;
 
   @ApiProperty({ type: String, format: 'date-time' })
   respondedAt: string;
