@@ -21,6 +21,7 @@ import {
   PERSONAL_ASSESSMENT_SECTION_TITLES,
   PersonalAssessmentInputType,
   PersonalAssessmentQuestion,
+  PersonalAssessmentQuestionOption,
   SKIPPED_ONBOARDING_ANSWER_KEYS,
   SPECIALIZATIONS_BY_TRACK,
   TOOLS_BY_TRACK,
@@ -61,6 +62,7 @@ export type GeneratedPersonalAssessmentQuestion = {
   prompt: string;
   helperText: string | null;
   options?: readonly string[];
+  optionItems?: readonly PersonalAssessmentQuestionOption[];
   otherTextKey?: string;
   followUpKey?: string;
   followUpWhen?: string;
@@ -586,7 +588,10 @@ export class PersonalAssessmentService {
     helperText: string | null,
     profile: TalentProfile,
   ): GeneratedPersonalAssessmentQuestion {
-    const options = this.resolveQuestionOptions(question, profile);
+    const optionItems = this.resolveQuestionOptionItems(question, profile);
+    const options =
+      optionItems?.map((option) => option.value) ??
+      this.resolveQuestionOptions(question, profile);
     const sourceSection = this.findQuestionSection(question.key, profile.track);
     return {
       id: randomUUID(),
@@ -605,10 +610,27 @@ export class PersonalAssessmentService {
       prompt,
       helperText,
       ...(options && { options }),
+      ...(optionItems && { optionItems }),
       ...(question.otherTextKey && { otherTextKey: question.otherTextKey }),
       ...(question.followUpKey && { followUpKey: question.followUpKey }),
       ...(question.followUpWhen && { followUpWhen: question.followUpWhen }),
     };
+  }
+
+  private resolveQuestionOptionItems(
+    question: PersonalAssessmentQuestion,
+    profile: TalentProfile,
+  ): readonly PersonalAssessmentQuestionOption[] | undefined {
+    if (question.optionItems?.length) {
+      return question.optionItems;
+    }
+
+    const values = this.resolveQuestionOptions(question, profile);
+    if (!values?.length) {
+      return undefined;
+    }
+
+    return values.map((value) => ({ value, label: value }));
   }
 
   private resolveQuestionOptions(
