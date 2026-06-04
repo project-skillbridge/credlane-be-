@@ -27,6 +27,7 @@ describe('PersonalAssessmentService', () => {
     save: jest.Mock;
     manager: { transaction: jest.Mock };
   };
+  let warmCacheMock: jest.Mock;
 
   const userId = 'talent-user-1';
   let profileStore: TalentProfile;
@@ -100,10 +101,13 @@ describe('PersonalAssessmentService', () => {
 
     questionCatalog = createTestPersonalAssessmentQuestionService();
 
+    warmCacheMock = jest.fn().mockResolvedValue(undefined);
+
     service = new PersonalAssessmentService(
       repository as unknown as Repository<TalentProfile>,
       usersService as UsersService,
       questionCatalog,
+      { warmCache: warmCacheMock } as any,
     );
   });
 
@@ -186,6 +190,10 @@ describe('PersonalAssessmentService', () => {
         completedSections: [1, 2, 3, 4, 5],
       },
     });
+    expect(warmCacheMock).toHaveBeenCalledWith(
+      profileStore.track,
+      expect.any(String),
+    );
   });
 
   it('complete finalizes stored generated answers without section coverage', async () => {
@@ -210,6 +218,10 @@ describe('PersonalAssessmentService', () => {
         completedSections: [1, 2, 3, 4, 5],
       },
     });
+    expect(warmCacheMock).toHaveBeenCalledWith(
+      profileStore.track,
+      expect.any(String),
+    );
   });
 
   it('getResumeProgress returns section progress without creating a profile', async () => {
