@@ -1,9 +1,10 @@
 import { resolveTrackFromRoleCode } from '../../../database/import/role-code-map';
 import type { PersonalAssessmentQuestionImportItem } from './personal-assessment-question-import.types';
 
-export type PersonalAssessmentQuestionImportRow = PersonalAssessmentQuestionImportItem & {
-  id: string;
-  track: string;
+export type PersonalAssessmentQuestionImportRow = Omit<
+  PersonalAssessmentQuestionImportItem,
+  'options'
+> & {
   options: { value: string; label: string }[] | null;
 };
 
