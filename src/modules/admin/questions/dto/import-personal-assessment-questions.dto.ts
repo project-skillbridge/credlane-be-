@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
   ArrayMinSize,
@@ -6,10 +6,15 @@ import {
   IsBoolean,
   IsIn,
   IsNotEmpty,
+  IsObject,
+  IsOptional,
   IsString,
   MaxLength,
-  ValidateIf,
+  Validate,
   ValidateNested,
+  ValidationArguments,
+  ValidatorConstraint,
+  ValidatorConstraintInterface,
 } from 'class-validator';
 
 export const PERSONAL_ASSESSMENT_IMPORT_FORMATS = [
@@ -18,6 +23,68 @@ export const PERSONAL_ASSESSMENT_IMPORT_FORMATS = [
   'text_required',
   'text_optional',
 ] as const;
+
+@ValidatorConstraint({ name: 'trackVariantsShape', async: false })
+class TrackVariantsShapeConstraint implements ValidatorConstraintInterface {
+  validate(value: unknown): boolean {
+    if (value == null) {
+      return true;
+    }
+    if (typeof value !== 'object' || Array.isArray(value)) {
+      return false;
+    }
+
+    return Object.values(value as Record<string, unknown>).every((entry) => {
+      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+        return false;
+      }
+      const options = (entry as { options?: unknown }).options;
+      if (!Array.isArray(options) || options.length === 0) {
+        return false;
+      }
+      return options.every((option) => {
+        if (!option || typeof option !== 'object' || Array.isArray(option)) {
+          return false;
+        }
+        const { value: optionValue, label } = option as {
+          value?: unknown;
+          label?: unknown;
+        };
+        return (
+          typeof optionValue === 'string' &&
+          optionValue.length > 0 &&
+          typeof label === 'string' &&
+          label.length > 0
+        );
+      });
+    });
+  }
+
+  defaultMessage(): string {
+    return 'Each track variant must include a non-empty options array of { value, label }';
+  }
+}
+
+@ValidatorConstraint({ name: 'selectOptionsOrTrackVariants', async: false })
+class SelectOptionsOrTrackVariantsConstraint
+  implements ValidatorConstraintInterface
+{
+  validate(_value: unknown, args: ValidationArguments): boolean {
+    const item = args.object as PersonalAssessmentQuestionImportItemDto;
+    if (!['single_select', 'multi_select'].includes(item.format)) {
+      return true;
+    }
+    const hasOptions = Array.isArray(item.options) && item.options.length > 0;
+    const hasVariants =
+      item.trackVariants != null &&
+      Object.keys(item.trackVariants).length > 0;
+    return hasOptions || hasVariants;
+  }
+
+  defaultMessage(): string {
+    return 'Either options or trackVariants is required for select questions';
+  }
+}
 
 export class PersonalAssessmentQuestionOptionDto {
   @ApiProperty({ example: 'fully_remote' })
@@ -31,7 +98,17 @@ export class PersonalAssessmentQuestionOptionDto {
   label: string;
 }
 
+export class PersonalAssessmentTrackVariantDto {
+  @ApiProperty({ type: [PersonalAssessmentQuestionOptionDto] })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ValidateNested({ each: true })
+  @Type(() => PersonalAssessmentQuestionOptionDto)
+  options: PersonalAssessmentQuestionOptionDto[];
+}
+
 export class PersonalAssessmentQuestionImportItemDto {
+  @Validate(SelectOptionsOrTrackVariantsConstraint)
   @ApiProperty({ example: 'PA-GEN-WST-001' })
   @IsString()
   @IsNotEmpty()
@@ -72,15 +149,33 @@ export class PersonalAssessmentQuestionImportItemDto {
   @IsBoolean()
   required: boolean;
 
-  @ApiProperty({ type: [PersonalAssessmentQuestionOptionDto], required: false })
-  @ValidateIf((item: PersonalAssessmentQuestionImportItemDto) =>
-    ['single_select', 'multi_select'].includes(item.format),
-  )
+  @ApiPropertyOptional({
+    description: 'Admin note from question bank JSON (not persisted)',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(2000)
+  note?: string;
+
+  @ApiPropertyOptional({ type: [PersonalAssessmentQuestionOptionDto] })
+  @IsOptional()
   @IsArray()
   @ArrayMinSize(1)
   @ValidateNested({ each: true })
   @Type(() => PersonalAssessmentQuestionOptionDto)
   options?: PersonalAssessmentQuestionOptionDto[];
+
+  @ApiPropertyOptional({
+    name: 'track_variants',
+    description:
+      'Per-track option sets keyed by 3-letter role code (e.g. FED, PMG). Imported as one row per track.',
+    type: 'object',
+    additionalProperties: { type: 'object' },
+  })
+  @IsOptional()
+  @IsObject()
+  @Validate(TrackVariantsShapeConstraint)
+  trackVariants?: Record<string, PersonalAssessmentTrackVariantDto>;
 }
 
 export class ImportPersonalAssessmentQuestionsDto {
