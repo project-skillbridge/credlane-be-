@@ -1302,7 +1302,6 @@ export class AdvancedAssessmentService {
 
   private assertAdvancedRetakeUnlocked(profile: TalentProfile): void {
     if (
-      !profile.advanced_retake_required ||
       !profile.assessment_locked_until ||
       profile.assessment_locked_until <= new Date()
     ) {
