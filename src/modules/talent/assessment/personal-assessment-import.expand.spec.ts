@@ -37,6 +37,24 @@ describe('expandPersonalAssessmentImportItems', () => {
     });
   });
 
+  it('returns a single base row for text questions without options or track_variants', () => {
+    const rows = expandPersonalAssessmentImportItems({
+      ...baseItem,
+      id: 'PA-GEN-PRO-013',
+      fieldName: 'ideal_work_environment',
+      format: 'text_required',
+      question: 'Describe your ideal work environment',
+    });
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({
+      id: 'PA-GEN-PRO-013',
+      track: 'all',
+      format: 'text_required',
+      options: null,
+    });
+  });
+
   it('keeps a base row when top-level options are provided', () => {
     const rows = expandPersonalAssessmentImportItems({
       ...baseItem,
