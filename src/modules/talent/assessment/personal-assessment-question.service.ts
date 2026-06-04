@@ -285,6 +285,13 @@ export class PersonalAssessmentQuestionService
 
     for (const item of items) {
       const rows = expandPersonalAssessmentImportItems(item);
+      if (rows.length === 0) {
+        errors.push(
+          `${item.id}: no rows produced for format "${item.format}" (field "${item.fieldName}"); provide options or track_variants for select questions`,
+        );
+        skipped++;
+        continue;
+      }
       for (const row of rows) {
         try {
           const existing = await this.questionRepo.findOne({

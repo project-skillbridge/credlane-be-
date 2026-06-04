@@ -213,6 +213,39 @@ describe('PersonalAssessmentQuestionService', () => {
     expect(find).toHaveBeenCalled();
   });
 
+  it('reports skipped when expansion produces no rows', async () => {
+    const find = jest.fn().mockResolvedValue([]);
+    const findOne = jest.fn().mockResolvedValue(null);
+    const save = jest.fn();
+    const create = jest.fn();
+    const update = jest.fn();
+    const questionRepo = { find, findOne, save, create, update };
+
+    const importService = new PersonalAssessmentQuestionService(
+      questionRepo as never,
+    );
+
+    const result = await importService.importQuestions([
+      {
+        id: 'PA-GEN-BAD-SELECT',
+        section: 'work_style',
+        track: 'all',
+        question: 'Pick one',
+        fieldName: 'work_arrangement',
+        format: 'single_select',
+        required: true,
+      },
+    ]);
+
+    expect(result.inserted).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(result.errors).toEqual([
+      'PA-GEN-BAD-SELECT: no rows produced for format "single_select" (field "work_arrangement"); provide options or track_variants for select questions',
+    ]);
+    expect(create).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  });
+
   it('maps validation metadata from database rows', async () => {
     const questionRepo = {
       find: jest.fn().mockResolvedValue([
