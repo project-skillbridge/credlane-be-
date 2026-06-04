@@ -213,6 +213,39 @@ describe('PersonalAssessmentQuestionService', () => {
     expect(find).toHaveBeenCalled();
   });
 
+  it('reports skipped when variant id expansion exceeds the database limit', async () => {
+    const find = jest.fn().mockResolvedValue([]);
+    const findOne = jest.fn().mockResolvedValue(null);
+    const save = jest.fn();
+    const create = jest.fn();
+    const update = jest.fn();
+    const questionRepo = { find, findOne, save, create, update };
+
+    const importService = new PersonalAssessmentQuestionService(
+      questionRepo as never,
+    );
+
+    const result = await importService.importQuestions([
+      {
+        id: 'PA-GEN-PRO-013-EXTRA-LONG-BASE-ID-NEAR-LIMIT-XX',
+        section: 'professional_background',
+        track: 'all',
+        question: 'Specialisation?',
+        fieldName: 'track_specialisation',
+        format: 'single_select',
+        required: true,
+        trackVariants: {
+          FED: { options: [{ value: 'ui_focused', label: 'UI-focused' }] },
+        },
+      },
+    ]);
+
+    expect(result.inserted).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(result.errors[0]).toContain('exceeds 50 characters');
+    expect(create).not.toHaveBeenCalled();
+  });
+
   it('reports skipped when expansion produces no rows', async () => {
     const find = jest.fn().mockResolvedValue([]);
     const findOne = jest.fn().mockResolvedValue(null);

@@ -284,7 +284,15 @@ export class PersonalAssessmentQuestionService
     const errors: string[] = [];
 
     for (const item of items) {
-      const rows = expandPersonalAssessmentImportItems(item);
+      let rows;
+      try {
+        rows = expandPersonalAssessmentImportItems(item);
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(`${item.id}: ${msg}`);
+        skipped++;
+        continue;
+      }
       if (rows.length === 0) {
         errors.push(
           `${item.id}: no rows produced for format "${item.format}" (field "${item.fieldName}"); provide options or track_variants for select questions`,

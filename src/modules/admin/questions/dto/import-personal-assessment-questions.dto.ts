@@ -16,6 +16,7 @@ import {
   ValidatorConstraint,
   ValidatorConstraintInterface,
 } from 'class-validator';
+import { buildVariantQuestionId } from '../../../talent/assessment/personal-assessment-import.ids';
 
 export const PERSONAL_ASSESSMENT_IMPORT_FORMATS = [
   'single_select',
@@ -26,7 +27,7 @@ export const PERSONAL_ASSESSMENT_IMPORT_FORMATS = [
 
 @ValidatorConstraint({ name: 'trackVariantsShape', async: false })
 class TrackVariantsShapeConstraint implements ValidatorConstraintInterface {
-  validate(value: unknown): boolean {
+  validate(value: unknown, args: ValidationArguments): boolean {
     if (value == null) {
       return true;
     }
@@ -34,34 +35,49 @@ class TrackVariantsShapeConstraint implements ValidatorConstraintInterface {
       return false;
     }
 
-    return Object.values(value as Record<string, unknown>).every((entry) => {
-      if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
-        return false;
-      }
-      const options = (entry as { options?: unknown }).options;
-      if (!Array.isArray(options) || options.length === 0) {
-        return false;
-      }
-      return options.every((option) => {
-        if (!option || typeof option !== 'object' || Array.isArray(option)) {
+    const item = args.object as PersonalAssessmentQuestionImportItemDto;
+    const baseId = typeof item.id === 'string' ? item.id : '';
+
+    return Object.entries(value as Record<string, unknown>).every(
+      ([roleCode, entry]) => {
+        try {
+          buildVariantQuestionId(baseId, roleCode);
+        } catch {
           return false;
         }
-        const { value: optionValue, label } = option as {
-          value?: unknown;
-          label?: unknown;
-        };
-        return (
-          typeof optionValue === 'string' &&
-          optionValue.length > 0 &&
-          typeof label === 'string' &&
-          label.length > 0
-        );
-      });
+
+        return TrackVariantsShapeConstraint.isValidVariantEntry(entry);
+      },
+    );
+  }
+
+  private static isValidVariantEntry(entry: unknown): boolean {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) {
+      return false;
+    }
+    const options = (entry as { options?: unknown }).options;
+    if (!Array.isArray(options) || options.length === 0) {
+      return false;
+    }
+    return options.every((option) => {
+      if (!option || typeof option !== 'object' || Array.isArray(option)) {
+        return false;
+      }
+      const { value: optionValue, label } = option as {
+        value?: unknown;
+        label?: unknown;
+      };
+      return (
+        typeof optionValue === 'string' &&
+        optionValue.length > 0 &&
+        typeof label === 'string' &&
+        label.length > 0
+      );
     });
   }
 
   defaultMessage(): string {
-    return 'Each track variant must include a non-empty options array of { value, label }';
+    return 'Each track variant must have a valid role code and options array that fit within id limits';
   }
 }
 

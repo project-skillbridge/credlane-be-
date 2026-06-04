@@ -55,6 +55,18 @@ describe('expandPersonalAssessmentImportItems', () => {
     });
   });
 
+  it('rejects variant ids that would exceed the database id limit', () => {
+    expect(() =>
+      expandPersonalAssessmentImportItems({
+        ...baseItem,
+        id: 'PA-GEN-PRO-013-EXTRA-LONG-BASE-ID-NEAR-LIMIT-XX',
+        trackVariants: {
+          FED: { options: [{ value: 'ui_focused', label: 'UI-focused' }] },
+        },
+      }),
+    ).toThrow(/exceeds 50 characters/);
+  });
+
   it('keeps a base row when top-level options are provided', () => {
     const rows = expandPersonalAssessmentImportItems({
       ...baseItem,

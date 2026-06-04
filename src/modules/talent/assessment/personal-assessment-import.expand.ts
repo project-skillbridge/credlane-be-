@@ -1,4 +1,5 @@
 import { resolveTrackFromRoleCode } from '../../../database/import/role-code-map';
+import { assertImportQuestionId, buildVariantQuestionId } from './personal-assessment-import.ids';
 import type { PersonalAssessmentQuestionImportItem } from './personal-assessment-question-import.types';
 
 export type PersonalAssessmentQuestionImportRow = Omit<
@@ -11,6 +12,8 @@ export type PersonalAssessmentQuestionImportRow = Omit<
 export function expandPersonalAssessmentImportItems(
   item: PersonalAssessmentQuestionImportItem,
 ): PersonalAssessmentQuestionImportRow[] {
+  assertImportQuestionId(item.id);
+
   const variantEntries = item.trackVariants
     ? Object.entries(item.trackVariants)
     : [];
@@ -38,7 +41,7 @@ export function expandPersonalAssessmentImportItems(
   for (const [roleCode, variant] of variantEntries) {
     rows.push({
       ...item,
-      id: `${item.id}__${roleCode}`,
+      id: buildVariantQuestionId(item.id, roleCode),
       track: resolveTrackFromRoleCode(roleCode),
       options: variant.options,
     });
