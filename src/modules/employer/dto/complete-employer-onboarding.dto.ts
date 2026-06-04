@@ -31,24 +31,27 @@ export class CompleteEmployerOnboardingDto {
   })
   joiningAs: string;
 
-  @ApiProperty({ example: 'Acme Labs' })
+  @ApiPropertyOptional({ example: 'Acme Labs' })
+  @IsOptional()
   @IsString()
-  @MinLength(1, { message: 'companyName is required' })
+  @MinLength(1, { message: 'companyName must not be empty' })
   @MaxLength(255)
-  companyName: string;
+  companyName?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: '11-50',
     enum: EMPLOYER_COMPANY_SIZES,
   })
+  @IsOptional()
   @IsIn(EMPLOYER_COMPANY_SIZES, { message: 'Invalid company size selection' })
-  companySize: string;
+  companySize?: string;
 
-  @ApiProperty({ example: 'Fintech' })
+  @ApiPropertyOptional({ example: 'Fintech' })
+  @IsOptional()
   @IsString()
-  @MinLength(1, { message: 'industry is required' })
+  @MinLength(1, { message: 'industry must not be empty' })
   @MaxLength(100)
-  industry: string;
+  industry?: string;
 
   @ApiProperty({
     example: ['frontend_developer', 'backend_developer'],
@@ -64,19 +67,20 @@ export class CompleteEmployerOnboardingDto {
   })
   desiredRoles: string[];
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: ['junior', 'mid'],
     enum: EMPLOYER_PREFERRED_EXPERIENCE_LEVELS,
     isArray: true,
     description: 'Preferred experience levels',
   })
+  @IsOptional()
   @IsArray()
   @ArrayMinSize(1, { message: 'Select at least one experience level' })
   @IsIn(EMPLOYER_PREFERRED_EXPERIENCE_LEVELS, {
     each: true,
     message: 'Invalid experience level selection',
   })
-  preferredExperienceLevels: string[];
+  preferredExperienceLevels?: string[];
 
   @ApiProperty({
     example: 'Nigeria',
@@ -98,14 +102,13 @@ export class CompleteEmployerOnboardingDto {
   })
   hiringCountRange: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: 'https://acmelabs.com',
     description: 'Company website URL',
   })
-  @IsOptional()
   @IsUrl({}, { message: 'companyWebsite must be a valid URL' })
   @MaxLength(500)
-  companyWebsite?: string;
+  companyWebsite: string;
 
   @ApiPropertyOptional({
     example: 'https://www.linkedin.com/company/acmelabs',

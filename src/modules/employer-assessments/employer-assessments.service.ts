@@ -19,8 +19,10 @@ import {
   VerifiedLevel,
 } from '../assessments/entities/assessment-question.entity';
 import { EmployerSavedCandidate } from '../employer-discovery/entities/employer-saved-candidate.entity';
+import { EmployerRole } from '../employer-roles/entities/employer-role.entity';
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
 import { NotificationType } from '../notifications/notification-type.enum';
+import { Offer, OfferStatus } from '../offers/entities/offer.entity';
 import { User } from '../users/entities/user.entity';
 import {
   CreateEmployerAssessmentDto,
@@ -45,7 +47,7 @@ import {
 } from './entities/employer-assessment-question.entity';
 import { EmployerAssessmentSubmission } from './entities/employer-assessment-submission.entity';
 
-const ACTIVE_ASSESSMENT_LIMIT = 3;
+const ACTIVE_ASSESSMENT_LIMIT = 5;
 const MIN_COMPANY_QUESTIONS = 5;
 const TEMPLATE_COLUMNS = [
   'Question Text',
@@ -91,6 +93,10 @@ export class EmployerAssessmentsService {
     private readonly savedCandidateRepo: Repository<EmployerSavedCandidate>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    @InjectRepository(EmployerRole)
+    private readonly employerRoleRepo: Repository<EmployerRole>,
+    @InjectRepository(Offer)
+    private readonly offerRepo: Repository<Offer>,
     private readonly notificationDispatch: NotificationDispatchService,
   ) {}
 
@@ -310,7 +316,7 @@ export class EmployerAssessmentsService {
     const passed = score >= assessment.passing_threshold;
 
     try {
-      return await this.submissionRepo.save({
+      const submission = await this.submissionRepo.save({
         assessment_id: assessment.id,
         candidate_user_id: candidateUserId,
         score,
@@ -319,6 +325,14 @@ export class EmployerAssessmentsService {
         delivery_mode: dto.deliveryMode,
         answers: dto.answers ?? null,
       } as Partial<EmployerAssessmentSubmission>);
+
+      await this.updateLinkedOfferAfterSubmission(
+        candidateUserId,
+        assessment.id,
+        passed,
+      );
+
+      return submission;
     } catch (error: unknown) {
       if (isPostgresUniqueViolation(error)) {
         throw new ConflictError('You have already submitted this assessment.');
@@ -352,6 +366,33 @@ export class EmployerAssessmentsService {
       return String(value).trim().toLowerCase();
     }
     return '';
+  }
+
+  private async updateLinkedOfferAfterSubmission(
+    candidateUserId: string,
+    assessmentId: string,
+    passed: boolean,
+  ): Promise<void> {
+    const roles = await this.employerRoleRepo.find({
+      where: { assessment_id: assessmentId },
+      select: ['id'],
+    });
+    const roleIds = roles.map((role) => role.id);
+
+    if (roleIds.length === 0) {
+      return;
+    }
+
+    await this.offerRepo.update(
+      {
+        candidate_user_id: candidateUserId,
+        role_id: In(roleIds),
+        status: OfferStatus.ASSESSMENT_UNLOCKED,
+      },
+      {
+        status: passed ? OfferStatus.PASSED : OfferStatus.FAILED,
+      },
+    );
   }
 
   async listResults(

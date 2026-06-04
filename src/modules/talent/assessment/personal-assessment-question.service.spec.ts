@@ -131,6 +131,154 @@ describe('PersonalAssessmentQuestionService', () => {
     expect(trackService.findQuestionSection('bad_field')).toBe(0);
   });
 
+  it('imports track_variants as per-track question rows', async () => {
+    const find = jest.fn().mockResolvedValue([]);
+    const findOne = jest.fn().mockResolvedValue(null);
+    const save = jest.fn().mockImplementation((_entity, payload) =>
+      Promise.resolve(payload),
+    );
+    const create = jest.fn().mockImplementation((_entity, payload) => payload);
+    const update = jest.fn().mockResolvedValue(undefined);
+    const questionRepo = { find, findOne, save, create, update };
+
+    const importService = new PersonalAssessmentQuestionService(
+      questionRepo as never,
+    );
+
+    const result = await importService.importQuestions([
+      {
+        id: 'PA-GEN-PRO-013',
+        section: 'professional_background',
+        track: 'all',
+        question: 'Specialisation?',
+        fieldName: 'track_specialisation',
+        format: 'single_select',
+        required: true,
+        trackVariants: {
+          FED: {
+            options: [{ value: 'ui_focused', label: 'UI-focused' }],
+          },
+        },
+      },
+    ]);
+
+    expect(result.inserted).toBe(1);
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'PA-GEN-PRO-013__FED',
+        track: 'frontend_developer',
+        field_name: 'track_specialisation',
+        options: [{ value: 'ui_focused', label: 'UI-focused' }],
+      }),
+    );
+    expect(find).toHaveBeenCalled();
+  });
+
+  it('imports text_required questions without options or track_variants', async () => {
+    const find = jest.fn().mockResolvedValue([]);
+    const findOne = jest.fn().mockResolvedValue(null);
+    const save = jest.fn().mockImplementation((payload) => Promise.resolve(payload));
+    const create = jest.fn().mockImplementation((payload) => payload);
+    const update = jest.fn().mockResolvedValue(undefined);
+    const questionRepo = { find, findOne, save, create, update };
+
+    const importService = new PersonalAssessmentQuestionService(
+      questionRepo as never,
+    );
+
+    const result = await importService.importQuestions([
+      {
+        id: 'PA-GEN-PRO-014',
+        section: 'work_style',
+        track: 'all',
+        question: 'Describe your ideal work environment',
+        fieldName: 'ideal_work_environment',
+        format: 'text_required',
+        required: true,
+      },
+    ]);
+
+    expect(result.inserted).toBe(1);
+    expect(create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: 'PA-GEN-PRO-014',
+        track: 'all',
+        field_name: 'ideal_work_environment',
+        format: 'text_required',
+        options: null,
+        is_live: true,
+      }),
+    );
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(find).toHaveBeenCalled();
+  });
+
+  it('reports skipped when variant id expansion exceeds the database limit', async () => {
+    const find = jest.fn().mockResolvedValue([]);
+    const findOne = jest.fn().mockResolvedValue(null);
+    const save = jest.fn();
+    const create = jest.fn();
+    const update = jest.fn();
+    const questionRepo = { find, findOne, save, create, update };
+
+    const importService = new PersonalAssessmentQuestionService(
+      questionRepo as never,
+    );
+
+    const result = await importService.importQuestions([
+      {
+        id: 'PA-GEN-PRO-013-EXTRA-LONG-BASE-ID-NEAR-LIMIT-XX',
+        section: 'professional_background',
+        track: 'all',
+        question: 'Specialisation?',
+        fieldName: 'track_specialisation',
+        format: 'single_select',
+        required: true,
+        trackVariants: {
+          FED: { options: [{ value: 'ui_focused', label: 'UI-focused' }] },
+        },
+      },
+    ]);
+
+    expect(result.inserted).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(result.errors[0]).toContain('exceeds 50 characters');
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it('reports skipped when expansion produces no rows', async () => {
+    const find = jest.fn().mockResolvedValue([]);
+    const findOne = jest.fn().mockResolvedValue(null);
+    const save = jest.fn();
+    const create = jest.fn();
+    const update = jest.fn();
+    const questionRepo = { find, findOne, save, create, update };
+
+    const importService = new PersonalAssessmentQuestionService(
+      questionRepo as never,
+    );
+
+    const result = await importService.importQuestions([
+      {
+        id: 'PA-GEN-BAD-SELECT',
+        section: 'work_style',
+        track: 'all',
+        question: 'Pick one',
+        fieldName: 'work_arrangement',
+        format: 'single_select',
+        required: true,
+      },
+    ]);
+
+    expect(result.inserted).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(result.errors).toEqual([
+      'PA-GEN-BAD-SELECT: no rows produced for format "single_select" (field "work_arrangement"); provide options or track_variants for select questions',
+    ]);
+    expect(create).not.toHaveBeenCalled();
+    expect(save).not.toHaveBeenCalled();
+  });
+
   it('maps validation metadata from database rows', async () => {
     const questionRepo = {
       find: jest.fn().mockResolvedValue([

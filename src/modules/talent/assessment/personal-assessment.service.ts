@@ -12,6 +12,7 @@ import { ErrorMessages, SuccessMessages } from '../../../shared';
 import { camelToSnake } from '../../../common/utils/case-transform';
 
 import { OpenRouterService } from '../../ai/openrouter.service';
+import { AiResourcesService } from '../../ai-resources/ai-resources.service';
 import { UsersService } from '../../users/users.service';
 import { TALENT_CLAIMED_LEVELS } from '../talent.constants';
 import { TalentProfile } from '../entities/talent-profile.entity';
@@ -21,6 +22,7 @@ import {
   PERSONAL_ASSESSMENT_SECTION_TITLES,
   PersonalAssessmentInputType,
   PersonalAssessmentQuestion,
+  PersonalAssessmentQuestionOption,
   SKIPPED_ONBOARDING_ANSWER_KEYS,
   SPECIALIZATIONS_BY_TRACK,
   TOOLS_BY_TRACK,
@@ -61,6 +63,7 @@ export type GeneratedPersonalAssessmentQuestion = {
   prompt: string;
   helperText: string | null;
   options?: readonly string[];
+  optionItems?: readonly PersonalAssessmentQuestionOption[];
   otherTextKey?: string;
   followUpKey?: string;
   followUpWhen?: string;
@@ -96,6 +99,7 @@ export class PersonalAssessmentService {
     private readonly talentProfileRepository: Repository<TalentProfile>,
     private readonly usersService: UsersService,
     private readonly questionCatalog: PersonalAssessmentQuestionService,
+    private readonly aiResourcesService: AiResourcesService,
     @Optional() private readonly openRouter?: OpenRouterService,
   ) {}
 
@@ -278,68 +282,83 @@ export class PersonalAssessmentService {
     userId: string,
     rawAnswers: Record<string, unknown>,
   ): Promise<{ status: string; message: string; completedAt: string }> {
-    const completedAt = await this.talentProfileRepository.manager.transaction(
-      async (manager) => {
-        let profile = await manager.findOne(TalentProfile, {
-          where: { user_id: userId },
-          lock: { mode: 'pessimistic_write' },
-        });
-
-        if (!profile) {
-          profile = await manager.save(
-            manager.create(TalentProfile, { user_id: userId }),
-          );
-        }
-
-        if (profile.personal_assessment_completed_at) {
-          throw new UnprocessableEntityException(
-            ErrorMessages.ASSESSMENT.ALREADY_COMPLETED,
-          );
-        }
-
-        assertOnboardingFieldsForComplete(profile);
-
-        const store = this.readStore(profile);
-        const session = store._meta?.generatedSession;
-        if (!session) {
-          throw new UnprocessableEntityException({
-            message:
-              'Generate a personal assessment session before submitting answers',
+    const { completedAt, track, claimedLevel } =
+      await this.talentProfileRepository.manager.transaction(
+        async (manager) => {
+          let profile = await manager.findOne(TalentProfile, {
+            where: { user_id: userId },
+            lock: { mode: 'pessimistic_write' },
           });
-        }
 
-        const sourceQuestions = this.resolveGeneratedSourceQuestions(
-          session,
-          profile,
-        );
-        const normalizedAnswers = this.normalizeAnswerAliases(rawAnswers);
-        const filtered = Object.fromEntries(
-          Object.entries(normalizedAnswers).filter(
-            ([key]) =>
-              !SKIPPED_ONBOARDING_ANSWER_KEYS.has(key) ||
-              key === 'claimed_level',
-          ),
-        );
-        const submissionAnswers = this.resolveGeneratedAnswers(
-          filtered,
-          profile,
-        );
-        const validated = validateGeneratedPersonalAssessmentAnswers(
-          sourceQuestions,
-          submissionAnswers,
-          profile,
-        );
+          if (!profile) {
+            profile = await manager.save(
+              manager.create(TalentProfile, { user_id: userId }),
+            );
+          }
 
-        const completedAt = await this.persistGeneratedAssessmentCompletion(
-          manager,
-          profile,
-          store,
-          validated,
-        );
+          if (profile.personal_assessment_completed_at) {
+            throw new UnprocessableEntityException(
+              ErrorMessages.ASSESSMENT.ALREADY_COMPLETED,
+            );
+          }
 
-        return completedAt;
-      },
-    );
+          assertOnboardingFieldsForComplete(profile);
+
+          const store = this.readStore(profile);
+          const session = store._meta?.generatedSession;
+          if (!session) {
+            throw new UnprocessableEntityException({
+              message:
+                'Generate a personal assessment session before submitting answers',
+            });
+          }
+
+          const sourceQuestions = this.resolveGeneratedSourceQuestions(
+            session,
+            profile,
+          );
+          const normalizedAnswers = this.normalizeAnswerAliases(rawAnswers);
+          const filtered = Object.fromEntries(
+            Object.entries(normalizedAnswers).filter(
+              ([key]) =>
+                !SKIPPED_ONBOARDING_ANSWER_KEYS.has(key) ||
+                key === 'claimed_level',
+            ),
+          );
+          const submissionAnswers = this.resolveGeneratedAnswers(
+            filtered,
+            profile,
+          );
+          const validated = validateGeneratedPersonalAssessmentAnswers(
+            sourceQuestions,
+            submissionAnswers,
+            profile,
+          );
+
+          const completedAt = await this.persistGeneratedAssessmentCompletion(
+            manager,
+            profile,
+            store,
+            validated,
+          );
+
+          return {
+            completedAt,
+            track: profile.track,
+            claimedLevel:
+              (validated.claimed_level as string) ?? profile.claimed_level,
+          };
+        },
+      );
+
+    // Warm resource cache for the user's track + claimed level
+    if (track && claimedLevel) {
+      this.aiResourcesService.warmCache(track, claimedLevel).catch((err) => {
+        this.logger.error(
+          `Resource cache warming after personal assessment failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        );
+      });
+    }
 
     return {
       status: 'success',
@@ -586,7 +605,10 @@ export class PersonalAssessmentService {
     helperText: string | null,
     profile: TalentProfile,
   ): GeneratedPersonalAssessmentQuestion {
-    const options = this.resolveQuestionOptions(question, profile);
+    const optionItems = this.resolveQuestionOptionItems(question, profile);
+    const options =
+      optionItems?.map((option) => option.value) ??
+      this.resolveQuestionOptions(question, profile);
     const sourceSection = this.findQuestionSection(question.key, profile.track);
     return {
       id: randomUUID(),
@@ -605,10 +627,27 @@ export class PersonalAssessmentService {
       prompt,
       helperText,
       ...(options && { options }),
+      ...(optionItems && { optionItems }),
       ...(question.otherTextKey && { otherTextKey: question.otherTextKey }),
       ...(question.followUpKey && { followUpKey: question.followUpKey }),
       ...(question.followUpWhen && { followUpWhen: question.followUpWhen }),
     };
+  }
+
+  private resolveQuestionOptionItems(
+    question: PersonalAssessmentQuestion,
+    profile: TalentProfile,
+  ): readonly PersonalAssessmentQuestionOption[] | undefined {
+    if (question.optionItems?.length) {
+      return question.optionItems;
+    }
+
+    const values = this.resolveQuestionOptions(question, profile);
+    if (!values?.length) {
+      return undefined;
+    }
+
+    return values.map((value) => ({ value, label: value }));
   }
 
   private resolveQuestionOptions(
@@ -726,59 +765,74 @@ export class PersonalAssessmentService {
   async complete(
     userId: string,
   ): Promise<{ status: string; message: string; completedAt: string }> {
-    const completedAt = await this.talentProfileRepository.manager.transaction(
-      async (manager) => {
-        let profile = await manager.findOne(TalentProfile, {
-          where: { user_id: userId },
-          lock: { mode: 'pessimistic_write' },
-        });
-
-        if (!profile) {
-          profile = await manager.save(
-            manager.create(TalentProfile, { user_id: userId }),
-          );
-        }
-
-        if (profile.personal_assessment_completed_at) {
-          throw new UnprocessableEntityException(
-            ErrorMessages.ASSESSMENT.ALREADY_COMPLETED,
-          );
-        }
-
-        assertOnboardingFieldsForComplete(profile);
-        const store = this.readStore(profile);
-        const session = store._meta?.generatedSession;
-        if (!session) {
-          throw new UnprocessableEntityException({
-            message:
-              'Generate a personal assessment session before submitting answers',
+    const { completedAt, track, claimedLevel } =
+      await this.talentProfileRepository.manager.transaction(
+        async (manager) => {
+          let profile = await manager.findOne(TalentProfile, {
+            where: { user_id: userId },
+            lock: { mode: 'pessimistic_write' },
           });
-        }
 
-        const sourceQuestions = this.resolveGeneratedSourceQuestions(
-          session,
-          profile,
-        );
-        const completionAnswers = this.resolveGeneratedAnswers(
-          this.withoutMeta(store),
-          profile,
-        );
-        const validated = validateGeneratedPersonalAssessmentAnswers(
-          sourceQuestions,
-          completionAnswers,
-          profile,
-        );
+          if (!profile) {
+            profile = await manager.save(
+              manager.create(TalentProfile, { user_id: userId }),
+            );
+          }
 
-        const completedAt = await this.persistGeneratedAssessmentCompletion(
-          manager,
-          profile,
-          store,
-          validated,
-        );
+          if (profile.personal_assessment_completed_at) {
+            throw new UnprocessableEntityException(
+              ErrorMessages.ASSESSMENT.ALREADY_COMPLETED,
+            );
+          }
 
-        return completedAt;
-      },
-    );
+          assertOnboardingFieldsForComplete(profile);
+          const store = this.readStore(profile);
+          const session = store._meta?.generatedSession;
+          if (!session) {
+            throw new UnprocessableEntityException({
+              message:
+                'Generate a personal assessment session before submitting answers',
+            });
+          }
+
+          const sourceQuestions = this.resolveGeneratedSourceQuestions(
+            session,
+            profile,
+          );
+          const completionAnswers = this.resolveGeneratedAnswers(
+            this.withoutMeta(store),
+            profile,
+          );
+          const validated = validateGeneratedPersonalAssessmentAnswers(
+            sourceQuestions,
+            completionAnswers,
+            profile,
+          );
+
+          const completedAt = await this.persistGeneratedAssessmentCompletion(
+            manager,
+            profile,
+            store,
+            validated,
+          );
+
+          return {
+            completedAt,
+            track: profile.track,
+            claimedLevel:
+              (validated.claimed_level as string) ?? profile.claimed_level,
+          };
+        },
+      );
+
+    // Warm resource cache for the user's track + claimed level
+    if (track && claimedLevel) {
+      this.aiResourcesService.warmCache(track, claimedLevel).catch((err) => {
+        this.logger.error(
+          `Resource cache warming after personal assessment (complete) failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+        );
+      });
+    }
 
     return {
       status: 'success',

@@ -18,8 +18,10 @@ import {
 import { EmployerAssessmentSubmission } from './entities/employer-assessment-submission.entity';
 import { AssessmentQuestion } from '../assessments/entities/assessment-question.entity';
 import { EmployerSavedCandidate } from '../employer-discovery/entities/employer-saved-candidate.entity';
+import { EmployerRole } from '../employer-roles/entities/employer-role.entity';
 import { User } from '../users/entities/user.entity';
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
+import { Offer, OfferStatus } from '../offers/entities/offer.entity';
 
 describe('EmployerAssessmentsService', () => {
   let service: EmployerAssessmentsService;
@@ -49,6 +51,14 @@ describe('EmployerAssessmentsService', () => {
   const mockUserRepo = {
     findOne: jest.fn(),
     findBy: jest.fn(),
+  };
+
+  const mockEmployerRoleRepo = {
+    find: jest.fn(),
+  };
+
+  const mockOfferRepo = {
+    update: jest.fn(),
   };
 
   const mockNotificationDispatch = { dispatch: jest.fn() };
@@ -84,6 +94,14 @@ describe('EmployerAssessmentsService', () => {
         {
           provide: getRepositoryToken(User),
           useValue: mockUserRepo,
+        },
+        {
+          provide: getRepositoryToken(EmployerRole),
+          useValue: mockEmployerRoleRepo,
+        },
+        {
+          provide: getRepositoryToken(Offer),
+          useValue: mockOfferRepo,
         },
         {
           provide: NotificationDispatchService,
@@ -182,7 +200,7 @@ describe('EmployerAssessmentsService', () => {
       );
     });
 
-    it('should reject when 3 active assessments already exist', async () => {
+    it('should reject when 5 active assessments already exist', async () => {
       mockUserRepo.findOne.mockResolvedValue({
         id: 'emp-1',
         is_verified: true,
@@ -200,7 +218,7 @@ describe('EmployerAssessmentsService', () => {
                 }),
               }),
             }),
-            count: jest.fn().mockResolvedValue(3),
+            count: jest.fn().mockResolvedValue(5),
             save: jest.fn(),
           };
           return cb(manager);
@@ -459,6 +477,11 @@ describe('EmployerAssessmentsService', () => {
         id: 'sub-1',
         ...(data as Record<string, unknown>),
       }));
+      mockEmployerRoleRepo.find.mockResolvedValue([
+        { id: 'role-1' },
+        { id: 'role-2' },
+      ]);
+      mockOfferRepo.update.mockResolvedValue({ affected: 1 });
 
       const result = await service.submitAssessment(
         'candidate-1',
@@ -479,6 +502,18 @@ describe('EmployerAssessmentsService', () => {
       // All 5 correct → score should be 100
       expect(result.score).toBe(100);
       expect(result.passed).toBe(true);
+      expect(mockEmployerRoleRepo.find).toHaveBeenCalledWith({
+        where: { assessment_id: 'ass-1' },
+        select: ['id'],
+      });
+      expect(mockOfferRepo.update).toHaveBeenCalledWith(
+        {
+          candidate_user_id: 'candidate-1',
+          role_id: expect.any(Object),
+          status: OfferStatus.ASSESSMENT_UNLOCKED,
+        },
+        { status: OfferStatus.PASSED },
+      );
     });
 
     it('should compute partial score correctly', async () => {
@@ -488,6 +523,7 @@ describe('EmployerAssessmentsService', () => {
         id: 'sub-1',
         ...(data as Record<string, unknown>),
       }));
+      mockEmployerRoleRepo.find.mockResolvedValue([]);
 
       const result = await service.submitAssessment(
         'candidate-1',
@@ -508,6 +544,47 @@ describe('EmployerAssessmentsService', () => {
       // 3 out of 5 correct → 60%
       expect(result.score).toBe(60);
       expect(result.passed).toBe(true); // threshold is 60
+      expect(mockOfferRepo.update).not.toHaveBeenCalled();
+    });
+
+    it('should mark linked role offer as failed when candidate fails attached assessment', async () => {
+      mockAssessmentRepo.findOne.mockResolvedValue({
+        ...assessment,
+        passing_threshold: 80,
+      });
+      mockSubmissionRepo.findOne.mockResolvedValue(null);
+      mockSubmissionRepo.save.mockImplementation(async (data: unknown) => ({
+        id: 'sub-1',
+        ...(data as Record<string, unknown>),
+      }));
+      mockEmployerRoleRepo.find.mockResolvedValue([{ id: 'role-1' }]);
+      mockOfferRepo.update.mockResolvedValue({ affected: 1 });
+
+      const result = await service.submitAssessment(
+        'candidate-1',
+        'token-abc',
+        {
+          timeTakenSeconds: 300,
+          deliveryMode: EmployerAssessmentDeliveryMode.LINK,
+          answers: {
+            'q-1': 'A',
+            'q-2': 'False',
+            'q-3': 'A',
+            'q-4': 'C',
+            'q-5': 'D',
+          },
+        },
+      );
+
+      expect(result.passed).toBe(false);
+      expect(mockOfferRepo.update).toHaveBeenCalledWith(
+        {
+          candidate_user_id: 'candidate-1',
+          role_id: expect.any(Object),
+          status: OfferStatus.ASSESSMENT_UNLOCKED,
+        },
+        { status: OfferStatus.FAILED },
+      );
     });
 
     it('should reject duplicate submissions', async () => {

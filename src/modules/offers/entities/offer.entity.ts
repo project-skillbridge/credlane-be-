@@ -8,16 +8,22 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { User } from '../../users/entities/user.entity';
 import { EmployerPoolProfile } from '../../talent/entities/employer-pool-profile.entity';
+import { EmployerRole } from '../../employer-roles/entities/employer-role.entity';
 
 export enum OfferStatus {
   PENDING = 'pending',
+  ASSESSMENT_UNLOCKED = 'assessment_unlocked',
+  ASSESSMENT_COMPLETED = 'assessment_completed',
+  PASSED = 'passed',
+  FAILED = 'failed',
   ACCEPTED = 'accepted',
   DECLINED = 'declined',
   EXPIRED = 'expired',
   HIRED = 'hired',
+  WITHDRAWN = 'withdrawn',
 }
 
 @Entity('offers')
@@ -29,7 +35,7 @@ export enum OfferStatus {
   ['employer_user_id', 'candidate_user_id'],
   {
     unique: true,
-    where: `"status" IN ('pending', 'accepted')`,
+    where: `"status" IN ('pending', 'assessment_unlocked', 'assessment_completed', 'passed', 'accepted')`,
   },
 )
 export class Offer {
@@ -63,6 +69,14 @@ export class Offer {
   })
   @JoinColumn({ name: 'employer_pool_profile_id' })
   employer_pool_profile: EmployerPoolProfile | null;
+
+  @ApiProperty({ format: 'uuid', required: false, nullable: true })
+  @Column({ type: 'uuid', nullable: true })
+  role_id: string | null;
+
+  @ManyToOne(() => EmployerRole, { nullable: true, onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'role_id' })
+  role: EmployerRole | null;
 
   @ApiProperty()
   @Column({ type: 'varchar', length: 255 })
@@ -108,6 +122,18 @@ export class Offer {
   @ApiProperty({ required: false, nullable: true })
   @Column({ type: 'timestamp with time zone', nullable: true })
   responded_at: Date | null;
+
+  @ApiPropertyOptional({ description: 'When the assessment window opens' })
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  assessment_unlocked_at: Date | null;
+
+  @ApiPropertyOptional({ description: 'Assessment window deadline' })
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  assessment_deadline: Date | null;
+
+  @ApiPropertyOptional({ description: 'Whether the extension was already used' })
+  @Column({ type: 'boolean', default: false })
+  extension_used: boolean;
 
   @ApiProperty()
   @CreateDateColumn({ type: 'timestamp with time zone' })

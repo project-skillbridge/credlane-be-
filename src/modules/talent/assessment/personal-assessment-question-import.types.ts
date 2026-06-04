@@ -1,3 +1,7 @@
+export type PersonalAssessmentQuestionTrackVariant = {
+  options: { value: string; label: string }[];
+};
+
 export type PersonalAssessmentQuestionImportItem = {
   id: string;
   section: string;
@@ -6,7 +10,9 @@ export type PersonalAssessmentQuestionImportItem = {
   fieldName: string;
   format: 'single_select' | 'multi_select' | 'text_required' | 'text_optional';
   required: boolean;
+  note?: string;
   options?: { value: string; label: string }[];
+  trackVariants?: Record<string, PersonalAssessmentQuestionTrackVariant>;
 };
 
 export type PersonalAssessmentQuestionImportResult = {

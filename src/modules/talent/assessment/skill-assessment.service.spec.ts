@@ -43,6 +43,7 @@ describe('SkillAssessmentService', () => {
 
   let bankExhaustedAlert: { notify: jest.Mock };
   let eligibleSkillQuestions: AssessmentQuestion[];
+  let warmCacheMock: jest.Mock;
 
   const userId = 'talent-user-1';
   let profile = makeTalentProfile({
@@ -133,6 +134,8 @@ describe('SkillAssessmentService', () => {
 
     bankExhaustedAlert = { notify: jest.fn() };
 
+    warmCacheMock = jest.fn().mockResolvedValue(undefined);
+
     service = new SkillAssessmentService(
       talentProfileRepo as never,
       questionRepo as never,
@@ -143,6 +146,7 @@ describe('SkillAssessmentService', () => {
       { generate: jest.fn() } as never,
       { generateQuestions: jest.fn().mockResolvedValue([]) } as never,
       bankExhaustedAlert as never,
+      { warmCache: warmCacheMock } as never,
     );
   });
 
@@ -731,6 +735,10 @@ describe('SkillAssessmentService', () => {
     expect(result.percentage).toBe(100);
     expect(result.passed).toBe(true);
     expect(result.failed).toBe(false);
+    expect(warmCacheMock).toHaveBeenCalledWith(
+      profile.track,
+      expect.any(String),
+    );
   });
 
   it('resolves Stage 2 confirmed-level outcomes from claimed-level score', () => {

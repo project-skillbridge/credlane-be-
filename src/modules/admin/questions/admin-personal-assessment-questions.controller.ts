@@ -58,7 +58,9 @@ export class AdminPersonalAssessmentQuestionsController {
         fieldName: item.fieldName,
         format: item.format,
         required: item.required,
+        note: item.note,
         options: item.options,
+        trackVariants: item.trackVariants,
       }),
     );
 

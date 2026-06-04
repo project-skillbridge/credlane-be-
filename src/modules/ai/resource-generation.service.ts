@@ -22,29 +22,32 @@ export class ResourceGenerationService {
 
   async generate(
     track: string,
-    thresholdGroup: string,
+    level: string,
     timeoutMs?: number,
   ): Promise<AiResourcesPayload> {
     let focusGuide: string;
-    if (thresholdGroup === 'general') {
+    if (level === 'general') {
       focusGuide =
-        'The candidate has not yet completed an assessment. Provide a well-rounded mix of beginner-to-intermediate resources covering fundamentals, best practices, and practical project-building tutorials to help them get started and grow in their track.';
-    } else if (thresholdGroup === 'below_50') {
+        'The candidate has not yet completed an assessment. Provide a well-rounded mix of beginner-to-intermediate resources covering fundamentals, best practices, and practical tutorials to help them get started and grow in their track.';
+    } else if (level === 'junior') {
       focusGuide =
-        'The candidate scored below 50%. Focus heavily on foundational, beginner-friendly topics, basic setup guides, tutorials, and fundamental concepts to help them build a strong base.';
-    } else if (thresholdGroup === 'between_50_75') {
+        'The candidate is at a junior level. Focus on foundational topics, introductory guides, core concepts, and beginner-friendly tutorials that help them build a strong base in their track.';
+    } else if (level === 'mid') {
       focusGuide =
-        'The candidate scored between 50% and 75%. Focus on intermediate topics, best practices, common architectures, debugging, and practical project-building tutorials.';
-    } else if (thresholdGroup === 'above_75') {
+        'The candidate is at a mid level. Focus on intermediate topics, industry best practices, real-world workflows, problem-solving strategies, and practical project-based learning.';
+    } else if (level === 'senior') {
       focusGuide =
-        'The candidate scored above 75%. Focus on advanced/expert topics, system design, performance optimization, advanced patterns, and deep-dive technical resources.';
+        'The candidate is at a senior level. Focus on advanced strategies, leadership in their domain, complex problem-solving, optimization techniques, and deep-dive resources for mastery.';
+    } else if (level === 'expert') {
+      focusGuide =
+        'The candidate is at an expert level. Focus on cutting-edge trends, thought leadership, scaling strategies, cross-functional excellence, and resources that push the boundaries of their field.';
     } else {
-      throw new Error(`Unknown threshold group: ${thresholdGroup}`);
+      throw new Error(`Unknown level: ${level}`);
     }
 
     const userPrompt = `
 Track: ${track}
-Score Threshold: ${thresholdGroup}
+Level: ${level}
 
 Focus for recommendations:
 ${focusGuide}
@@ -77,7 +80,7 @@ Please generate a LARGE POOL of learning resources and return them in this JSON 
 
 Rules:
 - Generate at least ${AI_RESOURCE_CONSTANTS.POOL_GENERATION_COUNT} items for "resources" and at least ${AI_RESOURCE_CONSTANTS.POOL_GENERATION_COUNT} items for "videos".
-- Make resources directly relevant to the ${track} track and the indicated depth (${thresholdGroup}).
+- Make resources directly relevant to the ${track} track and the indicated depth (${level}).
 - Focus on providing ACCURATE TITLES of real, well-known resources. The titles will be used to search for correct URLs via external APIs.
 - Include the creator/channel name in video descriptions (e.g., "by Traversy Media", "by Fireship").
 - For articles, reference well-known platforms: MDN, freeCodeCamp, dev.to, official docs, CSS-Tricks, etc.
@@ -92,7 +95,18 @@ Rules:
       timeoutMs,
     );
 
-    // Resolve URLs via YouTube Data API and Google Custom Search API
+    this.logger.log(
+      `AI generated ${payload.resources.length} resources and ${payload.videos.length} videos for track=${track} level=${level}`,
+    );
+
+    return payload;
+  }
+
+  /**
+   * Resolve AI-generated placeholder URLs via YouTube Data API and Serper.
+   * Called in the background after the record is saved to DB.
+   */
+  async resolveUrls(payload: AiResourcesPayload): Promise<AiResourcesPayload> {
     this.logger.log(
       `Resolving URLs for ${payload.resources.length} resources and ${payload.videos.length} videos...`,
     );
