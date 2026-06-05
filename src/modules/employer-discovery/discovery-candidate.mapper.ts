@@ -1,3 +1,4 @@
+import { OfferStatus } from '../offers/entities/offer.entity';
 import { TALENT_SUPPORTED_ROLE_TRACKS } from '../talent/talent.constants';
 import {
   compactStrings,
@@ -51,7 +52,7 @@ export type DiscoveryCandidateCard = {
   region: string | null;
   is_saved: boolean;
   offer_sent: boolean;
-  offer_status: string | null;
+  offer_status: OfferStatus | null;
 };
 
 function resolveRoleTrackLabel(track: string | null): string {
@@ -99,7 +100,7 @@ export function mapDiscoveryCandidateCard(
   context: {
     is_saved: boolean;
     offer_sent: boolean;
-    offer_status: string | null;
+    offer_status: OfferStatus | null;
   },
 ): DiscoveryCandidateCard {
   const personalAnswers = readPersonalAnswers(row.personalAssessmentAnswers);
