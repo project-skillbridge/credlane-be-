@@ -5,7 +5,7 @@ import {
   SlotType,
   VerifiedLevel,
 } from '../../modules/assessments/entities/assessment-question.entity';
-import { slugifyCompetency } from '../../modules/talent/assessment/competency-taxonomy';
+import { FALLBACK_COMPETENCY, slugifyCompetency } from '../../modules/talent/assessment/competency-taxonomy';
 import { resolveTrackFromRoleCode } from './role-code-map';
 import type { SourceQuestion } from './import.types';
 
@@ -103,7 +103,7 @@ export function mapSourceQuestion(
   // Keep the CredLane source competency slug as-is. Do not run through
   // normaliseCompetency — role tracks (frontend_developer) do not match the
   // narrower taxonomy keys (software_eng) and would collapse to `general`.
-  const competency = slugifyCompetency(source.competency);
+  const competency = slugifyCompetency(source.competency) ?? FALLBACK_COMPETENCY;
   const { assessmentType, isLive } = mapAssessmentType(source.assessment_stage);
   const isAdvanced = assessmentType === AssessmentType.ADVANCED;
   const questionType = mapQuestionType(source.format);

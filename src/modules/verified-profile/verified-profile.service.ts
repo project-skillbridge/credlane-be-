@@ -178,7 +178,7 @@ export class VerifiedProfileService {
     });
 
     if (!poolProfile?.talent_profile || poolProfile.tier !== 'job_ready') {
-      throw new NotFoundError('Candidate profile not found');
+      throw new NotFoundError(ErrorMessages.VERIFIED_PROFILE.NOT_AVAILABLE);
     }
 
     const user = await this.usersService.findOne(candidateUserId);
@@ -495,6 +495,13 @@ export class VerifiedProfileService {
     ];
   }
 
+  /**
+   * Converts a guidance report rating to a 0–100 display percentage.
+   * Defensive dual-scale handling: values ≤ 5 are treated as a 1–5 star
+   * rating and scaled to 0–100; larger values are already percentages and
+   * are clamped to [0, 100]. Both paths go through Math.min/Math.max so
+   * out-of-range inputs never produce negative or over-100 results.
+   */
   private ratingToPercentage(rating: number): number {
     if (rating <= 5) {
       return Math.min(100, Math.max(0, Math.round((rating / 5) * 100)));

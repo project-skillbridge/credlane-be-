@@ -11,6 +11,12 @@ describe('competency-taxonomy helpers', () => {
         'component_architecture',
       );
     });
+
+    it('returns null for inputs with no alphanumeric characters', () => {
+      expect(slugifyCompetency('!!!!')).toBeNull();
+      expect(slugifyCompetency('   ')).toBeNull();
+      expect(slugifyCompetency('---')).toBeNull();
+    });
   });
 
   describe('resolveQuestionCompetency', () => {

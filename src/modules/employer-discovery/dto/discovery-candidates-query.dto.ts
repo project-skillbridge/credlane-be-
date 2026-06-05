@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import {
   IsIn,
   IsInt,
@@ -67,7 +67,7 @@ export class DiscoveryCandidatesQueryDto extends PaginationDto {
     description: 'Minimum composite score (inclusive)',
   })
   @IsOptional()
-  @Type(() => Number)
+  @Transform(({ value }) => (value === '' ? undefined : Number(value)))
   @IsInt()
   @Min(0)
   @Max(100)
@@ -80,7 +80,7 @@ export class DiscoveryCandidatesQueryDto extends PaginationDto {
     description: 'Maximum composite score (inclusive)',
   })
   @IsOptional()
-  @Type(() => Number)
+  @Transform(({ value }) => (value === '' ? undefined : Number(value)))
   @IsInt()
   @Min(0)
   @Max(100)

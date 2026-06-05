@@ -103,13 +103,18 @@ export const COMPETENCY_TAXONOMY: Record<string, readonly string[]> = {
 
 export const FALLBACK_COMPETENCY = 'general';
 
-/** Normalises a human-readable competency label to a storage slug. */
-export function slugifyCompetency(value: string): string {
-  return value
+/**
+ * Normalises a human-readable competency label to a storage slug.
+ * Returns null when the input contains no alphanumeric characters
+ * (e.g. "!!!!") so callers never persist an empty slug.
+ */
+export function slugifyCompetency(value: string): string | null {
+  const slug = value
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '');
+  return slug.length > 0 ? slug : null;
 }
 
 /**

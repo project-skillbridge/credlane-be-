@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import { OfferStatus } from '../../offers/entities/offer.entity';
 
 export class DiscoveryCandidateCardDto {
@@ -59,11 +59,11 @@ export class DiscoveryCandidateCardDto {
   @ApiProperty()
   offer_sent: boolean;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     enum: [OfferStatus.PENDING, OfferStatus.ACCEPTED],
     nullable: true,
   })
-  offer_status: OfferStatus.PENDING | OfferStatus.ACCEPTED | null;
+  offer_status: OfferStatus | null;
 }
 
 export class DiscoveryCandidatesListResponseDto {

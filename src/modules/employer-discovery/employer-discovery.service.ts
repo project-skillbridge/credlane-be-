@@ -385,8 +385,8 @@ export class EmployerDiscoveryService {
     }
   }
 
-  private selectDiscoveryColumns(
-    qb: SelectQueryBuilder<ObjectLiteral>,
+  private selectDiscoveryColumns<T extends ObjectLiteral>(
+    qb: SelectQueryBuilder<T>,
     options?: { includeNotes?: boolean },
   ): void {
     qb.select([
