@@ -124,6 +124,30 @@ export class EmployerProfile {
   @Column({ type: 'int', default: 0 })
   hire_count: number;
 
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'When company_name was last changed after onboarding',
+  })
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  company_name_changed_at: Date | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'When company website was last changed after onboarding',
+  })
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  company_website_changed_at: Date | null;
+
+  @ApiProperty({
+    required: false,
+    nullable: true,
+    description: 'When LinkedIn company URL was last changed after onboarding',
+  })
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  linkedin_url_changed_at: Date | null;
+
   @ApiProperty()
   @CreateDateColumn({ name: 'created_at', type: 'timestamp with time zone' })
   created_at: Date;

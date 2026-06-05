@@ -151,12 +151,17 @@ describe('SkillAssessmentService', () => {
 
   it(`blocks start when ${SKILL_ASSESSMENT_MAX_ATTEMPTS} skill attempts are already completed`, async () => {
     attemptRepo.count.mockResolvedValue(SKILL_ASSESSMENT_MAX_ATTEMPTS);
+    const startPromise = service.start(userId);
 
-    await expect(service.start(userId)).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
-    await expect(service.start(userId)).rejects.toMatchObject({
-      message: ErrorMessages.SKILL_ASSESSMENT.MAX_ATTEMPTS_REACHED,
+    await expect(startPromise).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(startPromise).rejects.toMatchObject({
+      response: {
+        error: 'SKILL_MAX_ATTEMPTS_REACHED',
+        message: ErrorMessages.SKILL_ASSESSMENT.MAX_ATTEMPTS_REACHED,
+        attempts_used: SKILL_ASSESSMENT_MAX_ATTEMPTS,
+        max_attempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
+        unlock_condition: 'complete_advanced_assessment',
+      },
     });
     expect(attemptRepo.save).not.toHaveBeenCalled();
   });
@@ -214,9 +219,18 @@ describe('SkillAssessmentService', () => {
       }),
     );
 
-    await expect(service.start(userId)).rejects.toBeInstanceOf(
-      ForbiddenException,
-    );
+    const startPromise = service.start(userId);
+
+    await expect(startPromise).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(startPromise).rejects.toMatchObject({
+      response: {
+        error: 'SKILL_MAX_ATTEMPTS_REACHED',
+        message: ErrorMessages.SKILL_ASSESSMENT.MAX_ATTEMPTS_REACHED,
+        attempts_used: SKILL_ASSESSMENT_MAX_ATTEMPTS,
+        max_attempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
+        unlock_condition: 'complete_advanced_assessment',
+      },
+    });
     expect(attemptRepo.update).toHaveBeenCalledWith('stale-attempt', {
       completed_at: expect.any(Date),
       force_submitted: true,

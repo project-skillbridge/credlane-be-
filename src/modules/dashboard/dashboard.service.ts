@@ -167,7 +167,10 @@ export class DashboardService {
       'there';
 
     const profilePrompt = this.buildEmployerProfilePrompt(profile);
-    const recentActivity = await this.buildEmployerRecentActivity(userId, profile);
+    const recentActivity = await this.buildEmployerRecentActivity(
+      userId,
+      profile,
+    );
 
     return {
       company_name: companyName,
@@ -182,7 +185,6 @@ export class DashboardService {
       recent_activity: recentActivity,
     };
   }
-
   private buildEmployerProfilePrompt(
     profile: EmployerProfile | null,
   ): EmployerDashboardHomeResponse['profile_prompt'] {
@@ -695,9 +697,9 @@ export class DashboardService {
   private hasAdvancedAssessmentContext(profile: TalentProfile): boolean {
     return Boolean(
       profile.track?.trim() &&
-        (profile.personal_assessment_completed_at ||
-          profile.claimed_level ||
-          profile.validated_level),
+      (profile.personal_assessment_completed_at ||
+        profile.claimed_level ||
+        profile.validated_level),
     );
   }
 

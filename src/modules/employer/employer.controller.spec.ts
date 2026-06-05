@@ -5,6 +5,7 @@ import { ThrottlerGuard } from '@nestjs/throttler';
 import type { Request, Response } from 'express';
 import { EmployerController } from './employer.controller';
 import { EmployerService } from './employer.service';
+import { EmployerVerificationService } from './employer-verification.service';
 import { AuthService } from '../auth/auth.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { NotificationType } from '../notifications/notification-type.enum';
@@ -19,6 +20,13 @@ describe('EmployerController', () => {
     listForUser: jest.Mock;
     markAsRead: jest.Mock;
     markAllAsRead: jest.Mock;
+    countUnread: jest.Mock;
+  };
+  let verificationService: {
+    getVerificationStatusDetail: jest.Mock;
+  };
+  let employerService: {
+    getPublicProfile: jest.Mock;
   };
   let authService: {
     changePassword: jest.Mock;
@@ -56,14 +64,22 @@ describe('EmployerController', () => {
       listForUser: jest.fn(),
       markAsRead: jest.fn(),
       markAllAsRead: jest.fn(),
+      countUnread: jest.fn(),
+    };
+    verificationService = {
+      getVerificationStatusDetail: jest.fn(),
+    };
+    employerService = {
+      getPublicProfile: jest.fn(),
     };
 
     const moduleRef = await Test.createTestingModule({
       controllers: [EmployerController],
       providers: [
-        { provide: EmployerService, useValue: {} },
+        { provide: EmployerService, useValue: employerService },
         { provide: AuthService, useValue: authService },
         { provide: NotificationsService, useValue: notificationsService },
+        { provide: EmployerVerificationService, useValue: verificationService },
       ],
     })
       .overrideGuard(ThrottlerGuard)
@@ -269,7 +285,7 @@ describe('EmployerController', () => {
       items: [
         {
           notification_id: 'notif-1',
-          type: 'offer_accepted',
+          type: 'offer_accepted_assessment_unlocked',
           message: 'Jane accepted your offer',
           timestamp: '2026-06-01T10:00:00.000Z',
           read: false,
@@ -281,10 +297,7 @@ describe('EmployerController', () => {
 
   it('maps the expected mark-all-notifications-read handler', () => {
     expect(
-      Reflect.getMetadata(
-        PATH_METADATA,
-        controller.markAllNotificationsAsRead,
-      ),
+      Reflect.getMetadata(PATH_METADATA, controller.markAllNotificationsAsRead),
     ).toBe('notifications/read-all');
     expect(
       Reflect.getMetadata(
@@ -330,5 +343,79 @@ describe('EmployerController', () => {
     await expect(
       controller.markNotificationAsRead(userId, 'missing'),
     ).rejects.toThrow(NotFoundException);
+  });
+
+  it('maps the expected unread-count handler', () => {
+    expect(
+      Reflect.getMetadata(PATH_METADATA, controller.getUnreadNotificationCount),
+    ).toBe('notifications/unread-count');
+    expect(
+      Reflect.getMetadata(
+        METHOD_METADATA,
+        controller.getUnreadNotificationCount,
+      ),
+    ).toBe(RequestMethod.GET);
+  });
+
+  it('returns unread notification count via the notifications service', async () => {
+    notificationsService.countUnread.mockResolvedValue(4);
+
+    const result = await controller.getUnreadNotificationCount(userId);
+
+    expect(notificationsService.countUnread).toHaveBeenCalledWith(userId);
+    expect(result).toEqual({ unread_count: 4 });
+  });
+
+  it('maps the expected verification-status handler', () => {
+    expect(
+      Reflect.getMetadata(PATH_METADATA, controller.getVerificationStatus),
+    ).toBe('verification-status');
+    expect(
+      Reflect.getMetadata(METHOD_METADATA, controller.getVerificationStatus),
+    ).toBe(RequestMethod.GET);
+  });
+
+  it('returns structured verification status', async () => {
+    verificationService.getVerificationStatusDetail.mockResolvedValue({
+      verified: false,
+      criteria: {
+        email_verified: true,
+        website_resolvable: false,
+        linkedin_provided: true,
+      },
+      banner_visible: true,
+    });
+
+    const result = await controller.getVerificationStatus(userId);
+
+    expect(
+      verificationService.getVerificationStatusDetail,
+    ).toHaveBeenCalledWith(userId);
+    expect(result.banner_visible).toBe(true);
+  });
+
+  it('maps the expected public profile handler', () => {
+    expect(
+      Reflect.getMetadata(PATH_METADATA, controller.getPublicProfile),
+    ).toBe('profile/public/:employer_id');
+    expect(
+      Reflect.getMetadata(METHOD_METADATA, controller.getPublicProfile),
+    ).toBe(RequestMethod.GET);
+  });
+
+  it('returns a public employer profile by id', async () => {
+    employerService.getPublicProfile.mockResolvedValue({
+      company_name: 'Acme Labs',
+      is_verified: true,
+    });
+
+    const result = await controller.getPublicProfile(
+      '22222222-2222-4222-8222-222222222222',
+    );
+
+    expect(employerService.getPublicProfile).toHaveBeenCalledWith(
+      '22222222-2222-4222-8222-222222222222',
+    );
+    expect(result.company_name).toBe('Acme Labs');
   });
 });

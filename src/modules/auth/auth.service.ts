@@ -479,15 +479,12 @@ export class AuthService {
       .replace(/^-|-$/g, '');
     const filename = `skillbridge-data-export-${namePart}-${new Date().toISOString().slice(0, 10)}.json`;
 
-    // Send email with the export as an attachment
-    await this.mailService.send({
+    // Send email with the export template and JSON attachment
+    await this.mailService.sendDataExportReady({
       to: user.email,
-      subject: 'Your SkillBridge data export',
-      text:
-        `Hi ${user.first_name ?? 'there'},\n\n` +
-        `Your data export is attached to this email as ${filename}.\n\n` +
-        `If you did not request this export, please contact support.\n`,
-      attachments: [{ filename, content: Buffer.from(json) }],
+      recipientFirstName: user.first_name,
+      fileName: filename,
+      attachmentContent: Buffer.from(json),
     });
 
     // Also return a data-URI so the frontend can trigger an immediate download
@@ -725,13 +722,13 @@ export class AuthService {
 
     switch (user.role) {
       case UserRole.TALENT:
-        return '/dashboard';
+        return '/t/dashboard';
       case UserRole.EMPLOYER:
-        return '/discovery';
+        return '/e/dashboard';
       case UserRole.ADMIN:
         return '/admin';
       default:
-        return '/dashboard';
+        return '/t/dashboard';
     }
   }
 

@@ -237,15 +237,26 @@ export const FEEDBACK_PREFERENCE = [
 ] as const;
 
 export const ONBOARDING_TRACK_TO_ASSESSMENT_TRACK: Record<string, string> = {
-  product_designer: 'design_ui_ux',
-  frontend_developer: 'frontend_engineering',
-  data_analyst: 'data_analytics',
-  cloud_devops: 'devops_cloud',
-  product_manager: 'product_management',
   backend_developer: 'backend_engineering',
-  mobile_developer: 'mobile_engineering',
-  cybersecurity: 'devops_cloud',
+  bi_developer: 'data_analytics',
+  brand_designer: 'design_ui_ux',
+  business_analyst: 'data_analytics',
+  cloud_devops: 'devops_cloud',
+  customer_success: 'customer_support',
+  data_analyst: 'data_analytics',
+  data_engineer: 'data_analytics',
   data_scientist: 'data_analytics',
+  frontend_developer: 'frontend_engineering',
+  fullstack_developer: 'frontend_engineering',
+  hr_people_ops: 'hr_people_ops',
+  ml_engineer: 'data_analytics',
+  mobile_developer: 'mobile_engineering',
+  operations_manager: 'customer_support',
+  product_designer: 'design_ui_ux',
+  product_manager: 'product_management',
+  project_manager: 'product_management',
+  quality_assurance: 'other',
+  ux_researcher: 'design_ui_ux',
 };
 
 export const SPECIALIZATIONS_BY_TRACK: Record<string, readonly string[]> = {

@@ -1,9 +1,6 @@
 import { Repository } from 'typeorm';
 import { ForbiddenError } from '../../shared';
-import {
-  AssessmentAttempt,
-  AssessmentResult,
-} from '../assessments/entities';
+import { AssessmentAttempt, AssessmentResult } from '../assessments/entities';
 import { EmployerAssessment } from '../employer-assessments/entities/employer-assessment.entity';
 import { EmployerSavedCandidate } from '../employer-discovery/entities/employer-saved-candidate.entity';
 import { EmployerProfile } from '../employer/entities/employer-profile.entity';
