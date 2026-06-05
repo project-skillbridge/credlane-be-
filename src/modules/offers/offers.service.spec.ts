@@ -337,10 +337,9 @@ describe('OffersService', () => {
         roleId: 'role-1',
       });
 
-      expect(mockEmployerRolesService.findActiveRoleForOffer).toHaveBeenCalledWith(
-        'employer-1',
-        'role-1',
-      );
+      expect(
+        mockEmployerRolesService.findActiveRoleForOffer,
+      ).toHaveBeenCalledWith('employer-1', 'role-1');
       expect(mockManager.save).toHaveBeenNthCalledWith(
         1,
         Offer,
@@ -393,11 +392,14 @@ describe('OffersService', () => {
     it('should send role-based offers to multiple candidates', async () => {
       const createOfferSpy = jest
         .spyOn(service, 'createOffer')
-        .mockImplementation(async (_employerUserId, dto) => ({
-          id: `offer-${dto.candidateUserId}`,
-          candidate_user_id: dto.candidateUserId,
-          status: OfferStatus.PENDING,
-        }) as Offer);
+        .mockImplementation(
+          async (_employerUserId, dto) =>
+            ({
+              id: `offer-${dto.candidateUserId}`,
+              candidate_user_id: dto.candidateUserId,
+              status: OfferStatus.PENDING,
+            }) as Offer,
+        );
 
       const result = await service.bulkCreateOffers('employer-1', bulkDto);
 

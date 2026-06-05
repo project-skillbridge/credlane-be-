@@ -1,5 +1,8 @@
 import { resolveTrackFromRoleCode } from '../../../database/import/role-code-map';
-import { assertImportQuestionId, buildVariantQuestionId } from './personal-assessment-import.ids';
+import {
+  assertImportQuestionId,
+  buildVariantQuestionId,
+} from './personal-assessment-import.ids';
 import type { PersonalAssessmentQuestionImportItem } from './personal-assessment-question-import.types';
 
 export type PersonalAssessmentQuestionImportRow = Omit<

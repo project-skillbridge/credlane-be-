@@ -68,9 +68,9 @@ describe('EmployerController', () => {
     expect(Reflect.getMetadata(PATH_METADATA, controller.changePassword)).toBe(
       'settings/change-password',
     );
-    expect(Reflect.getMetadata(METHOD_METADATA, controller.changePassword)).toBe(
-      RequestMethod.PATCH,
-    );
+    expect(
+      Reflect.getMetadata(METHOD_METADATA, controller.changePassword),
+    ).toBe(RequestMethod.PATCH);
   });
 
   it('changes password, returns the service result, and clears cookies', async () => {
@@ -105,16 +105,16 @@ describe('EmployerController', () => {
 
     const response = buildMockResponse();
 
-    await expect(controller.changePassword(userId, dto, response)).rejects.toThrow(
-      'Current password is incorrect',
-    );
+    await expect(
+      controller.changePassword(userId, dto, response),
+    ).rejects.toThrow('Current password is incorrect');
     expect(response.clearCookie).not.toHaveBeenCalled();
   });
 
   it('maps the expected change-email handler', () => {
-    expect(Reflect.getMetadata(PATH_METADATA, controller.requestEmailChange)).toBe(
-      'settings/change-email',
-    );
+    expect(
+      Reflect.getMetadata(PATH_METADATA, controller.requestEmailChange),
+    ).toBe('settings/change-email');
     expect(
       Reflect.getMetadata(METHOD_METADATA, controller.requestEmailChange),
     ).toBe(RequestMethod.POST);
@@ -227,4 +227,3 @@ describe('EmployerController', () => {
     expect(response.clearCookie).not.toHaveBeenCalled();
   });
 });
-

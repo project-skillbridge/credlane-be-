@@ -1142,9 +1142,7 @@ describe('EmployerAssessmentsService', () => {
 
       await expect(
         service.createAssessment('emp-1', credlaneBankDto),
-      ).rejects.toThrow(
-        'was not found or is no longer available',
-      );
+      ).rejects.toThrow('was not found or is no longer available');
     });
 
     it('should reject when credlaneAssessmentId does not exist in catalogue', async () => {
@@ -1243,8 +1241,7 @@ describe('EmployerAssessmentsService', () => {
                 id: 'assessment-2',
                 employer_user_id: 'emp-1',
                 title: credlaneBankDto.title,
-                credlane_assessment_id:
-                  '00000000-0000-0000-0000-000000000001',
+                credlane_assessment_id: '00000000-0000-0000-0000-000000000001',
                 share_token: 'xyz456',
                 is_active: true,
               })

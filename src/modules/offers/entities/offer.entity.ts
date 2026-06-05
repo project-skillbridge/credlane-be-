@@ -131,7 +131,9 @@ export class Offer {
   @Column({ type: 'timestamp with time zone', nullable: true })
   assessment_deadline: Date | null;
 
-  @ApiPropertyOptional({ description: 'Whether the extension was already used' })
+  @ApiPropertyOptional({
+    description: 'Whether the extension was already used',
+  })
   @Column({ type: 'boolean', default: false })
   extension_used: boolean;
 
