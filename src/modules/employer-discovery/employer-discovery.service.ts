@@ -11,6 +11,8 @@ import { NotificationDispatchService } from '../notifications/notification-dispa
 import { NotificationType } from '../notifications/notification-type.enum';
 import { EmployerVerificationService } from '../employer/employer-verification.service';
 import { Offer, OfferStatus } from '../offers/entities/offer.entity';
+import { VerifiedProfileService } from '../verified-profile/verified-profile.service';
+import { EmployerCandidateProfileResponseDto } from './dto/employer-candidate-profile.dto';
 
 export type CandidateCard = {
   user_id: string;
@@ -77,6 +79,7 @@ export class EmployerDiscoveryService {
     private readonly offerRepo: Repository<Offer>,
     private readonly notificationDispatch: NotificationDispatchService,
     private readonly verificationService: EmployerVerificationService,
+    private readonly verifiedProfileService: VerifiedProfileService,
   ) {}
 
   async discoverCandidates(
@@ -174,33 +177,20 @@ export class EmployerDiscoveryService {
   async getCandidateProfile(
     employerUserId: string,
     candidateUserId: string,
-  ): Promise<
-    EmployerPoolProfile & {
-      offer_sent: boolean;
-      offer_status: OfferStatus.PENDING | OfferStatus.ACCEPTED | null;
-    }
-  > {
-    const profile = await this.poolProfileRepo.findOne({
-      where: { candidate_id: candidateUserId },
-    });
-
-    if (!profile) {
-      throw new NotFoundError('Candidate profile not found');
-    }
-
-    if (profile.tier !== 'job_ready') {
-      throw new ForbiddenError(
-        'Only Job Ready candidates are accessible to employers',
-      );
-    }
-
-    const offerStatusMap = await this.getOfferStatusMap(employerUserId, [
-      candidateUserId,
+  ): Promise<EmployerCandidateProfileResponseDto> {
+    const [profile, savedMap, offerStatusMap] = await Promise.all([
+      this.verifiedProfileService.getForEmployerView(candidateUserId),
+      this.getSavedMap(employerUserId, [candidateUserId]),
+      this.getOfferStatusMap(employerUserId, [candidateUserId]),
     ]);
-    return Object.assign(profile, {
+
+    return {
+      ...profile,
+      user_id: candidateUserId,
+      is_saved: savedMap.has(candidateUserId),
       offer_sent: offerStatusMap.has(candidateUserId),
       offer_status: offerStatusMap.get(candidateUserId) ?? null,
-    });
+    };
   }
 
   async saveCandidate(

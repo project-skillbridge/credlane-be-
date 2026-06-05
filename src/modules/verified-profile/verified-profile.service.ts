@@ -169,6 +169,25 @@ export class VerifiedProfileService {
     );
   }
 
+  async getForEmployerView(candidateUserId: string): Promise<VerifiedProfileResponse> {
+    const poolProfile = await this.employerPoolRepository.findOne({
+      where: { candidate_id: candidateUserId },
+      relations: ['talent_profile'],
+    });
+
+    if (!poolProfile?.talent_profile || poolProfile.tier !== 'job_ready') {
+      throw new NotFoundError('Candidate profile not found');
+    }
+
+    const user = await this.usersService.findOne(candidateUserId);
+    return this.buildVerifiedProfile(
+      user,
+      poolProfile.talent_profile,
+      poolProfile,
+      false,
+    );
+  }
+
   private async buildVerifiedProfile(
     user: User,
     profile: TalentProfile,
@@ -279,6 +298,8 @@ export class VerifiedProfileService {
       keyStrengths,
       growthInsight,
       aiReport: aiReport ?? '',
+      workingStyle,
+      weaknesses: guidanceReport.weaknesses,
     });
     const tier =
       latestAdvancedResult?.tier ?? poolProfile?.tier ?? profile.status;
@@ -337,6 +358,8 @@ export class VerifiedProfileService {
       | undefined;
     growthInsight: string;
     aiReport: string;
+    workingStyle: string[];
+    weaknesses?: RatedProfileItem[];
   }): VerifiedProfileSkillBreakdownTabDto[] {
     const defaultInsight =
       input.growthInsight.trim() ||
@@ -441,7 +464,40 @@ export class VerifiedProfileService {
         label: 'Strengths',
         items: strengthItems,
       },
+      ...(input.workingStyle.length > 0
+        ? [
+            {
+              id: 'working_style',
+              label: 'Working Style',
+              items: input.workingStyle.map((label) => ({
+                label,
+                percentage: 100,
+                ...(rowInsight && { insight: rowInsight }),
+              })),
+            },
+          ]
+        : []),
+      ...((input.weaknesses?.length ?? 0) > 0
+        ? [
+            {
+              id: 'weaknesses',
+              label: 'Weaknesses',
+              items: (input.weaknesses ?? []).map(({ label, rating }) => ({
+                label,
+                percentage: this.ratingToPercentage(rating),
+                ...(rowInsight && { insight: rowInsight }),
+              })),
+            },
+          ]
+        : []),
     ];
+  }
+
+  private ratingToPercentage(rating: number): number {
+    if (rating <= 5) {
+      return Math.min(100, Math.max(0, Math.round((rating / 5) * 100)));
+    }
+    return Math.min(100, Math.max(0, Math.round(rating)));
   }
 
   private readGuidanceReport(

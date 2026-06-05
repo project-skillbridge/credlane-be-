@@ -8,12 +8,13 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiOperation, ApiOkResponse, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { EmployerDiscoveryService } from './employer-discovery.service';
 import { DiscoveryCandidatesQueryDto } from './dto/discovery-candidates-query.dto';
+import { EmployerCandidateProfileResponseDto } from './dto/employer-candidate-profile.dto';
 import { SaveCandidateDto } from './dto/save-candidate.dto';
 import { ContactCandidateDto } from './dto/contact-candidate.dto';
 import { PaginationDto } from '../users/dto/pagination.dto';
@@ -38,7 +39,10 @@ export class EmployerDiscoveryController {
   @Get('candidates/:userId/profile')
   @ApiOperation({
     summary: 'View full verified profile of a Job Ready candidate',
+    description:
+      'Returns the same verified profile contract as GET /talent/verified-profile, plus employer shortlist and offer context.',
   })
+  @ApiOkResponse({ type: EmployerCandidateProfileResponseDto })
   async getCandidateProfile(
     @CurrentUser('sub') employerUserId: string,
     @Param('userId', ParseUUIDPipe) candidateUserId: string,
