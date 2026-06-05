@@ -261,6 +261,36 @@ describe('SkillAssessmentService', () => {
     expect(result.attempt_number).toBe(3);
   });
 
+  it('never returns text questions even when they exist in the bank', async () => {
+    // Inject text questions into the bank alongside MCQs
+    eligibleSkillQuestions = [
+      ...makeSkillBankQuestions(),
+      Object.assign(new AssessmentQuestion(), {
+        id: 'skill-text-sneaky-1',
+        question_type: QuestionType.REQUIRED_TEXT,
+        question_text: 'Describe your approach.',
+        options: null,
+        correct_answer: null,
+      }),
+      Object.assign(new AssessmentQuestion(), {
+        id: 'skill-text-sneaky-2',
+        question_type: QuestionType.OPTIONAL_TEXT,
+        question_text: 'Any additional thoughts?',
+        options: null,
+        correct_answer: null,
+      }),
+    ];
+
+    const result = await service.start(userId);
+
+    for (const question of result.questions) {
+      expect(question.block).toBe('mcq');
+      expect([QuestionType.SINGLE_PICK, QuestionType.MULTI_PICK]).toContain(
+        question.question_type,
+      );
+    }
+  });
+
   it('refuses to start when the unseen bank lacks the skill question mix', async () => {
     eligibleSkillQuestions = makeSkillBankQuestions().slice(0, 15);
 

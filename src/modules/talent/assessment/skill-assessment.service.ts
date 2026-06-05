@@ -404,7 +404,7 @@ export class SkillAssessmentService {
             ].map((q) => q.id),
           );
           const extras = bankQuestions
-            .filter((q) => !usedIds.has(q.id))
+            .filter((q) => !usedIds.has(q.id) && this.isPickQuestion(q))
             .slice(0, deficit);
           if (extras.length < deficit) {
             this.throwSkillBankExhausted(
@@ -854,7 +854,10 @@ export class SkillAssessmentService {
       })
       .andWhere('question.is_live = true')
       .andWhere('question.track = :track', { track: profile.track })
-      .andWhere('question.verified_level = :verifiedLevel', { verifiedLevel });
+      .andWhere('question.verified_level = :verifiedLevel', { verifiedLevel })
+      .andWhere('question.question_type IN (:...mcqTypes)', {
+        mcqTypes: [QuestionType.SINGLE_PICK, QuestionType.MULTI_PICK],
+      });
 
     if (!skipExclusion) {
       qb.andWhere(
