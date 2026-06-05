@@ -55,6 +55,45 @@ export type AssessmentReceivedPayload = {
   shareUrl: string;
 };
 
+export type AssessmentUnlockedPayload = {
+  offerId: string;
+  employerUserId: string;
+  employerName: string;
+  roleTitle: string;
+  assessmentDeadline: string;
+};
+
+export type AssessmentWindowExpiringPayload = {
+  offerId: string;
+  candidateUserId: string;
+  candidateName: string;
+  roleTitle: string;
+  assessmentDeadline: string;
+};
+
+export type AssessmentResultPayload = {
+  offerId: string;
+  candidateUserId: string;
+  candidateName: string;
+  employerUserId: string;
+  roleTitle: string;
+  score: number;
+};
+
+export type OfferExpiredPayload = {
+  offerId: string;
+  candidateUserId: string;
+  candidateName: string;
+  roleTitle: string;
+};
+
+export type OfferWithdrawnPayload = {
+  offerId: string;
+  employerUserId: string;
+  employerName: string;
+  roleTitle: string;
+};
+
 type RetakeEligibilityProfile = Pick<
   TalentProfile,
   'advanced_retake_required' | 'assessment_locked_until'
@@ -113,6 +152,52 @@ export class NotificationDispatchService
     return this.dispatch(NotificationType.OFFER_DECLINED, userId, payload);
   }
 
+  async notifyAssessmentUnlocked(
+    userId: string,
+    payload: AssessmentUnlockedPayload,
+  ): Promise<void> {
+    return this.dispatch(NotificationType.ASSESSMENT_UNLOCKED, userId, payload);
+  }
+
+  async notifyAssessmentWindowExpiring(
+    userId: string,
+    payload: AssessmentWindowExpiringPayload,
+  ): Promise<void> {
+    return this.dispatch(
+      NotificationType.ASSESSMENT_WINDOW_EXPIRING,
+      userId,
+      payload,
+    );
+  }
+
+  async notifyAssessmentPassed(
+    userId: string,
+    payload: AssessmentResultPayload,
+  ): Promise<void> {
+    return this.dispatch(NotificationType.ASSESSMENT_PASSED, userId, payload);
+  }
+
+  async notifyAssessmentFailed(
+    userId: string,
+    payload: AssessmentResultPayload,
+  ): Promise<void> {
+    return this.dispatch(NotificationType.ASSESSMENT_FAILED, userId, payload);
+  }
+
+  async notifyOfferExpired(
+    userId: string,
+    payload: OfferExpiredPayload,
+  ): Promise<void> {
+    return this.dispatch(NotificationType.OFFER_EXPIRED, userId, payload);
+  }
+
+  async notifyOfferWithdrawn(
+    userId: string,
+    payload: OfferWithdrawnPayload,
+  ): Promise<void> {
+    return this.dispatch(NotificationType.OFFER_WITHDRAWN, userId, payload);
+  }
+
   async dispatch(
     type: NotificationType.ADVANCED_ASSESSMENT_SCORE_READY,
     userId: string,
@@ -134,6 +219,33 @@ export class NotificationDispatchService
     payload: OfferRespondedPayload,
   ): Promise<void>;
   async dispatch(
+    type: NotificationType.OFFER_WITHDRAWN,
+    userId: string,
+    payload: OfferWithdrawnPayload,
+  ): Promise<void>;
+  async dispatch(
+    type: NotificationType.OFFER_EXPIRED,
+    userId: string,
+    payload: OfferExpiredPayload,
+  ): Promise<void>;
+  async dispatch(
+    type: NotificationType.ASSESSMENT_UNLOCKED,
+    userId: string,
+    payload: AssessmentUnlockedPayload,
+  ): Promise<void>;
+  async dispatch(
+    type: NotificationType.ASSESSMENT_WINDOW_EXPIRING,
+    userId: string,
+    payload: AssessmentWindowExpiringPayload,
+  ): Promise<void>;
+  async dispatch(
+    type:
+      | NotificationType.ASSESSMENT_PASSED
+      | NotificationType.ASSESSMENT_FAILED,
+    userId: string,
+    payload: AssessmentResultPayload,
+  ): Promise<void>;
+  async dispatch(
     type: NotificationType.CONTACT_REQUEST_RECEIVED,
     userId: string,
     payload: ContactRequestReceivedPayload,
@@ -151,6 +263,11 @@ export class NotificationDispatchService
       | AdvancedRetakeAvailablePayload
       | OfferReceivedPayload
       | OfferRespondedPayload
+      | OfferWithdrawnPayload
+      | OfferExpiredPayload
+      | AssessmentUnlockedPayload
+      | AssessmentWindowExpiringPayload
+      | AssessmentResultPayload
       | ContactRequestReceivedPayload
       | AssessmentReceivedPayload,
   ): Promise<void> {
@@ -180,6 +297,38 @@ export class NotificationDispatchService
             type,
             userId,
             payload as OfferRespondedPayload,
+          );
+          break;
+        case NotificationType.OFFER_WITHDRAWN:
+          await this.dispatchOfferWithdrawn(
+            userId,
+            payload as OfferWithdrawnPayload,
+          );
+          break;
+        case NotificationType.OFFER_EXPIRED:
+          await this.dispatchOfferExpired(
+            userId,
+            payload as OfferExpiredPayload,
+          );
+          break;
+        case NotificationType.ASSESSMENT_UNLOCKED:
+          await this.dispatchAssessmentUnlocked(
+            userId,
+            payload as AssessmentUnlockedPayload,
+          );
+          break;
+        case NotificationType.ASSESSMENT_WINDOW_EXPIRING:
+          await this.dispatchAssessmentWindowExpiring(
+            userId,
+            payload as AssessmentWindowExpiringPayload,
+          );
+          break;
+        case NotificationType.ASSESSMENT_PASSED:
+        case NotificationType.ASSESSMENT_FAILED:
+          await this.dispatchAssessmentResult(
+            type,
+            userId,
+            payload as AssessmentResultPayload,
           );
           break;
         case NotificationType.CONTACT_REQUEST_RECEIVED:
@@ -488,6 +637,139 @@ export class NotificationDispatchService
         `Assessment invite email failed for user=${userId}: ${String(error)}`,
       );
     }
+  }
+
+  private async dispatchOfferWithdrawn(
+    userId: string,
+    payload: OfferWithdrawnPayload,
+  ): Promise<void> {
+    const user = await this.usersService.findOne(userId);
+    if (!user) {
+      this.logger.warn(`Notification skipped: user not found user=${userId}`);
+      return;
+    }
+
+    await this.notificationsService.create({
+      userId,
+      type: NotificationType.OFFER_WITHDRAWN,
+      title: 'Offer withdrawn',
+      body: `${payload.employerName} has withdrawn their offer for ${payload.roleTitle}.`,
+      data: {
+        offerId: payload.offerId,
+        employerUserId: payload.employerUserId,
+        employerName: payload.employerName,
+        roleTitle: payload.roleTitle,
+      },
+    });
+  }
+
+  private async dispatchOfferExpired(
+    userId: string,
+    payload: OfferExpiredPayload,
+  ): Promise<void> {
+    const user = await this.usersService.findOne(userId);
+    if (!user) {
+      this.logger.warn(`Notification skipped: user not found user=${userId}`);
+      return;
+    }
+
+    await this.notificationsService.create({
+      userId,
+      type: NotificationType.OFFER_EXPIRED,
+      title: 'Assessment window expired',
+      body: `The assessment window for ${payload.roleTitle} has closed without a submission.`,
+      data: {
+        offerId: payload.offerId,
+        candidateUserId: payload.candidateUserId,
+        candidateName: payload.candidateName,
+        roleTitle: payload.roleTitle,
+      },
+    });
+  }
+
+  private async dispatchAssessmentUnlocked(
+    userId: string,
+    payload: AssessmentUnlockedPayload,
+  ): Promise<void> {
+    const user = await this.usersService.findOne(userId);
+    if (!user) {
+      this.logger.warn(`Notification skipped: user not found user=${userId}`);
+      return;
+    }
+
+    await this.notificationsService.create({
+      userId,
+      type: NotificationType.ASSESSMENT_UNLOCKED,
+      title: 'Assessment window opened',
+      body: `You have 5 days to complete the assessment for ${payload.roleTitle}. Deadline: ${new Date(payload.assessmentDeadline).toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' })}.`,
+      data: {
+        offerId: payload.offerId,
+        employerUserId: payload.employerUserId,
+        employerName: payload.employerName,
+        roleTitle: payload.roleTitle,
+        assessmentDeadline: payload.assessmentDeadline,
+      },
+    });
+  }
+
+  private async dispatchAssessmentWindowExpiring(
+    userId: string,
+    payload: AssessmentWindowExpiringPayload,
+  ): Promise<void> {
+    const user = await this.usersService.findOne(userId);
+    if (!user) {
+      this.logger.warn(`Notification skipped: user not found user=${userId}`);
+      return;
+    }
+
+    await this.notificationsService.create({
+      userId,
+      type: NotificationType.ASSESSMENT_WINDOW_EXPIRING,
+      title: 'Assessment window expiring soon',
+      body: `${payload.candidateName} has less than 24 hours to submit the assessment for ${payload.roleTitle}.`,
+      data: {
+        offerId: payload.offerId,
+        candidateUserId: payload.candidateUserId,
+        candidateName: payload.candidateName,
+        roleTitle: payload.roleTitle,
+        assessmentDeadline: payload.assessmentDeadline,
+      },
+    });
+  }
+
+  private async dispatchAssessmentResult(
+    type:
+      | NotificationType.ASSESSMENT_PASSED
+      | NotificationType.ASSESSMENT_FAILED,
+    userId: string,
+    payload: AssessmentResultPayload,
+  ): Promise<void> {
+    const user = await this.usersService.findOne(userId);
+    if (!user) {
+      this.logger.warn(`Notification skipped: user not found user=${userId}`);
+      return;
+    }
+
+    const passed = type === NotificationType.ASSESSMENT_PASSED;
+    const title = passed ? 'Assessment passed!' : 'Assessment not passed';
+    const body = passed
+      ? `${payload.candidateName} scored ${payload.score}% and passed the assessment for ${payload.roleTitle}.`
+      : `${payload.candidateName} scored ${payload.score}% and did not meet the threshold for ${payload.roleTitle}.`;
+
+    await this.notificationsService.create({
+      userId,
+      type,
+      title,
+      body,
+      data: {
+        offerId: payload.offerId,
+        candidateUserId: payload.candidateUserId,
+        candidateName: payload.candidateName,
+        employerUserId: payload.employerUserId,
+        roleTitle: payload.roleTitle,
+        score: payload.score,
+      },
+    });
   }
 
   private formatTierLabel(tier: AssessmentTier): string {

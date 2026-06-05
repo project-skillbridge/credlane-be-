@@ -135,7 +135,8 @@ export const ErrorMessages = {
     OFFER_EXPIRED: 'This offer has expired',
   },
   EMPLOYER_VERIFICATION: {
-    NOT_VERIFIED: 'Complete your company profile to access this feature.',
+    NOT_VERIFIED:
+      'Your employer account is pending verification. You will be notified once approved.',
     WEBSITE_NOT_RESOLVABLE:
       'Company website could not be reached. Please check the URL.',
   },

@@ -1533,6 +1533,7 @@ export class AdvancedAssessmentService {
       .andWhere('attempt.assessment_type = :assessmentType', {
         assessmentType: AssessmentType.SKILL,
       })
+      .andWhere('result.validated_level IS NOT NULL')
       .orderBy('attempt.completed_at', 'DESC', 'NULLS LAST')
       .addOrderBy('result.created_at', 'DESC')
       .getOne();
