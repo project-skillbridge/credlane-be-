@@ -27,9 +27,11 @@ import { AuthService } from '../auth/auth.service';
 import {
   ApiChangePasswordSettings,
   ApiRequestEmailChangeSettings,
+  ApiVerifyEmailChangeSettings,
 } from '../auth/docs/account-settings.swagger';
 import { ChangePasswordDto } from '../auth/dto/change-password.dto';
 import { RequestEmailChangeDto } from '../auth/dto/request-email-change.dto';
+import { VerifyEmailChangeDto } from '../auth/dto/verify-email-change.dto';
 import { UserRole } from '../users/entities/user.entity';
 import { CompleteEmployerOnboardingDto } from './dto/complete-employer-onboarding.dto';
 import { SaveEmployerProfileDto } from './dto/save-employer-profile.dto';
@@ -123,6 +125,20 @@ export class EmployerController {
     @Body() dto: RequestEmailChangeDto,
   ) {
     return this.authService.requestEmailChange(userId, dto);
+  }
+
+  @UseGuards(ThrottlerGuard)
+  @Post('settings/change-email/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiVerifyEmailChangeSettings()
+  async verifyEmailChange(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: VerifyEmailChangeDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.authService.verifyEmailChange(userId, dto);
+    clearAuthCookies(response);
+    return result;
   }
 
   /** Legacy single-step onboarding — kept for backward compatibility. */

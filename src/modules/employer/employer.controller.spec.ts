@@ -8,12 +8,14 @@ import { EmployerService } from './employer.service';
 import { AuthService } from '../auth/auth.service';
 import type { ChangePasswordDto } from '../auth/dto/change-password.dto';
 import type { RequestEmailChangeDto } from '../auth/dto/request-email-change.dto';
+import type { VerifyEmailChangeDto } from '../auth/dto/verify-email-change.dto';
 
 describe('EmployerController', () => {
   let controller: EmployerController;
   let authService: {
     changePassword: jest.Mock;
     requestEmailChange: jest.Mock;
+    verifyEmailChange: jest.Mock;
   };
 
   const userId = 'employer-user-1';
@@ -28,6 +30,7 @@ describe('EmployerController', () => {
     authService = {
       changePassword: jest.fn(),
       requestEmailChange: jest.fn(),
+      verifyEmailChange: jest.fn(),
     };
 
     const employerService = {} as EmployerService;
@@ -119,6 +122,52 @@ describe('EmployerController', () => {
 
     expect(authService.requestEmailChange).toHaveBeenCalledWith(userId, dto);
     expect(result).toEqual(serviceResult);
+  });
+
+  it('maps the expected verify-email-change handler', () => {
+    expect(
+      Reflect.getMetadata(PATH_METADATA, controller.verifyEmailChange),
+    ).toBe('settings/change-email/verify');
+    expect(
+      Reflect.getMetadata(METHOD_METADATA, controller.verifyEmailChange),
+    ).toBe(RequestMethod.POST);
+  });
+
+  it('verifies email change, returns the service result, and clears cookies', async () => {
+    const dto: VerifyEmailChangeDto = {
+      newEmail: 'new.email@company.com',
+      otp: '123456',
+    };
+    const serviceResult = {
+      status: 'success' as const,
+      message: 'Work email changed. Please log in again.',
+    };
+    authService.verifyEmailChange.mockResolvedValue(serviceResult);
+
+    const response = buildMockResponse();
+
+    const result = await controller.verifyEmailChange(userId, dto, response);
+
+    expect(authService.verifyEmailChange).toHaveBeenCalledWith(userId, dto);
+    expect(response.clearCookie).toHaveBeenCalled();
+    expect(result).toEqual(serviceResult);
+  });
+
+  it('does not clear cookies when email verification fails', async () => {
+    const dto: VerifyEmailChangeDto = {
+      newEmail: 'new.email@company.com',
+      otp: '000000',
+    };
+    authService.verifyEmailChange.mockRejectedValue(
+      new Error('Invalid or expired OTP'),
+    );
+
+    const response = buildMockResponse();
+
+    await expect(
+      controller.verifyEmailChange(userId, dto, response),
+    ).rejects.toThrow('Invalid or expired OTP');
+    expect(response.clearCookie).not.toHaveBeenCalled();
   });
 });
 
