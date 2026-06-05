@@ -8,6 +8,7 @@ import { EmployerModule } from '../employer/employer.module';
 import { EmployerRolesModule } from '../employer-roles/employer-roles.module';
 import { Offer } from './entities/offer.entity';
 import { OfferDistributionLog } from './entities/offer-distribution-log.entity';
+import { OfferExpiryService } from './offer-expiry.service';
 import { OffersController } from './offers.controller';
 import { OffersService } from './offers.service';
 
@@ -25,7 +26,7 @@ import { OffersService } from './offers.service';
     EmployerRolesModule,
   ],
   controllers: [OffersController],
-  providers: [OffersService],
+  providers: [OffersService, OfferExpiryService],
   exports: [OffersService],
 })
 export class OffersModule {}

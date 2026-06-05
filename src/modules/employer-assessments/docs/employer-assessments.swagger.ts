@@ -12,6 +12,7 @@ import {
   EmployerAssessmentResponseDto,
   EmployerAssessmentSubmissionResponseDto,
   ImportedQuestionsResponseDto,
+  ListCredlaneCatalogueResponseDto,
   ListEmployerAssessmentResultsResponseDto,
   ListEmployerAssessmentsResponseDto,
   PublicEmployerAssessmentResponseDto,
@@ -219,5 +220,21 @@ export const ApiSubmitEmployerAssessment = () =>
     }),
     ApiResponse({ status: 404, description: 'Assessment link not found' }),
     ApiResponse({ status: 409, description: 'Assessment already submitted' }),
+    ApiResponse({ status: 500, description: 'Internal server error' }),
+  );
+
+export const ApiListCredlaneCatalogue = () =>
+  applyDecorators(
+    ApiBearerAuth(),
+    ApiOperation({
+      summary: 'Browse the CredLane pre-built assessment catalogue',
+    }),
+    ApiResponse({
+      status: 200,
+      description: 'Catalogue entries returned',
+      type: ListCredlaneCatalogueResponseDto,
+    }),
+    ApiResponse({ status: 401, description: 'Authentication required' }),
+    ApiResponse({ status: 403, description: 'Employer access required' }),
     ApiResponse({ status: 500, description: 'Internal server error' }),
   );

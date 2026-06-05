@@ -49,8 +49,7 @@ import {
   textLengthBoundsForBlock,
 } from './assessment-answer-blocks.constants';
 import { GuidanceReportService } from '../../ai/guidance-report.service';
-import { QuestionGenerationService } from '../../ai/question-generation.service';
-import { GeneratedQuestion, GuidanceReport } from '../../ai/ai.types';
+import { GuidanceReport } from '../../ai/ai.types';
 import { BankExhaustedAlertService } from '../../mail/bank-exhausted-alert.service';
 import { AiResourcesService } from '../../ai-resources/ai-resources.service';
 
@@ -160,7 +159,6 @@ export class SkillAssessmentService {
     private readonly historyRepo: Repository<TalentQuestionHistory>,
 
     private readonly guidanceReport: GuidanceReportService,
-    private readonly questionGeneration: QuestionGenerationService,
     private readonly bankExhaustedAlert: BankExhaustedAlertService,
     private readonly aiResourcesService: AiResourcesService,
   ) {}
@@ -326,12 +324,7 @@ export class SkillAssessmentService {
           lockedProfile,
           verifiedLevel,
         );
-        let bankQuestions = await this.ensureSkillQuestionsWithAI(
-          manager,
-          lockedProfile,
-          verifiedLevel,
-          rawBankQuestions,
-        );
+        let bankQuestions = rawBankQuestions;
         let selectedQuestions: AssessmentQuestion[];
         try {
           selectedQuestions = this.selectSkillQuestionMix(bankQuestions);
@@ -347,12 +340,7 @@ export class SkillAssessmentService {
             verifiedLevel,
             true,
           );
-          bankQuestions = await this.ensureSkillQuestionsWithAI(
-            manager,
-            lockedProfile,
-            verifiedLevel,
-            rawBankQuestions,
-          );
+          bankQuestions = rawBankQuestions;
           try {
             selectedQuestions = this.selectSkillQuestionMix(bankQuestions);
           } catch (retryErr) {
@@ -404,7 +392,7 @@ export class SkillAssessmentService {
             ].map((q) => q.id),
           );
           const extras = bankQuestions
-            .filter((q) => !usedIds.has(q.id))
+            .filter((q) => !usedIds.has(q.id) && this.isPickQuestion(q))
             .slice(0, deficit);
           if (extras.length < deficit) {
             this.throwSkillBankExhausted(
@@ -531,7 +519,7 @@ export class SkillAssessmentService {
     }
 
     const payload = this.readSessionPayload(attempt);
-    const questions = Array.isArray(payload.questions) ? payload.questions : [];
+    const questions = this.readSessionQuestions(attempt);
     if (questions.length === 0) {
       throw new BadRequestException(
         ErrorMessages.SKILL_ASSESSMENT.ATTEMPT_CORRUPT,
@@ -854,7 +842,10 @@ export class SkillAssessmentService {
       })
       .andWhere('question.is_live = true')
       .andWhere('question.track = :track', { track: profile.track })
-      .andWhere('question.verified_level = :verifiedLevel', { verifiedLevel });
+      .andWhere('question.verified_level = :verifiedLevel', { verifiedLevel })
+      .andWhere('question.question_type IN (:...mcqTypes)', {
+        mcqTypes: [QuestionType.SINGLE_PICK, QuestionType.MULTI_PICK],
+      });
 
     if (!skipExclusion) {
       qb.andWhere(
@@ -869,80 +860,6 @@ export class SkillAssessmentService {
     }
 
     return qb.orderBy('RANDOM()').getMany();
-  }
-
-  private async ensureSkillQuestionsWithAI(
-    manager: EntityManager,
-    profile: TalentProfile,
-    verifiedLevel: VerifiedLevel,
-    bankQuestions: AssessmentQuestion[],
-  ): Promise<AssessmentQuestion[]> {
-    const mcqs = bankQuestions.filter((q) => this.isPickQuestion(q));
-
-    const targetMcqs = SKILL_ASSESSMENT_TOTAL;
-    const neededMcqs = Math.max(0, targetMcqs - mcqs.length);
-
-    if (neededMcqs === 0) {
-      return bankQuestions;
-    }
-
-    this.logger.log(
-      `Generating AI questions for track=${profile.track} level=${verifiedLevel}: ${neededMcqs} MCQ`,
-    );
-
-    let generatedMcqs: GeneratedQuestion[];
-    try {
-      generatedMcqs = await this.questionGeneration.generateQuestions({
-        track: profile.track!,
-        verified_level: verifiedLevel,
-        assessment_type: 'skill',
-        question_type: QuestionType.SINGLE_PICK,
-        count: neededMcqs,
-      });
-    } catch (error) {
-      this.logger.warn(
-        `AI question generation failed for track=${profile.track} level=${verifiedLevel}: ${String(error)}`,
-      );
-      return bankQuestions;
-    }
-
-    if (generatedMcqs.length === 0) {
-      return bankQuestions;
-    }
-
-    const questionRepo = manager.getRepository(AssessmentQuestion);
-    const existingCount = await questionRepo.count({
-      where: {
-        assessment_type: AssessmentType.SKILL,
-        track: profile.track ?? undefined,
-        verified_level: verifiedLevel,
-      },
-    });
-
-    const persistedEntities = await manager.save(
-      AssessmentQuestion,
-      generatedMcqs.map((q, i) =>
-        manager.create(AssessmentQuestion, {
-          assessment_type: AssessmentType.SKILL,
-          question_type: q.question_type,
-          question_text: q.question_text,
-          question_number: existingCount + i + 1,
-          options: q.options,
-          correct_answer: q.correct_answer,
-          track: profile.track,
-          verified_level: verifiedLevel,
-          competency: q.competency,
-          slot_type: q.slot_type,
-          is_live: true,
-        }),
-      ),
-    );
-
-    this.logger.log(
-      `Persisted ${persistedEntities.length} AI-generated questions for track=${profile.track} level=${verifiedLevel}`,
-    );
-
-    return [...bankQuestions, ...persistedEntities];
   }
 
   private selectSkillQuestionMix(
@@ -962,7 +879,9 @@ export class SkillAssessmentService {
     return mcqs;
   }
 
-  private isPickQuestion(question: AssessmentQuestion): boolean {
+  private isPickQuestion(question: {
+    question_type: QuestionType | null | undefined;
+  }): boolean {
     return (
       question.question_type === QuestionType.SINGLE_PICK ||
       question.question_type === QuestionType.MULTI_PICK
@@ -983,7 +902,18 @@ export class SkillAssessmentService {
     attempt: AssessmentAttempt,
   ): SkillAssessmentSessionQuestion[] {
     const questions = this.readSessionPayload(attempt).questions;
-    return Array.isArray(questions) ? questions : [];
+    if (!Array.isArray(questions)) {
+      return [];
+    }
+
+    const sessionQuestions = questions;
+    if (sessionQuestions.some((question) => !this.isPickQuestion(question))) {
+      throw new BadRequestException(
+        ErrorMessages.SKILL_ASSESSMENT.ATTEMPT_CORRUPT,
+      );
+    }
+
+    return sessionQuestions;
   }
 
   private toPublicSessionQuestions(
@@ -1002,43 +932,9 @@ export class SkillAssessmentService {
   }
 
   private blockForQuestionType(
-    questionType: QuestionType,
+    _questionType: QuestionType,
   ): AssessmentAnswerBlock {
-    if (
-      questionType === QuestionType.SINGLE_PICK ||
-      questionType === QuestionType.MULTI_PICK
-    ) {
-      return 'mcq';
-    }
-    return 'long_text';
-  }
-
-  private assertTextLength(
-    question: SkillAssessmentSessionQuestion,
-    answer: string,
-  ): void {
-    const block =
-      question.block ?? this.blockForQuestionType(question.question_type);
-    const bounds = textLengthBoundsForBlock(block);
-    if (!bounds) {
-      return;
-    }
-
-    const trimmed = answer.trim();
-    if (!trimmed) {
-      if (question.question_type === QuestionType.REQUIRED_TEXT) {
-        throw new UnprocessableEntityException(
-          `Question ${question.question_number} is required`,
-        );
-      }
-      return;
-    }
-
-    if (trimmed.length < bounds.min || trimmed.length > bounds.max) {
-      throw new UnprocessableEntityException(
-        `Question ${question.question_number} must be between ${bounds.min} and ${bounds.max} characters`,
-      );
-    }
+    return 'mcq';
   }
 
   private scoreGeneratedMcq(
