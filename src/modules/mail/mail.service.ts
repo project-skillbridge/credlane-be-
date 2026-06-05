@@ -64,10 +64,6 @@ export class MailService {
       Math.ceil((params.expiresAt.getTime() - Date.now()) / (60 * 1000)),
     );
     const padded = params.otp.padStart(6, '0');
-    const digits = padded.split('');
-    const digitVars = Object.fromEntries(
-      digits.map((d, i) => [`digit${i + 1}`, d]),
-    ) as Record<string, string>;
 
     const base = env.FRONTEND_URL.replace(/\/$/, '');
     const logoUrl =
@@ -76,16 +72,17 @@ export class MailService {
 
     const vars: Record<string, string> = {
       name: params.recipientFirstName.trim() || 'there',
+      code: padded,
       verifyUrl: `${base}/verify-email`,
       logoUrl,
       playStoreUrl: '',
       appStoreUrl: '',
       playStoreLink: '#',
       appStoreLink: '#',
+      contactUrl: `${base}/contact`,
       supportEmail: env.SUPPORT_EMAIL,
       year: String(new Date().getFullYear()),
       expiresMinutes: String(expiresInMinutes),
-      ...digitVars,
     };
 
     const rawHtml = loadMailTemplateFile('verify-code.html');
