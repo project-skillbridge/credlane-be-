@@ -5,8 +5,11 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseUUIDPipe,
   Patch,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -16,6 +19,8 @@ import {
 import {
   ApiCookieAuth,
   ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiTags,
   ApiUnprocessableEntityResponse,
@@ -36,10 +41,16 @@ import { ChangePasswordDto } from '../auth/dto/change-password.dto';
 import { DeleteAccountDto } from '../auth/dto/delete-account.dto';
 import { RequestEmailChangeDto } from '../auth/dto/request-email-change.dto';
 import { VerifyEmailChangeDto } from '../auth/dto/verify-email-change.dto';
+import { ListNotificationsQueryDto } from '../notifications/dto/notification.dto';
+import { NotificationsService } from '../notifications/notifications.service';
 import { UserRole } from '../users/entities/user.entity';
 import { CompleteEmployerOnboardingDto } from './dto/complete-employer-onboarding.dto';
 import { SaveEmployerProfileDto } from './dto/save-employer-profile.dto';
 import { UpdateEmployerProfileDto } from './dto/update-employer-profile.dto';
+import {
+  EmployerNotificationItem,
+  toEmployerNotificationItem,
+} from './employer-notification.mapper';
 import { EmployerService } from './employer.service';
 
 @ApiTags('employer')
@@ -50,6 +61,7 @@ export class EmployerController {
   constructor(
     private readonly employerService: EmployerService,
     private readonly authService: AuthService,
+    private readonly notificationsService: NotificationsService,
   ) {}
 
   @Get('profile')
@@ -164,6 +176,43 @@ export class EmployerController {
     });
     clearAuthCookies(response);
     return result;
+  }
+
+  @Get('notifications')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'List in-app notifications for the employer' })
+  async listNotifications(
+    @CurrentUser('sub') userId: string,
+    @Query() query: ListNotificationsQueryDto,
+  ): Promise<{ items: EmployerNotificationItem[] }> {
+    const rows = await this.notificationsService.listForUser(
+      userId,
+      query.limit ?? 20,
+    );
+    const items: EmployerNotificationItem[] = rows.map(toEmployerNotificationItem);
+    return { items };
+  }
+
+  @Patch('notifications/read-all')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mark all notifications as read' })
+  @ApiOkResponse({ description: 'All notifications marked as read' })
+  async markAllNotificationsAsRead(
+    @CurrentUser('sub') userId: string,
+  ): Promise<void> {
+    await this.notificationsService.markAllAsRead(userId);
+  }
+
+  @Patch('notifications/:notification_id/read')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mark a notification as read' })
+  @ApiNotFoundResponse({ description: 'Notification not found' })
+  @ApiOkResponse({ description: 'Notification marked as read' })
+  async markNotificationAsRead(
+    @CurrentUser('sub') userId: string,
+    @Param('notification_id', ParseUUIDPipe) notificationId: string,
+  ): Promise<void> {
+    await this.notificationsService.markAsRead(userId, notificationId);
   }
 
   /** Legacy single-step onboarding — kept for backward compatibility. */

@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from '../auth/auth.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { UsersModule } from '../users/users.module';
 import { User } from '../users/entities/user.entity';
 import { EmployerController } from './employer.controller';
@@ -14,6 +15,7 @@ import { EmployerProfile } from './entities/employer-profile.entity';
     TypeOrmModule.forFeature([EmployerProfile, User]),
     UsersModule,
     AuthModule,
+    NotificationsModule,
   ],
   controllers: [EmployerController, EmployerPublicController],
   providers: [EmployerService, EmployerVerificationService],

@@ -1,4 +1,4 @@
-import { RequestMethod } from '@nestjs/common';
+import { NotFoundException, RequestMethod } from '@nestjs/common';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
@@ -6,6 +6,8 @@ import type { Request, Response } from 'express';
 import { EmployerController } from './employer.controller';
 import { EmployerService } from './employer.service';
 import { AuthService } from '../auth/auth.service';
+import { NotificationsService } from '../notifications/notifications.service';
+import { NotificationType } from '../notifications/notification-type.enum';
 import type { ChangePasswordDto } from '../auth/dto/change-password.dto';
 import type { DeleteAccountDto } from '../auth/dto/delete-account.dto';
 import type { RequestEmailChangeDto } from '../auth/dto/request-email-change.dto';
@@ -13,6 +15,11 @@ import type { VerifyEmailChangeDto } from '../auth/dto/verify-email-change.dto';
 
 describe('EmployerController', () => {
   let controller: EmployerController;
+  let notificationsService: {
+    listForUser: jest.Mock;
+    markAsRead: jest.Mock;
+    markAllAsRead: jest.Mock;
+  };
   let authService: {
     changePassword: jest.Mock;
     requestEmailChange: jest.Mock;
@@ -45,13 +52,18 @@ describe('EmployerController', () => {
       deleteAccount: jest.fn(),
     };
 
-    const employerService = {} as EmployerService;
+    notificationsService = {
+      listForUser: jest.fn(),
+      markAsRead: jest.fn(),
+      markAllAsRead: jest.fn(),
+    };
 
     const moduleRef = await Test.createTestingModule({
       controllers: [EmployerController],
       providers: [
-        { provide: EmployerService, useValue: employerService },
+        { provide: EmployerService, useValue: {} },
         { provide: AuthService, useValue: authService },
+        { provide: NotificationsService, useValue: notificationsService },
       ],
     })
       .overrideGuard(ThrottlerGuard)
@@ -225,5 +237,98 @@ describe('EmployerController', () => {
       controller.deleteAccount(userId, dto, buildMockRequest(), response),
     ).rejects.toThrow('Delete failed');
     expect(response.clearCookie).not.toHaveBeenCalled();
+  });
+
+  it('maps the expected list-notifications handler', () => {
+    expect(
+      Reflect.getMetadata(PATH_METADATA, controller.listNotifications),
+    ).toBe('notifications');
+    expect(
+      Reflect.getMetadata(METHOD_METADATA, controller.listNotifications),
+    ).toBe(RequestMethod.GET);
+  });
+
+  it('lists notifications via the notifications service', async () => {
+    notificationsService.listForUser.mockResolvedValue([
+      {
+        id: 'notif-1',
+        type: NotificationType.OFFER_ACCEPTED,
+        title: 'Offer accepted',
+        body: 'Jane accepted your offer',
+        data: { offerId: 'offer-1' },
+        is_read: false,
+        read_at: null,
+        created_at: '2026-06-01T10:00:00.000Z',
+      },
+    ]);
+
+    const result = await controller.listNotifications(userId, { limit: 20 });
+
+    expect(notificationsService.listForUser).toHaveBeenCalledWith(userId, 20);
+    expect(result).toEqual({
+      items: [
+        {
+          notification_id: 'notif-1',
+          type: 'offer_accepted',
+          message: 'Jane accepted your offer',
+          timestamp: '2026-06-01T10:00:00.000Z',
+          read: false,
+          link: { entity_id: 'offer-1', entity_type: 'offer' },
+        },
+      ],
+    });
+  });
+
+  it('maps the expected mark-all-notifications-read handler', () => {
+    expect(
+      Reflect.getMetadata(
+        PATH_METADATA,
+        controller.markAllNotificationsAsRead,
+      ),
+    ).toBe('notifications/read-all');
+    expect(
+      Reflect.getMetadata(
+        METHOD_METADATA,
+        controller.markAllNotificationsAsRead,
+      ),
+    ).toBe(RequestMethod.PATCH);
+  });
+
+  it('marks all notifications as read via the notifications service', async () => {
+    notificationsService.markAllAsRead.mockResolvedValue(undefined);
+
+    await controller.markAllNotificationsAsRead(userId);
+
+    expect(notificationsService.markAllAsRead).toHaveBeenCalledWith(userId);
+  });
+
+  it('maps the expected mark-notification-read handler', () => {
+    expect(
+      Reflect.getMetadata(PATH_METADATA, controller.markNotificationAsRead),
+    ).toBe('notifications/:notification_id/read');
+    expect(
+      Reflect.getMetadata(METHOD_METADATA, controller.markNotificationAsRead),
+    ).toBe(RequestMethod.PATCH);
+  });
+
+  it('marks a notification as read via the notifications service', async () => {
+    notificationsService.markAsRead.mockResolvedValue(undefined);
+
+    await controller.markNotificationAsRead(userId, 'notif-1');
+
+    expect(notificationsService.markAsRead).toHaveBeenCalledWith(
+      userId,
+      'notif-1',
+    );
+  });
+
+  it('propagates not-found when the notification does not belong to the employer', async () => {
+    notificationsService.markAsRead.mockRejectedValue(
+      new NotFoundException('Notification not found'),
+    );
+
+    await expect(
+      controller.markNotificationAsRead(userId, 'missing'),
+    ).rejects.toThrow(NotFoundException);
   });
 });
