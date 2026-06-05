@@ -169,7 +169,9 @@ export class VerifiedProfileService {
     );
   }
 
-  async getForEmployerView(candidateUserId: string): Promise<VerifiedProfileResponse> {
+  async getForEmployerView(
+    candidateUserId: string,
+  ): Promise<VerifiedProfileResponse> {
     const poolProfile = await this.employerPoolRepository.findOne({
       where: { candidate_id: candidateUserId },
       relations: ['talent_profile'],

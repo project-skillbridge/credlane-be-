@@ -8,12 +8,13 @@ import {
   Post,
   Query,
 } from '@nestjs/common';
-import { ApiOperation, ApiOkResponse, ApiTags } from '@nestjs/swagger';
+import { ApiOkResponse, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { EmployerDiscoveryService } from './employer-discovery.service';
 import { DiscoveryCandidatesQueryDto } from './dto/discovery-candidates-query.dto';
+import { DiscoveryCandidatesListResponseDto } from './dto/discovery-candidate-card.dto';
 import { EmployerCandidateProfileResponseDto } from './dto/employer-candidate-profile.dto';
 import { SaveCandidateDto } from './dto/save-candidate.dto';
 import { ContactCandidateDto } from './dto/contact-candidate.dto';
@@ -28,7 +29,10 @@ export class EmployerDiscoveryController {
   @Get('candidates')
   @ApiOperation({
     summary: 'List Job Ready candidates with optional filters',
+    description:
+      'Returns design-facing candidate cards with role labels, skills, about tags, and employer shortlist/offer context.',
   })
+  @ApiOkResponse({ type: DiscoveryCandidatesListResponseDto })
   async listCandidates(
     @CurrentUser('sub') employerUserId: string,
     @Query() query: DiscoveryCandidatesQueryDto,

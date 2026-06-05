@@ -151,9 +151,9 @@ describe('EmployerDiscoveryService', () => {
 
       const result = await service.getCandidateProfile('employer-1', 'user-1');
 
-      expect(mockVerifiedProfileService.getForEmployerView).toHaveBeenCalledWith(
-        'user-1',
-      );
+      expect(
+        mockVerifiedProfileService.getForEmployerView,
+      ).toHaveBeenCalledWith('user-1');
       expect(result.user_id).toBe('user-1');
       expect(result.full_name).toBe('Jane Doe');
       expect(result.score_percentage).toBe(85);
@@ -335,20 +335,29 @@ describe('EmployerDiscoveryService', () => {
       return qb;
     };
 
-    it('should return paginated candidates with isSaved flag', async () => {
+    it('should return paginated candidates with enriched card fields', async () => {
       const rawResults = [
         {
-          poolId: 'pool-1',
           userId: 'user-1',
           roleTrack: 'frontend_developer',
           tier: 'job_ready',
-          availability: 'immediate',
+          availability: 'immediately_available',
           verifiedAt: new Date(),
           score: 85,
-          strongCompetencies: ['React'],
+          strongCompetencies: ['api_design'],
           shareToken: 'abc',
           firstName: 'Alice',
           lastName: 'Dev',
+          avatarUrl: 'https://example.com/alice.jpg',
+          country: 'Nigeria',
+          verifiedLevel: 'mid',
+          location: 'Lagos, Nigeria',
+          jobSearchStatus: 'open_to_opportunities',
+          specialization: null,
+          personalAssessmentAnswers: {
+            tools: ['react', 'typescript'],
+            work_arrangement_preference: ['fully_remote'],
+          },
         },
       ];
       const poolQb = createMockQb(rawResults, 1);
@@ -365,6 +374,12 @@ describe('EmployerDiscoveryService', () => {
       expect(result.total).toBe(1);
       expect(result.candidates[0].user_id).toBe('user-1');
       expect(result.candidates[0].full_name).toBe('Alice Dev');
+      expect(result.candidates[0].role).toBe('Frontend Developer');
+      expect(result.candidates[0].seniority_badge).toBe('Mid Level');
+      expect(result.candidates[0].skills).toEqual(['react', 'typescript']);
+      expect(result.candidates[0].avatar_url).toBe(
+        'https://example.com/alice.jpg',
+      );
       expect(result.candidates[0].is_saved).toBe(true);
       expect(result.total_pages).toBe(1);
     });
@@ -404,12 +419,63 @@ describe('EmployerDiscoveryService', () => {
       await service.discoverCandidates('employer-1', {
         page: 1,
         limit: 20,
-        availability: 'immediate',
+        availability: 'immediately_available',
       });
 
       expect(poolQb.andWhere).toHaveBeenCalledWith(
         'pool.availability = :availability',
-        { availability: 'immediate' },
+        { availability: 'immediately_available' },
+      );
+    });
+
+    it('should apply composite score range filters', async () => {
+      const poolQb = createMockQb([], 0);
+      mockPoolProfileRepo.createQueryBuilder.mockReturnValue(poolQb);
+
+      await service.discoverCandidates('employer-1', {
+        page: 1,
+        limit: 20,
+        minScore: 75,
+        maxScore: 100,
+      });
+
+      expect(poolQb.andWhere).toHaveBeenCalledWith('pool.score >= :minScore', {
+        minScore: 75,
+      });
+      expect(poolQb.andWhere).toHaveBeenCalledWith('pool.score <= :maxScore', {
+        maxScore: 100,
+      });
+    });
+
+    it('should apply experience level filter', async () => {
+      const poolQb = createMockQb([], 0);
+      mockPoolProfileRepo.createQueryBuilder.mockReturnValue(poolQb);
+
+      await service.discoverCandidates('employer-1', {
+        page: 1,
+        limit: 20,
+        experienceLevel: 'mid',
+      });
+
+      expect(poolQb.andWhere).toHaveBeenCalledWith(
+        'pool.verified_level = :experienceLevel',
+        { experienceLevel: 'mid' },
+      );
+    });
+
+    it('should apply region filter', async () => {
+      const poolQb = createMockQb([], 0);
+      mockPoolProfileRepo.createQueryBuilder.mockReturnValue(poolQb);
+
+      await service.discoverCandidates('employer-1', {
+        page: 1,
+        limit: 20,
+        region: 'Nigeria',
+      });
+
+      expect(poolQb.andWhere).toHaveBeenCalledWith(
+        '(pool.location ILIKE :region OR u.country ILIKE :region)',
+        { region: '%Nigeria%' },
       );
     });
 
@@ -432,17 +498,23 @@ describe('EmployerDiscoveryService', () => {
     it('should mark candidates as not saved when none are saved', async () => {
       const rawResults = [
         {
-          poolId: 'pool-1',
           userId: 'user-1',
           roleTrack: 'frontend_developer',
           tier: 'job_ready',
-          availability: 'immediate',
+          availability: 'immediately_available',
           verifiedAt: new Date(),
           score: 80,
           strongCompetencies: null,
           shareToken: null,
           firstName: 'Bob',
           lastName: null,
+          avatarUrl: null,
+          country: 'Ghana',
+          verifiedLevel: 'junior',
+          location: null,
+          jobSearchStatus: null,
+          specialization: null,
+          personalAssessmentAnswers: null,
         },
       ];
       const poolQb = createMockQb(rawResults, 1);

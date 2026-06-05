@@ -772,9 +772,9 @@ describe('VerifiedProfileService', () => {
     it('rejects candidates that are not in the job-ready pool', async () => {
       (employerPoolRepository.findOne as jest.Mock).mockResolvedValue(null);
 
-      await expect(service.getForEmployerView('missing-user')).rejects.toBeInstanceOf(
-        NotFoundError,
-      );
+      await expect(
+        service.getForEmployerView('missing-user'),
+      ).rejects.toBeInstanceOf(NotFoundError);
     });
   });
 
