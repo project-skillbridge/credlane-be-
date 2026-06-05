@@ -110,7 +110,9 @@ export class CreateEmployerRoles1780580000000 implements MigrationInterface {
       `ALTER TABLE "offers" DROP CONSTRAINT IF EXISTS "FK_offers_role"`,
     );
     await queryRunner.query(`DROP INDEX IF EXISTS "IDX_offers_role"`);
-    await queryRunner.query(`ALTER TABLE "offers" DROP COLUMN IF EXISTS "role_id"`);
+    await queryRunner.query(
+      `ALTER TABLE "offers" DROP COLUMN IF EXISTS "role_id"`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "employer_roles"`);
     await queryRunner.query(`DROP TYPE IF EXISTS "employer_role_status_enum"`);
     // Note: Cannot remove enum values in PostgreSQL; they remain harmless

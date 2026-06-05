@@ -46,7 +46,7 @@ export class SkillAssessmentController {
     summary: 'Start a skill assessment',
     description:
       'Requires completed personal assessment plus onboarding track and claimed level. ' +
-      'Generates a personalised AI question set, creates a session, and returns the ordered questions.',
+      'Builds a personalised question-bank session, creates a session, and returns the ordered MCQ questions.',
   })
   @ApiCreatedResponse({
     description: 'Assessment session created with questions',

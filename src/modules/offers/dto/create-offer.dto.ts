@@ -31,7 +31,9 @@ export class CreateOfferDto {
   @ApiPropertyOptional({
     description: 'Job role title. Defaults from role when roleId is supplied.',
   })
-  @ValidateIf((dto: CreateOfferDto) => !dto.roleId || dto.roleTitle !== undefined)
+  @ValidateIf(
+    (dto: CreateOfferDto) => !dto.roleId || dto.roleTitle !== undefined,
+  )
   @IsNotEmpty()
   @IsString()
   @MaxLength(255)

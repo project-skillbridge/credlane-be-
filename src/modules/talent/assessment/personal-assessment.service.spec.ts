@@ -227,8 +227,7 @@ describe('PersonalAssessmentService', () => {
     expect(specialisation?.optionItems).toEqual([
       {
         value: 'api_services',
-        label:
-          'API and services; I build and maintain APIs and microservices',
+        label: 'API and services; I build and maintain APIs and microservices',
       },
     ]);
   });

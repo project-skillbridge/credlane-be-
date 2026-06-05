@@ -1,10 +1,7 @@
 import 'reflect-metadata';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from '../app.module';
-import {
-  AssessmentType,
-  VerifiedLevel,
-} from '../modules/assessments/entities';
+import { AssessmentType, VerifiedLevel } from '../modules/assessments/entities';
 import { QuestionBankGeneratorService } from '../tasks/question-bank-generator.service';
 
 function readArg(flag: string): string | undefined {
@@ -83,6 +80,8 @@ async function main(): Promise<void> {
 }
 
 main().catch((error: unknown) => {
-  console.error(error instanceof Error ? error.stack ?? error.message : error);
+  console.error(
+    error instanceof Error ? (error.stack ?? error.message) : error,
+  );
   process.exit(1);
 });

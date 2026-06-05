@@ -144,7 +144,6 @@ describe('SkillAssessmentService', () => {
       {} as never,
       {} as never,
       { generate: jest.fn() } as never,
-      { generateQuestions: jest.fn().mockResolvedValue([]) } as never,
       bankExhaustedAlert as never,
       { warmCache: warmCacheMock } as never,
     );
@@ -259,6 +258,36 @@ describe('SkillAssessmentService', () => {
     const result = await service.start(userId);
 
     expect(result.attempt_number).toBe(3);
+  });
+
+  it('never returns text questions even when they exist in the bank', async () => {
+    // Inject text questions into the bank alongside MCQs
+    eligibleSkillQuestions = [
+      ...makeSkillBankQuestions(),
+      Object.assign(new AssessmentQuestion(), {
+        id: 'skill-text-sneaky-1',
+        question_type: QuestionType.REQUIRED_TEXT,
+        question_text: 'Describe your approach.',
+        options: null,
+        correct_answer: null,
+      }),
+      Object.assign(new AssessmentQuestion(), {
+        id: 'skill-text-sneaky-2',
+        question_type: QuestionType.OPTIONAL_TEXT,
+        question_text: 'Any additional thoughts?',
+        options: null,
+        correct_answer: null,
+      }),
+    ];
+
+    const result = await service.start(userId);
+
+    for (const question of result.questions) {
+      expect(question.block).toBe('mcq');
+      expect([QuestionType.SINGLE_PICK, QuestionType.MULTI_PICK]).toContain(
+        question.question_type,
+      );
+    }
   });
 
   it('refuses to start when the unseen bank lacks the skill question mix', async () => {
@@ -449,6 +478,34 @@ describe('SkillAssessmentService', () => {
         generated_questions_json: {
           context: { verified_level: VerifiedLevel.MID },
           questions: [],
+        },
+      }),
+    );
+
+    await expect(
+      service.getSession(userId, 'attempt-1'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('throws 400 when a stored skill session contains a text question', async () => {
+    attemptRepo.findOne.mockResolvedValue(
+      Object.assign(new AssessmentAttempt(), {
+        id: 'attempt-1',
+        talent_profile_id: profile.id,
+        assessment_type: AssessmentType.SKILL,
+        started_at: new Date('2026-05-21T10:00:00.000Z'),
+        generated_questions_json: {
+          context: { verified_level: VerifiedLevel.MID },
+          questions: [
+            {
+              question_id: 'question-1',
+              question_number: 1,
+              question_type: QuestionType.REQUIRED_TEXT,
+              question_text: 'Describe your process.',
+              options: null,
+              correct_answer: null,
+            },
+          ],
         },
       }),
     );

@@ -134,9 +134,9 @@ describe('PersonalAssessmentQuestionService', () => {
   it('imports track_variants as per-track question rows', async () => {
     const find = jest.fn().mockResolvedValue([]);
     const findOne = jest.fn().mockResolvedValue(null);
-    const save = jest.fn().mockImplementation((_entity, payload) =>
-      Promise.resolve(payload),
-    );
+    const save = jest
+      .fn()
+      .mockImplementation((_entity, payload) => Promise.resolve(payload));
     const create = jest.fn().mockImplementation((_entity, payload) => payload);
     const update = jest.fn().mockResolvedValue(undefined);
     const questionRepo = { find, findOne, save, create, update };
@@ -177,7 +177,9 @@ describe('PersonalAssessmentQuestionService', () => {
   it('imports text_required questions without options or track_variants', async () => {
     const find = jest.fn().mockResolvedValue([]);
     const findOne = jest.fn().mockResolvedValue(null);
-    const save = jest.fn().mockImplementation((payload) => Promise.resolve(payload));
+    const save = jest
+      .fn()
+      .mockImplementation((payload) => Promise.resolve(payload));
     const create = jest.fn().mockImplementation((payload) => payload);
     const update = jest.fn().mockResolvedValue(undefined);
     const questionRepo = { find, findOne, save, create, update };
