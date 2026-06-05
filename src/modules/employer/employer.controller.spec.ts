@@ -15,7 +15,11 @@ import type { VerifyEmailChangeDto } from '../auth/dto/verify-email-change.dto';
 
 describe('EmployerController', () => {
   let controller: EmployerController;
-  let notificationsService: { listForUser: jest.Mock; markAsRead: jest.Mock };
+  let notificationsService: {
+    listForUser: jest.Mock;
+    markAsRead: jest.Mock;
+    markAllAsRead: jest.Mock;
+  };
   let authService: {
     changePassword: jest.Mock;
     requestEmailChange: jest.Mock;
@@ -51,6 +55,7 @@ describe('EmployerController', () => {
     notificationsService = {
       listForUser: jest.fn(),
       markAsRead: jest.fn(),
+      markAllAsRead: jest.fn(),
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -272,6 +277,29 @@ describe('EmployerController', () => {
         },
       ],
     });
+  });
+
+  it('maps the expected mark-all-notifications-read handler', () => {
+    expect(
+      Reflect.getMetadata(
+        PATH_METADATA,
+        controller.markAllNotificationsAsRead,
+      ),
+    ).toBe('notifications/read-all');
+    expect(
+      Reflect.getMetadata(
+        METHOD_METADATA,
+        controller.markAllNotificationsAsRead,
+      ),
+    ).toBe(RequestMethod.PATCH);
+  });
+
+  it('marks all notifications as read via the notifications service', async () => {
+    notificationsService.markAllAsRead.mockResolvedValue(undefined);
+
+    await controller.markAllNotificationsAsRead(userId);
+
+    expect(notificationsService.markAllAsRead).toHaveBeenCalledWith(userId);
   });
 
   it('maps the expected mark-notification-read handler', () => {

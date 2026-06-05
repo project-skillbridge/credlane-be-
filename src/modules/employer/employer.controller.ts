@@ -193,6 +193,16 @@ export class EmployerController {
     return { items };
   }
 
+  @Patch('notifications/read-all')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mark all notifications as read' })
+  @ApiOkResponse({ description: 'All notifications marked as read' })
+  async markAllNotificationsAsRead(
+    @CurrentUser('sub') userId: string,
+  ): Promise<void> {
+    await this.notificationsService.markAllAsRead(userId);
+  }
+
   @Patch('notifications/:notification_id/read')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Mark a notification as read' })
