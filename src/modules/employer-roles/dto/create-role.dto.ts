@@ -25,13 +25,17 @@ export class CreateRoleDto {
   @MaxLength(255)
   category: string;
 
-  @ApiPropertyOptional({ description: 'Job description (paste text or from file)' })
+  @ApiPropertyOptional({
+    description: 'Job description (paste text or from file)',
+  })
   @IsOptional()
   @IsString()
   @MaxLength(10000)
   description?: string;
 
-  @ApiPropertyOptional({ enum: ['Full-time', 'Part-time', 'Contract', 'Internship'] })
+  @ApiPropertyOptional({
+    enum: ['Full-time', 'Part-time', 'Contract', 'Internship'],
+  })
   @IsOptional()
   @IsIn(['Full-time', 'Part-time', 'Contract', 'Internship'])
   employmentType?: string;
@@ -72,7 +76,10 @@ export class CreateRoleDto {
   @MaxLength(10)
   currency?: string;
 
-  @ApiPropertyOptional({ format: 'uuid', description: 'Attach an existing assessment' })
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Attach an existing assessment',
+  })
   @IsOptional()
   @IsUUID()
   assessmentId?: string;

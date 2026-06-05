@@ -2,7 +2,10 @@ import { BadRequestException, ForbiddenException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { EmployerAssessment } from '../employer-assessments/entities/employer-assessment.entity';
-import { EmployerRole, EmployerRoleStatus } from './entities/employer-role.entity';
+import {
+  EmployerRole,
+  EmployerRoleStatus,
+} from './entities/employer-role.entity';
 import { EmployerRolesService } from './employer-roles.service';
 
 describe('EmployerRolesService', () => {

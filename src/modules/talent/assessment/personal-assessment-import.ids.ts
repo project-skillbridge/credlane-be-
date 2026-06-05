@@ -15,7 +15,10 @@ export function assertImportQuestionId(id: string): void {
   }
 }
 
-export function buildVariantQuestionId(baseId: string, roleCode: string): string {
+export function buildVariantQuestionId(
+  baseId: string,
+  roleCode: string,
+): string {
   const base = baseId.trim();
   assertImportQuestionId(base);
 

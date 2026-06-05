@@ -1,12 +1,15 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Patch,
   Post,
+  Req,
   Res,
+  UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
@@ -17,10 +20,22 @@ import {
   ApiTags,
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
-import type { Response } from 'express';
+import { ThrottlerGuard } from '@nestjs/throttler';
+import type { Request, Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
-import { setAuthCookies } from '../auth/auth.cookies';
+import { clearAuthCookies, setAuthCookies } from '../auth/auth.cookies';
+import { AuthService } from '../auth/auth.service';
+import {
+  ApiChangePasswordSettings,
+  ApiDeleteAccountSettings,
+  ApiRequestEmailChangeSettings,
+  ApiVerifyEmailChangeSettings,
+} from '../auth/docs/account-settings.swagger';
+import { ChangePasswordDto } from '../auth/dto/change-password.dto';
+import { DeleteAccountDto } from '../auth/dto/delete-account.dto';
+import { RequestEmailChangeDto } from '../auth/dto/request-email-change.dto';
+import { VerifyEmailChangeDto } from '../auth/dto/verify-email-change.dto';
 import { UserRole } from '../users/entities/user.entity';
 import { CompleteEmployerOnboardingDto } from './dto/complete-employer-onboarding.dto';
 import { SaveEmployerProfileDto } from './dto/save-employer-profile.dto';
@@ -32,7 +47,10 @@ import { EmployerService } from './employer.service';
 @Controller('employer')
 @Roles(UserRole.EMPLOYER)
 export class EmployerController {
-  constructor(private readonly employerService: EmployerService) {}
+  constructor(
+    private readonly employerService: EmployerService,
+    private readonly authService: AuthService,
+  ) {}
 
   @Get('profile')
   @HttpCode(HttpStatus.OK)
@@ -86,6 +104,66 @@ export class EmployerController {
     @Body() dto: UpdateEmployerProfileDto,
   ) {
     return this.employerService.updateProfile(userId, dto);
+  }
+
+  @UseGuards(ThrottlerGuard)
+  @Patch('settings/change-password')
+  @HttpCode(HttpStatus.OK)
+  @ApiChangePasswordSettings()
+  async changePassword(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: ChangePasswordDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.authService.changePassword(userId, dto);
+    clearAuthCookies(response);
+    return result;
+  }
+
+  @UseGuards(ThrottlerGuard)
+  @Post('settings/change-email')
+  @HttpCode(HttpStatus.OK)
+  @ApiRequestEmailChangeSettings()
+  requestEmailChange(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: RequestEmailChangeDto,
+  ) {
+    return this.authService.requestEmailChange(userId, dto);
+  }
+
+  @UseGuards(ThrottlerGuard)
+  @Post('settings/change-email/verify')
+  @HttpCode(HttpStatus.OK)
+  @ApiVerifyEmailChangeSettings()
+  async verifyEmailChange(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: VerifyEmailChangeDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.authService.verifyEmailChange(userId, dto);
+    clearAuthCookies(response);
+    return result;
+  }
+
+  @UseGuards(ThrottlerGuard)
+  @Delete('settings/account')
+  @HttpCode(HttpStatus.OK)
+  @ApiDeleteAccountSettings()
+  async deleteAccount(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: DeleteAccountDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const forwardedFor = request.get('x-forwarded-for');
+    const clientIp = forwardedFor?.split(',')[0]?.trim() || request.ip;
+
+    const result = await this.authService.deleteAccount(userId, dto, {
+      ip_address: clientIp,
+      user_agent: request.get('user-agent') ?? null,
+    });
+    clearAuthCookies(response);
+    return result;
   }
 
   /** Legacy single-step onboarding — kept for backward compatibility. */

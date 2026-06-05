@@ -82,9 +82,7 @@ class TrackVariantsShapeConstraint implements ValidatorConstraintInterface {
 }
 
 @ValidatorConstraint({ name: 'selectOptionsOrTrackVariants', async: false })
-class SelectOptionsOrTrackVariantsConstraint
-  implements ValidatorConstraintInterface
-{
+class SelectOptionsOrTrackVariantsConstraint implements ValidatorConstraintInterface {
   validate(_value: unknown, args: ValidationArguments): boolean {
     const item = args.object as PersonalAssessmentQuestionImportItemDto;
     if (!['single_select', 'multi_select'].includes(item.format)) {
@@ -92,8 +90,7 @@ class SelectOptionsOrTrackVariantsConstraint
     }
     const hasOptions = Array.isArray(item.options) && item.options.length > 0;
     const hasVariants =
-      item.trackVariants != null &&
-      Object.keys(item.trackVariants).length > 0;
+      item.trackVariants != null && Object.keys(item.trackVariants).length > 0;
     return hasOptions || hasVariants;
   }
 
