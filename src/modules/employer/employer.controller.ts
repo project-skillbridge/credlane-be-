@@ -41,10 +41,16 @@ import { ChangePasswordDto } from '../auth/dto/change-password.dto';
 import { DeleteAccountDto } from '../auth/dto/delete-account.dto';
 import { RequestEmailChangeDto } from '../auth/dto/request-email-change.dto';
 import { VerifyEmailChangeDto } from '../auth/dto/verify-email-change.dto';
-import { ListNotificationsQueryDto } from '../notifications/dto/notification.dto';
+import {
+  ListNotificationsQueryDto,
+  UnreadCountResponseDto,
+} from '../notifications/dto/notification.dto';
 import { NotificationsService } from '../notifications/notifications.service';
 import { UserRole } from '../users/entities/user.entity';
 import { CompleteEmployerOnboardingDto } from './dto/complete-employer-onboarding.dto';
+import { EmployerNotificationsListResponseDto } from './dto/employer-notification.dto';
+import { EmployerProfileResponseDto } from './dto/employer-profile-response.dto';
+import { EmployerVerificationStatusResponseDto } from './dto/employer-verification-status.dto';
 import { SaveEmployerProfileDto } from './dto/save-employer-profile.dto';
 import { UpdateEmployerProfileDto } from './dto/update-employer-profile.dto';
 import {
@@ -52,6 +58,7 @@ import {
   toEmployerNotificationItem,
 } from './employer-notification.mapper';
 import { EmployerService } from './employer.service';
+import { EmployerVerificationService } from './employer-verification.service';
 
 @ApiTags('employer')
 @ApiCookieAuth()
@@ -62,13 +69,38 @@ export class EmployerController {
     private readonly employerService: EmployerService,
     private readonly authService: AuthService,
     private readonly notificationsService: NotificationsService,
+    private readonly verificationService: EmployerVerificationService,
   ) {}
+
+  @Get('profile/public/:employer_id')
+  @Roles(UserRole.TALENT, UserRole.EMPLOYER)
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get employer public profile (talent- and employer-facing)',
+  })
+  @ApiNotFoundResponse({ description: 'Employer profile not found' })
+  async getPublicProfile(
+    @Param('employer_id', ParseUUIDPipe) employerId: string,
+  ) {
+    return this.employerService.getPublicProfile(employerId);
+  }
 
   @Get('profile')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Get employer profile for edit state' })
+  @ApiOkResponse({ type: EmployerProfileResponseDto })
   async getProfile(@CurrentUser('sub') userId: string) {
     return this.employerService.getProfile(userId);
+  }
+
+  @Get('verification-status')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Get employer verification status and criteria' })
+  @ApiOkResponse({ type: EmployerVerificationStatusResponseDto })
+  async getVerificationStatus(
+    @CurrentUser('sub') userId: string,
+  ): Promise<EmployerVerificationStatusResponseDto> {
+    return this.verificationService.getVerificationStatusDetail(userId);
   }
 
   @Post('profile')
@@ -181,6 +213,7 @@ export class EmployerController {
   @Get('notifications')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'List in-app notifications for the employer' })
+  @ApiOkResponse({ type: EmployerNotificationsListResponseDto })
   async listNotifications(
     @CurrentUser('sub') userId: string,
     @Query() query: ListNotificationsQueryDto,
@@ -189,8 +222,23 @@ export class EmployerController {
       userId,
       query.limit ?? 20,
     );
-    const items: EmployerNotificationItem[] = rows.map(toEmployerNotificationItem);
+    const items: EmployerNotificationItem[] = rows.map(
+      toEmployerNotificationItem,
+    );
     return { items };
+  }
+
+  @Get('notifications/unread-count')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Get unread in-app notification count for the employer',
+  })
+  @ApiOkResponse({ type: UnreadCountResponseDto })
+  async getUnreadNotificationCount(
+    @CurrentUser('sub') userId: string,
+  ): Promise<UnreadCountResponseDto> {
+    const unreadCount = await this.notificationsService.countUnread(userId);
+    return { unread_count: unreadCount };
   }
 
   @Patch('notifications/read-all')

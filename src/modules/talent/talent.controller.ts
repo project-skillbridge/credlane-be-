@@ -71,6 +71,16 @@ export class TalentController {
     return this.talentService.saveGoal(userId, dto);
   }
 
+  @Get('onboarding/tracks')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'List supported talent role tracks for onboarding step 2',
+  })
+  @ApiOkResponse({ description: 'Canonical supported role tracks with labels' })
+  listSupportedRoleTracks() {
+    return this.talentService.listSupportedRoleTracks();
+  }
+
   @Patch('onboarding/tracks')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Step 2 — save role tracks' })

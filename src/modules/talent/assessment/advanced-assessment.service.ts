@@ -108,6 +108,8 @@ export interface AdvancedAssessmentSessionResult {
   remaining_seconds: number;
   verified_level: string;
   question_count: number;
+  mcq_count: number;
+  open_text_count: number;
   /** True when a 15th question (LT-3) will be generated after lt2-submit. */
   pending_lt3: boolean;
   questions: AdvancedAssessmentGeneratedQuestion[];
@@ -363,9 +365,9 @@ export class AdvancedAssessmentService {
   private hasAdvancedAssessmentContext(profile: TalentProfile): boolean {
     return Boolean(
       profile.track?.trim() &&
-        (profile.personal_assessment_completed_at ||
-          profile.claimed_level ||
-          profile.validated_level),
+      (profile.personal_assessment_completed_at ||
+        profile.claimed_level ||
+        profile.validated_level),
     );
   }
 
@@ -1029,6 +1031,12 @@ export class AdvancedAssessmentService {
         ErrorMessages.ADVANCED_ASSESSMENT.SESSION_VOIDED,
       );
     }
+    if (attempt.expires_at && attempt.expires_at <= new Date()) {
+      throw new ForbiddenException({
+        error: 'SESSION_EXPIRED',
+        message: ErrorMessages.ADVANCED_ASSESSMENT.SESSION_EXPIRED,
+      });
+    }
     if (this.isAdvancedSubmitInFlight(attempt)) {
       throw new BadRequestException(
         ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_ALREADY_SUBMITTED,
@@ -1084,6 +1092,12 @@ export class AdvancedAssessmentService {
           throw new BadRequestException(
             ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_ALREADY_SUBMITTED,
           );
+        }
+        if (attempt.expires_at && attempt.expires_at <= new Date()) {
+          throw new ForbiddenException({
+            error: 'SESSION_EXPIRED',
+            message: ErrorMessages.ADVANCED_ASSESSMENT.SESSION_EXPIRED,
+          });
         }
 
         await manager.increment(
@@ -1957,6 +1971,12 @@ export class AdvancedAssessmentService {
     }
 
     const timer = this.resolveSessionTimerState(attempt, expiresAt);
+    const mcqCount = questions.filter((question) => question.block === 'mcq')
+      .length;
+    const openTextCount = questions.filter(
+      (question) =>
+        question.block === 'short_text' || question.block === 'long_text',
+    ).length;
 
     return {
       status: 'success',
@@ -1969,6 +1989,8 @@ export class AdvancedAssessmentService {
       remaining_seconds: timer.remaining_seconds,
       verified_level: this.readSessionVerifiedLevel(attempt),
       question_count: questions.length,
+      mcq_count: mcqCount,
+      open_text_count: openTextCount,
       pending_lt3: false,
       questions,
     };

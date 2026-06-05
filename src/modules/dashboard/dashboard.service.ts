@@ -169,7 +169,10 @@ export class DashboardService {
       'there';
 
     const profilePrompt = this.buildEmployerProfilePrompt(profile);
-    const recentActivity = await this.buildEmployerRecentActivity(userId, profile);
+    const recentActivity = await this.buildEmployerRecentActivity(
+      userId,
+      profile,
+    );
 
     return {
       company_name: companyName,
@@ -203,7 +206,9 @@ export class DashboardService {
         viewState === EmployerDashboardViewState.NEW_USER
           ? {
               headline: EMPLOYER_DASHBOARD_COPY.socialProof.headline,
-              testimonials: [...EMPLOYER_DASHBOARD_COPY.socialProof.testimonials],
+              testimonials: [
+                ...EMPLOYER_DASHBOARD_COPY.socialProof.testimonials,
+              ],
             }
           : null,
       roles_empty_state_message:
@@ -225,7 +230,7 @@ export class DashboardService {
         description:
           EMPLOYER_DASHBOARD_COPY.overviewCards.verifiedTalentDescription,
         cta_label: 'Browse talents',
-        cta_route: '/discovery',
+        cta_route: '/e/dashboard',
       },
       {
         key: 'created_assessments',
@@ -234,7 +239,7 @@ export class DashboardService {
         description:
           EMPLOYER_DASHBOARD_COPY.overviewCards.assessmentsDescription,
         cta_label: 'View assessments',
-        cta_route: '/assessments',
+        cta_route: '/e/assessments',
       },
       {
         key: 'shortlisted_candidates',
@@ -242,7 +247,7 @@ export class DashboardService {
         value: counts.shortlistedCount,
         description: EMPLOYER_DASHBOARD_COPY.overviewCards.shortlistDescription,
         cta_label: 'View shortlist',
-        cta_route: '/shortlist',
+        cta_route: '/e/shortlist',
       },
       {
         key: 'my_roles',
@@ -250,7 +255,7 @@ export class DashboardService {
         value: counts.rolesCount,
         description: EMPLOYER_DASHBOARD_COPY.overviewCards.rolesDescription,
         cta_label: 'View roles',
-        cta_route: '/roles',
+        cta_route: '/e/roles',
       },
     ];
   }
@@ -353,7 +358,7 @@ export class DashboardService {
       description:
         'Fresh Job Ready talent now matches your hiring preferences.',
       occurred_at: latestMatch.verified_at.toISOString(),
-      route: '/discovery',
+      route: '/e/dashboard',
     };
   }
 
@@ -376,7 +381,7 @@ export class DashboardService {
       description:
         'Your shortlist has a new verified candidate ready for review.',
       occurred_at: latestSaved.created_at.toISOString(),
-      route: '/shortlist',
+      route: '/e/shortlist',
     };
   }
 
@@ -406,7 +411,7 @@ export class DashboardService {
       occurred_at: (
         latestAcceptedOffer.responded_at ?? latestAcceptedOffer.created_at
       ).toISOString(),
-      route: '/offers',
+      route: '/e/offers',
     };
   }
 
@@ -771,9 +776,9 @@ export class DashboardService {
   private hasAdvancedAssessmentContext(profile: TalentProfile): boolean {
     return Boolean(
       profile.track?.trim() &&
-        (profile.personal_assessment_completed_at ||
-          profile.claimed_level ||
-          profile.validated_level),
+      (profile.personal_assessment_completed_at ||
+        profile.claimed_level ||
+        profile.validated_level),
     );
   }
 

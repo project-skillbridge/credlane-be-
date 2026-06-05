@@ -592,6 +592,22 @@ describe('AdvancedAssessmentService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    it('throws 403 when session is expired', async () => {
+      attemptRepo.findOne.mockResolvedValue(
+        makeAttempt({ expires_at: new Date(Date.now() - 1000) }),
+      );
+
+      await expect(
+        service.submit(userId, makeSubmitDto() as never),
+      ).rejects.toMatchObject({
+        response: {
+          error: 'SESSION_EXPIRED',
+          message: ErrorMessages.ADVANCED_ASSESSMENT.SESSION_EXPIRED,
+        },
+      });
+      expect(submitQueue.enqueue).not.toHaveBeenCalled();
+    });
+
     it('throws 503 when enqueue fails', async () => {
       submitQueue.enqueue.mockRejectedValueOnce(new Error('redis down'));
 
@@ -986,6 +1002,8 @@ describe('AdvancedAssessmentService', () => {
       const session = await service.getSession(userId, 'attempt-1');
 
       expect(session.question_count).toBe(15);
+      expect(session.mcq_count).toBe(8);
+      expect(session.open_text_count).toBe(7);
       expect(session.pending_lt3).toBe(false);
     });
 
@@ -1155,6 +1173,24 @@ describe('AdvancedAssessmentService', () => {
           eventType: IntegrityEventType.TAB_SWITCH,
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws 403 when attempting to flag an expired session', async () => {
+      entityManagerFindOne.mockResolvedValueOnce(
+        makeAttempt({ expires_at: new Date(Date.now() - 1000) }),
+      );
+
+      await expect(
+        service.flag(userId, 'attempt-1', {
+          eventType: IntegrityEventType.TAB_SWITCH,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          error: 'SESSION_EXPIRED',
+          message: ErrorMessages.ADVANCED_ASSESSMENT.SESSION_EXPIRED,
+        },
+      });
+      expect(entityManagerIncrement).not.toHaveBeenCalled();
     });
   });
 
@@ -1374,9 +1410,11 @@ describe('AdvancedAssessmentService', () => {
               .mockReturnValueOnce(skillResultQuery)
               .mockReturnValueOnce(activeSessionQuery),
             create: jest.fn((_entity: unknown, data: unknown) => data),
-            save: jest.fn().mockImplementation(async (_entity, data) =>
-              Object.assign(makeAttempt(), data, { id: 'attempt-legacy-1' }),
-            ),
+            save: jest
+              .fn()
+              .mockImplementation(async (_entity, data) =>
+                Object.assign(makeAttempt(), data, { id: 'attempt-legacy-1' }),
+              ),
           }),
       );
 
@@ -1384,6 +1422,9 @@ describe('AdvancedAssessmentService', () => {
 
       expect(result.session_id).toBe('attempt-legacy-1');
       expect(result.verified_level).toBe(VerifiedLevel.MID);
+      expect(result.question_count).toBe(15);
+      expect(result.mcq_count).toBe(8);
+      expect(result.open_text_count).toBe(7);
     });
 
     it('throws 422 when validated_level is missing', async () => {

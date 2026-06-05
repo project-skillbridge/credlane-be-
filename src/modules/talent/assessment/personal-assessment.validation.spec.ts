@@ -100,6 +100,26 @@ describe('validateSectionAnswers', () => {
     }
   });
 
+  it('accepts specialization for supported onboarding tracks with assessment mapping', () => {
+    const fullstackProfile = makeTalentProfile({ track: 'fullstack_developer' });
+
+    const result = validateSectionAnswers(
+      2,
+      {
+        specialization: 'web_apps',
+        claimed_level: 'mid',
+        primary_tool_duration: '1_2_years',
+        mentoring_experience: 'yes_informally',
+        shipped_deliverable: 'yes_multiple',
+        tools: ['react'],
+      },
+      fullstackProfile,
+      catalog.getSectionQuestions(2),
+    );
+
+    expect(result.specialization).toBe('web_apps');
+  });
+
   it('requires onboarding track before validating specialization', () => {
     const profileWithoutTrack = makeTalentProfile({ track: null });
 

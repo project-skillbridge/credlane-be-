@@ -140,4 +140,8 @@ export const ErrorMessages = {
     WEBSITE_NOT_RESOLVABLE:
       'Company website could not be reached. Please check the URL.',
   },
+  EMPLOYER_PROFILE: {
+    FIELD_LOCKED: (unlocksAt: string) =>
+      `This company identity field is locked until ${unlocksAt}. Changes are allowed once every 180 days.`,
+  },
 } as const;
