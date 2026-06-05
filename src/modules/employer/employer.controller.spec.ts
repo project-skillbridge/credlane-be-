@@ -120,7 +120,7 @@ describe('EmployerController', () => {
     ).toBe(RequestMethod.POST);
   });
 
-  it('requests email change and returns the service result', () => {
+  it('requests email change and returns the service result', async () => {
     const dto: RequestEmailChangeDto = {
       newEmail: 'new.email@company.com',
     };
@@ -128,9 +128,9 @@ describe('EmployerController', () => {
       status: 'success' as const,
       message: 'Verification OTP sent to new email',
     };
-    authService.requestEmailChange.mockReturnValue(serviceResult);
+    authService.requestEmailChange.mockResolvedValue(serviceResult);
 
-    const result = controller.requestEmailChange(userId, dto);
+    const result = await controller.requestEmailChange(userId, dto);
 
     expect(authService.requestEmailChange).toHaveBeenCalledWith(userId, dto);
     expect(result).toEqual(serviceResult);

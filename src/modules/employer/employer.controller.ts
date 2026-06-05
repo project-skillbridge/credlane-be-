@@ -145,6 +145,7 @@ export class EmployerController {
     return result;
   }
 
+  @UseGuards(ThrottlerGuard)
   @Delete('settings/account')
   @HttpCode(HttpStatus.OK)
   @ApiDeleteAccountSettings()
@@ -154,8 +155,11 @@ export class EmployerController {
     @Req() request: Request,
     @Res({ passthrough: true }) response: Response,
   ) {
+    const forwardedFor = request.get('x-forwarded-for');
+    const clientIp = forwardedFor?.split(',')[0]?.trim() || request.ip;
+
     const result = await this.authService.deleteAccount(userId, dto, {
-      ip_address: request.ip,
+      ip_address: clientIp,
       user_agent: request.get('user-agent') ?? null,
     });
     clearAuthCookies(response);
