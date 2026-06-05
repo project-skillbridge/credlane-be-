@@ -45,7 +45,7 @@ export const env = createEnv({
       .string()
       .min(32, 'JWT_REFRESH_SECRET must be at least 32 chars'),
     JWT_REFRESH_EXPIRES_IN: durationString('7d'),
-    VERIFICATION_OTP_EXPIRES_IN: durationString('15m'),
+    VERIFICATION_OTP_EXPIRES_IN: durationString('5m'),
     VERIFICATION_RESEND_LIMIT_PER_HOUR: z.coerce
       .number()
       .int()
