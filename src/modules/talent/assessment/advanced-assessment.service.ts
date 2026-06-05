@@ -187,7 +187,7 @@ export class AdvancedAssessmentService {
           );
         }
 
-        if (!profile.personal_assessment_completed_at) {
+        if (!this.hasAdvancedAssessmentContext(profile)) {
           throw new UnprocessableEntityException(
             ErrorMessages.ADVANCED_ASSESSMENT.PERSONAL_ASSESSMENT_INCOMPLETE,
           );
@@ -357,6 +357,15 @@ export class AdvancedAssessmentService {
     return this.toSessionResult(
       savedAttempt,
       SuccessMessages.ADVANCED_ASSESSMENT.STARTED,
+    );
+  }
+
+  private hasAdvancedAssessmentContext(profile: TalentProfile): boolean {
+    return Boolean(
+      profile.track?.trim() &&
+        (profile.personal_assessment_completed_at ||
+          profile.claimed_level ||
+          profile.validated_level),
     );
   }
 

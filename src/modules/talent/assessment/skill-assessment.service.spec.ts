@@ -144,7 +144,6 @@ describe('SkillAssessmentService', () => {
       {} as never,
       {} as never,
       { generate: jest.fn() } as never,
-      { generateQuestions: jest.fn().mockResolvedValue([]) } as never,
       bankExhaustedAlert as never,
       { warmCache: warmCacheMock } as never,
     );
@@ -479,6 +478,34 @@ describe('SkillAssessmentService', () => {
         generated_questions_json: {
           context: { verified_level: VerifiedLevel.MID },
           questions: [],
+        },
+      }),
+    );
+
+    await expect(
+      service.getSession(userId, 'attempt-1'),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('throws 400 when a stored skill session contains a text question', async () => {
+    attemptRepo.findOne.mockResolvedValue(
+      Object.assign(new AssessmentAttempt(), {
+        id: 'attempt-1',
+        talent_profile_id: profile.id,
+        assessment_type: AssessmentType.SKILL,
+        started_at: new Date('2026-05-21T10:00:00.000Z'),
+        generated_questions_json: {
+          context: { verified_level: VerifiedLevel.MID },
+          questions: [
+            {
+              question_id: 'question-1',
+              question_number: 1,
+              question_type: QuestionType.REQUIRED_TEXT,
+              question_text: 'Describe your process.',
+              options: null,
+              correct_answer: null,
+            },
+          ],
         },
       }),
     );

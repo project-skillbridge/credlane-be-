@@ -25,7 +25,7 @@ export class SkillAnswerDto {
 
   @ApiProperty({
     description:
-      'Answer as a plain string or array of strings. For single-pick MCQ: the selected option text (e.g., "React hooks"). For multi-pick MCQ: array of selected option texts. For text questions: your written answer.',
+      'Answer as a plain string or array of strings. For single-pick MCQ: the selected option text (e.g., "React hooks"). For multi-pick MCQ: array of selected option texts.',
     examples: {
       'Single-Pick MCQ': {
         value: 'React hooks',
@@ -36,12 +36,6 @@ export class SkillAnswerDto {
         value: ['JavaScript', 'TypeScript', 'Python'],
         description:
           'For multi-pick MCQ questions (question_type: "multi_pick"), provide an array of selected option texts',
-      },
-      'Text Answer': {
-        value:
-          'I would approach this problem by first analyzing the requirements, then designing a scalable solution using appropriate design patterns.',
-        description:
-          'For text questions (question_type: "required_text" or "optional_text"), provide your answer as a string',
       },
     },
     oneOf: [
