@@ -725,13 +725,13 @@ export class AuthService {
 
     switch (user.role) {
       case UserRole.TALENT:
-        return '/dashboard';
+        return '/t/dashboard';
       case UserRole.EMPLOYER:
-        return '/discovery';
+        return '/e/dashboard';
       case UserRole.ADMIN:
         return '/admin';
       default:
-        return '/dashboard';
+        return '/t/dashboard';
     }
   }
 

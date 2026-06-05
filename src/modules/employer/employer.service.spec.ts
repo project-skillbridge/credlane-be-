@@ -8,6 +8,7 @@ import {
 } from './employer-notification.mapper';
 import { NotificationType } from '../notifications/notification-type.enum';
 import { NotFoundError } from '../../shared';
+import { ProfileFieldLockedError } from './employer-profile-cooldown';
 
 describe('EmployerService', () => {
   const userId = 'employer-user-1';
@@ -235,6 +236,79 @@ describe('EmployerService', () => {
     ).rejects.toThrow('Invalid user');
   });
 
+  it('returns restricted field metadata from getProfile', async () => {
+    const recentChange = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+    employerProfileRepository.findOne.mockResolvedValue(
+      Object.assign(new EmployerProfile(), {
+        user_id: userId,
+        company_name: 'Acme Labs',
+        company_name_changed_at: recentChange,
+      }),
+    );
+
+    const result = await service.getProfile(userId);
+
+    expect(result.restricted_fields.company_name.locked).toBe(true);
+    expect(result.restricted_fields.company_name.last_changed_at).toBe(
+      recentChange.toISOString(),
+    );
+    expect(result.restricted_fields.company_website.locked).toBe(false);
+  });
+
+  it('blocks restricted field changes within the 180-day cooldown', async () => {
+    const recentChange = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+    employerProfileRepository.findOne.mockResolvedValue(
+      Object.assign(new EmployerProfile(), {
+        user_id: userId,
+        company_name: 'Acme Labs',
+        company_name_changed_at: recentChange,
+      }),
+    );
+
+    await expect(
+      service.updateProfile(userId, { companyName: 'New Corp' }),
+    ).rejects.toThrow(ProfileFieldLockedError);
+  });
+
+  it('allows non-restricted field changes while a restricted field is locked', async () => {
+    const recentChange = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+    employerProfileRepository.findOne.mockResolvedValue(
+      Object.assign(new EmployerProfile(), {
+        user_id: userId,
+        company_name: 'Acme Labs',
+        company_name_changed_at: recentChange,
+        industry: 'Fintech',
+      }),
+    );
+
+    const result = await service.updateProfile(userId, {
+      industry: 'Healthtech',
+    });
+
+    expect(result.profile.industry).toBe('Healthtech');
+    expect(result.profile.company_name).toBe('Acme Labs');
+  });
+
+  it('sets changed_at when a restricted field is updated after cooldown', async () => {
+    const oldChange = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
+    const existing = Object.assign(new EmployerProfile(), {
+      user_id: userId,
+      company_name: 'Acme Labs',
+      company_name_changed_at: oldChange,
+    });
+    employerProfileRepository.findOne.mockResolvedValue(existing);
+
+    const result = await service.updateProfile(userId, {
+      companyName: 'New Corp',
+    });
+
+    expect(result.profile.company_name).toBe('New Corp');
+    expect(result.profile.company_name_changed_at).toBeInstanceOf(Date);
+    expect(result.profile.company_name_changed_at!.getTime()).toBeGreaterThan(
+      oldChange.getTime(),
+    );
+  });
+
   it('does not overwrite profile settings with whitespace-only strings', async () => {
     const existing = Object.assign(new EmployerProfile(), {
       user_id: userId,
@@ -330,12 +404,21 @@ describe('EmployerService', () => {
   });
 
   describe('notification mapping helpers', () => {
-    it('maps job-ready type to new_matching_talent', () => {
+    it('maps employer notification types to product-doc aliases', () => {
       expect(
         mapEmployerNotificationType(
           NotificationType.JOB_READY_MATCHES_AVAILABLE,
         ),
       ).toBe('new_matching_talent');
+      expect(mapEmployerNotificationType(NotificationType.OFFER_ACCEPTED)).toBe(
+        'offer_accepted_assessment_unlocked',
+      );
+      expect(mapEmployerNotificationType(NotificationType.ASSESSMENT_PASSED)).toBe(
+        'candidate_passed',
+      );
+      expect(mapEmployerNotificationType(NotificationType.ASSESSMENT_FAILED)).toBe(
+        'candidate_failed',
+      );
       expect(mapEmployerNotificationType(NotificationType.OFFER_DECLINED)).toBe(
         'offer_declined',
       );

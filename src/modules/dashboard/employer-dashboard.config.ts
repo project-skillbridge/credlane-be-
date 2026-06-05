@@ -26,17 +26,17 @@ export const EMPLOYER_DASHBOARD_COPY = {
   },
   createRoleCta: {
     label: 'Create a role',
-    route: '/roles/new',
+    route: '/e/roles/new',
     variant: 'primary',
   },
   browseTalentsCta: {
     label: 'Explore verified talent',
-    route: '/discovery',
+    route: '/e/dashboard',
     variant: 'primary',
   },
   rolesCta: {
     label: 'View roles',
-    route: '/roles',
+    route: '/e/roles',
     variant: 'secondary',
   },
   overviewCards: {

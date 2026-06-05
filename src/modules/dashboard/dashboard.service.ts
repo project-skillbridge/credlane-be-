@@ -225,7 +225,7 @@ export class DashboardService {
         description:
           EMPLOYER_DASHBOARD_COPY.overviewCards.verifiedTalentDescription,
         cta_label: 'Browse talents',
-        cta_route: '/discovery',
+        cta_route: '/e/dashboard',
       },
       {
         key: 'created_assessments',
@@ -234,7 +234,7 @@ export class DashboardService {
         description:
           EMPLOYER_DASHBOARD_COPY.overviewCards.assessmentsDescription,
         cta_label: 'View assessments',
-        cta_route: '/assessments',
+        cta_route: '/e/assessments',
       },
       {
         key: 'shortlisted_candidates',
@@ -242,7 +242,7 @@ export class DashboardService {
         value: counts.shortlistedCount,
         description: EMPLOYER_DASHBOARD_COPY.overviewCards.shortlistDescription,
         cta_label: 'View shortlist',
-        cta_route: '/shortlist',
+        cta_route: '/e/shortlist',
       },
       {
         key: 'my_roles',
@@ -250,7 +250,7 @@ export class DashboardService {
         value: counts.rolesCount,
         description: EMPLOYER_DASHBOARD_COPY.overviewCards.rolesDescription,
         cta_label: 'View roles',
-        cta_route: '/roles',
+        cta_route: '/e/roles',
       },
     ];
   }

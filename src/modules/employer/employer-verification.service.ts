@@ -122,6 +122,45 @@ export class EmployerVerificationService {
   }
 
   /**
+   * Returns structured verification criteria for the employer settings UI.
+   */
+  async getVerificationStatusDetail(employerUserId: string): Promise<{
+    verified: boolean;
+    criteria: {
+      email_verified: boolean;
+      website_resolvable: boolean;
+      linkedin_provided: boolean;
+    };
+    banner_visible: boolean;
+  }> {
+    const user = await this.userRepo.findOne({
+      where: { id: employerUserId },
+    });
+    const profile = await this.employerProfileRepo.findOne({
+      where: { user_id: employerUserId },
+    });
+
+    const emailVerified = user?.is_verified === true;
+    const linkedinProvided = !!(
+      profile?.linkedin_company_page_url || profile?.linkedin_company_url
+    );
+    const websiteResolvable = await this.isWebsiteResolvable(
+      profile?.company_website ?? profile?.website_url,
+    );
+    const verified = emailVerified && linkedinProvided && websiteResolvable;
+
+    return {
+      verified,
+      criteria: {
+        email_verified: emailVerified,
+        website_resolvable: websiteResolvable,
+        linkedin_provided: linkedinProvided,
+      },
+      banner_visible: !verified,
+    };
+  }
+
+  /**
    * Throws ForbiddenError if the employer is not verified.
    * Use as a gate before privileged actions (offers, contact requests).
    */
