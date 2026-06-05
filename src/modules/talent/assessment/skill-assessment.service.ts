@@ -52,6 +52,7 @@ import { GuidanceReportService } from '../../ai/guidance-report.service';
 import { QuestionGenerationService } from '../../ai/question-generation.service';
 import { GeneratedQuestion, GuidanceReport } from '../../ai/ai.types';
 import { BankExhaustedAlertService } from '../../mail/bank-exhausted-alert.service';
+import { AiResourcesService } from '../../ai-resources/ai-resources.service';
 
 const SKILL_ASSESSMENT_MCQ_COUNT = 16;
 const SKILL_PROBE_MCQ_COUNT = 2;
@@ -161,6 +162,7 @@ export class SkillAssessmentService {
     private readonly guidanceReport: GuidanceReportService,
     private readonly questionGeneration: QuestionGenerationService,
     private readonly bankExhaustedAlert: BankExhaustedAlertService,
+    private readonly aiResourcesService: AiResourcesService,
   ) {}
 
   private async resolveSkillAttemptNumber(
@@ -402,7 +404,7 @@ export class SkillAssessmentService {
             ].map((q) => q.id),
           );
           const extras = bankQuestions
-            .filter((q) => !usedIds.has(q.id))
+            .filter((q) => !usedIds.has(q.id) && this.isPickQuestion(q))
             .slice(0, deficit);
           if (extras.length < deficit) {
             this.throwSkillBankExhausted(
@@ -791,6 +793,17 @@ export class SkillAssessmentService {
       `Skill assessment submitted: attempt=${attempt.id} user=${userId} score=${totalScore}/${totalMaxScore} pct=${percentage} validated=${validatedLevel ?? 'n/a'} failed=${failed} passed=${passed} downgraded=${downgraded}`,
     );
 
+    // Warm resource cache for the validated level on pass
+    if (!failed && validatedLevel && profile.track) {
+      this.aiResourcesService
+        .warmCache(profile.track, validatedLevel)
+        .catch((err) => {
+          this.logger.error(
+            `Resource cache warming after skill assessment failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
+          );
+        });
+    }
+
     const attemptNumber = await this.resolveSkillAttemptNumber(
       profile.id,
       attempt,
@@ -841,7 +854,10 @@ export class SkillAssessmentService {
       })
       .andWhere('question.is_live = true')
       .andWhere('question.track = :track', { track: profile.track })
-      .andWhere('question.verified_level = :verifiedLevel', { verifiedLevel });
+      .andWhere('question.verified_level = :verifiedLevel', { verifiedLevel })
+      .andWhere('question.question_type IN (:...mcqTypes)', {
+        mcqTypes: [QuestionType.SINGLE_PICK, QuestionType.MULTI_PICK],
+      });
 
     if (!skipExclusion) {
       qb.andWhere(

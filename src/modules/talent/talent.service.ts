@@ -445,7 +445,7 @@ export class TalentService {
     await this.talentProfileRepository.save(profile);
 
     // Warm resource cache in the background so resources page loads instantly
-    this.aiResourcesService.warmCache(dto.track).catch((err) => {
+    this.aiResourcesService.warmCache(dto.track, 'general').catch((err) => {
       this.logger.error(
         `Resource cache warming failed: ${err instanceof Error ? err.message : 'Unknown error'}`,
       );

@@ -8,13 +8,6 @@ import {
   UpdateDateColumn,
 } from 'typeorm';
 
-export enum ScoreThresholdGroup {
-  GENERAL = 'general',
-  BELOW_50 = 'below_50',
-  BETWEEN_50_75 = 'between_50_75',
-  ABOVE_75 = 'above_75',
-}
-
 export interface ResourceItem {
   title: string;
   description: string;
@@ -24,7 +17,7 @@ export interface ResourceItem {
 }
 
 @Entity('ai_learning_resources')
-@Index(['track', 'threshold_group'], { unique: true })
+@Index(['track', 'level'], { unique: true })
 export class AiLearningResource {
   @ApiProperty({ format: 'uuid' })
   @PrimaryGeneratedColumn('uuid')
@@ -34,13 +27,9 @@ export class AiLearningResource {
   @Column({ type: 'varchar', length: 50 })
   track: string;
 
-  @ApiProperty({ enum: ScoreThresholdGroup })
-  @Column({
-    type: 'enum',
-    enum: ScoreThresholdGroup,
-    enumName: 'score_threshold_group_enum',
-  })
-  threshold_group: ScoreThresholdGroup;
+  @ApiProperty({ example: 'mid' })
+  @Column({ type: 'varchar', length: 20 })
+  level: string;
 
   @ApiProperty()
   @Column({ type: 'varchar', length: 255 })

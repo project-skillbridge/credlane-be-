@@ -765,6 +765,7 @@ describe('DashboardService', () => {
     const talentUser = makeUser({
       first_name: 'Jane',
       role: UserRole.TALENT,
+      avatar_url: 'https://cdn.example.com/avatar.png',
       onboarding_complete: true,
     });
 
@@ -773,6 +774,7 @@ describe('DashboardService', () => {
       track: 'frontend_developer',
       region: 'Lagos',
       education_level: 'bachelors',
+      linkedin_url: 'https://linkedin.com/in/jane',
       claimed_level: VerifiedLevel.MID,
       personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
       skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
@@ -834,7 +836,7 @@ describe('DashboardService', () => {
     expect(queryBuilder.getOne).toHaveBeenCalled();
   });
 
-  it('returns 100 profile completion when required onboarding is complete without optional avatar or linkedin', async () => {
+  it('returns actual profile completion when onboarding is complete but optional fields are missing', async () => {
     const talentUser = makeUser({
       first_name: 'Jane',
       role: UserRole.TALENT,
@@ -857,7 +859,7 @@ describe('DashboardService', () => {
 
     const home = await service.getHome(talentUser.id);
 
-    expect(home.profile_completion_percentage).toBe(100);
+    expect(home.profile_completion_percentage).toBe(84);
   });
 
   it('includes nested advanced retake metadata on advanced performance', async () => {

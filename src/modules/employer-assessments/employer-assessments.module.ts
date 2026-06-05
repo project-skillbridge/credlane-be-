@@ -2,13 +2,16 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AssessmentQuestion } from '../assessments/entities/assessment-question.entity';
 import { EmployerSavedCandidate } from '../employer-discovery/entities/employer-saved-candidate.entity';
+import { EmployerRole } from '../employer-roles/entities/employer-role.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { Offer } from '../offers/entities/offer.entity';
 import { User } from '../users/entities/user.entity';
 import {
   EmployerAssessment,
   EmployerAssessmentInvite,
   EmployerAssessmentQuestion,
   EmployerAssessmentSubmission,
+  CredlaneCatalogueAssessment,
 } from './entities';
 import { EmployerAssessmentsController } from './employer-assessments.controller';
 import { EmployerAssessmentsService } from './employer-assessments.service';
@@ -23,6 +26,9 @@ import { EmployerAssessmentsService } from './employer-assessments.service';
       AssessmentQuestion,
       EmployerSavedCandidate,
       User,
+      EmployerRole,
+      Offer,
+      CredlaneCatalogueAssessment,
     ]),
     NotificationsModule,
   ],

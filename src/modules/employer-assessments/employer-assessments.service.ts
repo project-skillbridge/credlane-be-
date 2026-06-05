@@ -19,8 +19,10 @@ import {
   VerifiedLevel,
 } from '../assessments/entities/assessment-question.entity';
 import { EmployerSavedCandidate } from '../employer-discovery/entities/employer-saved-candidate.entity';
+import { EmployerRole } from '../employer-roles/entities/employer-role.entity';
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
 import { NotificationType } from '../notifications/notification-type.enum';
+import { Offer, OfferStatus } from '../offers/entities/offer.entity';
 import { User } from '../users/entities/user.entity';
 import {
   CreateEmployerAssessmentDto,
@@ -44,8 +46,9 @@ import {
   EmployerQuestionType,
 } from './entities/employer-assessment-question.entity';
 import { EmployerAssessmentSubmission } from './entities/employer-assessment-submission.entity';
+import { CredlaneCatalogueAssessment } from './entities/credlane-catalogue-assessment.entity';
 
-const ACTIVE_ASSESSMENT_LIMIT = 3;
+const ACTIVE_ASSESSMENT_LIMIT = 5;
 const MIN_COMPANY_QUESTIONS = 5;
 const TEMPLATE_COLUMNS = [
   'Question Text',
@@ -91,6 +94,12 @@ export class EmployerAssessmentsService {
     private readonly savedCandidateRepo: Repository<EmployerSavedCandidate>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
+    @InjectRepository(EmployerRole)
+    private readonly employerRoleRepo: Repository<EmployerRole>,
+    @InjectRepository(Offer)
+    private readonly offerRepo: Repository<Offer>,
+    @InjectRepository(CredlaneCatalogueAssessment)
+    private readonly catalogueRepo: Repository<CredlaneCatalogueAssessment>,
     private readonly notificationDispatch: NotificationDispatchService,
   ) {}
 
@@ -109,6 +118,26 @@ export class EmployerAssessmentsService {
       : [];
     if (new Set(candidateUserIds).size !== candidateUserIds.length) {
       throw new BadRequestError('Candidate list contains duplicate entries');
+    }
+
+    if (dto.questionSource === EmployerAssessmentQuestionSource.CREDLANE_BANK) {
+      const catalogueItem = await this.catalogueRepo.findOne({
+        where: { id: dto.credlaneAssessmentId, is_active: true },
+      });
+      if (!catalogueItem) {
+        throw new BadRequestError(
+          'The selected CredLane catalogue assessment was not found or is no longer available',
+        );
+      }
+      // Validate that catalogue item matches the dto role_track and experience_level
+      if (
+        catalogueItem.role_track !== dto.roleTrack.trim() ||
+        catalogueItem.experience_level !== dto.experienceLevel
+      ) {
+        throw new BadRequestError(
+          'The selected catalogue assessment does not match the specified role track and experience level',
+        );
+      }
     }
 
     const questions =
@@ -147,6 +176,11 @@ export class EmployerAssessmentsService {
           time_limit_minutes: dto.timeLimitMinutes,
           passing_threshold: dto.passingThreshold,
           question_source: dto.questionSource,
+          credlane_assessment_id:
+            dto.questionSource ===
+            EmployerAssessmentQuestionSource.CREDLANE_BANK
+              ? (dto.credlaneAssessmentId ?? null)
+              : null,
           share_via_link: dto.shareViaLink,
           send_to_candidates: dto.sendToCandidates,
           share_token: randomBytes(24).toString('hex'),
@@ -205,6 +239,47 @@ export class EmployerAssessmentsService {
         assessments.length === 0
           ? 'No assessments yet. Create your first assessment to start screening candidates.'
           : null,
+    };
+  }
+
+  async listCredlaneCatalogue(
+    employerUserId: string,
+    page = 1,
+    limit = 20,
+  ): Promise<{
+    catalogue: {
+      id: string;
+      title: string;
+      description: string | null;
+      estimated_completion_time: string;
+      role_track: string;
+      experience_level: EmployerAssessmentExperienceLevel;
+    }[];
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+  }> {
+    await this.ensureVerifiedEmployer(employerUserId);
+    const [entries, total] = await this.catalogueRepo.findAndCount({
+      where: { is_active: true },
+      order: { role_track: 'ASC', experience_level: 'ASC' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+    return {
+      catalogue: entries.map((entry) => ({
+        id: entry.id,
+        title: entry.title,
+        description: entry.description,
+        estimated_completion_time: entry.estimated_completion_time,
+        role_track: entry.role_track,
+        experience_level: entry.experience_level,
+      })),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
     };
   }
 
@@ -310,7 +385,7 @@ export class EmployerAssessmentsService {
     const passed = score >= assessment.passing_threshold;
 
     try {
-      return await this.submissionRepo.save({
+      const submission = await this.submissionRepo.save({
         assessment_id: assessment.id,
         candidate_user_id: candidateUserId,
         score,
@@ -319,6 +394,14 @@ export class EmployerAssessmentsService {
         delivery_mode: dto.deliveryMode,
         answers: dto.answers ?? null,
       } as Partial<EmployerAssessmentSubmission>);
+
+      await this.updateLinkedOfferAfterSubmission(
+        candidateUserId,
+        assessment.id,
+        passed,
+      );
+
+      return submission;
     } catch (error: unknown) {
       if (isPostgresUniqueViolation(error)) {
         throw new ConflictError('You have already submitted this assessment.');
@@ -352,6 +435,33 @@ export class EmployerAssessmentsService {
       return String(value).trim().toLowerCase();
     }
     return '';
+  }
+
+  private async updateLinkedOfferAfterSubmission(
+    candidateUserId: string,
+    assessmentId: string,
+    passed: boolean,
+  ): Promise<void> {
+    const roles = await this.employerRoleRepo.find({
+      where: { assessment_id: assessmentId },
+      select: ['id'],
+    });
+    const roleIds = roles.map((role) => role.id);
+
+    if (roleIds.length === 0) {
+      return;
+    }
+
+    await this.offerRepo.update(
+      {
+        candidate_user_id: candidateUserId,
+        role_id: In(roleIds),
+        status: OfferStatus.ASSESSMENT_UNLOCKED,
+      },
+      {
+        status: passed ? OfferStatus.PASSED : OfferStatus.FAILED,
+      },
+    );
   }
 
   async listResults(

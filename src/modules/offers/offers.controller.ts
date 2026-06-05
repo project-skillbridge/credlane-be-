@@ -25,6 +25,7 @@ import { SkipApiTransform } from '../../common/interceptors/transform.intercepto
 import { UserRole } from '../users/entities/user.entity';
 import { OffersService } from './offers.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
+import { BulkCreateOffersDto } from './dto/bulk-create-offers.dto';
 import { RespondOfferDto } from './dto/respond-offer.dto';
 import { ListOffersQueryDto } from './dto/list-offers-query.dto';
 import {
@@ -50,6 +51,16 @@ export class OffersController {
     @Body() dto: CreateOfferDto,
   ) {
     return this.offersService.createOffer(employerUserId, dto);
+  }
+
+  @Post('employer/offers/bulk')
+  @Roles(UserRole.EMPLOYER)
+  @ApiOperation({ summary: 'Create and send an offer to multiple candidates' })
+  async bulkCreateOffers(
+    @CurrentUser('sub') employerUserId: string,
+    @Body() dto: BulkCreateOffersDto,
+  ) {
+    return this.offersService.bulkCreateOffers(employerUserId, dto);
   }
 
   @Get('employer/offers')
@@ -240,6 +251,26 @@ export class OffersController {
     @Param('offerId', ParseUUIDPipe) offerId: string,
   ) {
     return await this.offersService.markHireComplete(employerUserId, offerId);
+  }
+
+  @Patch('employer/offers/:offerId/withdraw')
+  @Roles(UserRole.EMPLOYER)
+  @ApiOperation({ summary: 'Withdraw a pending offer' })
+  async withdrawOffer(
+    @CurrentUser('sub') employerUserId: string,
+    @Param('offerId', ParseUUIDPipe) offerId: string,
+  ) {
+    return await this.offersService.withdrawOffer(employerUserId, offerId);
+  }
+
+  @Patch('employer/offers/:offerId/assessment-window/extend')
+  @Roles(UserRole.EMPLOYER)
+  @ApiOperation({ summary: 'Extend an unlocked assessment offer window once' })
+  async extendAssessmentWindow(
+    @CurrentUser('sub') employerUserId: string,
+    @Param('offerId', ParseUUIDPipe) offerId: string,
+  ) {
+    return this.offersService.extendAssessmentWindow(employerUserId, offerId);
   }
 
   // ─── Talent endpoints ─────────────────────────────────────────────────────

@@ -43,6 +43,7 @@ describe('SkillAssessmentService', () => {
 
   let bankExhaustedAlert: { notify: jest.Mock };
   let eligibleSkillQuestions: AssessmentQuestion[];
+  let warmCacheMock: jest.Mock;
 
   const userId = 'talent-user-1';
   let profile = makeTalentProfile({
@@ -133,6 +134,8 @@ describe('SkillAssessmentService', () => {
 
     bankExhaustedAlert = { notify: jest.fn() };
 
+    warmCacheMock = jest.fn().mockResolvedValue(undefined);
+
     service = new SkillAssessmentService(
       talentProfileRepo as never,
       questionRepo as never,
@@ -143,6 +146,7 @@ describe('SkillAssessmentService', () => {
       { generate: jest.fn() } as never,
       { generateQuestions: jest.fn().mockResolvedValue([]) } as never,
       bankExhaustedAlert as never,
+      { warmCache: warmCacheMock } as never,
     );
   });
 
@@ -255,6 +259,36 @@ describe('SkillAssessmentService', () => {
     const result = await service.start(userId);
 
     expect(result.attempt_number).toBe(3);
+  });
+
+  it('never returns text questions even when they exist in the bank', async () => {
+    // Inject text questions into the bank alongside MCQs
+    eligibleSkillQuestions = [
+      ...makeSkillBankQuestions(),
+      Object.assign(new AssessmentQuestion(), {
+        id: 'skill-text-sneaky-1',
+        question_type: QuestionType.REQUIRED_TEXT,
+        question_text: 'Describe your approach.',
+        options: null,
+        correct_answer: null,
+      }),
+      Object.assign(new AssessmentQuestion(), {
+        id: 'skill-text-sneaky-2',
+        question_type: QuestionType.OPTIONAL_TEXT,
+        question_text: 'Any additional thoughts?',
+        options: null,
+        correct_answer: null,
+      }),
+    ];
+
+    const result = await service.start(userId);
+
+    for (const question of result.questions) {
+      expect(question.block).toBe('mcq');
+      expect([QuestionType.SINGLE_PICK, QuestionType.MULTI_PICK]).toContain(
+        question.question_type,
+      );
+    }
   });
 
   it('refuses to start when the unseen bank lacks the skill question mix', async () => {
@@ -731,6 +765,10 @@ describe('SkillAssessmentService', () => {
     expect(result.percentage).toBe(100);
     expect(result.passed).toBe(true);
     expect(result.failed).toBe(false);
+    expect(warmCacheMock).toHaveBeenCalledWith(
+      profile.track,
+      expect.any(String),
+    );
   });
 
   it('resolves Stage 2 confirmed-level outcomes from claimed-level score', () => {
