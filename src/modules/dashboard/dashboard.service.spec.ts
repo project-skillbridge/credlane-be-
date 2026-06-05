@@ -12,8 +12,14 @@ import {
   TalentProfile,
   TalentProfileStatus,
 } from '../talent/entities/talent-profile.entity';
+import { EmployerPoolProfile } from '../talent/entities/employer-pool-profile.entity';
 import { User, UserRole } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
+import { EmployerProfile } from '../employer/entities/employer-profile.entity';
+import { EmployerRole } from '../employer-roles/entities/employer-role.entity';
+import { EmployerSavedCandidate } from '../employer-discovery/entities/employer-saved-candidate.entity';
+import { EmployerAssessmentInvite } from '../employer-assessments/entities/employer-assessment-invite.entity';
+import { Offer } from '../offers/entities/offer.entity';
 import { DashboardJourneyStatus } from './dto/dashboard-home.dto';
 import { DashboardService } from './dashboard.service';
 
@@ -26,6 +32,21 @@ describe('DashboardService', () => {
     'createQueryBuilder'
   >;
   let assessmentAttemptRepository: Pick<Repository<AssessmentAttempt>, 'count'>;
+  let employerProfileRepository: Pick<Repository<EmployerProfile>, 'findOne'>;
+  let employerRoleRepository: Pick<Repository<EmployerRole>, 'count'>;
+  let employerSavedCandidateRepository: Pick<
+    Repository<EmployerSavedCandidate>,
+    'count' | 'findOne'
+  >;
+  let employerAssessmentInviteRepository: Pick<
+    Repository<EmployerAssessmentInvite>,
+    'count'
+  >;
+  let offerRepository: Pick<Repository<Offer>, 'count' | 'findOne'>;
+  let employerPoolProfileRepository: Pick<
+    Repository<EmployerPoolProfile>,
+    'count' | 'findOne'
+  >;
   let notificationDispatch: { notifyAdvancedRetakeIfEligible: jest.Mock };
   let queryBuilder: {
     innerJoin: jest.Mock;
@@ -69,6 +90,33 @@ describe('DashboardService', () => {
       count: jest.fn().mockResolvedValue(0),
     };
 
+    employerProfileRepository = {
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
+    employerRoleRepository = {
+      count: jest.fn().mockResolvedValue(0),
+    };
+
+    employerSavedCandidateRepository = {
+      count: jest.fn().mockResolvedValue(0),
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
+    employerAssessmentInviteRepository = {
+      count: jest.fn().mockResolvedValue(0),
+    };
+
+    offerRepository = {
+      count: jest.fn().mockResolvedValue(0),
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
+    employerPoolProfileRepository = {
+      count: jest.fn().mockResolvedValue(0),
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
     notificationDispatch = {
       notifyAdvancedRetakeIfEligible: jest.fn().mockResolvedValue(undefined),
     };
@@ -78,6 +126,12 @@ describe('DashboardService', () => {
       usersService as UsersService,
       assessmentResultRepository as Repository<AssessmentResult>,
       assessmentAttemptRepository as Repository<AssessmentAttempt>,
+      employerProfileRepository as Repository<EmployerProfile>,
+      employerRoleRepository as Repository<EmployerRole>,
+      employerSavedCandidateRepository as Repository<EmployerSavedCandidate>,
+      employerAssessmentInviteRepository as Repository<EmployerAssessmentInvite>,
+      offerRepository as Repository<Offer>,
+      employerPoolProfileRepository as Repository<EmployerPoolProfile>,
       notificationDispatch as never,
     );
   });
