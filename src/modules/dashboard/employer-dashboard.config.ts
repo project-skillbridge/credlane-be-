@@ -43,7 +43,7 @@ export const EMPLOYER_DASHBOARD_COPY = {
     verifiedTalentDescription:
       'Browse top Job Ready candidates already verified across multiple role tracks.',
     assessmentsDescription:
-      'Track the assessments you have shared with candidates and monitor progress.',
+      'Review and manage the assessments you have created for your hiring workflows.',
     shortlistDescription:
       'Review saved candidates and move the strongest matches forward faster.',
     rolesDescription:
