@@ -18,7 +18,7 @@ import { UsersService } from '../users/users.service';
 import { EmployerProfile } from '../employer/entities/employer-profile.entity';
 import { EmployerRole } from '../employer-roles/entities/employer-role.entity';
 import { EmployerSavedCandidate } from '../employer-discovery/entities/employer-saved-candidate.entity';
-import { EmployerAssessmentInvite } from '../employer-assessments/entities/employer-assessment-invite.entity';
+import { EmployerAssessment } from '../employer-assessments/entities/employer-assessment.entity';
 import { Offer } from '../offers/entities/offer.entity';
 import { DashboardJourneyStatus } from './dto/dashboard-home.dto';
 import { DashboardService } from './dashboard.service';
@@ -38,8 +38,8 @@ describe('DashboardService', () => {
     Repository<EmployerSavedCandidate>,
     'count' | 'findOne'
   >;
-  let employerAssessmentInviteRepository: Pick<
-    Repository<EmployerAssessmentInvite>,
+  let employerAssessmentRepository: Pick<
+    Repository<EmployerAssessment>,
     'count'
   >;
   let offerRepository: Pick<Repository<Offer>, 'count' | 'findOne'>;
@@ -103,7 +103,7 @@ describe('DashboardService', () => {
       findOne: jest.fn().mockResolvedValue(null),
     };
 
-    employerAssessmentInviteRepository = {
+    employerAssessmentRepository = {
       count: jest.fn().mockResolvedValue(0),
     };
 
@@ -129,7 +129,7 @@ describe('DashboardService', () => {
       employerProfileRepository as Repository<EmployerProfile>,
       employerRoleRepository as Repository<EmployerRole>,
       employerSavedCandidateRepository as Repository<EmployerSavedCandidate>,
-      employerAssessmentInviteRepository as Repository<EmployerAssessmentInvite>,
+      employerAssessmentRepository as Repository<EmployerAssessment>,
       offerRepository as Repository<Offer>,
       employerPoolProfileRepository as Repository<EmployerPoolProfile>,
       notificationDispatch as never,
