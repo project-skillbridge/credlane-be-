@@ -41,11 +41,9 @@ import {
   EmployerDashboardActivity,
   EmployerDashboardActivityType,
   EmployerDashboardHomeResponse,
-  EmployerDashboardStatCard,
   EmployerDashboardViewState,
 } from './dto/employer-dashboard.dto';
 import {
-  EMPLOYER_DASHBOARD_COPY,
   EMPLOYER_DASHBOARD_PROFILE_COMPLETENESS_RULES,
 } from './employer-dashboard.config';
 
@@ -174,85 +172,15 @@ export class DashboardService {
     return {
       company_name: companyName,
       view_state: viewState,
-      header:
-        viewState === EmployerDashboardViewState.NEW_USER
-          ? `Welcome, ${companyName}. Start discovering verified talent.`
-          : `Welcome back, ${companyName}.`,
-      subheader: EMPLOYER_DASHBOARD_COPY.subheader,
       profile_prompt: profilePrompt,
-      create_role_cta: EMPLOYER_DASHBOARD_COPY.createRoleCta,
-      overview_cards: this.buildEmployerOverviewCards({
-        verifiedTalentCount,
-        createdAssessmentsCount,
-        shortlistedCount,
-        rolesCount,
-      }),
+      overview_counts: {
+        verified_talent: verifiedTalentCount,
+        created_assessments: createdAssessmentsCount,
+        shortlisted_candidates: shortlistedCount,
+        my_roles: rolesCount,
+      },
       recent_activity: recentActivity,
-      hero:
-        viewState === EmployerDashboardViewState.NEW_USER
-          ? {
-              ...EMPLOYER_DASHBOARD_COPY.newUserHero,
-              actions: [
-                EMPLOYER_DASHBOARD_COPY.browseTalentsCta,
-                EMPLOYER_DASHBOARD_COPY.createRoleCta,
-              ],
-            }
-          : null,
-      capabilities: [...EMPLOYER_DASHBOARD_COPY.capabilities],
-      social_proof:
-        viewState === EmployerDashboardViewState.NEW_USER
-          ? {
-              headline: EMPLOYER_DASHBOARD_COPY.socialProof.headline,
-              testimonials: [...EMPLOYER_DASHBOARD_COPY.socialProof.testimonials],
-            }
-          : null,
-      roles_empty_state_message:
-        rolesCount === 0 ? EMPLOYER_DASHBOARD_COPY.emptyStates.roles : null,
     };
-  }
-
-  private buildEmployerOverviewCards(counts: {
-    verifiedTalentCount: number;
-    createdAssessmentsCount: number;
-    shortlistedCount: number;
-    rolesCount: number;
-  }): EmployerDashboardStatCard[] {
-    return [
-      {
-        key: 'verified_talent',
-        title: 'Verified Talent',
-        value: counts.verifiedTalentCount,
-        description:
-          EMPLOYER_DASHBOARD_COPY.overviewCards.verifiedTalentDescription,
-        cta_label: 'Browse talents',
-        cta_route: '/discovery',
-      },
-      {
-        key: 'created_assessments',
-        title: 'Created Assessments',
-        value: counts.createdAssessmentsCount,
-        description:
-          EMPLOYER_DASHBOARD_COPY.overviewCards.assessmentsDescription,
-        cta_label: 'View assessments',
-        cta_route: '/assessments',
-      },
-      {
-        key: 'shortlisted_candidates',
-        title: 'Shortlisted Candidates',
-        value: counts.shortlistedCount,
-        description: EMPLOYER_DASHBOARD_COPY.overviewCards.shortlistDescription,
-        cta_label: 'View shortlist',
-        cta_route: '/shortlist',
-      },
-      {
-        key: 'my_roles',
-        title: 'My Roles',
-        value: counts.rolesCount,
-        description: EMPLOYER_DASHBOARD_COPY.overviewCards.rolesDescription,
-        cta_label: 'View roles',
-        cta_route: '/roles',
-      },
-    ];
   }
 
   private buildEmployerProfilePrompt(
@@ -275,10 +203,6 @@ export class DashboardService {
       show_prompt: completionPercentage < 100 || !isVerified,
       is_verified: isVerified,
       completion_percentage: Math.min(100, completionPercentage),
-      title: EMPLOYER_DASHBOARD_COPY.profilePrompt.title,
-      description: EMPLOYER_DASHBOARD_COPY.profilePrompt.description,
-      cta_label: EMPLOYER_DASHBOARD_COPY.profilePrompt.ctaLabel,
-      cta_route: EMPLOYER_DASHBOARD_COPY.profilePrompt.ctaRoute,
       missing_items: missingItems,
     };
   }
@@ -348,12 +272,12 @@ export class DashboardService {
     const candidateLabel = matchingCount === 1 ? 'candidate' : 'candidates';
 
     return {
+      id: `act_${latestMatch.id}`,
       type: EmployerDashboardActivityType.VERIFIED_TALENT,
       title: `${matchingCount} new verified ${trackLabel} ${candidateLabel} added`,
       description:
         'Fresh Job Ready talent now matches your hiring preferences.',
       occurred_at: latestMatch.verified_at.toISOString(),
-      route: '/discovery',
     };
   }
 
@@ -371,12 +295,12 @@ export class DashboardService {
     }
 
     return {
+      id: `act_${latestSaved.id}`,
       type: EmployerDashboardActivityType.SHORTLIST,
       title: `You shortlisted ${latestSaved.candidate.fullname}`,
       description:
         'Your shortlist has a new verified candidate ready for review.',
       occurred_at: latestSaved.created_at.toISOString(),
-      route: '/shortlist',
     };
   }
 
@@ -400,13 +324,13 @@ export class DashboardService {
     }
 
     return {
+      id: `act_${latestAcceptedOffer.id}`,
       type: EmployerDashboardActivityType.OFFER_ACCEPTED,
       title: `${latestAcceptedOffer.candidate.fullname} accepted your offer`,
       description: `Role: ${latestAcceptedOffer.role_title}.`,
       occurred_at: (
         latestAcceptedOffer.responded_at ?? latestAcceptedOffer.created_at
       ).toISOString(),
-      route: '/offers',
     };
   }
 
