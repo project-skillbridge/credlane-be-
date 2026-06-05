@@ -32,7 +32,7 @@ export enum OfferStatus {
 @Index('IDX_offers_status', ['status'])
 @Index(
   'UQ_offers_active_employer_candidate',
-  ['employer_user_id', 'candidate_user_id'],
+  ['employer_user_id', 'candidate_user_id', 'role_id'],
   {
     unique: true,
     where: `"status" IN ('pending', 'assessment_unlocked', 'assessment_completed', 'passed', 'accepted')`,
@@ -144,4 +144,10 @@ export class Offer {
   @ApiProperty()
   @UpdateDateColumn({ type: 'timestamp with time zone' })
   updated_at: Date;
+
+  @ApiPropertyOptional({
+    description: 'When the 24-hour expiry warning was sent to the employer',
+  })
+  @Column({ type: 'timestamp with time zone', nullable: true })
+  expiry_warning_sent_at: Date | null;
 }

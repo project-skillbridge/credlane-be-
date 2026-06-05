@@ -1,8 +1,8 @@
 import { randomBytes } from 'crypto';
 import { inflateRawSync } from 'zlib';
 import { Injectable, Logger } from '@nestjs/common';
-import { InjectRepository } from '@nestjs/typeorm';
-import { EntityManager, In, QueryFailedError, Repository } from 'typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
+import { DataSource, EntityManager, In, QueryFailedError, Repository } from 'typeorm';
 import {
   BadRequestError,
   ConflictError,
@@ -69,6 +69,13 @@ function isPostgresUniqueViolation(error: unknown): boolean {
   return code === '23505';
 }
 
+type OfferNotificationRow = {
+  id: string;
+  employer_user_id: string;
+  candidate_user_id: string;
+  role_title: string;
+};
+
 export type QuestionImportValidationResult = {
   status: 'success';
   questions: EmployerAssessmentQuestionInputDto[];
@@ -80,6 +87,8 @@ export class EmployerAssessmentsService {
   private readonly logger = new Logger(EmployerAssessmentsService.name);
 
   constructor(
+    @InjectDataSource()
+    private readonly dataSource: DataSource,
     @InjectRepository(EmployerAssessment)
     private readonly assessmentRepo: Repository<EmployerAssessment>,
     @InjectRepository(EmployerAssessmentQuestion)
@@ -384,30 +393,60 @@ export class EmployerAssessmentsService {
     const score = this.computeScore(assessment.questions, dto.answers ?? {});
     const passed = score >= assessment.passing_threshold;
 
+    let submission: EmployerAssessmentSubmission;
+    let updatedOffers: OfferNotificationRow[];
     try {
-      const submission = await this.submissionRepo.save({
-        assessment_id: assessment.id,
-        candidate_user_id: candidateUserId,
-        score,
-        passed,
-        time_taken_seconds: dto.timeTakenSeconds,
-        delivery_mode: dto.deliveryMode,
-        answers: dto.answers ?? null,
-      } as Partial<EmployerAssessmentSubmission>);
+      const result = await this.dataSource.transaction(async (manager) => {
+        const saved = await manager.save(EmployerAssessmentSubmission, {
+          assessment_id: assessment.id,
+          candidate_user_id: candidateUserId,
+          score,
+          passed,
+          time_taken_seconds: dto.timeTakenSeconds,
+          delivery_mode: dto.deliveryMode,
+          answers: dto.answers ?? null,
+        } as Partial<EmployerAssessmentSubmission>);
 
-      await this.updateLinkedOfferAfterSubmission(
-        candidateUserId,
-        assessment.id,
-        passed,
-      );
+        const offers = await this.updateLinkedOffersInTx(
+          manager,
+          candidateUserId,
+          assessment.id,
+          passed,
+        );
 
-      return submission;
+        return { saved, offers };
+      });
+
+      submission = result.saved;
+      updatedOffers = result.offers;
     } catch (error: unknown) {
       if (isPostgresUniqueViolation(error)) {
         throw new ConflictError('You have already submitted this assessment.');
       }
       throw error;
     }
+
+    // Dispatch notifications after the transaction commits so DB changes are
+    // durable before any email/push is sent.
+    if (updatedOffers.length > 0) {
+      const candidate = await this.userRepo.findOne({
+        where: { id: candidateUserId },
+        select: ['id', 'first_name', 'last_name'],
+      });
+      const candidateName = candidate
+        ? `${candidate.first_name ?? ''} ${candidate.last_name ?? ''}`.trim()
+        : 'A candidate';
+
+      await this.notifyAssessmentResult(
+        updatedOffers,
+        candidateUserId,
+        passed,
+        score,
+        candidateName,
+      );
+    }
+
+    return submission;
   }
 
   private computeScore(
@@ -437,11 +476,12 @@ export class EmployerAssessmentsService {
     return '';
   }
 
-  private async updateLinkedOfferAfterSubmission(
+  private async updateLinkedOffersInTx(
+    manager: EntityManager,
     candidateUserId: string,
     assessmentId: string,
     passed: boolean,
-  ): Promise<void> {
+  ): Promise<OfferNotificationRow[]> {
     const roles = await this.employerRoleRepo.find({
       where: { assessment_id: assessmentId },
       select: ['id'],
@@ -449,19 +489,83 @@ export class EmployerAssessmentsService {
     const roleIds = roles.map((role) => role.id);
 
     if (roleIds.length === 0) {
-      return;
+      return [];
     }
 
-    await this.offerRepo.update(
-      {
+    // Pre-fetch only the UNLOCKED offers that this submission should transition.
+    // This avoids re-fetching historical PASSED/FAILED rows in a subsequent
+    // find after the updates.
+    const targetOffers = await manager.find(Offer, {
+      where: {
         candidate_user_id: candidateUserId,
         role_id: In(roleIds),
         status: OfferStatus.ASSESSMENT_UNLOCKED,
       },
-      {
-        status: passed ? OfferStatus.PASSED : OfferStatus.FAILED,
-      },
+      select: ['id', 'employer_user_id', 'candidate_user_id', 'role_title'],
+    });
+
+    if (targetOffers.length === 0) {
+      return [];
+    }
+
+    const targetIds = targetOffers.map((o) => o.id);
+
+    // Two-step transition: UNLOCKED → COMPLETED → PASSED/FAILED
+    await manager.update(
+      Offer,
+      { id: In(targetIds), status: OfferStatus.ASSESSMENT_UNLOCKED },
+      { status: OfferStatus.ASSESSMENT_COMPLETED },
     );
+
+    const finalStatus = passed ? OfferStatus.PASSED : OfferStatus.FAILED;
+    await manager.update(
+      Offer,
+      { id: In(targetIds), status: OfferStatus.ASSESSMENT_COMPLETED },
+      { status: finalStatus },
+    );
+
+    return targetOffers;
+  }
+
+  private async notifyAssessmentResult(
+    updatedOffers: OfferNotificationRow[],
+    candidateUserId: string,
+    passed: boolean,
+    score: number,
+    candidateName: string,
+  ): Promise<void> {
+    for (const offer of updatedOffers) {
+      const resultPayload = {
+        offerId: offer.id,
+        candidateUserId,
+        candidateName,
+        employerUserId: offer.employer_user_id,
+        roleTitle: offer.role_title,
+        score,
+      };
+
+      try {
+        if (passed) {
+          await this.notificationDispatch.notifyAssessmentPassed(
+            offer.employer_user_id,
+            resultPayload,
+          );
+          await this.notificationDispatch.notifyAssessmentPassed(
+            candidateUserId,
+            resultPayload,
+          );
+        } else {
+          await this.notificationDispatch.notifyAssessmentFailed(
+            candidateUserId,
+            resultPayload,
+          );
+        }
+      } catch (notifyError: unknown) {
+        this.logger.error(
+          `Assessment result notification failed offer=${offer.id}: ${String(notifyError)}`,
+        );
+      }
+    }
   }
 
   async listResults(

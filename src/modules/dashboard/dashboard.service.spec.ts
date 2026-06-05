@@ -733,6 +733,49 @@ describe('DashboardService', () => {
     });
   });
 
+  it('unlocks advanced for legacy profiles without personal_assessment_completed_at when skill validation exists', async () => {
+    const talentUser = makeUser({
+      first_name: 'Jane',
+      role: UserRole.TALENT,
+      onboarding_complete: true,
+    });
+
+    const profile = makeProfile({
+      onboarding_step: 3,
+      goal: 'land_first_role',
+      track: 'frontend_developer',
+      region: 'Lagos',
+      education_level: 'bachelors',
+      claimed_level: null,
+      personal_assessment_completed_at: null,
+      skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
+      validated_level: VerifiedLevel.MID,
+      status: TalentProfileStatus.IN_PROGRESS,
+    });
+
+    (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
+    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+    (assessmentAttemptRepository.count as jest.Mock).mockResolvedValue(1);
+    (queryBuilder.getOne as jest.Mock).mockImplementation(() => {
+      if (lastAssessmentType === AssessmentType.SKILL) {
+        return Promise.resolve(
+          makeAssessmentResult({
+            percentage: 80,
+            validated_level: VerifiedLevel.MID,
+          }),
+        );
+      }
+      return Promise.resolve(null);
+    });
+
+    const home = await service.getHome(talentUser.id);
+    const advancedJourney = home.journey_overview.find(
+      (item) => item.key === 'advanced',
+    );
+
+    expect(advancedJourney?.status).toBe(DashboardJourneyStatus.AVAILABLE);
+  });
+
   it('returns attempts_used and attempts_remaining based on completed attempt count', async () => {
     const talentUser = makeUser({
       first_name: 'Jane',

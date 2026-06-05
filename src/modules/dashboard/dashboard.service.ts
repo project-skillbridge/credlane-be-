@@ -770,13 +770,22 @@ export class DashboardService {
     );
   }
 
+  private hasAdvancedAssessmentContext(profile: TalentProfile): boolean {
+    return Boolean(
+      profile.track?.trim() &&
+        (profile.personal_assessment_completed_at ||
+          profile.claimed_level ||
+          profile.validated_level),
+    );
+  }
+
   private canStartAdvancedAssessment(
     profile: TalentProfile,
     hasCompletedSkillOnce: boolean,
     latestSkillResult: AssessmentResult | null,
   ): boolean {
     return Boolean(
-      this.hasCompletedPersonalAssessment(profile) &&
+      this.hasAdvancedAssessmentContext(profile) &&
       profile.validated_level &&
       profile.skill_assessment_completed_at &&
       hasCompletedSkillOnce &&

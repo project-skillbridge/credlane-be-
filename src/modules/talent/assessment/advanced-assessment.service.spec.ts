@@ -1322,6 +1322,70 @@ describe('AdvancedAssessmentService', () => {
       });
     });
 
+    it('allows legacy profiles without personal_assessment_completed_at once skill validation exists', async () => {
+      const legacyProfile = makeTalentProfile({
+        validated_level: VerifiedLevel.MID,
+        claimed_level: null,
+        personal_assessment_completed_at: null,
+        skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
+        track: 'frontend_developer',
+        assessment_locked_until: null,
+      });
+
+      jest
+        .spyOn(service as never, 'findEligibleQuestions' as never)
+        .mockResolvedValue([]);
+      jest
+        .spyOn(service as never, 'selectQuestionBlocks' as never)
+        .mockResolvedValue({
+          mcq: [],
+          shortText: [],
+          longText: [],
+        });
+
+      const skillResultQuery = {
+        innerJoin: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        addOrderBy: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue({
+          percentage: 80,
+          claimed_percentage: 80,
+          validated_level: VerifiedLevel.MID,
+        } as AssessmentResult),
+      };
+
+      const activeSessionQuery = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      };
+
+      talentProfileRepo.manager.transaction.mockImplementationOnce(
+        async (work: (em: Record<string, jest.Mock>) => Promise<unknown>) =>
+          work({
+            findOne: jest.fn().mockResolvedValue(legacyProfile),
+            count: jest.fn().mockResolvedValue(1),
+            find: jest.fn().mockResolvedValue([]),
+            createQueryBuilder: jest
+              .fn()
+              .mockReturnValueOnce(skillResultQuery)
+              .mockReturnValueOnce(activeSessionQuery),
+            create: jest.fn((_entity: unknown, data: unknown) => data),
+            save: jest.fn().mockImplementation(async (_entity, data) =>
+              Object.assign(makeAttempt(), data, { id: 'attempt-legacy-1' }),
+            ),
+          }),
+      );
+
+      const result = await service.start(userId);
+
+      expect(result.session_id).toBe('attempt-legacy-1');
+      expect(result.verified_level).toBe(VerifiedLevel.MID);
+    });
+
     it('throws 422 when validated_level is missing', async () => {
       const unverifiedProfile = makeTalentProfile({
         validated_level: null,
