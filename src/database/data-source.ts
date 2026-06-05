@@ -11,6 +11,7 @@ export const dataSourceOptions: DataSourceOptions = {
   database: env.DATABASE_NAME,
   entities: [__dirname + '/../**/*.entity{.ts,.js}'],
   migrations: [__dirname + '/migrations/*{.ts,.js}'],
+  migrationsTransactionMode: 'each',
   synchronize: false,
   logging: env.DATABASE_LOGGING,
   ssl: env.DATABASE_SSL
