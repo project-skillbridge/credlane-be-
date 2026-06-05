@@ -19,6 +19,15 @@ export function mapEmployerNotificationType(type: NotificationType): string {
   if (type === NotificationType.JOB_READY_MATCHES_AVAILABLE) {
     return 'new_matching_talent';
   }
+  if (type === NotificationType.OFFER_ACCEPTED) {
+    return 'offer_accepted_assessment_unlocked';
+  }
+  if (type === NotificationType.ASSESSMENT_PASSED) {
+    return 'candidate_passed';
+  }
+  if (type === NotificationType.ASSESSMENT_FAILED) {
+    return 'candidate_failed';
+  }
   return type;
 }
 
@@ -44,7 +53,10 @@ export function buildEmployerNotificationLink(
     return { entity_id: candidateUserId, entity_type: 'candidate' };
   }
 
-  if (Array.isArray(data.candidateUserIds) && data.candidateUserIds.length > 0) {
+  if (
+    Array.isArray(data.candidateUserIds) &&
+    data.candidateUserIds.length > 0
+  ) {
     return { entity_id: null, entity_type: 'discovery' };
   }
 

@@ -39,6 +39,14 @@ export type JobReadyMatchesDigestEmailPayload = {
   matchCount: number;
 };
 
+/** Payload for account data export delivery email (with JSON attachment). */
+export type DataExportReadyEmailPayload = {
+  to: string;
+  recipientFirstName: string;
+  fileName: string;
+  attachmentContent: string | Buffer;
+};
+
 /** Internal alert when an assessment question bank cannot fulfil a session. */
 export type BankExhaustedAlertPayload = {
   assessmentType: 'skill' | 'advanced';

@@ -228,7 +228,7 @@ export class SkillAssessmentService {
     );
     if (completedAttempts >= SKILL_ASSESSMENT_MAX_ATTEMPTS) {
       throw new ForbiddenException(
-        ErrorMessages.SKILL_ASSESSMENT.MAX_ATTEMPTS_REACHED,
+        this.buildSkillMaxAttemptsReachedResponse(completedAttempts),
       );
     }
 
@@ -260,7 +260,7 @@ export class SkillAssessmentService {
           );
           if (updatedCount >= SKILL_ASSESSMENT_MAX_ATTEMPTS) {
             throw new ForbiddenException(
-              ErrorMessages.SKILL_ASSESSMENT.MAX_ATTEMPTS_REACHED,
+              this.buildSkillMaxAttemptsReachedResponse(updatedCount),
             );
           }
         } else {
@@ -272,6 +272,22 @@ export class SkillAssessmentService {
         }
       }
     }
+  }
+
+  private buildSkillMaxAttemptsReachedResponse(attemptsUsed: number): {
+    error: 'SKILL_MAX_ATTEMPTS_REACHED';
+    message: string;
+    attempts_used: number;
+    max_attempts: number;
+    unlock_condition: 'complete_advanced_assessment';
+  } {
+    return {
+      error: 'SKILL_MAX_ATTEMPTS_REACHED',
+      message: ErrorMessages.SKILL_ASSESSMENT.MAX_ATTEMPTS_REACHED,
+      attempts_used: attemptsUsed,
+      max_attempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
+      unlock_condition: 'complete_advanced_assessment',
+    };
   }
 
   async start(userId: string): Promise<StartSkillAssessmentResult> {

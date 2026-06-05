@@ -6,6 +6,7 @@ import type {
   AdvancedRetakeAvailableEmailPayload,
   AssessmentPerformanceEmailPayload,
   BankExhaustedAlertPayload,
+  DataExportReadyEmailPayload,
   JobReadyMatchesDigestEmailPayload,
   PasswordResetEmailPayload,
   SendMailOptions,
@@ -63,10 +64,6 @@ export class MailService {
       Math.ceil((params.expiresAt.getTime() - Date.now()) / (60 * 1000)),
     );
     const padded = params.otp.padStart(6, '0');
-    const digits = padded.split('');
-    const digitVars = Object.fromEntries(
-      digits.map((d, i) => [`digit${i + 1}`, d]),
-    ) as Record<string, string>;
 
     const base = env.FRONTEND_URL.replace(/\/$/, '');
     const logoUrl =
@@ -75,16 +72,17 @@ export class MailService {
 
     const vars: Record<string, string> = {
       name: params.recipientFirstName.trim() || 'there',
+      code: padded,
       verifyUrl: `${base}/verify-email`,
       logoUrl,
       playStoreUrl: '',
       appStoreUrl: '',
       playStoreLink: '#',
       appStoreLink: '#',
+      contactUrl: `${base}/contact`,
       supportEmail: env.SUPPORT_EMAIL,
       year: String(new Date().getFullYear()),
       expiresMinutes: String(expiresInMinutes),
-      ...digitVars,
     };
 
     const rawHtml = loadMailTemplateFile('verify-code.html');
@@ -205,6 +203,40 @@ export class MailService {
       subject: 'New Job Ready candidates match your hiring preferences',
       text,
       html,
+    });
+  }
+
+  async sendDataExportReady(params: DataExportReadyEmailPayload) {
+    const base = env.FRONTEND_URL.replace(/\/$/, '');
+    const logoUrl =
+      env.EMAIL_LOGO_URL ??
+      'https://placehold.co/140x40/1f5f6b/ffffff/png?text=SkillBridge';
+    const name = params.recipientFirstName.trim() || 'there';
+
+    const vars: Record<string, string> = {
+      name,
+      fileName: params.fileName,
+      logoUrl,
+      contactUrl: `${base}/contact`,
+      unsubscribeUrl: `${base}/email-preferences`,
+      year: String(new Date().getFullYear()),
+    };
+
+    const rawHtml = loadMailTemplateFile('data-export.html');
+    const html = substituteMailTemplate(rawHtml, vars);
+    const text =
+      `Hi ${name},\n\n` +
+      `Your data export is attached to this email as ${params.fileName}.\n\n` +
+      `If you did not request this export, please contact us immediately: ${vars.contactUrl}\n`;
+
+    return this.send({
+      to: params.to,
+      subject: 'Your SkillBridge data export',
+      text,
+      html,
+      attachments: [
+        { filename: params.fileName, content: params.attachmentContent },
+      ],
     });
   }
 

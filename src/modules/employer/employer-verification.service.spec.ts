@@ -285,14 +285,53 @@ describe('EmployerVerificationService', () => {
         status: 302,
         headers: new Map([['location', 'https://acme.example/next']]),
       };
-      // Return MAX_REDIRECTS + 1 redirects (more than allowed)
       global.fetch = jest.fn().mockResolvedValue(redirectResponse);
 
       const result = await service.isWebsiteResolvable('https://acme.example');
 
       expect(result).toBe(false);
-      // With MAX_REDIRECTS=5 and >=, it should attempt at depths 0..4 (5 calls)
       expect(global.fetch).toHaveBeenCalledTimes(5);
+    });
+  });
+
+  describe('getVerificationStatusDetail', () => {
+    beforeEach(() => {
+      jest.spyOn(service, 'isWebsiteResolvable').mockResolvedValue(true);
+    });
+
+    it('returns structured criteria and banner visibility', async () => {
+      userRepo.findOne.mockResolvedValue(mockUser({ is_verified: true }));
+      employerProfileRepo.findOne.mockResolvedValue(mockProfile());
+
+      const result = await service.getVerificationStatusDetail(userId);
+
+      expect(result).toEqual({
+        verified: true,
+        criteria: {
+          email_verified: true,
+          website_resolvable: true,
+          linkedin_provided: true,
+        },
+        banner_visible: false,
+      });
+    });
+
+    it('shows banner when verification criteria are incomplete', async () => {
+      userRepo.findOne.mockResolvedValue(mockUser({ is_verified: false }));
+      employerProfileRepo.findOne.mockResolvedValue(
+        mockProfile({
+          linkedin_company_page_url: null,
+          linkedin_company_url: null,
+        }),
+      );
+      jest.spyOn(service, 'isWebsiteResolvable').mockResolvedValue(false);
+
+      const result = await service.getVerificationStatusDetail(userId);
+
+      expect(result.verified).toBe(false);
+      expect(result.banner_visible).toBe(true);
+      expect(result.criteria.linkedin_provided).toBe(false);
+      expect(result.criteria.website_resolvable).toBe(false);
     });
   });
 });
