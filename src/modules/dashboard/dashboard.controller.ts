@@ -12,9 +12,7 @@ import { SkipApiTransform } from '../../common/interceptors/transform.intercepto
 import { DashboardService } from './dashboard.service';
 import { DashboardHomeResponseDto } from './dto/dashboard-home.dto';
 import { UserRole } from '../users/entities/user.entity';
-import {
-  EmployerDashboardEnvelopeResponseDto,
-} from './dto/employer-dashboard.dto';
+import { EmployerDashboardEnvelopeResponseDto } from './dto/employer-dashboard.dto';
 
 @ApiTags('dashboard')
 @ApiCookieAuth()

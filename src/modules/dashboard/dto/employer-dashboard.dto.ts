@@ -121,4 +121,3 @@ export type EmployerDashboardHomeResponse = {
   overview_counts: EmployerDashboardOverviewCounts;
   recent_activity: EmployerDashboardActivity[];
 };
-

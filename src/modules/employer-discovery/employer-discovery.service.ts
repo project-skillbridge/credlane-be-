@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, SelectQueryBuilder, ObjectLiteral } from 'typeorm';
 import { ConflictError, ForbiddenError, NotFoundError } from '../../shared';
 import { EmployerPoolProfile } from '../talent/entities/employer-pool-profile.entity';
 import { User } from '../users/entities/user.entity';
@@ -11,21 +11,15 @@ import { NotificationDispatchService } from '../notifications/notification-dispa
 import { NotificationType } from '../notifications/notification-type.enum';
 import { EmployerVerificationService } from '../employer/employer-verification.service';
 import { Offer, OfferStatus } from '../offers/entities/offer.entity';
+import { VerifiedProfileService } from '../verified-profile/verified-profile.service';
+import { EmployerCandidateProfileResponseDto } from './dto/employer-candidate-profile.dto';
+import {
+  DiscoveryCandidateCard,
+  DiscoveryCandidateRawRow,
+  mapDiscoveryCandidateCard,
+} from './discovery-candidate.mapper';
 
-export type CandidateCard = {
-  user_id: string;
-  full_name: string;
-  role_track: string | null;
-  tier: string;
-  availability: string | null;
-  verified_at: Date;
-  score: number;
-  strong_competencies: string[] | null;
-  share_token: string | null;
-  is_saved: boolean;
-  offer_sent: boolean;
-  offer_status: OfferStatus.PENDING | OfferStatus.ACCEPTED | null;
-};
+export type CandidateCard = DiscoveryCandidateCard;
 
 export type DiscoveryListResult = {
   candidates: CandidateCard[];
@@ -36,18 +30,8 @@ export type DiscoveryListResult = {
   empty_state_message: string | null;
 };
 
-type CandidateRawRow = {
-  poolId: string;
-  userId: string;
-  roleTrack: string | null;
-  tier: string;
-  availability: string | null;
-  verifiedAt: Date;
-  score: number;
-  strongCompetencies: string[] | null;
-  shareToken: string | null;
-  firstName: string | null;
-  lastName: string | null;
+type CandidateRawRow = DiscoveryCandidateRawRow & {
+  poolId?: string;
   notes?: string | null;
 };
 
@@ -77,6 +61,7 @@ export class EmployerDiscoveryService {
     private readonly offerRepo: Repository<Offer>,
     private readonly notificationDispatch: NotificationDispatchService,
     private readonly verificationService: EmployerVerificationService,
+    private readonly verifiedProfileService: VerifiedProfileService,
   ) {}
 
   async discoverCandidates(
@@ -90,42 +75,15 @@ export class EmployerDiscoveryService {
     const qb = this.poolProfileRepo
       .createQueryBuilder('pool')
       .innerJoin(User, 'u', 'u.id = pool.candidate_id')
+      .innerJoin('talent_profiles', 'tp', 'tp.id = pool.talent_profile_id')
       .where('pool.tier = :tier', { tier: 'job_ready' })
       .andWhere(
         '(pool.job_search_status IS NULL OR pool.job_search_status != :notLooking)',
         { notLooking: 'not_looking' },
       );
 
-    if (query.roleTrack) {
-      qb.andWhere('pool.track = :roleTrack', { roleTrack: query.roleTrack });
-    }
-
-    if (query.availability) {
-      qb.andWhere('pool.availability = :availability', {
-        availability: query.availability,
-      });
-    }
-
-    if (query.search) {
-      qb.andWhere(
-        `(u.first_name ILIKE :search OR u.last_name ILIKE :search OR CONCAT(u.first_name, ' ', u.last_name) ILIKE :search)`,
-        { search: `%${query.search}%` },
-      );
-    }
-
-    qb.select([
-      'pool.id AS "poolId"',
-      'pool.candidate_id AS "userId"',
-      'pool.track AS "roleTrack"',
-      'pool.tier AS "tier"',
-      'pool.availability AS "availability"',
-      'pool.verified_at AS "verifiedAt"',
-      'pool.score AS "score"',
-      'pool.strong_competencies AS "strongCompetencies"',
-      'pool.shareable_link_token AS "shareToken"',
-      `u.first_name AS "firstName"`,
-      `u.last_name AS "lastName"`,
-    ]);
+    this.applyDiscoveryFilters(qb, query);
+    this.selectDiscoveryColumns(qb);
 
     const total = await qb.getCount();
 
@@ -143,20 +101,13 @@ export class EmployerDiscoveryService {
       candidateIds,
     );
 
-    const candidates: CandidateCard[] = rawResults.map((r) => ({
-      user_id: r.userId,
-      full_name: `${r.firstName ?? ''} ${r.lastName ?? ''}`.trim(),
-      role_track: r.roleTrack,
-      tier: r.tier,
-      availability: r.availability,
-      verified_at: r.verifiedAt,
-      score: r.score,
-      strong_competencies: r.strongCompetencies,
-      share_token: r.shareToken,
-      is_saved: savedMap.has(r.userId),
-      offer_sent: offerStatusMap.has(r.userId),
-      offer_status: offerStatusMap.get(r.userId) ?? null,
-    }));
+    const candidates: CandidateCard[] = rawResults.map((r) =>
+      mapDiscoveryCandidateCard(r, {
+        is_saved: savedMap.has(r.userId),
+        offer_sent: offerStatusMap.has(r.userId),
+        offer_status: offerStatusMap.get(r.userId) ?? null,
+      }),
+    );
 
     return {
       candidates,
@@ -166,7 +117,7 @@ export class EmployerDiscoveryService {
       total_pages: Math.ceil(total / limit),
       empty_state_message:
         total === 0
-          ? 'No saved candidates in this list. Try saving candidates or checking another list.'
+          ? 'No candidates match your current filters. Try adjusting your selection.'
           : null,
     };
   }
@@ -174,33 +125,20 @@ export class EmployerDiscoveryService {
   async getCandidateProfile(
     employerUserId: string,
     candidateUserId: string,
-  ): Promise<
-    EmployerPoolProfile & {
-      offer_sent: boolean;
-      offer_status: OfferStatus.PENDING | OfferStatus.ACCEPTED | null;
-    }
-  > {
-    const profile = await this.poolProfileRepo.findOne({
-      where: { candidate_id: candidateUserId },
-    });
-
-    if (!profile) {
-      throw new NotFoundError('Candidate profile not found');
-    }
-
-    if (profile.tier !== 'job_ready') {
-      throw new ForbiddenError(
-        'Only Job Ready candidates are accessible to employers',
-      );
-    }
-
-    const offerStatusMap = await this.getOfferStatusMap(employerUserId, [
-      candidateUserId,
+  ): Promise<EmployerCandidateProfileResponseDto> {
+    const [profile, savedMap, offerStatusMap] = await Promise.all([
+      this.verifiedProfileService.getForEmployerView(candidateUserId),
+      this.getSavedMap(employerUserId, [candidateUserId]),
+      this.getOfferStatusMap(employerUserId, [candidateUserId]),
     ]);
-    return Object.assign(profile, {
+
+    return {
+      ...profile,
+      user_id: candidateUserId,
+      is_saved: savedMap.has(candidateUserId),
       offer_sent: offerStatusMap.has(candidateUserId),
       offer_status: offerStatusMap.get(candidateUserId) ?? null,
-    });
+    };
   }
 
   async saveCandidate(
@@ -273,22 +211,11 @@ export class EmployerDiscoveryService {
         'pool.candidate_id = saved.candidate_user_id',
       )
       .innerJoin(User, 'u', 'u.id = saved.candidate_user_id')
+      .innerJoin('talent_profiles', 'tp', 'tp.id = pool.talent_profile_id')
       .where('saved.employer_user_id = :employerUserId', { employerUserId })
       .andWhere('pool.tier = :tier', { tier: 'job_ready' });
 
-    qb.select([
-      'pool.candidate_id AS "userId"',
-      'pool.track AS "roleTrack"',
-      'pool.tier AS "tier"',
-      'pool.availability AS "availability"',
-      'pool.verified_at AS "verifiedAt"',
-      'pool.score AS "score"',
-      'pool.strong_competencies AS "strongCompetencies"',
-      'pool.shareable_link_token AS "shareToken"',
-      `u.first_name AS "firstName"`,
-      `u.last_name AS "lastName"`,
-      'saved.notes AS "notes"',
-    ]);
+    this.selectDiscoveryColumns(qb, { includeNotes: true });
 
     const total = await qb.getCount();
 
@@ -304,20 +231,13 @@ export class EmployerDiscoveryService {
       candidateIds,
     );
 
-    const candidates: CandidateCard[] = rawResults.map((r) => ({
-      user_id: r.userId,
-      full_name: `${r.firstName ?? ''} ${r.lastName ?? ''}`.trim(),
-      role_track: r.roleTrack,
-      tier: r.tier,
-      availability: r.availability,
-      verified_at: r.verifiedAt,
-      score: r.score,
-      strong_competencies: r.strongCompetencies,
-      share_token: r.shareToken,
-      is_saved: true,
-      offer_sent: offerStatusMap.has(r.userId),
-      offer_status: offerStatusMap.get(r.userId) ?? null,
-    }));
+    const candidates: CandidateCard[] = rawResults.map((r) =>
+      mapDiscoveryCandidateCard(r, {
+        is_saved: true,
+        offer_sent: offerStatusMap.has(r.userId),
+        offer_status: offerStatusMap.get(r.userId) ?? null,
+      }),
+    );
 
     return {
       candidates,
@@ -421,5 +341,73 @@ export class EmployerDiscoveryService {
     return new Map(
       rows.map((row) => [row.offer_candidate_user_id, row.offer_status]),
     );
+  }
+
+  private applyDiscoveryFilters(
+    qb: SelectQueryBuilder<EmployerPoolProfile>,
+    query: DiscoveryCandidatesQueryDto,
+  ): void {
+    if (query.roleTrack) {
+      qb.andWhere('pool.track = :roleTrack', { roleTrack: query.roleTrack });
+    }
+
+    if (query.availability) {
+      qb.andWhere('pool.availability = :availability', {
+        availability: query.availability,
+      });
+    }
+
+    if (query.search) {
+      qb.andWhere(
+        `(u.first_name ILIKE :search OR u.last_name ILIKE :search OR CONCAT(u.first_name, ' ', u.last_name) ILIKE :search)`,
+        { search: `%${query.search}%` },
+      );
+    }
+
+    if (query.minScore != null) {
+      qb.andWhere('pool.score >= :minScore', { minScore: query.minScore });
+    }
+
+    if (query.maxScore != null) {
+      qb.andWhere('pool.score <= :maxScore', { maxScore: query.maxScore });
+    }
+
+    if (query.experienceLevel) {
+      qb.andWhere('pool.verified_level = :experienceLevel', {
+        experienceLevel: query.experienceLevel,
+      });
+    }
+
+    if (query.region) {
+      qb.andWhere('(pool.location ILIKE :region OR u.country ILIKE :region)', {
+        region: `%${query.region}%`,
+      });
+    }
+  }
+
+  private selectDiscoveryColumns<T extends ObjectLiteral>(
+    qb: SelectQueryBuilder<T>,
+    options?: { includeNotes?: boolean },
+  ): void {
+    qb.select([
+      'pool.candidate_id AS "userId"',
+      'pool.track AS "roleTrack"',
+      'pool.tier AS "tier"',
+      'pool.availability AS "availability"',
+      'pool.verified_at AS "verifiedAt"',
+      'pool.score AS "score"',
+      'pool.strong_competencies AS "strongCompetencies"',
+      'pool.shareable_link_token AS "shareToken"',
+      'pool.verified_level AS "verifiedLevel"',
+      'pool.location AS "location"',
+      'pool.job_search_status AS "jobSearchStatus"',
+      'pool.specialization AS "specialization"',
+      'tp.personal_assessment_answers AS "personalAssessmentAnswers"',
+      'u.first_name AS "firstName"',
+      'u.last_name AS "lastName"',
+      'u.avatar_url AS "avatarUrl"',
+      'u.country AS "country"',
+      ...(options?.includeNotes ? ['saved.notes AS "notes"'] : []),
+    ]);
   }
 }
