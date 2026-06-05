@@ -365,9 +365,9 @@ export class AdvancedAssessmentService {
   private hasAdvancedAssessmentContext(profile: TalentProfile): boolean {
     return Boolean(
       profile.track?.trim() &&
-        (profile.personal_assessment_completed_at ||
-          profile.claimed_level ||
-          profile.validated_level),
+      (profile.personal_assessment_completed_at ||
+        profile.claimed_level ||
+        profile.validated_level),
     );
   }
 

@@ -66,8 +66,10 @@ import { ListOffersQueryDto } from './dto/list-offers-query.dto';
 
 const DEFAULT_MONTHLY_CAP = 50;
 const ACTIVE_OFFER_UNIQUE_INDEX = 'UQ_offers_active_employer_candidate';
-const ACTIVE_OFFER_UNIQUE_INDEX_ROLE = 'UQ_offers_active_employer_candidate_role';
-const ACTIVE_OFFER_UNIQUE_INDEX_NO_ROLE = 'UQ_offers_active_employer_candidate_no_role';
+const ACTIVE_OFFER_UNIQUE_INDEX_ROLE =
+  'UQ_offers_active_employer_candidate_role';
+const ACTIVE_OFFER_UNIQUE_INDEX_NO_ROLE =
+  'UQ_offers_active_employer_candidate_no_role';
 
 function isActiveOfferUniqueViolation(error: unknown): boolean {
   if (!(error instanceof QueryFailedError)) return false;

@@ -76,3 +76,6 @@ export const LINKEDIN_COMPANY_URL_REGEX = new RegExp(
 
 export const LINKEDIN_COMPANY_PAGE_ERROR =
   'linkedin_company_page_url must be a valid LinkedIn company page URL';
+
+/** Days before restricted employer identity fields can be edited again. */
+export const PROFILE_COOLDOWN_DAYS = 180;

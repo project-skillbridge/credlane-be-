@@ -1,9 +1,6 @@
 import { Repository } from 'typeorm';
 import { ForbiddenError } from '../../shared';
-import {
-  AssessmentAttempt,
-  AssessmentResult,
-} from '../assessments/entities';
+import { AssessmentAttempt, AssessmentResult } from '../assessments/entities';
 import { EmployerAssessment } from '../employer-assessments/entities/employer-assessment.entity';
 import { EmployerSavedCandidate } from '../employer-discovery/entities/employer-saved-candidate.entity';
 import { EmployerProfile } from '../employer/entities/employer-profile.entity';
@@ -145,9 +142,7 @@ describe('DashboardService employer home', () => {
         'Complete employer verification',
       ]),
     );
-    expect(home.overview_cards.map((card) => card.value)).toEqual([
-      0, 0, 0, 0,
-    ]);
+    expect(home.overview_cards.map((card) => card.value)).toEqual([0, 0, 0, 0]);
   });
 
   it('returns the existing-user employer dashboard with counts and recent activity sorted by recency', async () => {
@@ -221,10 +216,10 @@ describe('DashboardService employer home', () => {
       missing_items: [],
     });
     expect(home.overview_cards).toEqual([
-      expect.objectContaining({ key: 'verified_talent', value: 18 }),
-      expect.objectContaining({ key: 'created_assessments', value: 7 }),
-      expect.objectContaining({ key: 'shortlisted_candidates', value: 4 }),
-      expect.objectContaining({ key: 'my_roles', value: 2 }),
+      expect.objectContaining({ key: 'verified_talent', value: 18, cta_route: '/e/dashboard' }),
+      expect.objectContaining({ key: 'created_assessments', value: 7, cta_route: '/e/assessments' }),
+      expect.objectContaining({ key: 'shortlisted_candidates', value: 4, cta_route: '/e/shortlist' }),
+      expect.objectContaining({ key: 'my_roles', value: 2, cta_route: '/e/roles' }),
     ]);
     expect(home.recent_activity).toHaveLength(3);
     expect(home.recent_activity[0]).toMatchObject({

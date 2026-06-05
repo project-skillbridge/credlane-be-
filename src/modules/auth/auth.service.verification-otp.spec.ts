@@ -10,7 +10,10 @@ describe('AuthService verification OTP delivery metadata', () => {
     create: jest.Mock;
     findByEmail: jest.Mock;
   };
-  let verificationOtpService: { issue: jest.Mock; countRecentResends: jest.Mock };
+  let verificationOtpService: {
+    issue: jest.Mock;
+    countRecentResends: jest.Mock;
+  };
   let mailService: { sendVerificationOtp: jest.Mock };
 
   const issuedExpiresAt = new Date(Date.now() + 5 * 60 * 1000);
@@ -83,9 +86,7 @@ describe('AuthService verification OTP delivery metadata', () => {
       'user-1',
       VerificationOtpSource.RESEND,
     );
-    expect(result.message).toBe(
-      SuccessMessages.AUTH.VERIFICATION_EMAIL_RESENT,
-    );
+    expect(result.message).toBe(SuccessMessages.AUTH.VERIFICATION_EMAIL_RESENT);
     expect(result.otp_expires_at).toBe(issuedExpiresAt.toISOString());
     expect(result.otp_expires_in_seconds).toBeGreaterThan(0);
   });

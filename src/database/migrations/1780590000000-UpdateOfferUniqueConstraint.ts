@@ -16,8 +16,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
 export class UpdateOfferUniqueConstraint1780590000000 implements MigrationInterface {
   name = 'UpdateOfferUniqueConstraint1780590000000';
 
-  private static readonly ACTIVE_STATUSES =
-    `'pending', 'assessment_unlocked', 'assessment_completed', 'passed', 'accepted'`;
+  private static readonly ACTIVE_STATUSES = `'pending', 'assessment_unlocked', 'assessment_completed', 'passed', 'accepted'`;
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(

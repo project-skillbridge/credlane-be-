@@ -26,17 +26,17 @@ export const EMPLOYER_DASHBOARD_COPY = {
   },
   createRoleCta: {
     label: 'Create a role',
-    route: '/roles/new',
+    route: '/e/roles/new',
     variant: 'primary',
   },
   browseTalentsCta: {
     label: 'Explore verified talent',
-    route: '/discovery',
+    route: '/e/dashboard',
     variant: 'primary',
   },
   rolesCta: {
     label: 'View roles',
-    route: '/roles',
+    route: '/e/roles',
     variant: 'secondary',
   },
   overviewCards: {
@@ -108,7 +108,8 @@ export const EMPLOYER_DASHBOARD_PROFILE_COMPLETENESS_RULES: ReadonlyArray<Employ
       key: 'region',
       label: 'Add your hiring region',
       weight: 10,
-      isFilled: (profile) => hasAnyText(profile?.region, profile?.hiring_region),
+      isFilled: (profile) =>
+        hasAnyText(profile?.region, profile?.hiring_region),
     },
     {
       key: 'company_website',
@@ -132,7 +133,8 @@ export const EMPLOYER_DASHBOARD_PROFILE_COMPLETENESS_RULES: ReadonlyArray<Employ
       label: 'Select the roles you are hiring for',
       weight: 15,
       isFilled: (profile) =>
-        hasAnyValues(profile?.hiring_roles) || hasAnyValues(profile?.desired_roles),
+        hasAnyValues(profile?.hiring_roles) ||
+        hasAnyValues(profile?.desired_roles),
     },
     {
       key: 'preferred_experience_levels',
