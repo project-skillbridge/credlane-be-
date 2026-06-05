@@ -4,7 +4,7 @@ import {
   AssessmentAttempt,
   AssessmentResult,
 } from '../assessments/entities';
-import { EmployerAssessmentInvite } from '../employer-assessments/entities/employer-assessment-invite.entity';
+import { EmployerAssessment } from '../employer-assessments/entities/employer-assessment.entity';
 import { EmployerSavedCandidate } from '../employer-discovery/entities/employer-saved-candidate.entity';
 import { EmployerProfile } from '../employer/entities/employer-profile.entity';
 import { EmployerRole } from '../employer-roles/entities/employer-role.entity';
@@ -33,8 +33,8 @@ describe('DashboardService employer home', () => {
     Repository<EmployerSavedCandidate>,
     'count' | 'findOne'
   >;
-  let employerAssessmentInviteRepository: Pick<
-    Repository<EmployerAssessmentInvite>,
+  let employerAssessmentRepository: Pick<
+    Repository<EmployerAssessment>,
     'count'
   >;
   let offerRepository: Pick<Repository<Offer>, 'count' | 'findOne'>;
@@ -81,7 +81,7 @@ describe('DashboardService employer home', () => {
       findOne: jest.fn().mockResolvedValue(null),
     };
 
-    employerAssessmentInviteRepository = {
+    employerAssessmentRepository = {
       count: jest.fn().mockResolvedValue(0),
     };
 
@@ -107,7 +107,7 @@ describe('DashboardService employer home', () => {
       employerProfileRepository as Repository<EmployerProfile>,
       employerRoleRepository as Repository<EmployerRole>,
       employerSavedCandidateRepository as Repository<EmployerSavedCandidate>,
-      employerAssessmentInviteRepository as Repository<EmployerAssessmentInvite>,
+      employerAssessmentRepository as Repository<EmployerAssessment>,
       offerRepository as Repository<Offer>,
       employerPoolProfileRepository as Repository<EmployerPoolProfile>,
       notificationDispatch as never,
@@ -174,7 +174,7 @@ describe('DashboardService employer home', () => {
     (employerProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
     (employerRoleRepository.count as jest.Mock).mockResolvedValue(2);
     (employerSavedCandidateRepository.count as jest.Mock).mockResolvedValue(4);
-    (employerAssessmentInviteRepository.count as jest.Mock).mockResolvedValue(7);
+    (employerAssessmentRepository.count as jest.Mock).mockResolvedValue(7);
     (offerRepository.count as jest.Mock).mockResolvedValue(3);
     (employerPoolProfileRepository.count as jest.Mock)
       .mockResolvedValueOnce(18)
@@ -222,7 +222,7 @@ describe('DashboardService employer home', () => {
     });
     expect(home.overview_cards).toEqual([
       expect.objectContaining({ key: 'verified_talent', value: 18 }),
-      expect.objectContaining({ key: 'assessments_shared', value: 7 }),
+      expect.objectContaining({ key: 'created_assessments', value: 7 }),
       expect.objectContaining({ key: 'shortlisted_candidates', value: 4 }),
       expect.objectContaining({ key: 'my_roles', value: 2 }),
     ]);

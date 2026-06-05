@@ -35,7 +35,7 @@ import {
 import { EmployerProfile } from '../employer/entities/employer-profile.entity';
 import { EmployerRole } from '../employer-roles/entities/employer-role.entity';
 import { EmployerSavedCandidate } from '../employer-discovery/entities/employer-saved-candidate.entity';
-import { EmployerAssessmentInvite } from '../employer-assessments/entities/employer-assessment-invite.entity';
+import { EmployerAssessment } from '../employer-assessments/entities/employer-assessment.entity';
 import { Offer, OfferStatus } from '../offers/entities/offer.entity';
 import {
   EmployerDashboardActivity,
@@ -68,8 +68,8 @@ export class DashboardService {
     private readonly employerRoleRepository: Repository<EmployerRole>,
     @InjectRepository(EmployerSavedCandidate)
     private readonly employerSavedCandidateRepository: Repository<EmployerSavedCandidate>,
-    @InjectRepository(EmployerAssessmentInvite)
-    private readonly employerAssessmentInviteRepository: Repository<EmployerAssessmentInvite>,
+    @InjectRepository(EmployerAssessment)
+    private readonly employerAssessmentRepository: Repository<EmployerAssessment>,
     @InjectRepository(Offer)
     private readonly offerRepository: Repository<Offer>,
     @InjectRepository(EmployerPoolProfile)
@@ -133,7 +133,7 @@ export class DashboardService {
       verifiedTalentCount,
       rolesCount,
       shortlistedCount,
-      assessmentsSharedCount,
+      createdAssessmentsCount,
       offersCount,
     ] = await Promise.all([
       this.employerPoolProfileRepository.count({
@@ -145,12 +145,10 @@ export class DashboardService {
       this.employerSavedCandidateRepository.count({
         where: { employer_user_id: userId },
       }),
-      this.employerAssessmentInviteRepository.count({
+      this.employerAssessmentRepository.count({
         where: {
-          assessment: {
-            employer_user_id: userId,
-          },
-        } as never,
+          employer_user_id: userId,
+        },
       }),
       this.offerRepository.count({
         where: { employer_user_id: userId },
@@ -160,7 +158,7 @@ export class DashboardService {
     const viewState =
       rolesCount > 0 ||
       shortlistedCount > 0 ||
-      assessmentsSharedCount > 0 ||
+      createdAssessmentsCount > 0 ||
       offersCount > 0
         ? EmployerDashboardViewState.EXISTING_USER
         : EmployerDashboardViewState.NEW_USER;
@@ -185,7 +183,7 @@ export class DashboardService {
       create_role_cta: EMPLOYER_DASHBOARD_COPY.createRoleCta,
       overview_cards: this.buildEmployerOverviewCards({
         verifiedTalentCount,
-        assessmentsSharedCount,
+        createdAssessmentsCount,
         shortlistedCount,
         rolesCount,
       }),
@@ -215,7 +213,7 @@ export class DashboardService {
 
   private buildEmployerOverviewCards(counts: {
     verifiedTalentCount: number;
-    assessmentsSharedCount: number;
+    createdAssessmentsCount: number;
     shortlistedCount: number;
     rolesCount: number;
   }): EmployerDashboardStatCard[] {
@@ -230,12 +228,12 @@ export class DashboardService {
         cta_route: '/discovery',
       },
       {
-        key: 'assessments_shared',
-        title: 'Assessments Shared',
-        value: counts.assessmentsSharedCount,
+        key: 'created_assessments',
+        title: 'Created Assessments',
+        value: counts.createdAssessmentsCount,
         description:
           EMPLOYER_DASHBOARD_COPY.overviewCards.assessmentsDescription,
-        cta_label: 'View assessment',
+        cta_label: 'View assessments',
         cta_route: '/assessments',
       },
       {
