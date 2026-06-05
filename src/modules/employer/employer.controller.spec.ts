@@ -1,4 +1,4 @@
-import { RequestMethod } from '@nestjs/common';
+import { NotFoundException, RequestMethod } from '@nestjs/common';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
@@ -15,7 +15,7 @@ import type { VerifyEmailChangeDto } from '../auth/dto/verify-email-change.dto';
 
 describe('EmployerController', () => {
   let controller: EmployerController;
-  let notificationsService: { listForUser: jest.Mock };
+  let notificationsService: { listForUser: jest.Mock; markAsRead: jest.Mock };
   let authService: {
     changePassword: jest.Mock;
     requestEmailChange: jest.Mock;
@@ -50,6 +50,7 @@ describe('EmployerController', () => {
 
     notificationsService = {
       listForUser: jest.fn(),
+      markAsRead: jest.fn(),
     };
 
     const moduleRef = await Test.createTestingModule({
@@ -271,5 +272,35 @@ describe('EmployerController', () => {
         },
       ],
     });
+  });
+
+  it('maps the expected mark-notification-read handler', () => {
+    expect(
+      Reflect.getMetadata(PATH_METADATA, controller.markNotificationAsRead),
+    ).toBe('notifications/:notification_id/read');
+    expect(
+      Reflect.getMetadata(METHOD_METADATA, controller.markNotificationAsRead),
+    ).toBe(RequestMethod.PATCH);
+  });
+
+  it('marks a notification as read via the notifications service', async () => {
+    notificationsService.markAsRead.mockResolvedValue(undefined);
+
+    await controller.markNotificationAsRead(userId, 'notif-1');
+
+    expect(notificationsService.markAsRead).toHaveBeenCalledWith(
+      userId,
+      'notif-1',
+    );
+  });
+
+  it('propagates not-found when the notification does not belong to the employer', async () => {
+    notificationsService.markAsRead.mockRejectedValue(
+      new NotFoundException('Notification not found'),
+    );
+
+    await expect(
+      controller.markNotificationAsRead(userId, 'missing'),
+    ).rejects.toThrow(NotFoundException);
   });
 });

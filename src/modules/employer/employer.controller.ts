@@ -5,6 +5,8 @@ import {
   Get,
   HttpCode,
   HttpStatus,
+  Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -17,6 +19,8 @@ import {
 import {
   ApiCookieAuth,
   ApiForbiddenResponse,
+  ApiNotFoundResponse,
+  ApiOkResponse,
   ApiOperation,
   ApiTags,
   ApiUnprocessableEntityResponse,
@@ -187,6 +191,18 @@ export class EmployerController {
     );
     const items: EmployerNotificationItem[] = rows.map(toEmployerNotificationItem);
     return { items };
+  }
+
+  @Patch('notifications/:notification_id/read')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Mark a notification as read' })
+  @ApiNotFoundResponse({ description: 'Notification not found' })
+  @ApiOkResponse({ description: 'Notification marked as read' })
+  async markNotificationAsRead(
+    @CurrentUser('sub') userId: string,
+    @Param('notification_id', ParseUUIDPipe) notificationId: string,
+  ): Promise<void> {
+    await this.notificationsService.markAsRead(userId, notificationId);
   }
 
   /** Legacy single-step onboarding — kept for backward compatibility. */
