@@ -1,11 +1,13 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Patch,
   Post,
+  Req,
   Res,
   UseGuards,
   UsePipes,
@@ -19,17 +21,19 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { clearAuthCookies, setAuthCookies } from '../auth/auth.cookies';
 import { AuthService } from '../auth/auth.service';
 import {
   ApiChangePasswordSettings,
+  ApiDeleteAccountSettings,
   ApiRequestEmailChangeSettings,
   ApiVerifyEmailChangeSettings,
 } from '../auth/docs/account-settings.swagger';
 import { ChangePasswordDto } from '../auth/dto/change-password.dto';
+import { DeleteAccountDto } from '../auth/dto/delete-account.dto';
 import { RequestEmailChangeDto } from '../auth/dto/request-email-change.dto';
 import { VerifyEmailChangeDto } from '../auth/dto/verify-email-change.dto';
 import { UserRole } from '../users/entities/user.entity';
@@ -137,6 +141,23 @@ export class EmployerController {
     @Res({ passthrough: true }) response: Response,
   ) {
     const result = await this.authService.verifyEmailChange(userId, dto);
+    clearAuthCookies(response);
+    return result;
+  }
+
+  @Delete('settings/account')
+  @HttpCode(HttpStatus.OK)
+  @ApiDeleteAccountSettings()
+  async deleteAccount(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: DeleteAccountDto,
+    @Req() request: Request,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.authService.deleteAccount(userId, dto, {
+      ip_address: request.ip,
+      user_agent: request.get('user-agent') ?? null,
+    });
     clearAuthCookies(response);
     return result;
   }

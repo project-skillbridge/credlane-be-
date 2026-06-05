@@ -2,11 +2,12 @@ import { RequestMethod } from '@nestjs/common';
 import { METHOD_METADATA, PATH_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
 import { ThrottlerGuard } from '@nestjs/throttler';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { EmployerController } from './employer.controller';
 import { EmployerService } from './employer.service';
 import { AuthService } from '../auth/auth.service';
 import type { ChangePasswordDto } from '../auth/dto/change-password.dto';
+import type { DeleteAccountDto } from '../auth/dto/delete-account.dto';
 import type { RequestEmailChangeDto } from '../auth/dto/request-email-change.dto';
 import type { VerifyEmailChangeDto } from '../auth/dto/verify-email-change.dto';
 
@@ -16,6 +17,7 @@ describe('EmployerController', () => {
     changePassword: jest.Mock;
     requestEmailChange: jest.Mock;
     verifyEmailChange: jest.Mock;
+    deleteAccount: jest.Mock;
   };
 
   const userId = 'employer-user-1';
@@ -26,11 +28,21 @@ describe('EmployerController', () => {
     } as never;
   };
 
+  const buildMockRequest = (): Request => {
+    return {
+      ip: '127.0.0.1',
+      get: jest.fn((header: string) =>
+        header.toLowerCase() === 'user-agent' ? 'jest-agent' : undefined,
+      ),
+    } as never;
+  };
+
   beforeEach(async () => {
     authService = {
       changePassword: jest.fn(),
       requestEmailChange: jest.fn(),
       verifyEmailChange: jest.fn(),
+      deleteAccount: jest.fn(),
     };
 
     const employerService = {} as EmployerService;
@@ -167,6 +179,51 @@ describe('EmployerController', () => {
     await expect(
       controller.verifyEmailChange(userId, dto, response),
     ).rejects.toThrow('Invalid or expired OTP');
+    expect(response.clearCookie).not.toHaveBeenCalled();
+  });
+
+  it('maps the expected delete-account handler', () => {
+    expect(Reflect.getMetadata(PATH_METADATA, controller.deleteAccount)).toBe(
+      'settings/account',
+    );
+    expect(Reflect.getMetadata(METHOD_METADATA, controller.deleteAccount)).toBe(
+      RequestMethod.DELETE,
+    );
+  });
+
+  it('deletes the account with request metadata and clears cookies', async () => {
+    const dto: DeleteAccountDto = { confirmation: 'DELETE' };
+    const serviceResult = {
+      status: 'success' as const,
+      message: 'Account deleted',
+    };
+    authService.deleteAccount.mockResolvedValue(serviceResult);
+    const request = buildMockRequest();
+    const response = buildMockResponse();
+
+    const result = await controller.deleteAccount(
+      userId,
+      dto,
+      request,
+      response,
+    );
+
+    expect(authService.deleteAccount).toHaveBeenCalledWith(userId, dto, {
+      ip_address: '127.0.0.1',
+      user_agent: 'jest-agent',
+    });
+    expect(response.clearCookie).toHaveBeenCalled();
+    expect(result).toEqual(serviceResult);
+  });
+
+  it('does not clear cookies when account deletion fails', async () => {
+    const dto: DeleteAccountDto = { confirmation: 'DELETE' };
+    authService.deleteAccount.mockRejectedValue(new Error('Delete failed'));
+    const response = buildMockResponse();
+
+    await expect(
+      controller.deleteAccount(userId, dto, buildMockRequest(), response),
+    ).rejects.toThrow('Delete failed');
     expect(response.clearCookie).not.toHaveBeenCalled();
   });
 });
