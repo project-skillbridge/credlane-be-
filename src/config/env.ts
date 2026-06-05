@@ -45,14 +45,14 @@ export const env = createEnv({
       .string()
       .min(32, 'JWT_REFRESH_SECRET must be at least 32 chars'),
     JWT_REFRESH_EXPIRES_IN: durationString('7d'),
-    VERIFICATION_OTP_EXPIRES_IN: durationString('15m'),
+    VERIFICATION_OTP_EXPIRES_IN: durationString('5m'),
     VERIFICATION_RESEND_LIMIT_PER_HOUR: z.coerce
       .number()
       .int()
       .positive()
       .default(3),
 
-    PASSWORD_RESET_OTP_EXPIRES_IN: durationString('15m'),
+    PASSWORD_RESET_OTP_EXPIRES_IN: durationString('5m'),
     /** Max forgot-password requests allowed per account within a 1-hour rolling window. */
     PASSWORD_RESET_RATE_LIMIT_PER_HOUR: z.coerce
       .number()

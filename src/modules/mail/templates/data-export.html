@@ -1,18 +1,14 @@
 <!--
-  SkillBridge — Email verification code
+  SkillBridge — Data export ready
 
   Variables (mustache/handlebars-compatible):
     {{name}}           recipient first name
-    {{code}}           the OTP as a single string, e.g. "123456"
-    {{expiresMinutes}} how many minutes the code is valid for, e.g. "5"
-    {{verifyUrl}}      full URL for the "Verify Email" button
+    {{fileName}}       name of the attached export file, e.g.
+                       skillbridge-data-export-jane-doe-2026-06-05.json
     {{logoUrl}}        absolute URL to the SkillBridge logo image
-    {{playStoreUrl}}   absolute URL to the Google Play badge image
-    {{appStoreUrl}}    absolute URL to the Mac App Store badge image
-    {{playStoreLink}}  link target for the Google Play badge
-    {{appStoreLink}}   link target for the Mac App Store badge
     {{contactUrl}}     absolute URL to the SkillBridge contact page,
                        e.g. https://skillbridge.com/contact
+    {{unsubscribeUrl}} unsubscribe link
     {{year}}           copyright year, e.g. 2026
 -->
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -29,7 +25,7 @@
     <meta name="x-apple-disable-message-reformatting" />
     <meta name="color-scheme" content="light only" />
     <meta name="supported-color-schemes" content="light only" />
-    <title>Verify your SkillBridge account</title>
+    <title>Your data export is ready</title>
     <!--[if mso]>
       <style type="text/css">
         table,
@@ -54,44 +50,32 @@
         width: 100% !important;
         -webkit-font-smoothing: antialiased;
       }
-
       table {
         border-collapse: collapse;
       }
-
       img {
         border: 0;
         outline: none;
         text-decoration: none;
         -ms-interpolation-mode: bicubic;
       }
-
       a {
         text-decoration: none;
       }
-
       @media only screen and (max-width: 620px) {
         .container {
           width: 100% !important;
         }
-
         .px {
           padding-left: 24px !important;
           padding-right: 24px !important;
         }
-
-        .code {
-          width: 280px !important;
-          height: 56px !important;
-          font-size: 24px !important;
-          letter-spacing: 12px !important;
-          line-height: 56px !important;
-          padding-left: 18px !important;
+        .filename {
+          font-size: 13px !important;
         }
       }
     </style>
   </head>
-
   <body
     style="
       margin: 0;
@@ -115,8 +99,7 @@
         mso-hide: all;
       "
     >
-      Your SkillBridge verification code is valid for {{expiresMinutes}}
-      minutes.
+      Your SkillBridge data export is attached to this email.
     </div>
 
     <table
@@ -170,7 +153,7 @@
                     color: #18181b;
                   "
                 >
-                  Email Verification Code
+                  Your data export is ready
                 </h1>
               </td>
             </tr>
@@ -193,7 +176,7 @@
               </td>
             </tr>
 
-            <!-- Intro -->
+            <!-- Body copy -->
             <tr>
               <td
                 class="px"
@@ -203,57 +186,30 @@
                     -apple-system, BlinkMacSystemFont, &quot;Segoe UI&quot;,
                     Roboto, Helvetica, Arial, sans-serif;
                   font-size: 15px;
-                  line-height: 1.5;
+                  line-height: 1.6;
                   color: #52525b;
                 "
               >
-                Use this code to verify your SkillBridge account:
+                Your data export is attached to this email as
+                <span
+                  class="filename"
+                  style="
+                    font-family:
+                      ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+                    font-size: 14px;
+                    color: #18181b;
+                    background-color: #f4f4f5;
+                    padding: 2px 6px;
+                    border-radius: 4px;
+                    border: 1px solid #e4e4e7;
+                    word-break: break-all;
+                  "
+                  >{{fileName}}</span
+                >.
               </td>
             </tr>
 
-            <!-- Code (single box so users can copy the whole value at once) -->
-            <tr>
-              <td class="px" style="padding: 20px 40px 0 40px">
-                <table
-                  role="presentation"
-                  cellpadding="0"
-                  cellspacing="0"
-                  border="0"
-                  width="340"
-                >
-                  <tr>
-                    <td
-                      class="code"
-                      width="340"
-                      height="64"
-                      align="center"
-                      valign="middle"
-                      nowrap="nowrap"
-                      style="
-                        border: 1.5px solid #e4e4e7;
-                        border-radius: 12px;
-                        padding-left: 24px;
-                        font-family:
-                          -apple-system, BlinkMacSystemFont,
-                          &quot;Segoe UI&quot;, Roboto, Helvetica, Arial,
-                          sans-serif;
-                        font-size: 28px;
-                        font-weight: 700;
-                        letter-spacing: 18px;
-                        color: #18181b;
-                        mso-line-height-rule: exactly;
-                        line-height: 64px;
-                        white-space: nowrap;
-                      "
-                    >
-                      {{code}}
-                    </td>
-                  </tr>
-                </table>
-              </td>
-            </tr>
-
-            <!-- Body copy -->
+            <!-- Warning -->
             <tr>
               <td
                 class="px"
@@ -267,10 +223,13 @@
                   color: #52525b;
                 "
               >
-                This code is valid for the next {{expiresMinutes}} minutes. If
-                you did not create a SkillBridge account, you can ignore this
-                email safely. If the code does not work, return to the app and
-                request a new code from the verification screen.
+                If you didn&rsquo;t request this export, please
+                <a
+                  href="{{contactUrl}}"
+                  style="color: #1f5f6b; text-decoration: underline"
+                  >contact us</a
+                >
+                immediately.
               </td>
             </tr>
 
@@ -316,11 +275,16 @@
                   color: #71717a;
                 "
               >
-                Questions? Reach out through our
+                Questions or FAQs? Reach out through our
                 <a
                   href="{{contactUrl}}"
                   style="color: #1f5f6b; text-decoration: underline"
                   >contact page</a
+                >. If you&rsquo;d rather not receive this kind of email,
+                <a
+                  href="{{unsubscribeUrl}}"
+                  style="color: #1f5f6b; text-decoration: underline"
+                  >unsubscribe</a
                 >.
               </td>
             </tr>
