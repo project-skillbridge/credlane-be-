@@ -1,6 +1,12 @@
 import { NotFoundException } from '@nestjs/common';
 import { EmployerService } from './employer.service';
 import { EmployerProfile } from './entities/employer-profile.entity';
+import {
+  buildEmployerNotificationLink,
+  mapEmployerNotificationType,
+  toEmployerNotificationItem,
+} from './employer-notification.mapper';
+import { NotificationType } from '../notifications/notification-type.enum';
 import { NotFoundError } from '../../shared';
 
 describe('EmployerService', () => {
@@ -320,6 +326,57 @@ describe('EmployerService', () => {
       await expect(
         service.getPublicProfile('nonexistent-user'),
       ).rejects.toThrow(NotFoundError);
+    });
+  });
+
+  describe('notification mapping helpers', () => {
+    it('maps job-ready type to new_matching_talent', () => {
+      expect(
+        mapEmployerNotificationType(
+          NotificationType.JOB_READY_MATCHES_AVAILABLE,
+        ),
+      ).toBe('new_matching_talent');
+      expect(mapEmployerNotificationType(NotificationType.OFFER_DECLINED)).toBe(
+        'offer_declined',
+      );
+    });
+
+    it('builds links from notification data', () => {
+      expect(
+        buildEmployerNotificationLink({ offerId: 'offer-1' }),
+      ).toEqual({ entity_id: 'offer-1', entity_type: 'offer' });
+      expect(
+        buildEmployerNotificationLink({ assessmentId: 'assessment-1' }),
+      ).toEqual({ entity_id: 'assessment-1', entity_type: 'assessment' });
+      expect(
+        buildEmployerNotificationLink({ candidateUserId: 'candidate-1' }),
+      ).toEqual({ entity_id: 'candidate-1', entity_type: 'candidate' });
+      expect(
+        buildEmployerNotificationLink({ candidateUserIds: ['c-1'] }),
+      ).toEqual({ entity_id: null, entity_type: 'discovery' });
+      expect(buildEmployerNotificationLink(null)).toBeNull();
+    });
+
+    it('maps a notification list item to the employer item shape', () => {
+      expect(
+        toEmployerNotificationItem({
+          id: 'notif-3',
+          type: NotificationType.OFFER_DECLINED,
+          title: 'Offer declined',
+          body: 'John declined your offer',
+          data: { candidateUserId: 'candidate-2' },
+          is_read: false,
+          read_at: null,
+          created_at: '2026-06-03T10:00:00.000Z',
+        }),
+      ).toEqual({
+        notification_id: 'notif-3',
+        type: 'offer_declined',
+        message: 'John declined your offer',
+        timestamp: '2026-06-03T10:00:00.000Z',
+        read: false,
+        link: { entity_id: 'candidate-2', entity_type: 'candidate' },
+      });
     });
   });
 });
