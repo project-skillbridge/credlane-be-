@@ -12,8 +12,14 @@ import {
   TalentProfile,
   TalentProfileStatus,
 } from '../talent/entities/talent-profile.entity';
+import { EmployerPoolProfile } from '../talent/entities/employer-pool-profile.entity';
 import { User, UserRole } from '../users/entities/user.entity';
 import { UsersService } from '../users/users.service';
+import { EmployerProfile } from '../employer/entities/employer-profile.entity';
+import { EmployerRole } from '../employer-roles/entities/employer-role.entity';
+import { EmployerSavedCandidate } from '../employer-discovery/entities/employer-saved-candidate.entity';
+import { EmployerAssessment } from '../employer-assessments/entities/employer-assessment.entity';
+import { Offer } from '../offers/entities/offer.entity';
 import { DashboardJourneyStatus } from './dto/dashboard-home.dto';
 import { DashboardService } from './dashboard.service';
 
@@ -26,6 +32,21 @@ describe('DashboardService', () => {
     'createQueryBuilder'
   >;
   let assessmentAttemptRepository: Pick<Repository<AssessmentAttempt>, 'count'>;
+  let employerProfileRepository: Pick<Repository<EmployerProfile>, 'findOne'>;
+  let employerRoleRepository: Pick<Repository<EmployerRole>, 'count'>;
+  let employerSavedCandidateRepository: Pick<
+    Repository<EmployerSavedCandidate>,
+    'count' | 'findOne'
+  >;
+  let employerAssessmentRepository: Pick<
+    Repository<EmployerAssessment>,
+    'count'
+  >;
+  let offerRepository: Pick<Repository<Offer>, 'count' | 'findOne'>;
+  let employerPoolProfileRepository: Pick<
+    Repository<EmployerPoolProfile>,
+    'count' | 'findOne'
+  >;
   let notificationDispatch: { notifyAdvancedRetakeIfEligible: jest.Mock };
   let queryBuilder: {
     innerJoin: jest.Mock;
@@ -69,6 +90,33 @@ describe('DashboardService', () => {
       count: jest.fn().mockResolvedValue(0),
     };
 
+    employerProfileRepository = {
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
+    employerRoleRepository = {
+      count: jest.fn().mockResolvedValue(0),
+    };
+
+    employerSavedCandidateRepository = {
+      count: jest.fn().mockResolvedValue(0),
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
+    employerAssessmentRepository = {
+      count: jest.fn().mockResolvedValue(0),
+    };
+
+    offerRepository = {
+      count: jest.fn().mockResolvedValue(0),
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
+    employerPoolProfileRepository = {
+      count: jest.fn().mockResolvedValue(0),
+      findOne: jest.fn().mockResolvedValue(null),
+    };
+
     notificationDispatch = {
       notifyAdvancedRetakeIfEligible: jest.fn().mockResolvedValue(undefined),
     };
@@ -78,6 +126,12 @@ describe('DashboardService', () => {
       usersService as UsersService,
       assessmentResultRepository as Repository<AssessmentResult>,
       assessmentAttemptRepository as Repository<AssessmentAttempt>,
+      employerProfileRepository as Repository<EmployerProfile>,
+      employerRoleRepository as Repository<EmployerRole>,
+      employerSavedCandidateRepository as Repository<EmployerSavedCandidate>,
+      employerAssessmentRepository as Repository<EmployerAssessment>,
+      offerRepository as Repository<Offer>,
+      employerPoolProfileRepository as Repository<EmployerPoolProfile>,
       notificationDispatch as never,
     );
   });
@@ -677,6 +731,49 @@ describe('DashboardService', () => {
       passed: true,
       failed: false,
     });
+  });
+
+  it('unlocks advanced for legacy profiles without personal_assessment_completed_at when skill validation exists', async () => {
+    const talentUser = makeUser({
+      first_name: 'Jane',
+      role: UserRole.TALENT,
+      onboarding_complete: true,
+    });
+
+    const profile = makeProfile({
+      onboarding_step: 3,
+      goal: 'land_first_role',
+      track: 'frontend_developer',
+      region: 'Lagos',
+      education_level: 'bachelors',
+      claimed_level: null,
+      personal_assessment_completed_at: null,
+      skill_assessment_completed_at: new Date('2026-05-02T00:00:00.000Z'),
+      validated_level: VerifiedLevel.MID,
+      status: TalentProfileStatus.IN_PROGRESS,
+    });
+
+    (usersService.findOne as jest.Mock).mockResolvedValue(talentUser);
+    (talentProfileRepository.findOne as jest.Mock).mockResolvedValue(profile);
+    (assessmentAttemptRepository.count as jest.Mock).mockResolvedValue(1);
+    (queryBuilder.getOne as jest.Mock).mockImplementation(() => {
+      if (lastAssessmentType === AssessmentType.SKILL) {
+        return Promise.resolve(
+          makeAssessmentResult({
+            percentage: 80,
+            validated_level: VerifiedLevel.MID,
+          }),
+        );
+      }
+      return Promise.resolve(null);
+    });
+
+    const home = await service.getHome(talentUser.id);
+    const advancedJourney = home.journey_overview.find(
+      (item) => item.key === 'advanced',
+    );
+
+    expect(advancedJourney?.status).toBe(DashboardJourneyStatus.AVAILABLE);
   });
 
   it('returns attempts_used and attempts_remaining based on completed attempt count', async () => {

@@ -214,14 +214,14 @@ describe('EmployerDiscoveryService', () => {
     it('should throw ForbiddenError if employer is not verified', async () => {
       mockVerificationService.assertEmployerVerified.mockRejectedValue(
         new ForbiddenError(
-          'Complete your company profile to access this feature.',
+          'Your employer account is pending verification. You will be notified once approved.',
         ),
       );
 
       await expect(
         service.contactCandidate('employer-1', 'user-1', 'Hello'),
       ).rejects.toThrow(
-        'Complete your company profile to access this feature.',
+        'Your employer account is pending verification. You will be notified once approved.',
       );
       expect(mockPoolProfileRepo.findOne).not.toHaveBeenCalled();
     });

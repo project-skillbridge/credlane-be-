@@ -11,6 +11,7 @@ import {
   EmployerAssessmentInvite,
   EmployerAssessmentQuestion,
   EmployerAssessmentSubmission,
+  CredlaneCatalogueAssessment,
 } from './entities';
 import { EmployerAssessmentsController } from './employer-assessments.controller';
 import { EmployerAssessmentsService } from './employer-assessments.service';
@@ -27,6 +28,7 @@ import { EmployerAssessmentsService } from './employer-assessments.service';
       User,
       EmployerRole,
       Offer,
+      CredlaneCatalogueAssessment,
     ]),
     NotificationsModule,
   ],
