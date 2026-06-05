@@ -52,7 +52,7 @@ export const env = createEnv({
       .positive()
       .default(3),
 
-    PASSWORD_RESET_OTP_EXPIRES_IN: durationString('15m'),
+    PASSWORD_RESET_OTP_EXPIRES_IN: durationString('5m'),
     /** Max forgot-password requests allowed per account within a 1-hour rolling window. */
     PASSWORD_RESET_RATE_LIMIT_PER_HOUR: z.coerce
       .number()
