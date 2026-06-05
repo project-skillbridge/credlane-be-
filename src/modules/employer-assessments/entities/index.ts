@@ -12,3 +12,4 @@ export {
   EmployerAssessmentDeliveryMode,
 } from './employer-assessment-invite.entity';
 export { EmployerAssessmentSubmission } from './employer-assessment-submission.entity';
+export { CredlaneCatalogueAssessment } from './credlane-catalogue-assessment.entity';

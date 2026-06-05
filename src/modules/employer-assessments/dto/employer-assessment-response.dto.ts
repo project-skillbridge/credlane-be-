@@ -268,3 +268,40 @@ export class EmployerAssessmentSubmissionResponseDto {
   @ApiProperty()
   completed_at: Date;
 }
+
+export class CredlaneCatalogueAssessmentResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id: string;
+
+  @ApiProperty()
+  title: string;
+
+  @ApiPropertyOptional({ nullable: true })
+  description: string | null;
+
+  @ApiProperty({ example: '30 minutes' })
+  estimated_completion_time: string;
+
+  @ApiProperty()
+  role_track: string;
+
+  @ApiProperty({ enum: EmployerAssessmentExperienceLevel })
+  experience_level: EmployerAssessmentExperienceLevel;
+}
+
+export class ListCredlaneCatalogueResponseDto {
+  @ApiProperty({ type: [CredlaneCatalogueAssessmentResponseDto] })
+  catalogue: CredlaneCatalogueAssessmentResponseDto[];
+
+  @ApiProperty()
+  total: number;
+
+  @ApiProperty()
+  page: number;
+
+  @ApiProperty()
+  limit: number;
+
+  @ApiProperty()
+  totalPages: number;
+}
