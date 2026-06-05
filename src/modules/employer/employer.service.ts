@@ -226,7 +226,7 @@ export class EmployerService {
       }
     }
     if (dto.linkedinCompanyPageUrl !== undefined) {
-      const nextLinkedin = dto.linkedinCompanyPageUrl?.trim() ?? null;
+      const nextLinkedin = dto.linkedinCompanyPageUrl?.trim() || null;
       if (nextLinkedin !== normalizeLinkedinUrl(profile)) {
         assertRestrictedFieldEditable(profile, 'linkedin_url', now);
         profile.linkedin_company_page_url = nextLinkedin;

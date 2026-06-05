@@ -358,7 +358,7 @@ export class DashboardService {
       description:
         'Fresh Job Ready talent now matches your hiring preferences.',
       occurred_at: latestMatch.verified_at.toISOString(),
-      route: '/discovery',
+      route: '/e/dashboard',
     };
   }
 
@@ -381,7 +381,7 @@ export class DashboardService {
       description:
         'Your shortlist has a new verified candidate ready for review.',
       occurred_at: latestSaved.created_at.toISOString(),
-      route: '/shortlist',
+      route: '/e/shortlist',
     };
   }
 
@@ -411,7 +411,7 @@ export class DashboardService {
       occurred_at: (
         latestAcceptedOffer.responded_at ?? latestAcceptedOffer.created_at
       ).toISOString(),
-      route: '/offers',
+      route: '/e/offers',
     };
   }
 

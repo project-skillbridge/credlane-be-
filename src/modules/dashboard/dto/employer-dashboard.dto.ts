@@ -15,7 +15,7 @@ export class EmployerDashboardCallToActionDto {
   @ApiProperty({ example: 'Explore verified talent' })
   label: string;
 
-  @ApiProperty({ example: '/discovery' })
+  @ApiProperty({ example: '/e/dashboard' })
   route: string;
 
   @ApiProperty({ example: 'primary' })
@@ -44,7 +44,7 @@ export class EmployerDashboardProfilePromptDto {
   @ApiProperty({ example: 'Complete profile' })
   cta_label: string;
 
-  @ApiProperty({ example: '/employer/profile' })
+  @ApiProperty({ example: '/e/profile' })
   cta_route: string;
 
   @ApiProperty({ type: [String] })
@@ -105,7 +105,7 @@ export class EmployerDashboardStatCardDto {
   @ApiProperty({ example: 'Browse talents' })
   cta_label: string;
 
-  @ApiProperty({ example: '/discovery' })
+  @ApiProperty({ example: '/e/dashboard' })
   cta_route: string;
 }
 
@@ -127,7 +127,7 @@ export class EmployerDashboardActivityDto {
   @ApiProperty({ format: 'date-time' })
   occurred_at: string;
 
-  @ApiProperty({ example: '/shortlist' })
+  @ApiProperty({ example: '/e/shortlist' })
   route: string;
 }
 
