@@ -7,10 +7,14 @@ import { EmployerController } from './employer.controller';
 import { EmployerService } from './employer.service';
 import { AuthService } from '../auth/auth.service';
 import type { ChangePasswordDto } from '../auth/dto/change-password.dto';
+import type { RequestEmailChangeDto } from '../auth/dto/request-email-change.dto';
 
 describe('EmployerController', () => {
   let controller: EmployerController;
-  let authService: { changePassword: jest.Mock };
+  let authService: {
+    changePassword: jest.Mock;
+    requestEmailChange: jest.Mock;
+  };
 
   const userId = 'employer-user-1';
 
@@ -23,6 +27,7 @@ describe('EmployerController', () => {
   beforeEach(async () => {
     authService = {
       changePassword: jest.fn(),
+      requestEmailChange: jest.fn(),
     };
 
     const employerService = {} as EmployerService;
@@ -89,6 +94,31 @@ describe('EmployerController', () => {
       'Current password is incorrect',
     );
     expect(response.clearCookie).not.toHaveBeenCalled();
+  });
+
+  it('maps the expected change-email handler', () => {
+    expect(Reflect.getMetadata(PATH_METADATA, controller.requestEmailChange)).toBe(
+      'settings/change-email',
+    );
+    expect(
+      Reflect.getMetadata(METHOD_METADATA, controller.requestEmailChange),
+    ).toBe(RequestMethod.POST);
+  });
+
+  it('requests email change and returns the service result', () => {
+    const dto: RequestEmailChangeDto = {
+      newEmail: 'new.email@company.com',
+    };
+    const serviceResult = {
+      status: 'success' as const,
+      message: 'Verification OTP sent to new email',
+    };
+    authService.requestEmailChange.mockReturnValue(serviceResult);
+
+    const result = controller.requestEmailChange(userId, dto);
+
+    expect(authService.requestEmailChange).toHaveBeenCalledWith(userId, dto);
+    expect(result).toEqual(serviceResult);
   });
 });
 

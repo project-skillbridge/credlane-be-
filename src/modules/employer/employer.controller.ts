@@ -24,8 +24,12 @@ import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { clearAuthCookies, setAuthCookies } from '../auth/auth.cookies';
 import { AuthService } from '../auth/auth.service';
-import { ApiChangePasswordSettings } from '../auth/docs/account-settings.swagger';
+import {
+  ApiChangePasswordSettings,
+  ApiRequestEmailChangeSettings,
+} from '../auth/docs/account-settings.swagger';
 import { ChangePasswordDto } from '../auth/dto/change-password.dto';
+import { RequestEmailChangeDto } from '../auth/dto/request-email-change.dto';
 import { UserRole } from '../users/entities/user.entity';
 import { CompleteEmployerOnboardingDto } from './dto/complete-employer-onboarding.dto';
 import { SaveEmployerProfileDto } from './dto/save-employer-profile.dto';
@@ -108,6 +112,17 @@ export class EmployerController {
     const result = await this.authService.changePassword(userId, dto);
     clearAuthCookies(response);
     return result;
+  }
+
+  @UseGuards(ThrottlerGuard)
+  @Post('settings/change-email')
+  @HttpCode(HttpStatus.OK)
+  @ApiRequestEmailChangeSettings()
+  requestEmailChange(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: RequestEmailChangeDto,
+  ) {
+    return this.authService.requestEmailChange(userId, dto);
   }
 
   /** Legacy single-step onboarding — kept for backward compatibility. */
