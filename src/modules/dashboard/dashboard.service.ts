@@ -43,9 +43,7 @@ import {
   EmployerDashboardHomeResponse,
   EmployerDashboardViewState,
 } from './dto/employer-dashboard.dto';
-import {
-  EMPLOYER_DASHBOARD_PROFILE_COMPLETENESS_RULES,
-} from './employer-dashboard.config';
+import { EMPLOYER_DASHBOARD_PROFILE_COMPLETENESS_RULES } from './employer-dashboard.config';
 
 const ADVANCED_RETAKE_GATE_DAYS = 14;
 const EMPLOYER_RECENT_TALENT_LOOKBACK_DAYS = 14;

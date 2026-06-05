@@ -103,6 +103,50 @@ export const COMPETENCY_TAXONOMY: Record<string, readonly string[]> = {
 
 export const FALLBACK_COMPETENCY = 'general';
 
+/** Normalises a human-readable competency label to a storage slug. */
+export function slugifyCompetency(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
+}
+
+/**
+ * Resolves the best competency slug for a bank question or session payload.
+ * Prefers the persisted column unless it is the import fallback (`general`),
+ * then falls back to metadata.source_competency from the CredLane import.
+ */
+export function resolveQuestionCompetency(input: {
+  competency?: string | null;
+  metadata?: Record<string, unknown> | null;
+}): string | null {
+  const metadata = input.metadata ?? {};
+  const columnCompetency = input.competency
+    ? slugifyCompetency(input.competency)
+    : null;
+  const sourceCompetency =
+    typeof metadata.source_competency === 'string' &&
+    metadata.source_competency.trim().length > 0
+      ? slugifyCompetency(metadata.source_competency)
+      : null;
+  const metadataCompetency =
+    typeof metadata.competency === 'string' &&
+    metadata.competency.trim().length > 0
+      ? slugifyCompetency(metadata.competency)
+      : null;
+
+  const candidates = [columnCompetency, sourceCompetency, metadataCompetency];
+  const specific = candidates.find(
+    (value) => value && value !== FALLBACK_COMPETENCY,
+  );
+  if (specific) {
+    return specific;
+  }
+
+  return columnCompetency ?? sourceCompetency ?? metadataCompetency;
+}
+
 /**
  * Returns the list of valid competencies for a track, or an empty list if the
  * track isn't in the taxonomy (unknown / custom tracks).

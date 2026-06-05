@@ -70,6 +70,7 @@ import {
 import {
   competenciesForTrack,
   normaliseCompetency,
+  resolveQuestionCompetency,
   sanitiseCompetencyList,
 } from './competency-taxonomy';
 import {
@@ -803,12 +804,10 @@ export class AdvancedAssessmentService {
       try {
         const competencyByQuestion = new Map<string, string | null>();
         for (const question of sessionQuestions) {
-          const metadata = (question.metadata ?? {}) as Record<string, unknown>;
-          const competency =
-            typeof metadata.competency === 'string'
-              ? metadata.competency.toLowerCase()
-              : null;
-          competencyByQuestion.set(question.question_id, competency);
+          competencyByQuestion.set(
+            question.question_id,
+            resolveQuestionCompetency({ metadata: question.metadata }),
+          );
         }
 
         await this.employerPoolProfileService.upsert({
@@ -1373,10 +1372,10 @@ export class AdvancedAssessmentService {
   ): string[] {
     const competencyByQuestion = new Map<string, string | null>();
     for (const question of sessionQuestions) {
-      const metadata = (question.metadata ?? {}) as Record<string, unknown>;
-      const competency =
-        typeof metadata.competency === 'string' ? metadata.competency : null;
-      competencyByQuestion.set(question.question_id, competency);
+      competencyByQuestion.set(
+        question.question_id,
+        resolveQuestionCompetency({ metadata: question.metadata }),
+      );
     }
 
     const minRatio = band === 'strong' ? 0.7 : 0;
@@ -1423,9 +1422,9 @@ export class AdvancedAssessmentService {
     } = input;
 
     for (const question of sessionQuestions) {
-      const metadata = (question.metadata ?? {}) as Record<string, unknown>;
-      const competency =
-        typeof metadata.competency === 'string' ? metadata.competency : null;
+      const competency = resolveQuestionCompetency({
+        metadata: question.metadata,
+      });
       const isMcq =
         question.question_type === QuestionType.SINGLE_PICK ||
         question.question_type === QuestionType.MULTI_PICK;
@@ -1971,8 +1970,9 @@ export class AdvancedAssessmentService {
     }
 
     const timer = this.resolveSessionTimerState(attempt, expiresAt);
-    const mcqCount = questions.filter((question) => question.block === 'mcq')
-      .length;
+    const mcqCount = questions.filter(
+      (question) => question.block === 'mcq',
+    ).length;
     const openTextCount = questions.filter(
       (question) =>
         question.block === 'short_text' || question.block === 'long_text',
