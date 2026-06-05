@@ -1029,6 +1029,12 @@ export class AdvancedAssessmentService {
         ErrorMessages.ADVANCED_ASSESSMENT.SESSION_VOIDED,
       );
     }
+    if (attempt.expires_at && attempt.expires_at <= new Date()) {
+      throw new ForbiddenException({
+        error: 'SESSION_EXPIRED',
+        message: ErrorMessages.ADVANCED_ASSESSMENT.SESSION_EXPIRED,
+      });
+    }
     if (this.isAdvancedSubmitInFlight(attempt)) {
       throw new BadRequestException(
         ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_ALREADY_SUBMITTED,
@@ -1084,6 +1090,12 @@ export class AdvancedAssessmentService {
           throw new BadRequestException(
             ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_ALREADY_SUBMITTED,
           );
+        }
+        if (attempt.expires_at && attempt.expires_at <= new Date()) {
+          throw new ForbiddenException({
+            error: 'SESSION_EXPIRED',
+            message: ErrorMessages.ADVANCED_ASSESSMENT.SESSION_EXPIRED,
+          });
         }
 
         await manager.increment(

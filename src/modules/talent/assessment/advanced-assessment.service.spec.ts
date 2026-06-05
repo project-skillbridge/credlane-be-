@@ -592,6 +592,22 @@ describe('AdvancedAssessmentService', () => {
       ).rejects.toThrow(BadRequestException);
     });
 
+    it('throws 403 when session is expired', async () => {
+      attemptRepo.findOne.mockResolvedValue(
+        makeAttempt({ expires_at: new Date(Date.now() - 1000) }),
+      );
+
+      await expect(
+        service.submit(userId, makeSubmitDto() as never),
+      ).rejects.toMatchObject({
+        response: {
+          error: 'SESSION_EXPIRED',
+          message: ErrorMessages.ADVANCED_ASSESSMENT.SESSION_EXPIRED,
+        },
+      });
+      expect(submitQueue.enqueue).not.toHaveBeenCalled();
+    });
+
     it('throws 503 when enqueue fails', async () => {
       submitQueue.enqueue.mockRejectedValueOnce(new Error('redis down'));
 
@@ -1155,6 +1171,24 @@ describe('AdvancedAssessmentService', () => {
           eventType: IntegrityEventType.TAB_SWITCH,
         }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('throws 403 when attempting to flag an expired session', async () => {
+      entityManagerFindOne.mockResolvedValueOnce(
+        makeAttempt({ expires_at: new Date(Date.now() - 1000) }),
+      );
+
+      await expect(
+        service.flag(userId, 'attempt-1', {
+          eventType: IntegrityEventType.TAB_SWITCH,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          error: 'SESSION_EXPIRED',
+          message: ErrorMessages.ADVANCED_ASSESSMENT.SESSION_EXPIRED,
+        },
+      });
+      expect(entityManagerIncrement).not.toHaveBeenCalled();
     });
   });
 
