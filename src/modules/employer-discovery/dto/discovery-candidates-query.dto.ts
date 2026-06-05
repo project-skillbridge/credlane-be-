@@ -67,7 +67,9 @@ export class DiscoveryCandidatesQueryDto extends PaginationDto {
     description: 'Minimum composite score (inclusive)',
   })
   @IsOptional()
-  @Transform(({ value }) => (value === '' ? undefined : Number(value)))
+  @Transform(({ value }) =>
+    value == null || value === '' ? undefined : Number(value),
+  )
   @IsInt()
   @Min(0)
   @Max(100)
@@ -80,7 +82,9 @@ export class DiscoveryCandidatesQueryDto extends PaginationDto {
     description: 'Maximum composite score (inclusive)',
   })
   @IsOptional()
-  @Transform(({ value }) => (value === '' ? undefined : Number(value)))
+  @Transform(({ value }) =>
+    value == null || value === '' ? undefined : Number(value),
+  )
   @IsInt()
   @Min(0)
   @Max(100)
