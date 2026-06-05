@@ -169,7 +169,10 @@ export class DashboardService {
       'there';
 
     const profilePrompt = this.buildEmployerProfilePrompt(profile);
-    const recentActivity = await this.buildEmployerRecentActivity(userId, profile);
+    const recentActivity = await this.buildEmployerRecentActivity(
+      userId,
+      profile,
+    );
 
     return {
       company_name: companyName,
@@ -203,7 +206,9 @@ export class DashboardService {
         viewState === EmployerDashboardViewState.NEW_USER
           ? {
               headline: EMPLOYER_DASHBOARD_COPY.socialProof.headline,
-              testimonials: [...EMPLOYER_DASHBOARD_COPY.socialProof.testimonials],
+              testimonials: [
+                ...EMPLOYER_DASHBOARD_COPY.socialProof.testimonials,
+              ],
             }
           : null,
       roles_empty_state_message:
@@ -771,9 +776,9 @@ export class DashboardService {
   private hasAdvancedAssessmentContext(profile: TalentProfile): boolean {
     return Boolean(
       profile.track?.trim() &&
-        (profile.personal_assessment_completed_at ||
-          profile.claimed_level ||
-          profile.validated_level),
+      (profile.personal_assessment_completed_at ||
+        profile.claimed_level ||
+        profile.validated_level),
     );
   }
 

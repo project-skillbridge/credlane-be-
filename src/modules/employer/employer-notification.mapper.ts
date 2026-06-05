@@ -53,7 +53,10 @@ export function buildEmployerNotificationLink(
     return { entity_id: candidateUserId, entity_type: 'candidate' };
   }
 
-  if (Array.isArray(data.candidateUserIds) && data.candidateUserIds.length > 0) {
+  if (
+    Array.isArray(data.candidateUserIds) &&
+    data.candidateUserIds.length > 0
+  ) {
     return { entity_id: null, entity_type: 'discovery' };
   }
 

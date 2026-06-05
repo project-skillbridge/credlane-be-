@@ -297,10 +297,7 @@ describe('EmployerController', () => {
 
   it('maps the expected mark-all-notifications-read handler', () => {
     expect(
-      Reflect.getMetadata(
-        PATH_METADATA,
-        controller.markAllNotificationsAsRead,
-      ),
+      Reflect.getMetadata(PATH_METADATA, controller.markAllNotificationsAsRead),
     ).toBe('notifications/read-all');
     expect(
       Reflect.getMetadata(
@@ -353,7 +350,10 @@ describe('EmployerController', () => {
       Reflect.getMetadata(PATH_METADATA, controller.getUnreadNotificationCount),
     ).toBe('notifications/unread-count');
     expect(
-      Reflect.getMetadata(METHOD_METADATA, controller.getUnreadNotificationCount),
+      Reflect.getMetadata(
+        METHOD_METADATA,
+        controller.getUnreadNotificationCount,
+      ),
     ).toBe(RequestMethod.GET);
   });
 
@@ -388,9 +388,9 @@ describe('EmployerController', () => {
 
     const result = await controller.getVerificationStatus(userId);
 
-    expect(verificationService.getVerificationStatusDetail).toHaveBeenCalledWith(
-      userId,
-    );
+    expect(
+      verificationService.getVerificationStatusDetail,
+    ).toHaveBeenCalledWith(userId);
     expect(result.banner_visible).toBe(true);
   });
 

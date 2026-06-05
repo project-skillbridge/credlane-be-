@@ -77,7 +77,9 @@ export class EmployerDashboardCapabilityDto {
 }
 
 export class EmployerDashboardSocialProofDto {
-  @ApiProperty({ example: 'Trusted by fast-moving teams hiring across Africa.' })
+  @ApiProperty({
+    example: 'Trusted by fast-moving teams hiring across Africa.',
+  })
   headline: string;
 
   @ApiProperty({ type: [String] })
@@ -172,7 +174,8 @@ export class EmployerDashboardHomeResponseDto {
   social_proof: EmployerDashboardSocialProofDto | null;
 
   @ApiPropertyOptional({
-    example: 'No roles created yet. Create your first role to start sending offers.',
+    example:
+      'No roles created yet. Create your first role to start sending offers.',
     nullable: true,
   })
   roles_empty_state_message: string | null;

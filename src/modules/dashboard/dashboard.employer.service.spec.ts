@@ -1,9 +1,6 @@
 import { Repository } from 'typeorm';
 import { ForbiddenError } from '../../shared';
-import {
-  AssessmentAttempt,
-  AssessmentResult,
-} from '../assessments/entities';
+import { AssessmentAttempt, AssessmentResult } from '../assessments/entities';
 import { EmployerAssessment } from '../employer-assessments/entities/employer-assessment.entity';
 import { EmployerSavedCandidate } from '../employer-discovery/entities/employer-saved-candidate.entity';
 import { EmployerProfile } from '../employer/entities/employer-profile.entity';
@@ -145,9 +142,7 @@ describe('DashboardService employer home', () => {
         'Complete employer verification',
       ]),
     );
-    expect(home.overview_cards.map((card) => card.value)).toEqual([
-      0, 0, 0, 0,
-    ]);
+    expect(home.overview_cards.map((card) => card.value)).toEqual([0, 0, 0, 0]);
   });
 
   it('returns the existing-user employer dashboard with counts and recent activity sorted by recency', async () => {

@@ -75,7 +75,9 @@ export class EmployerController {
   @Get('profile/public/:employer_id')
   @Roles(UserRole.TALENT, UserRole.EMPLOYER)
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Get employer public profile (talent- and employer-facing)' })
+  @ApiOperation({
+    summary: 'Get employer public profile (talent- and employer-facing)',
+  })
   @ApiNotFoundResponse({ description: 'Employer profile not found' })
   async getPublicProfile(
     @Param('employer_id', ParseUUIDPipe) employerId: string,
@@ -220,13 +222,17 @@ export class EmployerController {
       userId,
       query.limit ?? 20,
     );
-    const items: EmployerNotificationItem[] = rows.map(toEmployerNotificationItem);
+    const items: EmployerNotificationItem[] = rows.map(
+      toEmployerNotificationItem,
+    );
     return { items };
   }
 
   @Get('notifications/unread-count')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Get unread in-app notification count for the employer' })
+  @ApiOperation({
+    summary: 'Get unread in-app notification count for the employer',
+  })
   @ApiOkResponse({ type: UnreadCountResponseDto })
   async getUnreadNotificationCount(
     @CurrentUser('sub') userId: string,

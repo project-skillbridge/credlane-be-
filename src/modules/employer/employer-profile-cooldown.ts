@@ -148,9 +148,7 @@ export function markRestrictedFieldChanged(
   setChangedAt(profile, field, now);
 }
 
-export function normalizeLinkedinUrl(
-  profile: EmployerProfile,
-): string | null {
+export function normalizeLinkedinUrl(profile: EmployerProfile): string | null {
   return (
     profile.linkedin_company_page_url?.trim() ||
     profile.linkedin_company_url?.trim() ||
@@ -158,6 +156,8 @@ export function normalizeLinkedinUrl(
   );
 }
 
-export function normalizeCompanyWebsite(profile: EmployerProfile): string | null {
+export function normalizeCompanyWebsite(
+  profile: EmployerProfile,
+): string | null {
   return profile.company_website?.trim() || profile.website_url?.trim() || null;
 }

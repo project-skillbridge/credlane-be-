@@ -1374,9 +1374,11 @@ describe('AdvancedAssessmentService', () => {
               .mockReturnValueOnce(skillResultQuery)
               .mockReturnValueOnce(activeSessionQuery),
             create: jest.fn((_entity: unknown, data: unknown) => data),
-            save: jest.fn().mockImplementation(async (_entity, data) =>
-              Object.assign(makeAttempt(), data, { id: 'attempt-legacy-1' }),
-            ),
+            save: jest
+              .fn()
+              .mockImplementation(async (_entity, data) =>
+                Object.assign(makeAttempt(), data, { id: 'attempt-legacy-1' }),
+              ),
           }),
       );
 

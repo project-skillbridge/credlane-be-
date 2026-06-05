@@ -413,21 +413,22 @@ describe('EmployerService', () => {
       expect(mapEmployerNotificationType(NotificationType.OFFER_ACCEPTED)).toBe(
         'offer_accepted_assessment_unlocked',
       );
-      expect(mapEmployerNotificationType(NotificationType.ASSESSMENT_PASSED)).toBe(
-        'candidate_passed',
-      );
-      expect(mapEmployerNotificationType(NotificationType.ASSESSMENT_FAILED)).toBe(
-        'candidate_failed',
-      );
+      expect(
+        mapEmployerNotificationType(NotificationType.ASSESSMENT_PASSED),
+      ).toBe('candidate_passed');
+      expect(
+        mapEmployerNotificationType(NotificationType.ASSESSMENT_FAILED),
+      ).toBe('candidate_failed');
       expect(mapEmployerNotificationType(NotificationType.OFFER_DECLINED)).toBe(
         'offer_declined',
       );
     });
 
     it('builds links from notification data', () => {
-      expect(
-        buildEmployerNotificationLink({ offerId: 'offer-1' }),
-      ).toEqual({ entity_id: 'offer-1', entity_type: 'offer' });
+      expect(buildEmployerNotificationLink({ offerId: 'offer-1' })).toEqual({
+        entity_id: 'offer-1',
+        entity_type: 'offer',
+      });
       expect(
         buildEmployerNotificationLink({ assessmentId: 'assessment-1' }),
       ).toEqual({ entity_id: 'assessment-1', entity_type: 'assessment' });
