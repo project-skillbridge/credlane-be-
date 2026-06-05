@@ -7,7 +7,14 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Subject } from 'rxjs';
-import { Between, In, LessThan, QueryFailedError, Repository } from 'typeorm';
+import {
+  Between,
+  In,
+  IsNull,
+  LessThan,
+  QueryFailedError,
+  Repository,
+} from 'typeorm';
 import {
   BadRequestError,
   ConflictError,
@@ -18,8 +25,10 @@ import { EmployerPoolProfile } from '../talent/entities/employer-pool-profile.en
 import { EmployerProfile } from '../employer/entities/employer-profile.entity';
 import { User } from '../users/entities/user.entity';
 import type {
+  AssessmentUnlockedPayload,
   OfferReceivedPayload,
   OfferRespondedPayload,
+  OfferWithdrawnPayload,
 } from '../notifications/notification-dispatch.service';
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
 import { EmployerVerificationService } from '../employer/employer-verification.service';
@@ -40,6 +49,14 @@ type OffersNotificationPort = {
     userId: string,
     payload: OfferRespondedPayload,
   ): Promise<void>;
+  notifyAssessmentUnlocked(
+    userId: string,
+    payload: AssessmentUnlockedPayload,
+  ): Promise<void>;
+  notifyOfferWithdrawn(
+    userId: string,
+    payload: OfferWithdrawnPayload,
+  ): Promise<void>;
 };
 import { Offer, OfferStatus } from './entities/offer.entity';
 import { OfferDistributionLog } from './entities/offer-distribution-log.entity';
@@ -49,6 +66,8 @@ import { ListOffersQueryDto } from './dto/list-offers-query.dto';
 
 const DEFAULT_MONTHLY_CAP = 50;
 const ACTIVE_OFFER_UNIQUE_INDEX = 'UQ_offers_active_employer_candidate';
+const ACTIVE_OFFER_UNIQUE_INDEX_ROLE = 'UQ_offers_active_employer_candidate_role';
+const ACTIVE_OFFER_UNIQUE_INDEX_NO_ROLE = 'UQ_offers_active_employer_candidate_no_role';
 
 function isActiveOfferUniqueViolation(error: unknown): boolean {
   if (!(error instanceof QueryFailedError)) return false;
@@ -57,7 +76,12 @@ function isActiveOfferUniqueViolation(error: unknown): boolean {
     (error.driverError as { code?: string } | undefined)?.code;
   const constraint = (error.driverError as { constraint?: string } | undefined)
     ?.constraint;
-  return code === '23505' && constraint === ACTIVE_OFFER_UNIQUE_INDEX;
+  return (
+    code === '23505' &&
+    (constraint === ACTIVE_OFFER_UNIQUE_INDEX ||
+      constraint === ACTIVE_OFFER_UNIQUE_INDEX_ROLE ||
+      constraint === ACTIVE_OFFER_UNIQUE_INDEX_NO_ROLE)
+  );
 }
 
 export type OfferListResult = {
@@ -225,11 +249,14 @@ export class OffersService {
       where: {
         employer_user_id: employerUserId,
         candidate_user_id: dto.candidateUserId,
+        ...(role ? { role_id: role.id } : { role_id: IsNull() }),
         status: In([...ACTIVE_OFFER_STATUSES]),
       },
     });
     if (existingOffer) {
-      throw new ConflictError('Offer already sent to this candidate');
+      throw new ConflictError(
+        'Offer already sent to this candidate for this role',
+      );
     }
 
     // Enforce send-cap atomically via transaction
@@ -645,12 +672,14 @@ export class OffersService {
         ? this.addDays(respondedAt, OFFER_ASSESSMENT_WINDOW_DAYS)
         : null;
 
+    const now = new Date();
+
     // Atomic conditional update to prevent race conditions
     const result = await this.offerRepo.update(
       {
         id: offer.id,
         status: OfferStatus.PENDING,
-        expires_at: LessThan(new Date()) as unknown as Date,
+        expires_at: LessThan(now),
       },
       { status: OfferStatus.EXPIRED },
     );
@@ -684,7 +713,7 @@ export class OffersService {
       newStatus === OfferStatus.ASSESSMENT_UNLOCKED ? respondedAt : null;
     offer.assessment_deadline = assessmentDeadline;
 
-    // Notify employer
+    // Notify employer of accept/decline
     const candidate = await this.userRepo.findOne({
       where: { id: candidateUserId },
     });
@@ -716,6 +745,32 @@ export class OffersService {
       this.logger.error(
         `Offer response notification failed offer=${offer.id}: ${String(notifyError)}`,
       );
+    }
+
+    // Notify candidate when assessment window opens
+    if (newStatus === OfferStatus.ASSESSMENT_UNLOCKED && assessmentDeadline) {
+      try {
+        const employer = await this.userRepo.findOne({
+          where: { id: offer.employer_user_id },
+        });
+        const employerName = employer
+          ? `${employer.first_name ?? ''} ${employer.last_name ?? ''}`.trim()
+          : 'Your employer';
+        await this.notificationDispatch.notifyAssessmentUnlocked(
+          candidateUserId,
+          {
+            offerId: offer.id,
+            employerUserId: offer.employer_user_id,
+            employerName,
+            roleTitle: offer.role_title,
+            assessmentDeadline: assessmentDeadline.toISOString(),
+          },
+        );
+      } catch (notifyError: unknown) {
+        this.logger.error(
+          `Assessment unlocked notification failed offer=${offer.id}: ${String(notifyError)}`,
+        );
+      }
     }
 
     this.publishOfferStatusChange(offer.employer_user_id, {
@@ -881,6 +936,29 @@ export class OffersService {
       { status: OfferStatus.WITHDRAWN },
     );
 
+    // Notify candidate
+    try {
+      const employer = await this.userRepo.findOne({
+        where: { id: employerUserId },
+      });
+      const employerName = employer
+        ? `${employer.first_name ?? ''} ${employer.last_name ?? ''}`.trim()
+        : 'An employer';
+      await this.notificationDispatch.notifyOfferWithdrawn(
+        offer.candidate_user_id,
+        {
+          offerId: offer.id,
+          employerUserId,
+          employerName,
+          roleTitle: offer.role_title,
+        },
+      );
+    } catch (notifyError: unknown) {
+      this.logger.error(
+        `Offer withdrawn notification failed offer=${offer.id}: ${String(notifyError)}`,
+      );
+    }
+
     return { status: 'success', message: 'Offer withdrawn' };
   }
 
@@ -895,28 +973,47 @@ export class OffersService {
     if (!offer) {
       throw new NotFoundError('Offer not found');
     }
-    if (offer.status !== OfferStatus.ASSESSMENT_UNLOCKED) {
-      throw new BadRequestError(
-        'Only unlocked assessment offers can be extended',
-      );
-    }
+
     if (offer.extension_used) {
       throw new BadRequestError('Assessment window extension already used');
     }
 
-    const currentDeadline = offer.assessment_deadline ?? new Date();
+    const RETROACTIVE_WINDOW_MS = 24 * 60 * 60 * 1000;
+    const isAssessmentUnlocked =
+      offer.status === OfferStatus.ASSESSMENT_UNLOCKED;
+    const isRecentlyExpired =
+      offer.status === OfferStatus.EXPIRED &&
+      offer.assessment_deadline != null &&
+      offer.assessment_deadline.getTime() >= Date.now() - RETROACTIVE_WINDOW_MS;
+
+    if (!isAssessmentUnlocked && !isRecentlyExpired) {
+      throw new BadRequestError(
+        'Only offers with an active or recently-expired (within 24 hours) assessment window can be extended',
+      );
+    }
+
+    const now = new Date();
+    const currentDeadline = offer.assessment_deadline ?? now;
     const nextDeadline = this.addDays(
-      currentDeadline > new Date() ? currentDeadline : new Date(),
+      currentDeadline > now ? currentDeadline : now,
       OFFER_ASSESSMENT_WINDOW_DAYS,
     );
 
     const result = await this.offerRepo.update(
       {
         id: offer.id,
-        status: OfferStatus.ASSESSMENT_UNLOCKED,
+        status: In([OfferStatus.ASSESSMENT_UNLOCKED, OfferStatus.EXPIRED]),
         extension_used: false,
       },
-      { assessment_deadline: nextDeadline, extension_used: true },
+      {
+        assessment_deadline: nextDeadline,
+        extension_used: true,
+        status: OfferStatus.ASSESSMENT_UNLOCKED,
+        // Reset so the expiry-warning service sends a fresh warning for the new window
+        expiry_warning_sent_at: null,
+        // Stamp re-open time when recovering from EXPIRED
+        ...(isRecentlyExpired ? { assessment_unlocked_at: now } : {}),
+      },
     );
     if (!result.affected || result.affected === 0) {
       throw new BadRequestError('Assessment window extension already used');
@@ -924,6 +1021,11 @@ export class OffersService {
 
     offer.assessment_deadline = nextDeadline;
     offer.extension_used = true;
+    offer.status = OfferStatus.ASSESSMENT_UNLOCKED;
+    offer.expiry_warning_sent_at = null;
+    if (isRecentlyExpired) {
+      offer.assessment_unlocked_at = now;
+    }
     return offer;
   }
 

@@ -6,12 +6,7 @@ import { AiResourcesService } from './ai-resources.service';
 import { AiResourcesController } from './ai-resources.controller';
 
 @Module({
-  imports: [
-    TypeOrmModule.forFeature([
-      AiLearningResource,
-      TalentProfile,
-    ]),
-  ],
+  imports: [TypeOrmModule.forFeature([AiLearningResource, TalentProfile])],
   controllers: [AiResourcesController],
   providers: [AiResourcesService],
   exports: [AiResourcesService],

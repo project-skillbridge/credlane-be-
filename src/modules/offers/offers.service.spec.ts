@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { In, QueryFailedError } from 'typeorm';
+import { In, IsNull, QueryFailedError } from 'typeorm';
 import { OffersService } from './offers.service';
 import { Offer, OfferStatus } from './entities/offer.entity';
 import { OfferDistributionLog } from './entities/offer-distribution-log.entity';
@@ -44,6 +44,8 @@ describe('OffersService', () => {
     notifyOfferReceived: jest.fn(),
     notifyOfferAccepted: jest.fn(),
     notifyOfferDeclined: jest.fn(),
+    notifyAssessmentUnlocked: jest.fn(),
+    notifyOfferWithdrawn: jest.fn(),
   };
 
   const mockVerificationService = {
@@ -154,12 +156,12 @@ describe('OffersService', () => {
     it('should throw ForbiddenError if employer is not verified', async () => {
       mockVerificationService.assertEmployerVerified.mockRejectedValue(
         new ForbiddenError(
-          'Complete your company profile to access this feature.',
+          'Your employer account is pending verification. You will be notified once approved.',
         ),
       );
 
       await expect(service.createOffer('employer-1', dto)).rejects.toThrow(
-        'Complete your company profile to access this feature.',
+        'Your employer account is pending verification. You will be notified once approved.',
       );
       expect(mockPoolProfileRepo.findOne).not.toHaveBeenCalled();
     });
@@ -224,6 +226,7 @@ describe('OffersService', () => {
         where: {
           employer_user_id: 'employer-1',
           candidate_user_id: dto.candidateUserId,
+          role_id: IsNull(),
           status: In([
             OfferStatus.PENDING,
             OfferStatus.ASSESSMENT_UNLOCKED,
@@ -278,6 +281,7 @@ describe('OffersService', () => {
         where: {
           employer_user_id: 'employer-1',
           candidate_user_id: dto.candidateUserId,
+          role_id: IsNull(),
           status: In([
             OfferStatus.PENDING,
             OfferStatus.ASSESSMENT_UNLOCKED,
@@ -337,10 +341,9 @@ describe('OffersService', () => {
         roleId: 'role-1',
       });
 
-      expect(mockEmployerRolesService.findActiveRoleForOffer).toHaveBeenCalledWith(
-        'employer-1',
-        'role-1',
-      );
+      expect(
+        mockEmployerRolesService.findActiveRoleForOffer,
+      ).toHaveBeenCalledWith('employer-1', 'role-1');
       expect(mockManager.save).toHaveBeenNthCalledWith(
         1,
         Offer,
@@ -373,7 +376,7 @@ describe('OffersService', () => {
         new QueryFailedError('INSERT INTO offers', [], {
           code: '23505',
           constraint: 'UQ_offers_active_employer_candidate',
-        }),
+        } as unknown as Error),
       );
 
       await expect(service.createOffer('employer-1', dto)).rejects.toThrow(
@@ -393,11 +396,14 @@ describe('OffersService', () => {
     it('should send role-based offers to multiple candidates', async () => {
       const createOfferSpy = jest
         .spyOn(service, 'createOffer')
-        .mockImplementation(async (_employerUserId, dto) => ({
-          id: `offer-${dto.candidateUserId}`,
-          candidate_user_id: dto.candidateUserId,
-          status: OfferStatus.PENDING,
-        }) as Offer);
+        .mockImplementation(
+          async (_employerUserId, dto) =>
+            ({
+              id: `offer-${dto.candidateUserId}`,
+              candidate_user_id: dto.candidateUserId,
+              status: OfferStatus.PENDING,
+            }) as Offer,
+        );
 
       const result = await service.bulkCreateOffers('employer-1', bulkDto);
 
@@ -982,7 +988,7 @@ describe('OffersService', () => {
       expect(mockOfferRepo.update).toHaveBeenCalledWith(
         {
           id: 'offer-1',
-          status: OfferStatus.ASSESSMENT_UNLOCKED,
+          status: In([OfferStatus.ASSESSMENT_UNLOCKED, OfferStatus.EXPIRED]),
           extension_used: false,
         },
         expect.objectContaining({ extension_used: true }),

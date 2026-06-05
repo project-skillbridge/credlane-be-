@@ -40,10 +40,7 @@ export class EmployerRolesController {
   @ApiOperation({ summary: 'Create a new role' })
   @ApiResponse({ status: 201, description: 'Role created' })
   @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-  async create(
-    @CurrentUser('sub') userId: string,
-    @Body() dto: CreateRoleDto,
-  ) {
+  async create(@CurrentUser('sub') userId: string, @Body() dto: CreateRoleDto) {
     const role = await this.rolesService.create(userId, dto);
     return { status: 'success', message: 'Role created', data: role };
   }

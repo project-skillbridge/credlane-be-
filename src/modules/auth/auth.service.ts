@@ -87,6 +87,12 @@ export interface AuthResponse {
   data: AuthSession['data'];
 }
 
+export interface OtpDeliveryResponse {
+  message: string;
+  otp_expires_at: string;
+  otp_expires_in_seconds: number;
+}
+
 export type VerifyEmailResult = AuthResult;
 
 export interface ForgotPasswordResponse {
@@ -128,7 +134,7 @@ export class AuthService {
     private readonly emailChangeOtpService?: EmailChangeOtpService,
   ) {}
 
-  async register(dto: RegisterDto): Promise<{ message: string }> {
+  async register(dto: RegisterDto): Promise<OtpDeliveryResponse> {
     const user = await this.usersService.create({
       email: dto.email,
       password: dto.password,
@@ -151,9 +157,10 @@ export class AuthService {
       recipientFirstName: user.first_name,
     });
 
-    return {
-      message: SuccessMessages.AUTH.VERIFICATION_OTP_SENT,
-    };
+    return this.buildOtpDeliveryResponse(
+      SuccessMessages.AUTH.VERIFICATION_OTP_SENT,
+      issuedOtp.expiresAt,
+    );
   }
 
   async verifyEmail(dto: VerifyEmailDto): Promise<VerifyEmailResult> {
@@ -185,7 +192,7 @@ export class AuthService {
 
   async resendVerification(
     dto: ResendVerificationDto,
-  ): Promise<{ message: string }> {
+  ): Promise<OtpDeliveryResponse> {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user) {
       throw new BadRequestError(ErrorMessages.AUTH.ACCOUNT_NOT_FOUND);
@@ -216,9 +223,10 @@ export class AuthService {
       recipientFirstName: user.first_name,
     });
 
-    return {
-      message: SuccessMessages.AUTH.VERIFICATION_EMAIL_RESENT,
-    };
+    return this.buildOtpDeliveryResponse(
+      SuccessMessages.AUTH.VERIFICATION_EMAIL_RESENT,
+      issuedOtp.expiresAt,
+    );
   }
 
   async login(dto: LoginDto): Promise<AuthResult> {
@@ -268,6 +276,20 @@ export class AuthService {
     return {
       status: 'success',
       message: SuccessMessages.AUTH.FORGOT_PASSWORD,
+    };
+  }
+
+  private buildOtpDeliveryResponse(
+    message: string,
+    expiresAt: Date,
+  ): OtpDeliveryResponse {
+    return {
+      message,
+      otp_expires_at: expiresAt.toISOString(),
+      otp_expires_in_seconds: Math.max(
+        1,
+        Math.ceil((expiresAt.getTime() - Date.now()) / 1000),
+      ),
     };
   }
 
