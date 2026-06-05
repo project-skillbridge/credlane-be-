@@ -986,6 +986,8 @@ describe('AdvancedAssessmentService', () => {
       const session = await service.getSession(userId, 'attempt-1');
 
       expect(session.question_count).toBe(15);
+      expect(session.mcq_count).toBe(8);
+      expect(session.open_text_count).toBe(7);
       expect(session.pending_lt3).toBe(false);
     });
 
@@ -1384,6 +1386,9 @@ describe('AdvancedAssessmentService', () => {
 
       expect(result.session_id).toBe('attempt-legacy-1');
       expect(result.verified_level).toBe(VerifiedLevel.MID);
+      expect(result.question_count).toBe(15);
+      expect(result.mcq_count).toBe(8);
+      expect(result.open_text_count).toBe(7);
     });
 
     it('throws 422 when validated_level is missing', async () => {

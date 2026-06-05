@@ -108,6 +108,8 @@ export interface AdvancedAssessmentSessionResult {
   remaining_seconds: number;
   verified_level: string;
   question_count: number;
+  mcq_count: number;
+  open_text_count: number;
   /** True when a 15th question (LT-3) will be generated after lt2-submit. */
   pending_lt3: boolean;
   questions: AdvancedAssessmentGeneratedQuestion[];
@@ -1957,6 +1959,12 @@ export class AdvancedAssessmentService {
     }
 
     const timer = this.resolveSessionTimerState(attempt, expiresAt);
+    const mcqCount = questions.filter((question) => question.block === 'mcq')
+      .length;
+    const openTextCount = questions.filter(
+      (question) =>
+        question.block === 'short_text' || question.block === 'long_text',
+    ).length;
 
     return {
       status: 'success',
@@ -1969,6 +1977,8 @@ export class AdvancedAssessmentService {
       remaining_seconds: timer.remaining_seconds,
       verified_level: this.readSessionVerifiedLevel(attempt),
       question_count: questions.length,
+      mcq_count: mcqCount,
+      open_text_count: openTextCount,
       pending_lt3: false,
       questions,
     };
