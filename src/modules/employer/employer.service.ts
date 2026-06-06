@@ -34,7 +34,7 @@ export type EmployerPublicProfile = {
   region: string | null;
   is_verified: boolean;
   is_new_to_platform: boolean;
-  hire_count: number;
+  hire_count?: number;
   member_since: string;
 };
 
@@ -62,6 +62,15 @@ export class EmployerService {
   ) {}
 
   async getProfile(userId: string): Promise<EmployerProfileResponse> {
+    this.verificationService
+      .checkAndUpdateVerification(userId)
+      .catch((err) =>
+        this.logger.error(
+          `Verification recompute failed for user ${userId}`,
+          err,
+        ),
+      );
+
     const profile = await this.employerProfileRepository.findOne({
       where: { user_id: userId },
     });
@@ -352,7 +361,8 @@ export class EmployerService {
       throw new NotFoundError('Employer profile not found');
     }
 
-    const accountAge = Date.now() - new Date(profile.user.createdAt).getTime();
+    const createdAt = new Date(profile.user.createdAt);
+    const accountAge = Date.now() - createdAt.getTime();
     const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
     const is_new_to_platform =
       accountAge < ninetyDaysMs && profile.hire_count === 0;
@@ -361,14 +371,13 @@ export class EmployerService {
       company_name: profile.company_name,
       industry: profile.industry,
       company_size: profile.company_size,
-      company_website: profile.company_website ?? profile.website_url,
-      linkedin_company_url:
-        profile.linkedin_company_page_url ?? profile.linkedin_company_url,
-      region: profile.region ?? profile.hiring_region,
+      company_website: normalizeCompanyWebsite(profile),
+      linkedin_company_url: normalizeLinkedinUrl(profile),
+      region: profile.region ?? profile.hiring_region ?? null,
       is_verified: profile.is_verified,
       is_new_to_platform,
-      hire_count: profile.hire_count,
-      member_since: profile.user.createdAt.toISOString(),
+      ...(profile.hire_count > 0 ? { hire_count: profile.hire_count } : {}),
+      member_since: createdAt.toISOString(),
     };
   }
 }

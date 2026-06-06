@@ -9,6 +9,8 @@ export enum EmployerDashboardActivityType {
   VERIFIED_TALENT = 'verified_talent',
   SHORTLIST = 'shortlist',
   OFFER_ACCEPTED = 'offer_accepted',
+  ROLE_CREATED = 'role_created',
+  ASSESSMENT_COMPLETED = 'assessment_completed',
 }
 
 export class EmployerDashboardProfilePromptDto {
@@ -33,13 +35,33 @@ export class EmployerDashboardOverviewCountsDto {
   verified_talent: number;
 
   @ApiProperty({ example: 0 })
-  created_assessments: number;
+  assessments_shared_count: number;
 
   @ApiProperty({ example: 0 })
   shortlisted_candidates: number;
 
   @ApiProperty({ example: 0 })
   my_roles: number;
+}
+
+export class EmployerDashboardRecentRoleDto {
+  @ApiProperty({ format: 'uuid' })
+  role_id: string;
+
+  @ApiProperty({ example: 'Senior Frontend Engineer' })
+  role_title: string;
+
+  @ApiProperty({ example: 'Engineering' })
+  category: string;
+
+  @ApiProperty({ example: true })
+  assessment_attached: boolean;
+
+  @ApiProperty({ example: 3 })
+  offers_sent: number;
+
+  @ApiProperty({ enum: ['active', 'closed'], example: 'active' })
+  status: string;
 }
 
 export class EmployerDashboardActivityDto {
@@ -62,6 +84,9 @@ export class EmployerDashboardActivityDto {
 
   @ApiProperty({ format: 'date-time' })
   occurred_at: string;
+
+  @ApiProperty({ nullable: true, example: '/employer/roles/uuid' })
+  link: string | null;
 }
 
 export class EmployerDashboardHomeResponseDto {
@@ -74,11 +99,17 @@ export class EmployerDashboardHomeResponseDto {
   })
   view_state: EmployerDashboardViewState;
 
+  @ApiProperty({ example: false })
+  new_user_state: boolean;
+
   @ApiProperty({ type: EmployerDashboardProfilePromptDto })
   profile_prompt: EmployerDashboardProfilePromptDto;
 
-  @ApiProperty({ type: EmployerDashboardOverviewCountsDto })
-  overview_counts: EmployerDashboardOverviewCountsDto;
+  @ApiProperty({ type: EmployerDashboardOverviewCountsDto, nullable: true })
+  overview_counts: EmployerDashboardOverviewCountsDto | null;
+
+  @ApiProperty({ type: [EmployerDashboardRecentRoleDto], nullable: true })
+  recent_roles: EmployerDashboardRecentRoleDto[] | null;
 
   @ApiProperty({ type: [EmployerDashboardActivityDto] })
   recent_activity: EmployerDashboardActivityDto[];
@@ -101,9 +132,18 @@ export type EmployerDashboardProfilePrompt = {
 
 export type EmployerDashboardOverviewCounts = {
   verified_talent: number;
-  created_assessments: number;
+  assessments_shared_count: number;
   shortlisted_candidates: number;
   my_roles: number;
+};
+
+export type EmployerDashboardRecentRole = {
+  role_id: string;
+  role_title: string;
+  category: string;
+  assessment_attached: boolean;
+  offers_sent: number;
+  status: string;
 };
 
 export type EmployerDashboardActivity = {
@@ -112,12 +152,15 @@ export type EmployerDashboardActivity = {
   title: string;
   description: string;
   occurred_at: string;
+  link: string | null;
 };
 
 export type EmployerDashboardHomeResponse = {
   company_name: string;
   view_state: EmployerDashboardViewState;
+  new_user_state: boolean;
   profile_prompt: EmployerDashboardProfilePrompt;
-  overview_counts: EmployerDashboardOverviewCounts;
+  overview_counts: EmployerDashboardOverviewCounts | null;
+  recent_roles: EmployerDashboardRecentRole[] | null;
   recent_activity: EmployerDashboardActivity[];
 };

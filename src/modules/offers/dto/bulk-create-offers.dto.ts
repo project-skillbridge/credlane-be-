@@ -10,7 +10,7 @@ import {
 import { CreateOfferDto } from './create-offer.dto';
 
 export class BulkCreateOffersDto extends OmitType(CreateOfferDto, [
-  'candidateUserId',
+  'candidateIds',
 ] as const) {
   @ApiProperty({
     type: [String],

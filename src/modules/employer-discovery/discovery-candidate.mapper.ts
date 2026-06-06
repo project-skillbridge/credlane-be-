@@ -35,21 +35,29 @@ export type DiscoveryCandidateRawRow = {
 
 export type DiscoveryCandidateCard = {
   user_id: string;
+  candidate_id: string;
+  first_name: string;
+  last_name_initial: string;
   full_name: string;
   avatar_url: string | null;
   role: string;
   role_track: string | null;
   seniority_badge: string | null;
+  validated_level: string | null;
   tier: string;
   score: number;
+  composite_score: number;
   skills: string[];
+  top_skills: string[];
   about_tags: string[];
   availability: string | null;
+  availability_status: string | null;
   availability_label: string | null;
   verified_at: Date;
   strong_competencies: string[] | null;
   share_token: string | null;
   region: string | null;
+  date_added: string | null;
   is_saved: boolean;
   offer_sent: boolean;
   offer_status: OfferStatus | null;
@@ -101,6 +109,7 @@ export function mapDiscoveryCandidateCard(
     is_saved: boolean;
     offer_sent: boolean;
     offer_status: OfferStatus | null;
+    date_added?: string | null;
   },
 ): DiscoveryCandidateCard {
   const personalAnswers = readPersonalAnswers(row.personalAssessmentAnswers);
@@ -108,17 +117,28 @@ export function mapDiscoveryCandidateCard(
   const seniorityBadge = resolveSeniorityBadge(row.verifiedLevel);
   const tierLabel = resolveTierLabel(row.tier);
   const skills = resolveSkills(personalAnswers) ?? [];
+  const firstName = row.firstName ?? '';
+  const lastName = row.lastName ?? '';
+  const lastNameInitial = lastName
+    ? `${lastName.charAt(0).toUpperCase()}.`
+    : '';
 
   return {
     user_id: row.userId,
-    full_name: `${row.firstName ?? ''} ${row.lastName ?? ''}`.trim(),
+    candidate_id: row.userId,
+    first_name: firstName,
+    last_name_initial: lastNameInitial,
+    full_name: `${firstName} ${lastName}`.trim(),
     avatar_url: row.avatarUrl,
     role: resolveRoleTrackLabel(row.roleTrack),
     role_track: row.roleTrack,
     seniority_badge: seniorityBadge ?? null,
+    validated_level: seniorityBadge ?? null,
     tier: row.tier,
     score: row.score,
+    composite_score: row.score,
     skills,
+    top_skills: skills.slice(0, 2),
     about_tags: buildAboutTags({
       personalAnswers,
       seniorityBadge,
@@ -128,11 +148,13 @@ export function mapDiscoveryCandidateCard(
       jobSearchStatus: row.jobSearchStatus,
     }),
     availability: row.availability,
+    availability_status: row.availability,
     availability_label: resolveAvailabilityLabel(row.availability) ?? null,
     verified_at: row.verifiedAt,
     strong_competencies: row.strongCompetencies,
     share_token: row.shareToken,
     region: row.location ?? row.country ?? null,
+    date_added: context.date_added ?? null,
     is_saved: context.is_saved,
     offer_sent: context.offer_sent,
     offer_status: context.offer_status,

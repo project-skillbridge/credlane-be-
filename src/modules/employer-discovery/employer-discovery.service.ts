@@ -215,7 +215,10 @@ export class EmployerDiscoveryService {
       .where('saved.employer_user_id = :employerUserId', { employerUserId })
       .andWhere('pool.tier = :tier', { tier: 'job_ready' });
 
-    this.selectDiscoveryColumns(qb, { includeNotes: true });
+    this.selectDiscoveryColumns(qb, {
+      includeNotes: true,
+      includeSavedAt: true,
+    });
 
     const total = await qb.getCount();
 
@@ -236,6 +239,9 @@ export class EmployerDiscoveryService {
         is_saved: true,
         offer_sent: offerStatusMap.has(r.userId),
         offer_status: offerStatusMap.get(r.userId) ?? null,
+        date_added:
+          (r as CandidateRawRow & { savedAt?: Date }).savedAt?.toISOString() ??
+          null,
       }),
     );
 
@@ -347,13 +353,15 @@ export class EmployerDiscoveryService {
     qb: SelectQueryBuilder<EmployerPoolProfile>,
     query: DiscoveryCandidatesQueryDto,
   ): void {
-    if (query.roleTrack) {
-      qb.andWhere('pool.track = :roleTrack', { roleTrack: query.roleTrack });
+    if (query.roleTrack?.length) {
+      qb.andWhere('pool.track IN (:...roleTracks)', {
+        roleTracks: query.roleTrack,
+      });
     }
 
-    if (query.availability) {
-      qb.andWhere('pool.availability = :availability', {
-        availability: query.availability,
+    if (query.availability?.length) {
+      qb.andWhere('pool.availability IN (:...availabilities)', {
+        availabilities: query.availability,
       });
     }
 
@@ -364,17 +372,17 @@ export class EmployerDiscoveryService {
       );
     }
 
-    if (query.minScore != null) {
-      qb.andWhere('pool.score >= :minScore', { minScore: query.minScore });
-    }
+    // Spec: candidates with composite score >= 75 are returned by default
+    const minScore = query.minScore ?? 75;
+    qb.andWhere('pool.score >= :minScore', { minScore });
 
     if (query.maxScore != null) {
       qb.andWhere('pool.score <= :maxScore', { maxScore: query.maxScore });
     }
 
-    if (query.experienceLevel) {
-      qb.andWhere('pool.verified_level = :experienceLevel', {
-        experienceLevel: query.experienceLevel,
+    if (query.experienceLevel?.length) {
+      qb.andWhere('pool.verified_level IN (:...experienceLevels)', {
+        experienceLevels: query.experienceLevel,
       });
     }
 
@@ -387,7 +395,7 @@ export class EmployerDiscoveryService {
 
   private selectDiscoveryColumns<T extends ObjectLiteral>(
     qb: SelectQueryBuilder<T>,
-    options?: { includeNotes?: boolean },
+    options?: { includeNotes?: boolean; includeSavedAt?: boolean },
   ): void {
     qb.select([
       'pool.candidate_id AS "userId"',
@@ -408,6 +416,7 @@ export class EmployerDiscoveryService {
       'u.avatar_url AS "avatarUrl"',
       'u.country AS "country"',
       ...(options?.includeNotes ? ['saved.notes AS "notes"'] : []),
+      ...(options?.includeSavedAt ? ['saved.created_at AS "savedAt"'] : []),
     ]);
   }
 }

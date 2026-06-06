@@ -37,6 +37,17 @@ export class UploadService {
     return this.uploadToS3('resumes/', file, 'pdf');
   }
 
+  async uploadJdDocument(file: Express.Multer.File): Promise<string> {
+    const mimeToExt: Record<string, string> = {
+      'application/pdf': 'pdf',
+      'application/msword': 'doc',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+        'docx',
+    };
+    const ext = mimeToExt[file.mimetype] ?? 'pdf';
+    return this.uploadToS3('jd-documents/', file, ext);
+  }
+
   private async uploadToS3(
     prefix: string,
     file: Express.Multer.File,

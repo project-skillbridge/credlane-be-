@@ -46,6 +46,7 @@ describe('OffersService', () => {
     notifyOfferDeclined: jest.fn(),
     notifyAssessmentUnlocked: jest.fn(),
     notifyOfferWithdrawn: jest.fn(),
+    notifyAssessmentWindowExtended: jest.fn(),
   };
 
   const mockVerificationService = {
@@ -124,6 +125,7 @@ describe('OffersService', () => {
           cb: (manager: typeof mockOfferRepo.manager) => Promise<unknown>,
         ) => {
           const manager = {
+            query: jest.fn().mockResolvedValue(undefined),
             count: jest.fn().mockResolvedValue(0),
             save: jest
               .fn()
@@ -196,7 +198,10 @@ describe('OffersService', () => {
       mockPoolProfileRepo.findOne.mockResolvedValue(pool);
       mockOfferRepo.manager.transaction.mockImplementation(
         async (cb: (manager: unknown) => Promise<unknown>) => {
-          const manager = { count: jest.fn().mockResolvedValue(50) };
+          const manager = {
+            query: jest.fn().mockResolvedValue(undefined),
+            count: jest.fn().mockResolvedValue(50),
+          };
           return cb(manager);
         },
       );
@@ -252,6 +257,7 @@ describe('OffersService', () => {
           cb: (manager: typeof mockOfferRepo.manager) => Promise<unknown>,
         ) => {
           const manager = {
+            query: jest.fn().mockResolvedValue(undefined),
             count: jest.fn().mockResolvedValue(0),
             save: jest
               .fn()
@@ -314,6 +320,7 @@ describe('OffersService', () => {
       mockOfferRepo.findOne.mockResolvedValue(null);
 
       const mockManager = {
+        query: jest.fn().mockResolvedValue(undefined),
         count: jest.fn().mockResolvedValue(0),
         save: jest
           .fn()
