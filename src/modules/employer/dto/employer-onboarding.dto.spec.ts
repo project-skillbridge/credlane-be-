@@ -44,7 +44,6 @@ describe('Employer onboarding DTOs', () => {
       joiningAs: 'recruiter',
       desiredRoles: ['backend_developer'],
       region: 'Kenya',
-      hiringCountRange: '1_5',
       companyWebsite: 'https://acme.example',
     });
 

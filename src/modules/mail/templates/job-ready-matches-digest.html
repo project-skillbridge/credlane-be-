@@ -6,7 +6,7 @@
     {{matchCount}}     number of matching candidates this week
     {{summaryLine}}    full summary sentence (pluralization applied in code)
     {{discoveryUrl}}   link to employer candidate discovery
-    {{logoUrl}}        absolute URL to the SkillBridge logo image
+    {{logoUrl}}        absolute URL to the white SkillBridge logo (teal header)
     {{supportEmail}}   support contact address
     {{unsubscribeUrl}} unsubscribe link
     {{year}}           copyright year
@@ -85,8 +85,25 @@
               border: 1px solid #e4e4e7;
             ">
           <tr>
-            <td class="px" style="padding: 32px 40px 8px 40px">
-              <img src="{{logoUrl}}" alt="SkillBridge" width="140" style="display: block; height: auto; border: 0" />
+            <td class="px" style="padding: 32px 40px 0 40px">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td
+                    bgcolor="#1f5f6b"
+                    style="
+                      background-color: #1f5f6b;
+                      padding: 12px 18px;
+                    "
+                  >
+                    <img
+                      src="{{logoUrl}}"
+                      alt="SkillBridge"
+                      width="108"
+                      style="display: block; height: auto; border: 0"
+                    />
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
           <tr>

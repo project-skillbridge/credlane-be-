@@ -91,16 +91,17 @@ export class CompleteEmployerOnboardingDto {
   @MaxLength(100)
   region: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     example: '6_10',
     enum: EMPLOYER_HIRING_RANGES,
     description:
       'Approximate number of talents to hire: 1_5 | 6_10 | 11_25 | 26_50 | 51_plus',
   })
+  @IsOptional()
   @IsIn(EMPLOYER_HIRING_RANGES, {
     message: `hiringCountRange must be one of: ${EMPLOYER_HIRING_RANGES.join(', ')}`,
   })
-  hiringCountRange: string;
+  hiringCountRange?: string;
 
   @ApiProperty({
     example: 'https://acmelabs.com',
