@@ -25,7 +25,10 @@ describe('DashboardService employer home', () => {
   >;
   let assessmentAttemptRepository: Pick<Repository<AssessmentAttempt>, 'count'>;
   let employerProfileRepository: Pick<Repository<EmployerProfile>, 'findOne'>;
-  let employerRoleRepository: Pick<Repository<EmployerRole>, 'count'>;
+  let employerRoleRepository: Pick<
+    Repository<EmployerRole>,
+    'count' | 'findOne' | 'find'
+  >;
   let employerSavedCandidateRepository: Pick<
     Repository<EmployerSavedCandidate>,
     'count' | 'findOne'
@@ -33,6 +36,10 @@ describe('DashboardService employer home', () => {
   let employerAssessmentRepository: Pick<
     Repository<EmployerAssessment>,
     'count'
+  >;
+  let employerAssessmentSubmissionRepository: Pick<
+    Repository<any>,
+    'createQueryBuilder'
   >;
   let offerRepository: Pick<Repository<Offer>, 'count' | 'findOne'>;
   let employerPoolProfileRepository: Pick<
@@ -71,6 +78,8 @@ describe('DashboardService employer home', () => {
 
     employerRoleRepository = {
       count: jest.fn().mockResolvedValue(0),
+      findOne: jest.fn().mockResolvedValue(null),
+      find: jest.fn().mockResolvedValue([]),
     };
 
     employerSavedCandidateRepository = {
@@ -80,6 +89,20 @@ describe('DashboardService employer home', () => {
 
     employerAssessmentRepository = {
       count: jest.fn().mockResolvedValue(0),
+    };
+
+    employerAssessmentSubmissionRepository = {
+      createQueryBuilder: jest.fn().mockReturnValue({
+        innerJoin: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        getCount: jest.fn().mockResolvedValue(0),
+        getRawOne: jest.fn().mockResolvedValue(null),
+        getRawMany: jest.fn().mockResolvedValue([]),
+      }),
     };
 
     offerRepository = {
@@ -105,6 +128,7 @@ describe('DashboardService employer home', () => {
       employerRoleRepository as Repository<EmployerRole>,
       employerSavedCandidateRepository as Repository<EmployerSavedCandidate>,
       employerAssessmentRepository as Repository<EmployerAssessment>,
+      employerAssessmentSubmissionRepository as Repository<any>,
       offerRepository as Repository<Offer>,
       employerPoolProfileRepository as Repository<EmployerPoolProfile>,
       notificationDispatch as never,
@@ -136,12 +160,7 @@ describe('DashboardService employer home', () => {
         'Complete employer verification',
       ]),
     );
-    expect(home.overview_counts).toEqual({
-      verified_talent: 0,
-      created_assessments: 0,
-      shortlisted_candidates: 0,
-      my_roles: 0,
-    });
+    expect(home.overview_counts).toBeNull();
   });
 
   it('returns the existing-user employer dashboard with counts and recent activity sorted by recency', async () => {
@@ -214,7 +233,7 @@ describe('DashboardService employer home', () => {
     });
     expect(home.overview_counts).toEqual({
       verified_talent: 18,
-      created_assessments: 7,
+      assessments_shared_count: expect.any(Number),
       shortlisted_candidates: 4,
       my_roles: 2,
     });

@@ -7,7 +7,14 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Subject } from 'rxjs';
-import { Between, In, LessThan, QueryFailedError, Repository } from 'typeorm';
+import {
+  Between,
+  In,
+  IsNull,
+  LessThan,
+  QueryFailedError,
+  Repository,
+} from 'typeorm';
 import {
   BadRequestError,
   ConflictError,
@@ -216,6 +223,13 @@ export class OffersService {
     employerUserId: string,
     dto: CreateOfferDto,
   ): Promise<SendOffersResult> {
+    // Invariant checks: fail the whole request (not per-candidate warnings)
+    await this.verificationService.assertEmployerVerified(employerUserId);
+    const role = await this.employerRolesService.findActiveRoleForOffer(
+      employerUserId,
+      dto.roleId,
+    );
+
     const uniqueIds = [...new Set(dto.candidateIds)];
     const sentOffers: Offer[] = [];
     const warnings: SendOffersResult['warnings'] = [];
@@ -226,6 +240,7 @@ export class OffersService {
           employerUserId,
           candidateUserId,
           dto,
+          role,
         );
         sentOffers.push(offer);
       } catch (err: unknown) {
@@ -240,12 +255,62 @@ export class OffersService {
     return { sent_count: sentOffers.length, offers: sentOffers, warnings };
   }
 
+  /** Public alias for backward-compat — accepts old single-candidate dto shape */
+  async createOffer(
+    employerUserId: string,
+    dto: Omit<CreateOfferDto, 'candidateIds'> & { candidateUserId: string },
+  ): Promise<Offer> {
+    const { candidateUserId, ...rest } = dto;
+    return this.createSingleOffer(employerUserId, candidateUserId, rest);
+  }
+
+  /** Public alias for backward-compat — accepts old bulk dto shape */
+  async bulkCreateOffers(
+    employerUserId: string,
+    dto: {
+      candidateUserIds: string[];
+      roleId: string;
+      message: string;
+      expiresInDays?: number;
+    },
+  ): Promise<{
+    offers: Offer[];
+    failures: Array<{ candidateUserId: string; message: string }>;
+  }> {
+    const offers: Offer[] = [];
+    const failures: Array<{ candidateUserId: string; message: string }> = [];
+
+    for (const candidateUserId of dto.candidateUserIds) {
+      try {
+        const offer = await this.createOffer(employerUserId, {
+          candidateUserId,
+          roleId: dto.roleId,
+          message: dto.message,
+          expiresInDays: dto.expiresInDays,
+        });
+        offers.push(offer);
+      } catch (err: unknown) {
+        failures.push({
+          candidateUserId,
+          message:
+            err instanceof Error ? err.message : 'Offer could not be sent',
+        });
+      }
+    }
+
+    return { offers, failures };
+  }
+
   private async createSingleOffer(
     employerUserId: string,
     candidateUserId: string,
     dto: Omit<CreateOfferDto, 'candidateIds'>,
+    preResolvedRole?: EmployerRole | null,
   ): Promise<Offer> {
-    await this.verificationService.assertEmployerVerified(employerUserId);
+    // Skip invariant checks when called from sendOffers (already validated once)
+    if (preResolvedRole === undefined) {
+      await this.verificationService.assertEmployerVerified(employerUserId);
+    }
 
     // Validate candidate is Job Ready
     const poolProfile = await this.poolProfileRepo.findOne({
@@ -262,10 +327,13 @@ export class OffersService {
       );
     }
 
-    const role = await this.employerRolesService.findActiveRoleForOffer(
-      employerUserId,
-      dto.roleId,
-    );
+    const role =
+      preResolvedRole !== undefined
+        ? preResolvedRole
+        : await this.employerRolesService.findActiveRoleForOffer(
+            employerUserId,
+            dto.roleId,
+          );
 
     const offerDetails = this.resolveOfferDetails(dto, role);
 
@@ -273,7 +341,7 @@ export class OffersService {
       where: {
         employer_user_id: employerUserId,
         candidate_user_id: candidateUserId,
-        role_id: role.id,
+        role_id: role?.id ?? IsNull(),
         status: In([...ACTIVE_OFFER_STATUSES]),
       },
     });
@@ -290,6 +358,11 @@ export class OffersService {
 
     const offer = await this.offerRepo.manager
       .transaction(async (manager) => {
+        // Serialize concurrent sends per employer to prevent cap-race conditions
+        await manager.query(`SELECT pg_advisory_xact_lock(hashtext($1))`, [
+          employerUserId,
+        ]);
+
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
         const endOfMonth = new Date(
@@ -319,7 +392,7 @@ export class OffersService {
           employer_user_id: employerUserId,
           candidate_user_id: candidateUserId,
           employer_pool_profile_id: poolProfile.id,
-          role_id: role.id,
+          role_id: role?.id ?? null,
           role_title: offerDetails.roleTitle,
           message: dto.message ?? '',
           role_description: offerDetails.roleDescription,
@@ -972,24 +1045,28 @@ export class OffersService {
     }
 
     if (offer.extension_used) {
-      throw new ForbiddenError(
-        'The one-time assessment window extension has already been used for this offer',
-      );
-    }
-
-    if (offer.status !== OfferStatus.EXPIRED) {
-      throw new BadRequestError(
-        'Only offers in Expired status can be extended',
-      );
+      throw new ForbiddenError('Assessment window extension already used');
     }
 
     const now = new Date();
+    const isExpired = offer.status === OfferStatus.EXPIRED;
+    const isUnlockedPastDeadline =
+      offer.status === OfferStatus.ASSESSMENT_UNLOCKED &&
+      offer.assessment_deadline != null &&
+      offer.assessment_deadline < now;
+
+    if (!isExpired && !isUnlockedPastDeadline) {
+      throw new BadRequestError(
+        'Only offers with an expired assessment window can be extended',
+      );
+    }
+
     const nextDeadline = this.addDays(now, OFFER_ASSESSMENT_WINDOW_DAYS);
 
     const result = await this.offerRepo.update(
       {
         id: offer.id,
-        status: OfferStatus.EXPIRED,
+        status: In([OfferStatus.ASSESSMENT_UNLOCKED, OfferStatus.EXPIRED]),
         extension_used: false,
       },
       {

@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { QueryFailedError, Repository } from 'typeorm';
 import { EmployerAssessment } from '../employer-assessments/entities/employer-assessment.entity';
 import {
   EmployerRole,
@@ -49,9 +49,12 @@ export class EmployerRolesService {
       );
     }
 
-    const rawKeywords = dto.keywords ?? dto.keyword ?? [];
+    const rawKeywords =
+      dto.keywords && dto.keywords.length > 0
+        ? dto.keywords
+        : (dto.keyword ?? []);
     const keywords = rawKeywords.map((k) => k.trim()).filter(Boolean);
-    const description = (dto.description ?? dto.jd_text)?.trim() ?? null;
+    const description = dto.description?.trim() || dto.jd_text?.trim() || null;
 
     const role = this.roleRepo.create({
       employer_user_id: employerUserId,
@@ -70,7 +73,17 @@ export class EmployerRolesService {
       status: EmployerRoleStatus.ACTIVE,
     });
 
-    const saved = await this.roleRepo.save(role);
+    const saved = await this.roleRepo.save(role).catch((err: unknown) => {
+      if (
+        err instanceof QueryFailedError &&
+        (err as QueryFailedError & { code?: string }).code === '23505'
+      ) {
+        throw new BadRequestException(
+          `A role with the title "${title}" already exists.`,
+        );
+      }
+      throw err;
+    });
     this.logger.log(
       `Role created: id=${saved.id} employer=${employerUserId} title="${saved.title}"`,
     );
@@ -129,9 +142,8 @@ export class EmployerRolesService {
       role.title = title;
     }
     if (dto.category !== undefined) role.category = dto.category.trim();
-    const descriptionValue = dto.description ?? dto.jd_text;
-    if (descriptionValue !== undefined) {
-      role.description = descriptionValue?.trim() ?? null;
+    if (dto.description !== undefined || dto.jd_text !== undefined) {
+      role.description = dto.description?.trim() || dto.jd_text?.trim() || null;
     }
     if (jdFileUrl !== undefined) {
       role.jd_file_url = jdFileUrl ?? null;
@@ -143,9 +155,12 @@ export class EmployerRolesService {
       role.work_arrangement = dto.workArrangement;
     }
     if (dto.education !== undefined) role.education = dto.education?.trim();
-    const rawKeywords = dto.keywords ?? dto.keyword;
-    if (rawKeywords !== undefined) {
-      const keywords = rawKeywords.map((k) => k.trim()).filter(Boolean);
+    if (dto.keywords !== undefined || dto.keyword !== undefined) {
+      const raw =
+        dto.keywords && dto.keywords.length > 0
+          ? dto.keywords
+          : (dto.keyword ?? []);
+      const keywords = raw.map((k) => k.trim()).filter(Boolean);
       role.keywords = keywords.length ? keywords : null;
     }
     if (dto.salaryMin !== undefined) role.salary_min = dto.salaryMin;
@@ -165,7 +180,17 @@ export class EmployerRolesService {
 
     this.assertSalaryRange(role.salary_min, role.salary_max);
 
-    return this.roleRepo.save(role);
+    return this.roleRepo.save(role).catch((err: unknown) => {
+      if (
+        err instanceof QueryFailedError &&
+        (err as QueryFailedError & { code?: string }).code === '23505'
+      ) {
+        throw new BadRequestException(
+          `A role with the title "${role.title}" already exists.`,
+        );
+      }
+      throw err;
+    });
   }
 
   async attachAssessment(

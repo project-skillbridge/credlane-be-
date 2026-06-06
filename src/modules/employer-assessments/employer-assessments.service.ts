@@ -54,6 +54,24 @@ import {
 import { EmployerAssessmentSubmission } from './entities/employer-assessment-submission.entity';
 import { CredlaneCatalogueAssessment } from './entities/credlane-catalogue-assessment.entity';
 
+export type AssessmentListResultsResponse = {
+  submissions: Array<{
+    id: string;
+    candidateUserId: string;
+    candidateName: string | null;
+    score: number;
+    status: string;
+    timeTakenSeconds: number;
+    dateCompleted: Date;
+    deliveryMode: string;
+  }>;
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  emptyState: string | null;
+};
+
 const ACTIVE_ASSESSMENT_LIMIT = 5;
 const MIN_COMPANY_QUESTIONS = 5;
 const TEMPLATE_COLUMNS = [
@@ -336,7 +354,7 @@ export class EmployerAssessmentsService {
     EmployerAssessment & {
       shareUrl: string;
       status: string;
-      results: Record<string, unknown>;
+      results: AssessmentListResultsResponse;
     }
   > {
     await this.ensureVerifiedEmployer(employerUserId);

@@ -70,11 +70,11 @@ describe('DiscoveryCandidatesQueryDto', () => {
       );
     });
 
-    it('should reject empty string', async () => {
+    it('should treat empty string as omitted (no validation error)', async () => {
       const dto = toDto({ availability: '' });
       const errors = await validate(dto);
       const availErrors = errors.filter((e) => e.property === 'availability');
-      expect(availErrors).toHaveLength(1);
+      expect(availErrors).toHaveLength(0);
     });
 
     it('should allow omitting availability (optional)', async () => {

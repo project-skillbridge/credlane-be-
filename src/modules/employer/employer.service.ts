@@ -29,11 +29,11 @@ export type EmployerPublicProfile = {
   company_name: string | null;
   industry: string | null;
   company_size: string | null;
-  website_url: string | null;
-  linkedin_url: string | null;
+  company_website: string | null;
+  linkedin_company_url: string | null;
   region: string | null;
-  verified: boolean;
-  new_to_platform: boolean;
+  is_verified: boolean;
+  is_new_to_platform: boolean;
   hire_count?: number;
   member_since: string;
 };
@@ -364,26 +364,20 @@ export class EmployerService {
     const createdAt = new Date(profile.user.createdAt);
     const accountAge = Date.now() - createdAt.getTime();
     const ninetyDaysMs = 90 * 24 * 60 * 60 * 1000;
-    const new_to_platform =
+    const is_new_to_platform =
       accountAge < ninetyDaysMs && profile.hire_count === 0;
-
-    const month = createdAt.toLocaleString('en-US', { month: 'long' });
-    const year = createdAt.getFullYear();
 
     return {
       company_name: profile.company_name,
       industry: profile.industry,
       company_size: profile.company_size,
-      website_url: profile.company_website ?? profile.website_url ?? null,
-      linkedin_url:
-        profile.linkedin_company_page_url ??
-        profile.linkedin_company_url ??
-        null,
+      company_website: normalizeCompanyWebsite(profile),
+      linkedin_company_url: normalizeLinkedinUrl(profile),
       region: profile.region ?? profile.hiring_region ?? null,
-      verified: profile.is_verified,
-      new_to_platform,
+      is_verified: profile.is_verified,
+      is_new_to_platform,
       ...(profile.hire_count > 0 ? { hire_count: profile.hire_count } : {}),
-      member_since: `Member since ${month} ${year}`,
+      member_since: createdAt.toISOString(),
     };
   }
 }

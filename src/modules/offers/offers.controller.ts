@@ -49,7 +49,7 @@ export class OffersController {
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({
     summary:
-      'Send offer(s) to one or more candidates for a role. Pass multiple candidate_ids for bulk sending.',
+      'Send offer(s) to one or more candidates for a role. Pass multiple candidateIds for bulk sending.',
   })
   async sendOffers(
     @CurrentUser('sub') employerUserId: string,

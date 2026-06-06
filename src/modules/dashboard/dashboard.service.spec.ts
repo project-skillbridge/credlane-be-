@@ -130,6 +130,16 @@ describe('DashboardService', () => {
       employerRoleRepository as Repository<EmployerRole>,
       employerSavedCandidateRepository as Repository<EmployerSavedCandidate>,
       employerAssessmentRepository as Repository<EmployerAssessment>,
+      {
+        createQueryBuilder: jest.fn().mockReturnValue({
+          innerJoin: jest.fn().mockReturnThis(),
+          select: jest.fn().mockReturnThis(),
+          orderBy: jest.fn().mockReturnThis(),
+          limit: jest.fn().mockReturnThis(),
+          getRawOne: jest.fn().mockResolvedValue({ cnt: '0' }),
+          getRawMany: jest.fn().mockResolvedValue([]),
+        }),
+      } as unknown as Repository<any>,
       offerRepository as Repository<Offer>,
       employerPoolProfileRepository as Repository<EmployerPoolProfile>,
       notificationDispatch as never,

@@ -404,12 +404,13 @@ describe('EmployerDiscoveryService', () => {
       await service.discoverCandidates('employer-1', {
         page: 1,
         limit: 20,
-        roleTrack: 'backend_developer',
+        roleTrack: ['backend_developer'],
       });
 
-      expect(poolQb.andWhere).toHaveBeenCalledWith('pool.track = :roleTrack', {
-        roleTrack: 'backend_developer',
-      });
+      expect(poolQb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('pool.track'),
+        expect.objectContaining({ roleTracks: ['backend_developer'] }),
+      );
     });
 
     it('should apply availability filter', async () => {
@@ -419,12 +420,12 @@ describe('EmployerDiscoveryService', () => {
       await service.discoverCandidates('employer-1', {
         page: 1,
         limit: 20,
-        availability: 'immediately_available',
+        availability: ['immediately_available'],
       });
 
       expect(poolQb.andWhere).toHaveBeenCalledWith(
-        'pool.availability = :availability',
-        { availability: 'immediately_available' },
+        expect.stringContaining('pool.availability'),
+        expect.objectContaining({ availabilities: ['immediately_available'] }),
       );
     });
 
@@ -454,12 +455,12 @@ describe('EmployerDiscoveryService', () => {
       await service.discoverCandidates('employer-1', {
         page: 1,
         limit: 20,
-        experienceLevel: 'mid',
+        experienceLevel: ['mid'] as any,
       });
 
       expect(poolQb.andWhere).toHaveBeenCalledWith(
-        'pool.verified_level = :experienceLevel',
-        { experienceLevel: 'mid' },
+        expect.stringContaining('pool.verified_level'),
+        expect.objectContaining({ experienceLevels: ['mid'] }),
       );
     });
 

@@ -239,11 +239,9 @@ export class EmployerDiscoveryService {
         is_saved: true,
         offer_sent: offerStatusMap.has(r.userId),
         offer_status: offerStatusMap.get(r.userId) ?? null,
-        date_added: (r as CandidateRawRow & { savedAt?: Date }).savedAt
-          ? new Date(
-              (r as CandidateRawRow & { savedAt?: Date }).savedAt!,
-            ).toISOString()
-          : null,
+        date_added:
+          (r as CandidateRawRow & { savedAt?: Date }).savedAt?.toISOString() ??
+          null,
       }),
     );
 

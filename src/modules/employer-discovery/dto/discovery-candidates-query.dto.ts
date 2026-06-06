@@ -88,7 +88,7 @@ export class DiscoveryCandidatesQueryDto extends PaginationDto {
     value == null || value === '' ? undefined : Number(value),
   )
   @IsInt()
-  @Min(0)
+  @Min(75)
   @Max(100)
   minScore?: number;
 
