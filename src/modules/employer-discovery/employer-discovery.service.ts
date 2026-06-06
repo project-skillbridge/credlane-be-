@@ -372,9 +372,9 @@ export class EmployerDiscoveryService {
       );
     }
 
-    // Spec: candidates with composite score >= 75 are returned by default
-    const minScore = query.minScore ?? 75;
-    qb.andWhere('pool.score >= :minScore', { minScore });
+    if (query.minScore != null) {
+      qb.andWhere('pool.score >= :minScore', { minScore: query.minScore });
+    }
 
     if (query.maxScore != null) {
       qb.andWhere('pool.score <= :maxScore', { maxScore: query.maxScore });

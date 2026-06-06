@@ -81,12 +81,18 @@ export class CreateRoleDto {
 
   @ApiPropertyOptional({ example: 80000 })
   @IsOptional()
+  @Transform(({ value }) =>
+    value != null && value !== '' ? Number(value) : undefined,
+  )
   @IsInt()
   @Min(0)
   salaryMin?: number;
 
   @ApiPropertyOptional({ example: 120000 })
   @IsOptional()
+  @Transform(({ value }) =>
+    value != null && value !== '' ? Number(value) : undefined,
+  )
   @IsInt()
   @Min(0)
   @Max(99999999)
