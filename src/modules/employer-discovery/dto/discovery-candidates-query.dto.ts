@@ -79,16 +79,16 @@ export class DiscoveryCandidatesQueryDto extends PaginationDto {
 
   @ApiProperty({
     required: false,
-    minimum: 75,
+    minimum: 0,
     maximum: 100,
-    description: 'Minimum composite score (inclusive, default 75)',
+    description: 'Minimum composite score filter (inclusive, 0–100)',
   })
   @IsOptional()
   @Transform(({ value }) =>
     value == null || value === '' ? undefined : Number(value),
   )
   @IsInt()
-  @Min(75)
+  @Min(0)
   @Max(100)
   minScore?: number;
 
