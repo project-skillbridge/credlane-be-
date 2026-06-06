@@ -4,7 +4,7 @@
   Variables:
     {{name}}           recipient first name
     {{dashboardUrl}}   link to the talent dashboard
-    {{logoUrl}}        absolute URL to the SkillBridge logo image
+    {{logoUrl}}        absolute URL or CID (cid:skillbridge-logo) for the white SkillBridge logo
     {{supportEmail}}   support contact address
     {{year}}           copyright year
 -->
@@ -58,12 +58,29 @@
               border-radius: 12px;
             ">
           <tr>
-            <td style="padding: 32px 40px 8px 40px">
-              <img src="{{logoUrl}}" alt="SkillBridge" width="140" style="display: block; height: auto; border: 0" />
+            <td class="px" style="padding: 32px 40px 0 40px">
+              <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td
+                    bgcolor="#1f5f6b"
+                    style="
+                      background-color: #1f5f6b;
+                      padding: 12px 18px;
+                    "
+                  >
+                    <img
+                      src="{{logoUrl}}"
+                      alt="SkillBridge"
+                      width="108"
+                      style="display: block; height: auto; border: 0"
+                    />
+                  </td>
+                </tr>
+              </table>
             </td>
           </tr>
           <tr>
-            <td style="padding: 24px 40px 0 40px">
+            <td class="px" style="padding: 24px 40px 0 40px">
               <h1 style="
                     margin: 0;
                     font-size: 22px;

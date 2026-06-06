@@ -148,7 +148,6 @@ describe('EmployerService', () => {
       joiningAs: 'recruiter',
       desiredRoles: ['frontend_developer'],
       region: 'Africa',
-      hiringCountRange: '6_10',
       companyWebsite: 'https://acmelabs.example',
     });
 
@@ -163,7 +162,7 @@ describe('EmployerService', () => {
         desired_roles: ['frontend_developer'],
         hiring_locations: ['Africa'],
         region: 'Africa',
-        hiring_count_range: '6_10',
+        hiring_count_range: null,
         company_website: 'https://acmelabs.example',
         website_url: 'https://acmelabs.example',
         preferred_experience_levels: null,

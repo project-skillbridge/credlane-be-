@@ -9,6 +9,7 @@ import { Resend } from 'resend';
 import { z } from 'zod';
 import { env } from '../../config/env';
 import { redisQueueConnection } from '../../shared/runtime/redis-queue';
+import { resolveEmailLogo, withEmailLogoAttachment } from './mail-logo';
 import { loadMailTemplateFile, substituteMailTemplate } from './mail-templates';
 import type { PasswordResetEmailPayload, SendMailOptions } from './mail.types';
 
@@ -84,7 +85,14 @@ export class OutboundEmailQueueService
     await this.queue?.close();
   }
 
-  private async send({ to, subject, html, text, from }: SendMailOptions) {
+  private async send({
+    to,
+    subject,
+    html,
+    text,
+    from,
+    attachments,
+  }: SendMailOptions) {
     if (!html && !text) {
       throw new Error('Sending a mail requires either `html` or `text`.');
     }
@@ -93,6 +101,7 @@ export class OutboundEmailQueueService
       from: from ?? env.RESEND_MAIL_FROM,
       to,
       subject,
+      ...(attachments?.length ? { attachments } : {}),
     };
 
     const payload: Parameters<Resend['emails']['send']>[0] = html
@@ -128,15 +137,13 @@ export class OutboundEmailQueueService
       digits.map((d, i) => [`digit${i + 1}`, d]),
     ) as Record<string, string>;
 
-    const logoUrl =
-      env.EMAIL_LOGO_URL ??
-      'https://placehold.co/140x40/1f5f6b/ffffff/png?text=SkillBridge';
+    const logo = resolveEmailLogo();
 
     const rawHtml = loadMailTemplateFile('password-reset.html');
     const html = substituteMailTemplate(rawHtml, {
       name,
       expiresMinutes: String(expiresInMinutes),
-      logoUrl,
+      logoUrl: logo.logoUrl,
       supportEmail: env.SUPPORT_EMAIL,
       year: String(new Date().getFullYear()),
       ...digitVars,
@@ -149,6 +156,7 @@ export class OutboundEmailQueueService
       subject: 'Reset your SkillBridge password',
       text,
       html,
+      attachments: withEmailLogoAttachment(undefined, logo),
     });
   }
 

@@ -1,10 +1,16 @@
+export type SendMailAttachment = {
+  filename: string;
+  content: string | Buffer;
+  contentId?: string;
+};
+
 export type SendMailOptions = {
   to: string | string[];
   subject: string;
   html?: string;
   text?: string;
   from?: string;
-  attachments?: Array<{ filename: string; content: string | Buffer }>;
+  attachments?: SendMailAttachment[];
 };
 
 /** Payload for queued or immediate password-reset email send. */

@@ -130,6 +130,8 @@ describe('assessment performance email template', () => {
     expect(compactHtml).toContain('Your assessment results are ready');
     expect(compactHtml).toContain('78%');
     expect(compactHtml).toContain('support@example.com');
+    expect(compactHtml).toContain('background-color: #1f5f6b');
+    expect(compactHtml).toContain('https://example.com/logo.png');
     expect(compactHtml).not.toContain('unsubscribe');
     expect(compactHtml).not.toContain('Email preferences');
   });
@@ -155,5 +157,56 @@ describe('advanced retake email template', () => {
     expect(compactHtml).toContain('support@example.com');
     expect(compactHtml).not.toContain('unsubscribe');
     expect(compactHtml).not.toContain('Email preferences');
+  });
+});
+
+describe('data export email template', () => {
+  it('renders export copy and logo image src', () => {
+    const html = substituteMailTemplate(
+      loadMailTemplateFile('data-export.html'),
+      {
+        name: 'Jane',
+        fileName: 'skillbridge-data-export-jane-doe-2026-06-05.json',
+        logoUrl: 'cid:skillbridge-logo',
+        contactUrl: 'https://example.com/contact',
+        unsubscribeUrl: 'https://example.com/email-preferences',
+        year: '2026',
+      },
+    );
+
+    const compactHtml = html.replace(/\s+/g, ' ');
+
+    expect(compactHtml).toContain('Your data export is ready');
+    expect(compactHtml).toContain('src="cid:skillbridge-logo"');
+    expect(compactHtml).toContain(
+      'skillbridge-data-export-jane-doe-2026-06-05.json',
+    );
+  });
+});
+
+describe('password reset email template', () => {
+  it('renders OTP digits and logo image src', () => {
+    const html = substituteMailTemplate(
+      loadMailTemplateFile('password-reset.html'),
+      {
+        name: 'Jane',
+        digit1: '1',
+        digit2: '2',
+        digit3: '3',
+        digit4: '4',
+        digit5: '5',
+        digit6: '6',
+        expiresMinutes: '15',
+        logoUrl: 'cid:skillbridge-logo',
+        supportEmail: 'support@example.com',
+        year: '2026',
+      },
+    );
+
+    const compactHtml = html.replace(/\s+/g, ' ');
+
+    expect(compactHtml).toContain('Reset your password');
+    expect(compactHtml).toContain('src="cid:skillbridge-logo"');
+    expect(compactHtml).toContain('123456');
   });
 });

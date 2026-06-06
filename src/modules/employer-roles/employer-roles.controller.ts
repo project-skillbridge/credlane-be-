@@ -62,12 +62,51 @@ export class EmployerRolesController {
   @ApiBody({
     schema: {
       type: 'object',
+      required: ['title', 'category'],
       properties: {
-        title: { type: 'string' },
-        category: { type: 'string' },
-        description: { type: 'string' },
-        jd_text: { type: 'string' },
-        jd_file: { type: 'string', format: 'binary' },
+        title: { type: 'string', maxLength: 255 },
+        category: { type: 'string', maxLength: 255 },
+        description: {
+          type: 'string',
+          maxLength: 10000,
+          description: 'Job description text',
+        },
+        jd_text: {
+          type: 'string',
+          maxLength: 10000,
+          description: 'Alias for description — use one or the other',
+        },
+        jd_file: {
+          type: 'string',
+          format: 'binary',
+          description: 'PDF/DOC/DOCX, max 5 MB',
+        },
+        employmentType: {
+          type: 'string',
+          enum: ['Full-time', 'Part-time', 'Contract', 'Internship'],
+        },
+        workArrangement: {
+          type: 'string',
+          enum: ['Remote', 'Hybrid', 'On-site'],
+        },
+        education: { type: 'string', maxLength: 100 },
+        keywords: {
+          type: 'array',
+          items: { type: 'string' },
+        },
+        keyword: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Alias for keywords — use one or the other',
+        },
+        salaryMin: { type: 'integer', minimum: 0 },
+        salaryMax: { type: 'integer', minimum: 0, maximum: 99999999 },
+        currency: { type: 'string', maxLength: 10 },
+        assessmentId: {
+          type: 'string',
+          format: 'uuid',
+          description: 'Attach an existing assessment',
+        },
       },
     },
   })
@@ -141,6 +180,45 @@ export class EmployerRolesController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Update a role (supports optional jd_file upload)' })
   @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string', maxLength: 255 },
+        category: { type: 'string', maxLength: 255 },
+        description: { type: 'string', maxLength: 10000 },
+        jd_text: {
+          type: 'string',
+          maxLength: 10000,
+          description: 'Alias for description',
+        },
+        jd_file: {
+          type: 'string',
+          format: 'binary',
+          description: 'PDF/DOC/DOCX, max 5 MB',
+        },
+        employmentType: {
+          type: 'string',
+          enum: ['Full-time', 'Part-time', 'Contract', 'Internship'],
+        },
+        workArrangement: {
+          type: 'string',
+          enum: ['Remote', 'Hybrid', 'On-site'],
+        },
+        education: { type: 'string', maxLength: 100 },
+        keywords: { type: 'array', items: { type: 'string' } },
+        keyword: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Alias for keywords',
+        },
+        salaryMin: { type: 'integer', minimum: 0 },
+        salaryMax: { type: 'integer', minimum: 0, maximum: 99999999 },
+        currency: { type: 'string', maxLength: 10 },
+        assessmentId: { type: 'string', format: 'uuid' },
+      },
+    },
+  })
   @ApiResponse({ status: 200, description: 'Role updated' })
   @UseInterceptors(
     FileInterceptor('jd_file', {
