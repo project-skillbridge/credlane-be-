@@ -31,6 +31,7 @@ export class ProfileFieldLockedError extends ForbiddenException {
     super({
       error: 'PROFILE_FIELD_LOCKED',
       message: ErrorMessages.EMPLOYER_PROFILE.FIELD_LOCKED(
+        payload.last_changed_at,
         payload.next_editable_at,
       ),
       ...payload,

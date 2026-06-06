@@ -4,9 +4,13 @@ import { EmployerAssessment } from '../employer-assessments/entities/employer-as
 import { EmployerRole } from './entities/employer-role.entity';
 import { EmployerRolesService } from './employer-roles.service';
 import { EmployerRolesController } from './employer-roles.controller';
+import { UploadModule } from '../upload/upload.module';
 
 @Module({
-  imports: [TypeOrmModule.forFeature([EmployerRole, EmployerAssessment])],
+  imports: [
+    TypeOrmModule.forFeature([EmployerRole, EmployerAssessment]),
+    UploadModule,
+  ],
   controllers: [EmployerRolesController],
   providers: [EmployerRolesService],
   exports: [EmployerRolesService],

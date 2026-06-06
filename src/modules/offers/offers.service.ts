@@ -7,14 +7,7 @@ import {
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Subject } from 'rxjs';
-import {
-  Between,
-  In,
-  IsNull,
-  LessThan,
-  QueryFailedError,
-  Repository,
-} from 'typeorm';
+import { Between, In, LessThan, QueryFailedError, Repository } from 'typeorm';
 import {
   BadRequestError,
   ConflictError,
@@ -26,6 +19,7 @@ import { EmployerProfile } from '../employer/entities/employer-profile.entity';
 import { User } from '../users/entities/user.entity';
 import type {
   AssessmentUnlockedPayload,
+  AssessmentWindowExtendedPayload,
   OfferReceivedPayload,
   OfferRespondedPayload,
   OfferWithdrawnPayload,
@@ -53,6 +47,10 @@ type OffersNotificationPort = {
     userId: string,
     payload: AssessmentUnlockedPayload,
   ): Promise<void>;
+  notifyAssessmentWindowExtended(
+    userId: string,
+    payload: AssessmentWindowExtendedPayload,
+  ): Promise<void>;
   notifyOfferWithdrawn(
     userId: string,
     payload: OfferWithdrawnPayload,
@@ -61,7 +59,6 @@ type OffersNotificationPort = {
 import { Offer, OfferStatus } from './entities/offer.entity';
 import { OfferDistributionLog } from './entities/offer-distribution-log.entity';
 import { CreateOfferDto } from './dto/create-offer.dto';
-import { BulkCreateOffersDto } from './dto/bulk-create-offers.dto';
 import { ListOffersQueryDto } from './dto/list-offers-query.dto';
 
 const DEFAULT_MONTHLY_CAP = 50;
@@ -132,12 +129,10 @@ export type OfferStatusChangeEvent = {
   respondedAt: string;
 };
 
-export type BulkCreateOffersResult = {
+export type SendOffersResult = {
+  sent_count: number;
   offers: Offer[];
-  failures: Array<{
-    candidateUserId: string;
-    message: string;
-  }>;
+  warnings: Array<{ candidateId: string; reason: string }>;
 };
 
 const CANDIDATES_OFFERS_SUBTAB_STATUSES = [
@@ -217,15 +212,44 @@ export class OffersService {
       parseInt(process.env.OFFERS_MONTHLY_CAP ?? '', 10) || DEFAULT_MONTHLY_CAP;
   }
 
-  async createOffer(
+  async sendOffers(
     employerUserId: string,
     dto: CreateOfferDto,
+  ): Promise<SendOffersResult> {
+    const uniqueIds = [...new Set(dto.candidateIds)];
+    const sentOffers: Offer[] = [];
+    const warnings: SendOffersResult['warnings'] = [];
+
+    for (const candidateUserId of uniqueIds) {
+      try {
+        const offer = await this.createSingleOffer(
+          employerUserId,
+          candidateUserId,
+          dto,
+        );
+        sentOffers.push(offer);
+      } catch (err: unknown) {
+        warnings.push({
+          candidateId: candidateUserId,
+          reason:
+            err instanceof Error ? err.message : 'Offer could not be sent',
+        });
+      }
+    }
+
+    return { sent_count: sentOffers.length, offers: sentOffers, warnings };
+  }
+
+  private async createSingleOffer(
+    employerUserId: string,
+    candidateUserId: string,
+    dto: Omit<CreateOfferDto, 'candidateIds'>,
   ): Promise<Offer> {
     await this.verificationService.assertEmployerVerified(employerUserId);
 
     // Validate candidate is Job Ready
     const poolProfile = await this.poolProfileRepo.findOne({
-      where: { candidate_id: dto.candidateUserId },
+      where: { candidate_id: candidateUserId },
     });
 
     if (!poolProfile) {
@@ -238,20 +262,18 @@ export class OffersService {
       );
     }
 
-    const role = dto.roleId
-      ? await this.employerRolesService.findActiveRoleForOffer(
-          employerUserId,
-          dto.roleId,
-        )
-      : null;
+    const role = await this.employerRolesService.findActiveRoleForOffer(
+      employerUserId,
+      dto.roleId,
+    );
 
     const offerDetails = this.resolveOfferDetails(dto, role);
 
     const existingOffer = await this.offerRepo.findOne({
       where: {
         employer_user_id: employerUserId,
-        candidate_user_id: dto.candidateUserId,
-        ...(role ? { role_id: role.id } : { role_id: IsNull() }),
+        candidate_user_id: candidateUserId,
+        role_id: role.id,
         status: In([...ACTIVE_OFFER_STATUSES]),
       },
     });
@@ -295,9 +317,9 @@ export class OffersService {
 
         const created = await manager.save(Offer, {
           employer_user_id: employerUserId,
-          candidate_user_id: dto.candidateUserId,
+          candidate_user_id: candidateUserId,
           employer_pool_profile_id: poolProfile.id,
-          role_id: role?.id ?? null,
+          role_id: role.id,
           role_title: offerDetails.roleTitle,
           message: dto.message ?? '',
           role_description: offerDetails.roleDescription,
@@ -341,7 +363,7 @@ export class OffersService {
       : 'An employer';
 
     try {
-      await this.notificationDispatch.notifyOfferReceived(dto.candidateUserId, {
+      await this.notificationDispatch.notifyOfferReceived(candidateUserId, {
         offerId: offer.id,
         employerUserId,
         employerName,
@@ -356,35 +378,8 @@ export class OffersService {
     return offer;
   }
 
-  async bulkCreateOffers(
-    employerUserId: string,
-    dto: BulkCreateOffersDto,
-  ): Promise<BulkCreateOffersResult> {
-    const offers: Offer[] = [];
-    const failures: BulkCreateOffersResult['failures'] = [];
-    const { candidateUserIds, ...offerDetails } = dto;
-
-    for (const candidateUserId of candidateUserIds) {
-      try {
-        const offer = await this.createOffer(employerUserId, {
-          ...offerDetails,
-          candidateUserId,
-        });
-        offers.push(offer);
-      } catch (error: unknown) {
-        failures.push({
-          candidateUserId,
-          message:
-            error instanceof Error ? error.message : 'Offer could not be sent',
-        });
-      }
-    }
-
-    return { offers, failures };
-  }
-
   private resolveOfferDetails(
-    dto: CreateOfferDto,
+    dto: Omit<CreateOfferDto, 'candidateIds'>,
     role: EmployerRole | null,
   ): {
     roleTitle: string;
@@ -977,57 +972,67 @@ export class OffersService {
     }
 
     if (offer.extension_used) {
-      throw new BadRequestError('Assessment window extension already used');
+      throw new ForbiddenError(
+        'The one-time assessment window extension has already been used for this offer',
+      );
     }
 
-    const RETROACTIVE_WINDOW_MS = 24 * 60 * 60 * 1000;
-    const isAssessmentUnlocked =
-      offer.status === OfferStatus.ASSESSMENT_UNLOCKED;
-    const isRecentlyExpired =
-      offer.status === OfferStatus.EXPIRED &&
-      offer.assessment_deadline != null &&
-      offer.assessment_deadline.getTime() >= Date.now() - RETROACTIVE_WINDOW_MS;
-
-    if (!isAssessmentUnlocked && !isRecentlyExpired) {
+    if (offer.status !== OfferStatus.EXPIRED) {
       throw new BadRequestError(
-        'Only offers with an active or recently-expired (within 24 hours) assessment window can be extended',
+        'Only offers in Expired status can be extended',
       );
     }
 
     const now = new Date();
-    const currentDeadline = offer.assessment_deadline ?? now;
-    const nextDeadline = this.addDays(
-      currentDeadline > now ? currentDeadline : now,
-      OFFER_ASSESSMENT_WINDOW_DAYS,
-    );
+    const nextDeadline = this.addDays(now, OFFER_ASSESSMENT_WINDOW_DAYS);
 
     const result = await this.offerRepo.update(
       {
         id: offer.id,
-        status: In([OfferStatus.ASSESSMENT_UNLOCKED, OfferStatus.EXPIRED]),
+        status: OfferStatus.EXPIRED,
         extension_used: false,
       },
       {
         assessment_deadline: nextDeadline,
         extension_used: true,
         status: OfferStatus.ASSESSMENT_UNLOCKED,
-        // Reset so the expiry-warning service sends a fresh warning for the new window
+        assessment_unlocked_at: now,
         expiry_warning_sent_at: null,
-        // Stamp re-open time when recovering from EXPIRED
-        ...(isRecentlyExpired ? { assessment_unlocked_at: now } : {}),
       },
     );
     if (!result.affected || result.affected === 0) {
-      throw new BadRequestError('Assessment window extension already used');
+      throw new BadRequestError('Could not extend assessment window');
     }
 
     offer.assessment_deadline = nextDeadline;
     offer.extension_used = true;
     offer.status = OfferStatus.ASSESSMENT_UNLOCKED;
+    offer.assessment_unlocked_at = now;
     offer.expiry_warning_sent_at = null;
-    if (isRecentlyExpired) {
-      offer.assessment_unlocked_at = now;
+
+    try {
+      const employer = await this.userRepo.findOne({
+        where: { id: offer.employer_user_id },
+      });
+      const employerName = employer
+        ? `${employer.first_name ?? ''} ${employer.last_name ?? ''}`.trim()
+        : 'Your employer';
+      await this.notificationDispatch.notifyAssessmentWindowExtended(
+        offer.candidate_user_id,
+        {
+          offerId: offer.id,
+          employerUserId: offer.employer_user_id,
+          employerName,
+          roleTitle: offer.role_title,
+          newDeadline: nextDeadline.toISOString(),
+        },
+      );
+    } catch (notifyError: unknown) {
+      this.logger.error(
+        `Assessment window extended notification failed offer=${offer.id}: ${String(notifyError)}`,
+      );
     }
+
     return offer;
   }
 

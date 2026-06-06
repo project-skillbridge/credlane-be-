@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AssessmentAttempt, AssessmentResult } from '../assessments/entities';
 import { EmployerAssessment } from '../employer-assessments/entities/employer-assessment.entity';
+import { EmployerAssessmentSubmission } from '../employer-assessments/entities/employer-assessment-submission.entity';
 import { EmployerSavedCandidate } from '../employer-discovery/entities/employer-saved-candidate.entity';
 import { EmployerProfile } from '../employer/entities/employer-profile.entity';
 import { EmployerRole } from '../employer-roles/entities/employer-role.entity';
@@ -23,6 +24,7 @@ import { DashboardService } from './dashboard.service';
       EmployerRole,
       EmployerSavedCandidate,
       EmployerAssessment,
+      EmployerAssessmentSubmission,
       Offer,
       EmployerPoolProfile,
     ]),

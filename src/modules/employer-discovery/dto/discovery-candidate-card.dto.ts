@@ -5,6 +5,15 @@ export class DiscoveryCandidateCardDto {
   @ApiProperty({ format: 'uuid' })
   user_id: string;
 
+  @ApiProperty({ format: 'uuid' })
+  candidate_id: string;
+
+  @ApiProperty({ example: 'Jane' })
+  first_name: string;
+
+  @ApiProperty({ example: 'D.' })
+  last_name_initial: string;
+
   @ApiProperty({ example: 'Jane Doe' })
   full_name: string;
 
@@ -26,8 +35,21 @@ export class DiscoveryCandidateCardDto {
   @ApiProperty({ example: 85 })
   score: number;
 
+  @ApiProperty({ example: 85 })
+  composite_score: number;
+
+  @ApiProperty({ example: 'Mid Level', nullable: true })
+  validated_level: string | null;
+
   @ApiProperty({ type: [String], example: ['React', 'TypeScript'] })
   skills: string[];
+
+  @ApiProperty({
+    type: [String],
+    example: ['React', 'TypeScript'],
+    description: 'Top 2 skills',
+  })
+  top_skills: string[];
 
   @ApiProperty({
     type: [String],
@@ -37,6 +59,9 @@ export class DiscoveryCandidateCardDto {
 
   @ApiProperty({ nullable: true })
   availability: string | null;
+
+  @ApiProperty({ nullable: true })
+  availability_status: string | null;
 
   @ApiProperty({ example: 'Immediately Available', nullable: true })
   availability_label: string | null;
@@ -52,6 +77,9 @@ export class DiscoveryCandidateCardDto {
 
   @ApiProperty({ example: 'Nigeria', nullable: true })
   region: string | null;
+
+  @ApiProperty({ nullable: true, format: 'date-time' })
+  date_added: string | null;
 
   @ApiProperty()
   is_saved: boolean;

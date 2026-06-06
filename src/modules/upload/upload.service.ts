@@ -37,6 +37,10 @@ export class UploadService {
     return this.uploadToS3('resumes/', file, 'pdf');
   }
 
+  async uploadJdDocument(file: Express.Multer.File): Promise<string> {
+    return this.uploadToS3('jd-documents/', file, 'pdf');
+  }
+
   private async uploadToS3(
     prefix: string,
     file: Express.Multer.File,

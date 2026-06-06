@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -9,39 +10,96 @@ import {
   Patch,
   Post,
   Query,
+  UploadedFile,
+  UseInterceptors,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
   ApiOperation,
   ApiQuery,
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { memoryStorage } from 'multer';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { UserRole } from '../users/entities/user.entity';
 import { EmployerRolesService } from './employer-roles.service';
+import { UploadService } from '../upload/upload.service';
 import { AttachAssessmentDto } from './dto/attach-assessment.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { EmployerRoleStatus } from './entities/employer-role.entity';
+
+const MAX_JD_FILE_BYTES = 5 * 1024 * 1024; // 5MB
+const ALLOWED_JD_MIME_TYPES = [
+  'application/pdf',
+  'application/msword',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+];
 
 @ApiTags('Employer Roles')
 @ApiBearerAuth()
 @Roles(UserRole.EMPLOYER)
 @Controller('employer/roles')
 export class EmployerRolesController {
-  constructor(private readonly rolesService: EmployerRolesService) {}
+  constructor(
+    private readonly rolesService: EmployerRolesService,
+    private readonly uploadService: UploadService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Create a new role' })
+  @ApiOperation({
+    summary: 'Create a new role (supports optional jd_file upload)',
+  })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        title: { type: 'string' },
+        category: { type: 'string' },
+        description: { type: 'string' },
+        jd_text: { type: 'string' },
+        jd_file: { type: 'string', format: 'binary' },
+      },
+    },
+  })
   @ApiResponse({ status: 201, description: 'Role created' })
-  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
-  async create(@CurrentUser('sub') userId: string, @Body() dto: CreateRoleDto) {
-    const role = await this.rolesService.create(userId, dto);
+  @UseInterceptors(
+    FileInterceptor('jd_file', {
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_JD_FILE_BYTES },
+      fileFilter: (_req, file, cb) => {
+        if (ALLOWED_JD_MIME_TYPES.includes(file.mimetype)) {
+          cb(null, true);
+        } else {
+          cb(
+            new BadRequestException(
+              'Only PDF or Word documents are allowed for JD upload.',
+            ),
+            false,
+          );
+        }
+      },
+    }),
+  )
+  async create(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: CreateRoleDto,
+    @UploadedFile() jdFile?: Express.Multer.File,
+  ) {
+    let jdFileUrl: string | null = null;
+    if (jdFile) {
+      jdFileUrl = await this.uploadService.uploadJdDocument(jdFile);
+    }
+    const role = await this.rolesService.create(userId, dto, jdFileUrl);
     return { status: 'success', message: 'Role created', data: role };
   }
 
@@ -54,6 +112,17 @@ export class EmployerRolesController {
     @Query('status') status?: EmployerRoleStatus,
   ) {
     const roles = await this.rolesService.findAllForEmployer(userId, status);
+    return { status: 'success', data: roles };
+  }
+
+  @Get('active')
+  @ApiOperation({
+    summary:
+      'List active roles — used to populate the Select Role modal during Send Offer flow',
+  })
+  @ApiResponse({ status: 200, description: 'Active roles list' })
+  async findActive(@CurrentUser('sub') userId: string) {
+    const roles = await this.rolesService.findActiveRolesForEmployer(userId);
     return { status: 'success', data: roles };
   }
 
@@ -70,15 +139,38 @@ export class EmployerRolesController {
 
   @Patch(':roleId')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Update a role' })
+  @ApiOperation({ summary: 'Update a role (supports optional jd_file upload)' })
+  @ApiConsumes('multipart/form-data')
   @ApiResponse({ status: 200, description: 'Role updated' })
-  @UsePipes(new ValidationPipe({ whitelist: true, transform: true }))
+  @UseInterceptors(
+    FileInterceptor('jd_file', {
+      storage: memoryStorage(),
+      limits: { fileSize: MAX_JD_FILE_BYTES },
+      fileFilter: (_req, file, cb) => {
+        if (ALLOWED_JD_MIME_TYPES.includes(file.mimetype)) {
+          cb(null, true);
+        } else {
+          cb(
+            new BadRequestException(
+              'Only PDF or Word documents are allowed for JD upload.',
+            ),
+            false,
+          );
+        }
+      },
+    }),
+  )
   async update(
     @CurrentUser('sub') userId: string,
     @Param('roleId', ParseUUIDPipe) roleId: string,
     @Body() dto: UpdateRoleDto,
+    @UploadedFile() jdFile?: Express.Multer.File,
   ) {
-    const role = await this.rolesService.update(userId, roleId, dto);
+    let jdFileUrl: string | null | undefined;
+    if (jdFile) {
+      jdFileUrl = await this.uploadService.uploadJdDocument(jdFile);
+    }
+    const role = await this.rolesService.update(userId, roleId, dto, jdFileUrl);
     return { status: 'success', message: 'Role updated', data: role };
   }
 

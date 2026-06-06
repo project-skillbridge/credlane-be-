@@ -141,10 +141,12 @@ export class EmployerAssessmentsController {
   getAssessment(
     @CurrentUser('sub') employerUserId: string,
     @Param('assessmentId', ParseUUIDPipe) assessmentId: string,
+    @Query() query: ListEmployerAssessmentResultsQueryDto,
   ) {
     return this.employerAssessmentsService.getAssessment(
       employerUserId,
       assessmentId,
+      query,
     );
   }
 

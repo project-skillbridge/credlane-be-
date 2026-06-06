@@ -141,7 +141,7 @@ export const ErrorMessages = {
       'Company website could not be reached. Please check the URL.',
   },
   EMPLOYER_PROFILE: {
-    FIELD_LOCKED: (unlocksAt: string) =>
-      `This company identity field is locked until ${unlocksAt}. Changes are allowed once every 180 days.`,
+    FIELD_LOCKED: (lastChangedAt: string, unlocksAt: string) =>
+      `This field was last updated on ${lastChangedAt} and can next be changed on ${unlocksAt}.`,
   },
 } as const;

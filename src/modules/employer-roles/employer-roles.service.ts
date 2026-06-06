@@ -29,6 +29,7 @@ export class EmployerRolesService {
   async create(
     employerUserId: string,
     dto: CreateRoleDto,
+    jdFileUrl?: string | null,
   ): Promise<EmployerRole> {
     this.assertSalaryRange(dto.salaryMin, dto.salaryMax);
     if (dto.assessmentId) {
@@ -38,19 +39,30 @@ export class EmployerRolesService {
       );
     }
 
-    const keywords = dto.keywords
-      ?.map((keyword) => keyword.trim())
-      .filter(Boolean);
+    const title = dto.title.trim();
+    const existing = await this.roleRepo.findOne({
+      where: { employer_user_id: employerUserId, title },
+    });
+    if (existing) {
+      throw new BadRequestException(
+        `A role with the title "${title}" already exists.`,
+      );
+    }
+
+    const rawKeywords = dto.keywords ?? dto.keyword ?? [];
+    const keywords = rawKeywords.map((k) => k.trim()).filter(Boolean);
+    const description = (dto.description ?? dto.jd_text)?.trim() ?? null;
 
     const role = this.roleRepo.create({
       employer_user_id: employerUserId,
-      title: dto.title.trim(),
+      title,
       category: dto.category.trim(),
-      description: dto.description?.trim() ?? null,
+      description,
+      jd_file_url: jdFileUrl ?? null,
       employment_type: dto.employmentType ?? null,
       work_arrangement: dto.workArrangement ?? null,
       education: dto.education?.trim() ?? null,
-      keywords: keywords?.length ? keywords : null,
+      keywords: keywords.length ? keywords : null,
       salary_min: dto.salaryMin ?? null,
       salary_max: dto.salaryMax ?? null,
       currency: dto.currency?.trim().toUpperCase() ?? null,
@@ -98,13 +110,31 @@ export class EmployerRolesService {
     employerUserId: string,
     roleId: string,
     dto: UpdateRoleDto,
+    jdFileUrl?: string | null,
   ): Promise<EmployerRole> {
     const role = await this.findOneForEmployer(employerUserId, roleId);
 
-    if (dto.title !== undefined) role.title = dto.title.trim();
+    if (dto.title !== undefined) {
+      const title = dto.title.trim();
+      if (title !== role.title) {
+        const conflict = await this.roleRepo.findOne({
+          where: { employer_user_id: employerUserId, title },
+        });
+        if (conflict) {
+          throw new BadRequestException(
+            `A role with the title "${title}" already exists.`,
+          );
+        }
+      }
+      role.title = title;
+    }
     if (dto.category !== undefined) role.category = dto.category.trim();
-    if (dto.description !== undefined) {
-      role.description = dto.description?.trim() ?? null;
+    const descriptionValue = dto.description ?? dto.jd_text;
+    if (descriptionValue !== undefined) {
+      role.description = descriptionValue?.trim() ?? null;
+    }
+    if (jdFileUrl !== undefined) {
+      role.jd_file_url = jdFileUrl ?? null;
     }
     if (dto.employmentType !== undefined) {
       role.employment_type = dto.employmentType;
@@ -113,10 +143,9 @@ export class EmployerRolesService {
       role.work_arrangement = dto.workArrangement;
     }
     if (dto.education !== undefined) role.education = dto.education?.trim();
-    if (dto.keywords !== undefined) {
-      const keywords = dto.keywords
-        .map((keyword) => keyword.trim())
-        .filter(Boolean);
+    const rawKeywords = dto.keywords ?? dto.keyword;
+    if (rawKeywords !== undefined) {
+      const keywords = rawKeywords.map((k) => k.trim()).filter(Boolean);
       role.keywords = keywords.length ? keywords : null;
     }
     if (dto.salaryMin !== undefined) role.salary_min = dto.salaryMin;
