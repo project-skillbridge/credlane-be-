@@ -35,21 +35,37 @@ function resolveLogoFromBundled(
   };
 }
 
-/** Logo for transactional emails — bundled white logo inline via CID (never expires). */
+let _cachedLogo: ResolvedEmailLogo | undefined;
+
+/**
+ * Logo for transactional emails — bundled white logo inline via CID (never expires).
+ * Result is memoized after the first call to avoid repeated filesystem I/O.
+ */
 export function resolveEmailLogo(): ResolvedEmailLogo {
+  if (_cachedLogo) {
+    return _cachedLogo;
+  }
+
   const bundled = resolveLogoFromBundled(EMAIL_LOGO_OBJECT_KEY, EMAIL_LOGO_CID);
   if (bundled) {
-    return bundled;
+    _cachedLogo = bundled;
+    return _cachedLogo;
   }
 
   const overrideUrl = env.EMAIL_LOGO_WHITE_URL ?? env.EMAIL_LOGO_URL;
   if (overrideUrl) {
-    return { logoUrl: overrideUrl };
+    _cachedLogo = { logoUrl: overrideUrl };
+    return _cachedLogo;
   }
 
   throw new Error(
     `Missing bundled email logo at modules/mail/assets/${EMAIL_LOGO_OBJECT_KEY}`,
   );
+}
+
+/** For use in tests only — clears the memoized logo so the next call re-resolves. */
+export function _resetEmailLogoCache(): void {
+  _cachedLogo = undefined;
 }
 
 export function withEmailLogoAttachment(

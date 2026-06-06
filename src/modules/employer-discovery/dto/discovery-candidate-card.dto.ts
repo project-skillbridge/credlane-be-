@@ -34,7 +34,7 @@ export class DiscoveryCandidateCardDto {
 
   @ApiProperty({
     example: 85,
-    description: 'Cred score as a percentage (0–100)',
+    description: 'Credit score as a percentage (0–100)',
   })
   score: number;
 
