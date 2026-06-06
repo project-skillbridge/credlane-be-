@@ -2,6 +2,8 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -25,7 +27,6 @@ import { SkipApiTransform } from '../../common/interceptors/transform.intercepto
 import { UserRole } from '../users/entities/user.entity';
 import { OffersService } from './offers.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
-import { BulkCreateOffersDto } from './dto/bulk-create-offers.dto';
 import { RespondOfferDto } from './dto/respond-offer.dto';
 import { ListOffersQueryDto } from './dto/list-offers-query.dto';
 import {
@@ -45,22 +46,16 @@ export class OffersController {
 
   @Post('employer/offers')
   @Roles(UserRole.EMPLOYER)
-  @ApiOperation({ summary: 'Create and send an offer to a candidate' })
-  async createOffer(
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary:
+      'Send offer(s) to one or more candidates for a role. Pass multiple candidateIds for bulk sending.',
+  })
+  async sendOffers(
     @CurrentUser('sub') employerUserId: string,
     @Body() dto: CreateOfferDto,
   ) {
-    return this.offersService.createOffer(employerUserId, dto);
-  }
-
-  @Post('employer/offers/bulk')
-  @Roles(UserRole.EMPLOYER)
-  @ApiOperation({ summary: 'Create and send an offer to multiple candidates' })
-  async bulkCreateOffers(
-    @CurrentUser('sub') employerUserId: string,
-    @Body() dto: BulkCreateOffersDto,
-  ) {
-    return this.offersService.bulkCreateOffers(employerUserId, dto);
+    return this.offersService.sendOffers(employerUserId, dto);
   }
 
   @Get('employer/offers')
@@ -247,6 +242,16 @@ export class OffersController {
   @Roles(UserRole.EMPLOYER)
   @ApiOperation({ summary: 'Mark an accepted offer as hire complete' })
   async markHireComplete(
+    @CurrentUser('sub') employerUserId: string,
+    @Param('offerId', ParseUUIDPipe) offerId: string,
+  ) {
+    return await this.offersService.markHireComplete(employerUserId, offerId);
+  }
+
+  @Patch('employer/offers/:offerId/mark-hired')
+  @Roles(UserRole.EMPLOYER)
+  @ApiOperation({ summary: 'Alias: mark an accepted offer as hire complete' })
+  async markHired(
     @CurrentUser('sub') employerUserId: string,
     @Param('offerId', ParseUUIDPipe) offerId: string,
   ) {

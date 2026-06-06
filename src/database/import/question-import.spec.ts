@@ -111,4 +111,28 @@ describe('question import', () => {
     expect(mapped.metadata?.grading_rubric).toBeDefined();
     expect(mapped.metadata?.answer_block).toBe('short_text');
   });
+
+  it('preserves slugified source competency instead of collapsing to general', () => {
+    const mapped = mapSourceQuestion(
+      {
+        id: 'FED-SR-ADV-002',
+        role_code: 'FED',
+        level: 'senior',
+        assessment_stage: 'advanced_assessment',
+        format: 'open_ended_scenario',
+        competency: 'Component Architecture',
+        question_type: 'scenario_reasoning',
+        question: 'How would you structure a large component library?',
+        options: null,
+        correct_answer: null,
+        estimated_time_seconds: 120,
+        tags: ['architecture'],
+      },
+      4,
+    );
+
+    expect(mapped.competency).toBe('component_architecture');
+    expect(mapped.metadata?.source_competency).toBe('Component Architecture');
+    expect(mapped.metadata?.competency).toBe('component_architecture');
+  });
 });

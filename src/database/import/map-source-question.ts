@@ -5,19 +5,14 @@ import {
   SlotType,
   VerifiedLevel,
 } from '../../modules/assessments/entities/assessment-question.entity';
-import { normaliseCompetency } from '../../modules/talent/assessment/competency-taxonomy';
+import {
+  FALLBACK_COMPETENCY,
+  slugifyCompetency,
+} from '../../modules/talent/assessment/competency-taxonomy';
 import { resolveTrackFromRoleCode } from './role-code-map';
 import type { SourceQuestion } from './import.types';
 
 type Difficulty = 'easy' | 'medium' | 'hard';
-
-function slugifyCompetency(value: string): string {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-}
 
 function mapDifficulty(
   score: number | undefined,
@@ -108,8 +103,11 @@ export function mapSourceQuestion(
 ): Partial<AssessmentQuestion> {
   const track = resolveTrackFromRoleCode(source.role_code);
   const verifiedLevel = source.level as VerifiedLevel;
-  const competencySlug = slugifyCompetency(source.competency);
-  const competency = normaliseCompetency(track, competencySlug);
+  // Keep the CredLane source competency slug as-is. Do not run through
+  // normaliseCompetency — role tracks (frontend_developer) do not match the
+  // narrower taxonomy keys (software_eng) and would collapse to `general`.
+  const competency =
+    slugifyCompetency(source.competency) ?? FALLBACK_COMPETENCY;
   const { assessmentType, isLive } = mapAssessmentType(source.assessment_stage);
   const isAdvanced = assessmentType === AssessmentType.ADVANCED;
   const questionType = mapQuestionType(source.format);
@@ -157,6 +155,7 @@ export function mapSourceQuestion(
       tags: source.tags ?? [],
       source_id: source.id,
       source_competency: source.competency,
+      competency,
       role_code: source.role_code.toUpperCase(),
       role: source.role ?? null,
       role_family: source.role_family ?? null,

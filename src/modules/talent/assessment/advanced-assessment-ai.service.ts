@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { AssessmentQuestion, QuestionType } from '../../assessments/entities';
+import { resolveQuestionCompetency } from './competency-taxonomy';
 import { TalentPersonalAssessmentContext } from './personal-assessment.service';
 
 // Final question counts.
@@ -89,20 +90,27 @@ export class AdvancedAssessmentAiService {
     startAt: number,
   ): AdvancedAssessmentGeneratedQuestion[] {
     const { min_length, max_length } = blockLengthLimits(block);
-    return questions.map((question, index) => ({
-      question_id: question.id,
-      question_number: startAt + index,
-      block,
-      question_type: question.question_type,
-      question_text: question.question_text,
-      options: question.options,
-      slot_type: question.slot_type,
-      metadata: question.competency
-        ? { ...question.metadata, competency: question.competency }
-        : question.metadata,
-      correct_answer: question.correct_answer,
-      min_length,
-      max_length,
-    }));
+    return questions.map((question, index) => {
+      const competency = resolveQuestionCompetency({
+        competency: question.competency,
+        metadata: question.metadata,
+      });
+
+      return {
+        question_id: question.id,
+        question_number: startAt + index,
+        block,
+        question_type: question.question_type,
+        question_text: question.question_text,
+        options: question.options,
+        slot_type: question.slot_type,
+        metadata: competency
+          ? { ...(question.metadata ?? {}), competency }
+          : question.metadata,
+        correct_answer: question.correct_answer,
+        min_length,
+        max_length,
+      };
+    });
   }
 }

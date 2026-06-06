@@ -11,6 +11,7 @@ import {
   MaxLength,
   Min,
 } from 'class-validator';
+import { Transform } from 'class-transformer';
 
 export class CreateRoleDto {
   @ApiProperty({ example: 'Senior Backend Engineer' })
@@ -26,12 +27,20 @@ export class CreateRoleDto {
   category: string;
 
   @ApiPropertyOptional({
-    description: 'Job description (paste text or from file)',
+    description: 'Job description text (also accepted as jd_text)',
   })
   @IsOptional()
   @IsString()
   @MaxLength(10000)
   description?: string;
+
+  @ApiPropertyOptional({
+    description: 'Alias for description — job description text',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(10000)
+  jd_text?: string;
 
   @ApiPropertyOptional({
     enum: ['Full-time', 'Part-time', 'Contract', 'Internship'],
@@ -56,6 +65,19 @@ export class CreateRoleDto {
   @IsArray()
   @IsString({ each: true })
   keywords?: string[];
+
+  @ApiPropertyOptional({
+    type: [String],
+    description: 'Alias for keywords',
+    example: ['NestJS', 'PostgreSQL'],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  @Transform(({ value }) =>
+    Array.isArray(value) ? value : value ? [value] : undefined,
+  )
+  keyword?: string[];
 
   @ApiPropertyOptional({ example: 80000 })
   @IsOptional()

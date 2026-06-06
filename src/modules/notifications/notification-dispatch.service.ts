@@ -63,6 +63,14 @@ export type AssessmentUnlockedPayload = {
   assessmentDeadline: string;
 };
 
+export type AssessmentWindowExtendedPayload = {
+  offerId: string;
+  employerUserId: string;
+  employerName: string;
+  roleTitle: string;
+  newDeadline: string;
+};
+
 export type AssessmentWindowExpiringPayload = {
   offerId: string;
   candidateUserId: string;
@@ -159,6 +167,17 @@ export class NotificationDispatchService
     return this.dispatch(NotificationType.ASSESSMENT_UNLOCKED, userId, payload);
   }
 
+  async notifyAssessmentWindowExtended(
+    userId: string,
+    payload: AssessmentWindowExtendedPayload,
+  ): Promise<void> {
+    return this.dispatch(
+      NotificationType.ASSESSMENT_WINDOW_EXTENDED,
+      userId,
+      payload,
+    );
+  }
+
   async notifyAssessmentWindowExpiring(
     userId: string,
     payload: AssessmentWindowExpiringPayload,
@@ -234,6 +253,11 @@ export class NotificationDispatchService
     payload: AssessmentUnlockedPayload,
   ): Promise<void>;
   async dispatch(
+    type: NotificationType.ASSESSMENT_WINDOW_EXTENDED,
+    userId: string,
+    payload: AssessmentWindowExtendedPayload,
+  ): Promise<void>;
+  async dispatch(
     type: NotificationType.ASSESSMENT_WINDOW_EXPIRING,
     userId: string,
     payload: AssessmentWindowExpiringPayload,
@@ -266,6 +290,7 @@ export class NotificationDispatchService
       | OfferWithdrawnPayload
       | OfferExpiredPayload
       | AssessmentUnlockedPayload
+      | AssessmentWindowExtendedPayload
       | AssessmentWindowExpiringPayload
       | AssessmentResultPayload
       | ContactRequestReceivedPayload
@@ -315,6 +340,12 @@ export class NotificationDispatchService
           await this.dispatchAssessmentUnlocked(
             userId,
             payload as AssessmentUnlockedPayload,
+          );
+          break;
+        case NotificationType.ASSESSMENT_WINDOW_EXTENDED:
+          await this.dispatchAssessmentWindowExtended(
+            userId,
+            payload as AssessmentWindowExtendedPayload,
           );
           break;
         case NotificationType.ASSESSMENT_WINDOW_EXPIRING:
@@ -708,6 +739,31 @@ export class NotificationDispatchService
         employerName: payload.employerName,
         roleTitle: payload.roleTitle,
         assessmentDeadline: payload.assessmentDeadline,
+      },
+    });
+  }
+
+  private async dispatchAssessmentWindowExtended(
+    userId: string,
+    payload: AssessmentWindowExtendedPayload,
+  ): Promise<void> {
+    const user = await this.usersService.findOne(userId);
+    if (!user) {
+      this.logger.warn(`Notification skipped: user not found user=${userId}`);
+      return;
+    }
+
+    await this.notificationsService.create({
+      userId,
+      type: NotificationType.ASSESSMENT_WINDOW_EXTENDED,
+      title: 'Assessment window extended',
+      body: `Your assessment window for ${payload.roleTitle} has been extended. New deadline: ${new Date(payload.newDeadline).toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' })}.`,
+      data: {
+        offerId: payload.offerId,
+        employerUserId: payload.employerUserId,
+        employerName: payload.employerName,
+        roleTitle: payload.roleTitle,
+        newDeadline: payload.newDeadline,
       },
     });
   }

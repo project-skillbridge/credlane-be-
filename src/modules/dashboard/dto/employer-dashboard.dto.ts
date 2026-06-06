@@ -1,4 +1,4 @@
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 
 export enum EmployerDashboardViewState {
   NEW_USER = 'new_user',
@@ -9,17 +9,8 @@ export enum EmployerDashboardActivityType {
   VERIFIED_TALENT = 'verified_talent',
   SHORTLIST = 'shortlist',
   OFFER_ACCEPTED = 'offer_accepted',
-}
-
-export class EmployerDashboardCallToActionDto {
-  @ApiProperty({ example: 'Explore verified talent' })
-  label: string;
-
-  @ApiProperty({ example: '/e/dashboard' })
-  route: string;
-
-  @ApiProperty({ example: 'primary' })
-  variant: string;
+  ROLE_CREATED = 'role_created',
+  ASSESSMENT_COMPLETED = 'assessment_completed',
 }
 
 export class EmployerDashboardProfilePromptDto {
@@ -29,219 +20,147 @@ export class EmployerDashboardProfilePromptDto {
   @ApiProperty({ example: false })
   is_verified: boolean;
 
-  @ApiProperty({ example: 72, minimum: 0, maximum: 100 })
+  @ApiProperty({ example: 40, minimum: 0, maximum: 100 })
   completion_percentage: number;
 
-  @ApiProperty({ example: 'Complete your profile' })
-  title: string;
-
   @ApiProperty({
-    example:
-      'Finish your employer profile and verification details to unlock offers and assessment sharing.',
+    type: [String],
+    example: ['Add your company name', 'Add your company LinkedIn page'],
   })
-  description: string;
-
-  @ApiProperty({ example: 'Complete profile' })
-  cta_label: string;
-
-  @ApiProperty({ example: '/e/profile' })
-  cta_route: string;
-
-  @ApiProperty({ type: [String] })
   missing_items: string[];
 }
 
-export class EmployerDashboardHeroDto {
-  @ApiProperty({ example: 'Start discovering verified talent.' })
-  title: string;
+export class EmployerDashboardOverviewCountsDto {
+  @ApiProperty({ example: 6 })
+  verified_talent: number;
 
-  @ApiProperty({
-    example:
-      'Browse top Job Ready talents, create roles, and move candidates through your hiring flow.',
-  })
-  description: string;
+  @ApiProperty({ example: 0 })
+  assessments_shared_count: number;
 
-  @ApiProperty({ type: [EmployerDashboardCallToActionDto] })
-  actions: EmployerDashboardCallToActionDto[];
+  @ApiProperty({ example: 0 })
+  shortlisted_candidates: number;
+
+  @ApiProperty({ example: 0 })
+  my_roles: number;
 }
 
-export class EmployerDashboardCapabilityDto {
-  @ApiProperty({ example: 'Discover verified talents' })
-  title: string;
+export class EmployerDashboardRecentRoleDto {
+  @ApiProperty({ format: 'uuid' })
+  role_id: string;
 
-  @ApiProperty({
-    example:
-      'Explore candidates who have already completed CredLane verification and assessments.',
-  })
-  description: string;
-}
+  @ApiProperty({ example: 'Senior Frontend Engineer' })
+  role_title: string;
 
-export class EmployerDashboardSocialProofDto {
-  @ApiProperty({
-    example: 'Trusted by fast-moving teams hiring across Africa.',
-  })
-  headline: string;
+  @ApiProperty({ example: 'Engineering' })
+  category: string;
 
-  @ApiProperty({ type: [String] })
-  testimonials: string[];
-}
+  @ApiProperty({ example: true })
+  assessment_attached: boolean;
 
-export class EmployerDashboardStatCardDto {
-  @ApiProperty({ example: 'verified_talent' })
-  key: string;
+  @ApiProperty({ example: 3 })
+  offers_sent: number;
 
-  @ApiProperty({ example: 'Verified Talent' })
-  title: string;
-
-  @ApiProperty({ example: 12 })
-  value: number;
-
-  @ApiProperty({
-    example:
-      'Browse top Job Ready candidates already verified across multiple role tracks.',
-  })
-  description: string;
-
-  @ApiProperty({ example: 'Browse talents' })
-  cta_label: string;
-
-  @ApiProperty({ example: '/e/dashboard' })
-  cta_route: string;
+  @ApiProperty({ enum: ['active', 'closed'], example: 'active' })
+  status: string;
 }
 
 export class EmployerDashboardActivityDto {
+  @ApiProperty({ example: 'act_saved-1' })
+  id: string;
+
   @ApiProperty({
     enum: EmployerDashboardActivityType,
-    example: EmployerDashboardActivityType.SHORTLIST,
+    example: EmployerDashboardActivityType.VERIFIED_TALENT,
   })
   type: EmployerDashboardActivityType;
 
-  @ApiProperty({ example: 'You shortlisted Jane Doe' })
+  @ApiProperty({ example: '3 new verified Backend Developer candidates added' })
   title: string;
 
   @ApiProperty({
-    example: 'Your shortlist now includes another verified frontend developer.',
+    example: 'Fresh Job Ready talent now matches your hiring preferences.',
   })
   description: string;
 
   @ApiProperty({ format: 'date-time' })
   occurred_at: string;
 
-  @ApiProperty({ example: '/e/shortlist' })
-  route: string;
+  @ApiProperty({ nullable: true, example: '/employer/roles/uuid' })
+  link: string | null;
 }
 
 export class EmployerDashboardHomeResponseDto {
-  @ApiProperty({ example: 'Acme Labs' })
+  @ApiProperty({ example: 'Lisan Al Gaib' })
   company_name: string;
 
   @ApiProperty({
     enum: EmployerDashboardViewState,
-    example: EmployerDashboardViewState.EXISTING_USER,
+    example: EmployerDashboardViewState.NEW_USER,
   })
   view_state: EmployerDashboardViewState;
 
-  @ApiProperty({ example: 'Welcome back, Acme Labs.' })
-  header: string;
-
-  @ApiProperty({
-    example: 'Browse top Job Ready talents for your next hire.',
-  })
-  subheader: string;
+  @ApiProperty({ example: false })
+  new_user_state: boolean;
 
   @ApiProperty({ type: EmployerDashboardProfilePromptDto })
   profile_prompt: EmployerDashboardProfilePromptDto;
 
-  @ApiProperty({ type: EmployerDashboardCallToActionDto })
-  create_role_cta: EmployerDashboardCallToActionDto;
+  @ApiProperty({ type: EmployerDashboardOverviewCountsDto, nullable: true })
+  overview_counts: EmployerDashboardOverviewCountsDto | null;
 
-  @ApiProperty({ type: [EmployerDashboardStatCardDto] })
-  overview_cards: EmployerDashboardStatCardDto[];
+  @ApiProperty({ type: [EmployerDashboardRecentRoleDto], nullable: true })
+  recent_roles: EmployerDashboardRecentRoleDto[] | null;
 
   @ApiProperty({ type: [EmployerDashboardActivityDto] })
   recent_activity: EmployerDashboardActivityDto[];
-
-  @ApiPropertyOptional({ type: EmployerDashboardHeroDto, nullable: true })
-  hero: EmployerDashboardHeroDto | null;
-
-  @ApiProperty({ type: [EmployerDashboardCapabilityDto] })
-  capabilities: EmployerDashboardCapabilityDto[];
-
-  @ApiPropertyOptional({
-    type: EmployerDashboardSocialProofDto,
-    nullable: true,
-  })
-  social_proof: EmployerDashboardSocialProofDto | null;
-
-  @ApiPropertyOptional({
-    example:
-      'No roles created yet. Create your first role to start sending offers.',
-    nullable: true,
-  })
-  roles_empty_state_message: string | null;
 }
 
-export type EmployerDashboardCallToAction = {
-  label: string;
-  route: string;
-  variant: string;
-};
+export class EmployerDashboardEnvelopeResponseDto {
+  @ApiProperty({ example: 200 })
+  status_code: number;
+
+  @ApiProperty({ type: EmployerDashboardHomeResponseDto })
+  data: EmployerDashboardHomeResponseDto;
+}
 
 export type EmployerDashboardProfilePrompt = {
   show_prompt: boolean;
   is_verified: boolean;
   completion_percentage: number;
-  title: string;
-  description: string;
-  cta_label: string;
-  cta_route: string;
   missing_items: string[];
 };
 
-export type EmployerDashboardHero = {
-  title: string;
-  description: string;
-  actions: EmployerDashboardCallToAction[];
+export type EmployerDashboardOverviewCounts = {
+  verified_talent: number;
+  assessments_shared_count: number;
+  shortlisted_candidates: number;
+  my_roles: number;
 };
 
-export type EmployerDashboardCapability = {
-  title: string;
-  description: string;
-};
-
-export type EmployerDashboardSocialProof = {
-  headline: string;
-  testimonials: string[];
-};
-
-export type EmployerDashboardStatCard = {
-  key: string;
-  title: string;
-  value: number;
-  description: string;
-  cta_label: string;
-  cta_route: string;
+export type EmployerDashboardRecentRole = {
+  role_id: string;
+  role_title: string;
+  category: string;
+  assessment_attached: boolean;
+  offers_sent: number;
+  status: string;
 };
 
 export type EmployerDashboardActivity = {
+  id: string;
   type: EmployerDashboardActivityType;
   title: string;
   description: string;
   occurred_at: string;
-  route: string;
+  link: string | null;
 };
 
 export type EmployerDashboardHomeResponse = {
   company_name: string;
   view_state: EmployerDashboardViewState;
-  header: string;
-  subheader: string;
+  new_user_state: boolean;
   profile_prompt: EmployerDashboardProfilePrompt;
-  create_role_cta: EmployerDashboardCallToAction;
-  overview_cards: EmployerDashboardStatCard[];
+  overview_counts: EmployerDashboardOverviewCounts | null;
+  recent_roles: EmployerDashboardRecentRole[] | null;
   recent_activity: EmployerDashboardActivity[];
-  hero: EmployerDashboardHero | null;
-  capabilities: EmployerDashboardCapability[];
-  social_proof: EmployerDashboardSocialProof | null;
-  roles_empty_state_message: string | null;
 };

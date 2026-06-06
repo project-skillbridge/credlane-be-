@@ -25,7 +25,10 @@ describe('DashboardService employer home', () => {
   >;
   let assessmentAttemptRepository: Pick<Repository<AssessmentAttempt>, 'count'>;
   let employerProfileRepository: Pick<Repository<EmployerProfile>, 'findOne'>;
-  let employerRoleRepository: Pick<Repository<EmployerRole>, 'count'>;
+  let employerRoleRepository: Pick<
+    Repository<EmployerRole>,
+    'count' | 'findOne' | 'find'
+  >;
   let employerSavedCandidateRepository: Pick<
     Repository<EmployerSavedCandidate>,
     'count' | 'findOne'
@@ -33,6 +36,10 @@ describe('DashboardService employer home', () => {
   let employerAssessmentRepository: Pick<
     Repository<EmployerAssessment>,
     'count'
+  >;
+  let employerAssessmentSubmissionRepository: Pick<
+    Repository<any>,
+    'createQueryBuilder'
   >;
   let offerRepository: Pick<Repository<Offer>, 'count' | 'findOne'>;
   let employerPoolProfileRepository: Pick<
@@ -71,6 +78,8 @@ describe('DashboardService employer home', () => {
 
     employerRoleRepository = {
       count: jest.fn().mockResolvedValue(0),
+      findOne: jest.fn().mockResolvedValue(null),
+      find: jest.fn().mockResolvedValue([]),
     };
 
     employerSavedCandidateRepository = {
@@ -80,6 +89,20 @@ describe('DashboardService employer home', () => {
 
     employerAssessmentRepository = {
       count: jest.fn().mockResolvedValue(0),
+    };
+
+    employerAssessmentSubmissionRepository = {
+      createQueryBuilder: jest.fn().mockReturnValue({
+        innerJoin: jest.fn().mockReturnThis(),
+        select: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        getCount: jest.fn().mockResolvedValue(0),
+        getRawOne: jest.fn().mockResolvedValue(null),
+        getRawMany: jest.fn().mockResolvedValue([]),
+      }),
     };
 
     offerRepository = {
@@ -105,6 +128,7 @@ describe('DashboardService employer home', () => {
       employerRoleRepository as Repository<EmployerRole>,
       employerSavedCandidateRepository as Repository<EmployerSavedCandidate>,
       employerAssessmentRepository as Repository<EmployerAssessment>,
+      employerAssessmentSubmissionRepository as Repository<any>,
       offerRepository as Repository<Offer>,
       employerPoolProfileRepository as Repository<EmployerPoolProfile>,
       notificationDispatch as never,
@@ -123,13 +147,7 @@ describe('DashboardService employer home', () => {
     const home = await service.getEmployerHome(employerUser.id);
 
     expect(home.view_state).toBe(EmployerDashboardViewState.NEW_USER);
-    expect(home.header).toBe(
-      'Welcome, Ada Nwosu. Start discovering verified talent.',
-    );
-    expect(home.hero).toMatchObject({
-      title: 'Start discovering verified talent.',
-    });
-    expect(home.social_proof).toBeTruthy();
+    expect(home.company_name).toBe('Ada Nwosu');
     expect(home.profile_prompt).toMatchObject({
       show_prompt: true,
       is_verified: false,
@@ -142,7 +160,7 @@ describe('DashboardService employer home', () => {
         'Complete employer verification',
       ]),
     );
-    expect(home.overview_cards.map((card) => card.value)).toEqual([0, 0, 0, 0]);
+    expect(home.overview_counts).toBeNull();
   });
 
   it('returns the existing-user employer dashboard with counts and recent activity sorted by recency', async () => {
@@ -206,35 +224,35 @@ describe('DashboardService employer home', () => {
     const home = await service.getEmployerHome(employerUser.id);
 
     expect(home.view_state).toBe(EmployerDashboardViewState.EXISTING_USER);
-    expect(home.header).toBe('Welcome back, Amaka Labs.');
-    expect(home.hero).toBeNull();
-    expect(home.social_proof).toBeNull();
+    expect(home.company_name).toBe('Amaka Labs');
     expect(home.profile_prompt).toMatchObject({
       show_prompt: false,
       is_verified: true,
       completion_percentage: 100,
       missing_items: [],
     });
-    expect(home.overview_cards).toEqual([
-      expect.objectContaining({ key: 'verified_talent', value: 18, cta_route: '/e/dashboard' }),
-      expect.objectContaining({ key: 'created_assessments', value: 7, cta_route: '/e/assessments' }),
-      expect.objectContaining({ key: 'shortlisted_candidates', value: 4, cta_route: '/e/shortlist' }),
-      expect.objectContaining({ key: 'my_roles', value: 2, cta_route: '/e/roles' }),
-    ]);
+    expect(home.overview_counts).toEqual({
+      verified_talent: 18,
+      assessments_shared_count: expect.any(Number),
+      shortlisted_candidates: 4,
+      my_roles: 2,
+    });
     expect(home.recent_activity).toHaveLength(3);
     expect(home.recent_activity[0]).toMatchObject({
+      id: 'act_saved-1',
       type: EmployerDashboardActivityType.SHORTLIST,
       title: 'You shortlisted Jane Doe',
     });
     expect(home.recent_activity[1]).toMatchObject({
+      id: 'act_offer-1',
       type: EmployerDashboardActivityType.OFFER_ACCEPTED,
       title: 'John Stone accepted your offer',
     });
     expect(home.recent_activity[2]).toMatchObject({
+      id: 'act_pool-1',
       type: EmployerDashboardActivityType.VERIFIED_TALENT,
       title: '2 new verified Product Designer candidates added',
     });
-    expect(home.roles_empty_state_message).toBeNull();
   });
 
   it('rejects non-employer users on the employer dashboard endpoint', async () => {
@@ -314,6 +332,7 @@ function makeSavedCandidate(
 function makeOffer(overrides: Partial<Offer>): Offer {
   return Object.assign(new Offer(), {
     id: 'offer-1',
+    id: 'offer-1',
     employer_user_id: 'user-1',
     candidate_user_id: 'candidate-2',
     employer_pool_profile_id: 'pool-1',
@@ -341,6 +360,7 @@ function makePoolProfile(
   overrides: Partial<EmployerPoolProfile>,
 ): EmployerPoolProfile {
   return Object.assign(new EmployerPoolProfile(), {
+    id: 'pool-1',
     id: 'pool-1',
     talent_profile_id: 'talent-profile-1',
     candidate_id: 'candidate-3',

@@ -45,6 +45,10 @@ export class EmployerRole {
   @Column({ type: 'text', nullable: true })
   description: string | null;
 
+  @ApiPropertyOptional({ description: 'Uploaded JD document URL' })
+  @Column({ type: 'text', nullable: true })
+  jd_file_url: string | null;
+
   @ApiPropertyOptional({ example: 'Full-time' })
   @Column({ type: 'varchar', length: 50, nullable: true })
   employment_type: string | null;

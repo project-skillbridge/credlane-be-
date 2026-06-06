@@ -300,6 +300,48 @@ describe('VerifiedProfileService', () => {
             },
           ],
         },
+        {
+          id: 'working_style',
+          label: 'Working Style',
+          items: [
+            {
+              label: 'Async Collaboration',
+              percentage: 100,
+              insight:
+                'Jane should keep deepening systems thinking and stakeholder communication.',
+            },
+            {
+              label: 'Small Teams',
+              percentage: 100,
+              insight:
+                'Jane should keep deepening systems thinking and stakeholder communication.',
+            },
+            {
+              label: 'Fully Remote',
+              percentage: 100,
+              insight:
+                'Jane should keep deepening systems thinking and stakeholder communication.',
+            },
+            {
+              label: 'Hybrid',
+              percentage: 100,
+              insight:
+                'Jane should keep deepening systems thinking and stakeholder communication.',
+            },
+          ],
+        },
+        {
+          id: 'weaknesses',
+          label: 'Weaknesses',
+          items: [
+            {
+              label: 'Improve systems-level reasoning.',
+              percentage: 20,
+              insight:
+                'Jane should keep deepening systems thinking and stakeholder communication.',
+            },
+          ],
+        },
       ]);
       expect(result.share_url).toContain('/verified-profiles/');
       expect(result.qr_code_url).toContain('api.qrserver.com');
@@ -695,6 +737,44 @@ describe('VerifiedProfileService', () => {
       const result = await service.getForTalentUser(user.id);
       expect(result.share_url).toBe('');
       expect(result.qr_code_url).toBeNull();
+    });
+  });
+
+  describe('getForEmployerView', () => {
+    it('returns the verified profile contract for a job-ready pool candidate', async () => {
+      const user = makeUser();
+      const profile = makeProfile({
+        status: TalentProfileStatus.JOB_READY,
+        personal_assessment_completed_at: new Date('2026-05-01T00:00:00.000Z'),
+      });
+      const pool = Object.assign(new EmployerPoolProfile(), {
+        talent_profile_id: profile.id,
+        candidate_id: user.id,
+        tier: AssessmentTier.JOB_READY,
+        talent_profile: profile,
+        shareable_link_token: 'ab'.repeat(32),
+        verified_at: new Date('2026-05-03T00:00:00.000Z'),
+      });
+
+      (employerPoolRepository.findOne as jest.Mock).mockResolvedValue(pool);
+      (usersService.findOne as jest.Mock).mockResolvedValue(user);
+      (resultQueryBuilder.getOne as jest.Mock).mockResolvedValue(
+        makeResult({ tier: AssessmentTier.JOB_READY, percentage: 85 }),
+      );
+
+      const result = await service.getForEmployerView(user.id);
+
+      expect(result.full_name).toBe('Jane Doe');
+      expect(result.score_percentage).toBe(85);
+      expect(result.is_owner).toBe(false);
+    });
+
+    it('rejects candidates that are not in the job-ready pool', async () => {
+      (employerPoolRepository.findOne as jest.Mock).mockResolvedValue(null);
+
+      await expect(
+        service.getForEmployerView('missing-user'),
+      ).rejects.toBeInstanceOf(NotFoundError);
     });
   });
 

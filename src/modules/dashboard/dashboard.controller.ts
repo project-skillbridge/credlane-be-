@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, HttpStatus } from '@nestjs/common';
 import {
   ApiCookieAuth,
   ApiForbiddenResponse,
@@ -8,10 +8,11 @@ import {
 } from '@nestjs/swagger';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
+import { SkipApiTransform } from '../../common/interceptors/transform.interceptor';
 import { DashboardService } from './dashboard.service';
 import { DashboardHomeResponseDto } from './dto/dashboard-home.dto';
 import { UserRole } from '../users/entities/user.entity';
-import { EmployerDashboardHomeResponseDto } from './dto/employer-dashboard.dto';
+import { EmployerDashboardEnvelopeResponseDto } from './dto/employer-dashboard.dto';
 
 @ApiTags('dashboard')
 @ApiCookieAuth()
@@ -32,12 +33,16 @@ export class DashboardController {
 
   @Get('employer/home')
   @Roles(UserRole.EMPLOYER)
+  @SkipApiTransform()
   @ApiOperation({ summary: 'Get the employer dashboard overview summary' })
-  @ApiOkResponse({ type: EmployerDashboardHomeResponseDto })
+  @ApiOkResponse({ type: EmployerDashboardEnvelopeResponseDto })
   @ApiForbiddenResponse({ description: 'Insufficient permissions' })
   async getEmployerHome(
     @CurrentUser('sub') userId: string,
-  ): Promise<EmployerDashboardHomeResponseDto> {
-    return this.dashboardService.getEmployerHome(userId);
+  ): Promise<EmployerDashboardEnvelopeResponseDto> {
+    return {
+      status_code: HttpStatus.OK,
+      data: await this.dashboardService.getEmployerHome(userId),
+    };
   }
 }

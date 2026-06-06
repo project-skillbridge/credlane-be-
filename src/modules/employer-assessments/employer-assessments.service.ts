@@ -54,6 +54,24 @@ import {
 import { EmployerAssessmentSubmission } from './entities/employer-assessment-submission.entity';
 import { CredlaneCatalogueAssessment } from './entities/credlane-catalogue-assessment.entity';
 
+export type AssessmentListResultsResponse = {
+  submissions: Array<{
+    id: string;
+    candidateUserId: string;
+    candidateName: string | null;
+    score: number;
+    status: string;
+    timeTakenSeconds: number;
+    dateCompleted: Date;
+    deliveryMode: string;
+  }>;
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  emptyState: string | null;
+};
+
 const ACTIVE_ASSESSMENT_LIMIT = 5;
 const MIN_COMPANY_QUESTIONS = 5;
 const TEMPLATE_COLUMNS = [
@@ -123,6 +141,12 @@ export class EmployerAssessmentsService {
     dto: CreateEmployerAssessmentDto,
   ): Promise<EmployerAssessment & { shareUrl: string }> {
     await this.ensureVerifiedEmployer(employerUserId);
+
+    if (dto.questionSource === EmployerAssessmentQuestionSource.ADMIN_UPLOAD) {
+      throw new ForbiddenError(
+        'Assessments with admin_upload source can only be created by CredLane administrators.',
+      );
+    }
 
     if (!dto.shareViaLink && !dto.sendToCandidates) {
       throw new BadRequestError('Select at least one delivery mode');
@@ -239,7 +263,9 @@ export class EmployerAssessmentsService {
   }
 
   async listAssessments(employerUserId: string): Promise<{
-    assessments: EmployerAssessment[];
+    assessments: Array<
+      EmployerAssessment & { submission_count: number; status: string }
+    >;
     emptyState: string | null;
   }> {
     await this.ensureVerifiedEmployer(employerUserId);
@@ -248,8 +274,30 @@ export class EmployerAssessmentsService {
       order: { created_at: 'DESC' },
       relations: ['questions'],
     });
+
+    const submissionCounts: Array<{ assessmentId: string; count: string }> =
+      assessments.length
+        ? await this.submissionRepo
+            .createQueryBuilder('sub')
+            .select('sub.assessment_id', 'assessmentId')
+            .addSelect('COUNT(*)', 'count')
+            .where('sub.assessment_id IN (:...ids)', {
+              ids: assessments.map((a) => a.id),
+            })
+            .groupBy('sub.assessment_id')
+            .getRawMany()
+        : [];
+
+    const countMap = new Map(
+      submissionCounts.map((r) => [r.assessmentId, parseInt(r.count, 10)]),
+    );
+
     return {
-      assessments,
+      assessments: assessments.map((a) => ({
+        ...a,
+        submission_count: countMap.get(a.id) ?? 0,
+        status: a.is_active ? 'active' : 'inactive',
+      })),
       emptyState:
         assessments.length === 0
           ? 'No assessments yet. Create your first assessment to start screening candidates.'
@@ -301,7 +349,14 @@ export class EmployerAssessmentsService {
   async getAssessment(
     employerUserId: string,
     assessmentId: string,
-  ): Promise<EmployerAssessment & { shareUrl: string }> {
+    resultQuery?: ListEmployerAssessmentResultsQueryDto,
+  ): Promise<
+    EmployerAssessment & {
+      shareUrl: string;
+      status: string;
+      results: AssessmentListResultsResponse;
+    }
+  > {
     await this.ensureVerifiedEmployer(employerUserId);
     const assessment = await this.assessmentRepo.findOne({
       where: { id: assessmentId, employer_user_id: employerUserId },
@@ -311,8 +366,17 @@ export class EmployerAssessmentsService {
     if (!assessment) {
       throw new NotFoundError('Assessment not found');
     }
+
+    const results = await this.listResults(
+      employerUserId,
+      assessmentId,
+      resultQuery ?? {},
+    );
+
     return Object.assign(assessment, {
       shareUrl: this.buildShareUrl(assessment.share_token),
+      status: assessment.is_active ? 'active' : 'inactive',
+      results,
     });
   }
 

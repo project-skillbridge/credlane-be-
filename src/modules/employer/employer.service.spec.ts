@@ -363,7 +363,7 @@ describe('EmployerService', () => {
       expect(result.company_name).toBe('Acme Labs');
       expect(result.is_verified).toBe(true);
       expect(result.is_new_to_platform).toBe(true);
-      expect(result.hire_count).toBe(0);
+      expect(result.hire_count).toBeUndefined();
       expect(result.member_since).toBe(recentDate.toISOString());
     });
 

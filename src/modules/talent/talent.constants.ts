@@ -9,7 +9,6 @@ export const TALENT_GOALS = [
 
 export type TalentGoal = (typeof TALENT_GOALS)[number];
 
-
 export const TALENT_SUPPORTED_ROLE_TRACKS = [
   { slug: 'backend_developer', label: 'Backend Developer', roleCode: 'BED' },
   { slug: 'bi_developer', label: 'BI Developer', roleCode: 'BID' },
@@ -21,7 +20,11 @@ export const TALENT_SUPPORTED_ROLE_TRACKS = [
   { slug: 'data_engineer', label: 'Data Engineer', roleCode: 'DTE' },
   { slug: 'data_scientist', label: 'Data Scientist', roleCode: 'DSC' },
   { slug: 'frontend_developer', label: 'Frontend Developer', roleCode: 'FED' },
-  { slug: 'fullstack_developer', label: 'Fullstack Developer', roleCode: 'FSD' },
+  {
+    slug: 'fullstack_developer',
+    label: 'Fullstack Developer',
+    roleCode: 'FSD',
+  },
   { slug: 'hr_people_ops', label: 'HR / People Ops', roleCode: 'HRO' },
   { slug: 'ml_engineer', label: 'ML Engineer', roleCode: 'MLE' },
   { slug: 'mobile_developer', label: 'Mobile Developer', roleCode: 'MOB' },

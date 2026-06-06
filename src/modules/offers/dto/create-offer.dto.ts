@@ -1,5 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
+  ArrayMaxSize,
+  ArrayMinSize,
+  ArrayUnique,
+  IsArray,
   IsDateString,
   IsInt,
   IsIn,
@@ -15,18 +19,28 @@ import {
 import { Type } from 'class-transformer';
 
 export class CreateOfferDto {
-  @ApiProperty({ format: 'uuid', description: 'Candidate user ID' })
+  @ApiProperty({
+    type: [String],
+    format: 'uuid',
+    description:
+      'Candidate user IDs to receive this offer. Single sends pass a one-element array.',
+    maxItems: 50,
+  })
+  @IsArray()
+  @ArrayMinSize(1)
+  @ArrayMaxSize(50)
+  @ArrayUnique()
+  @IsNotEmpty({ each: true })
+  @IsUUID(undefined, { each: true })
+  candidateIds: string[];
+
+  @ApiProperty({
+    format: 'uuid',
+    description: 'Active role this offer is for. Must belong to your account.',
+  })
   @IsNotEmpty()
   @IsUUID()
-  candidateUserId: string;
-
-  @ApiPropertyOptional({
-    format: 'uuid',
-    description: 'Role to attach this offer to',
-  })
-  @IsOptional()
-  @IsUUID()
-  roleId?: string;
+  roleId: string;
 
   @ApiPropertyOptional({
     description: 'Job role title. Defaults from role when roleId is supplied.',

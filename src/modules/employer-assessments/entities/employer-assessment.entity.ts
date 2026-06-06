@@ -25,6 +25,8 @@ export enum EmployerAssessmentExperienceLevel {
 export enum EmployerAssessmentQuestionSource {
   CREDLANE_BANK = 'credlane_bank',
   COMPANY_QUESTIONS = 'company_questions',
+  MANUAL = 'manual',
+  ADMIN_UPLOAD = 'admin_upload',
 }
 
 @Entity('employer_assessments')

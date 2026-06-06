@@ -101,7 +101,9 @@ describe('validateSectionAnswers', () => {
   });
 
   it('accepts specialization for supported onboarding tracks with assessment mapping', () => {
-    const fullstackProfile = makeTalentProfile({ track: 'fullstack_developer' });
+    const fullstackProfile = makeTalentProfile({
+      track: 'fullstack_developer',
+    });
 
     const result = validateSectionAnswers(
       2,

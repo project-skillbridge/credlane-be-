@@ -41,13 +41,11 @@ import {
   EmployerDashboardActivity,
   EmployerDashboardActivityType,
   EmployerDashboardHomeResponse,
-  EmployerDashboardStatCard,
+  EmployerDashboardRecentRole,
   EmployerDashboardViewState,
 } from './dto/employer-dashboard.dto';
-import {
-  EMPLOYER_DASHBOARD_COPY,
-  EMPLOYER_DASHBOARD_PROFILE_COMPLETENESS_RULES,
-} from './employer-dashboard.config';
+import { EmployerAssessmentSubmission } from '../employer-assessments/entities/employer-assessment-submission.entity';
+import { EMPLOYER_DASHBOARD_PROFILE_COMPLETENESS_RULES } from './employer-dashboard.config';
 
 const ADVANCED_RETAKE_GATE_DAYS = 14;
 const EMPLOYER_RECENT_TALENT_LOOKBACK_DAYS = 14;
@@ -70,6 +68,8 @@ export class DashboardService {
     private readonly employerSavedCandidateRepository: Repository<EmployerSavedCandidate>,
     @InjectRepository(EmployerAssessment)
     private readonly employerAssessmentRepository: Repository<EmployerAssessment>,
+    @InjectRepository(EmployerAssessmentSubmission)
+    private readonly employerAssessmentSubmissionRepository: Repository<EmployerAssessmentSubmission>,
     @InjectRepository(Offer)
     private readonly offerRepository: Repository<Offer>,
     @InjectRepository(EmployerPoolProfile)
@@ -133,7 +133,7 @@ export class DashboardService {
       verifiedTalentCount,
       rolesCount,
       shortlistedCount,
-      createdAssessmentsCount,
+      assessmentsSharedCount,
       offersCount,
     ] = await Promise.all([
       this.employerPoolProfileRepository.count({
@@ -145,11 +145,17 @@ export class DashboardService {
       this.employerSavedCandidateRepository.count({
         where: { employer_user_id: userId },
       }),
-      this.employerAssessmentRepository.count({
-        where: {
-          employer_user_id: userId,
-        },
-      }),
+      this.employerAssessmentSubmissionRepository
+        .createQueryBuilder('sub')
+        .innerJoin(
+          'employer_assessments',
+          'ea',
+          'ea.id = sub.assessment_id AND ea.employer_user_id = :uid',
+          { uid: userId },
+        )
+        .select('COUNT(DISTINCT sub.assessment_id)', 'cnt')
+        .getRawOne<{ cnt: string }>()
+        .then((r) => parseInt(r?.cnt ?? '0', 10)),
       this.offerRepository.count({
         where: { employer_user_id: userId },
       }),
@@ -158,7 +164,7 @@ export class DashboardService {
     const viewState =
       rolesCount > 0 ||
       shortlistedCount > 0 ||
-      createdAssessmentsCount > 0 ||
+      assessmentsSharedCount > 0 ||
       offersCount > 0
         ? EmployerDashboardViewState.EXISTING_USER
         : EmployerDashboardViewState.NEW_USER;
@@ -174,90 +180,51 @@ export class DashboardService {
       profile,
     );
 
+    const isNewUser = viewState === EmployerDashboardViewState.NEW_USER;
+    const recentRoles = isNewUser ? null : await this.buildRecentRoles(userId);
+
     return {
       company_name: companyName,
       view_state: viewState,
-      header:
-        viewState === EmployerDashboardViewState.NEW_USER
-          ? `Welcome, ${companyName}. Start discovering verified talent.`
-          : `Welcome back, ${companyName}.`,
-      subheader: EMPLOYER_DASHBOARD_COPY.subheader,
+      new_user_state: isNewUser,
       profile_prompt: profilePrompt,
-      create_role_cta: EMPLOYER_DASHBOARD_COPY.createRoleCta,
-      overview_cards: this.buildEmployerOverviewCards({
-        verifiedTalentCount,
-        createdAssessmentsCount,
-        shortlistedCount,
-        rolesCount,
-      }),
+      overview_counts: isNewUser
+        ? null
+        : {
+            verified_talent: verifiedTalentCount,
+            assessments_shared_count: assessmentsSharedCount,
+            shortlisted_candidates: shortlistedCount,
+            my_roles: rolesCount,
+          },
+      recent_roles: recentRoles,
       recent_activity: recentActivity,
-      hero:
-        viewState === EmployerDashboardViewState.NEW_USER
-          ? {
-              ...EMPLOYER_DASHBOARD_COPY.newUserHero,
-              actions: [
-                EMPLOYER_DASHBOARD_COPY.browseTalentsCta,
-                EMPLOYER_DASHBOARD_COPY.createRoleCta,
-              ],
-            }
-          : null,
-      capabilities: [...EMPLOYER_DASHBOARD_COPY.capabilities],
-      social_proof:
-        viewState === EmployerDashboardViewState.NEW_USER
-          ? {
-              headline: EMPLOYER_DASHBOARD_COPY.socialProof.headline,
-              testimonials: [
-                ...EMPLOYER_DASHBOARD_COPY.socialProof.testimonials,
-              ],
-            }
-          : null,
-      roles_empty_state_message:
-        rolesCount === 0 ? EMPLOYER_DASHBOARD_COPY.emptyStates.roles : null,
     };
   }
+  private async buildRecentRoles(
+    employerUserId: string,
+  ): Promise<EmployerDashboardRecentRole[]> {
+    const roles = await this.employerRoleRepository.find({
+      where: { employer_user_id: employerUserId },
+      order: { created_at: 'DESC' },
+      take: 4,
+      select: [
+        'id',
+        'title',
+        'category',
+        'assessment_id',
+        'offers_sent_count',
+        'status',
+      ],
+    });
 
-  private buildEmployerOverviewCards(counts: {
-    verifiedTalentCount: number;
-    createdAssessmentsCount: number;
-    shortlistedCount: number;
-    rolesCount: number;
-  }): EmployerDashboardStatCard[] {
-    return [
-      {
-        key: 'verified_talent',
-        title: 'Verified Talent',
-        value: counts.verifiedTalentCount,
-        description:
-          EMPLOYER_DASHBOARD_COPY.overviewCards.verifiedTalentDescription,
-        cta_label: 'Browse talents',
-        cta_route: '/e/dashboard',
-      },
-      {
-        key: 'created_assessments',
-        title: 'Created Assessments',
-        value: counts.createdAssessmentsCount,
-        description:
-          EMPLOYER_DASHBOARD_COPY.overviewCards.assessmentsDescription,
-        cta_label: 'View assessments',
-        cta_route: '/e/assessments',
-      },
-      {
-        key: 'shortlisted_candidates',
-        title: 'Shortlisted Candidates',
-        value: counts.shortlistedCount,
-        description: EMPLOYER_DASHBOARD_COPY.overviewCards.shortlistDescription,
-        cta_label: 'View shortlist',
-        cta_route: '/e/shortlist',
-      },
-      {
-        key: 'my_roles',
-        title: 'My Roles',
-        value: counts.rolesCount,
-        description: EMPLOYER_DASHBOARD_COPY.overviewCards.rolesDescription,
-        cta_label: 'View roles',
-        cta_route: '/e/roles',
-      },
-    ];
+    return roles.map((role) => ({
+      role_id: role.id,
+      role_title: role.title,
+      category: role.category,
+      assessment_attached: Boolean(role.assessment_id),
+      offers_sent: role.offers_sent_count ?? 0,
+      status: role.status,
+    }));
   }
 
   private buildEmployerProfilePrompt(
@@ -280,10 +247,6 @@ export class DashboardService {
       show_prompt: completionPercentage < 100 || !isVerified,
       is_verified: isVerified,
       completion_percentage: Math.min(100, completionPercentage),
-      title: EMPLOYER_DASHBOARD_COPY.profilePrompt.title,
-      description: EMPLOYER_DASHBOARD_COPY.profilePrompt.description,
-      cta_label: EMPLOYER_DASHBOARD_COPY.profilePrompt.ctaLabel,
-      cta_route: EMPLOYER_DASHBOARD_COPY.profilePrompt.ctaRoute,
       missing_items: missingItems,
     };
   }
@@ -292,14 +255,27 @@ export class DashboardService {
     employerUserId: string,
     profile: EmployerProfile | null,
   ): Promise<EmployerDashboardActivity[]> {
-    const [verifiedTalentActivity, shortlistActivity, acceptedOfferActivity] =
-      await Promise.all([
-        this.getVerifiedTalentActivity(profile),
-        this.getShortlistActivity(employerUserId),
-        this.getAcceptedOfferActivity(employerUserId),
-      ]);
+    const [
+      verifiedTalentActivity,
+      shortlistActivity,
+      acceptedOfferActivity,
+      roleCreatedActivity,
+      assessmentCompletedActivity,
+    ] = await Promise.all([
+      this.getVerifiedTalentActivity(profile),
+      this.getShortlistActivity(employerUserId),
+      this.getAcceptedOfferActivity(employerUserId),
+      this.getRoleCreatedActivity(employerUserId),
+      this.getAssessmentCompletedActivity(employerUserId),
+    ]);
 
-    return [verifiedTalentActivity, shortlistActivity, acceptedOfferActivity]
+    return [
+      verifiedTalentActivity,
+      shortlistActivity,
+      acceptedOfferActivity,
+      roleCreatedActivity,
+      assessmentCompletedActivity,
+    ]
       .filter((activity): activity is EmployerDashboardActivity =>
         Boolean(activity),
       )
@@ -308,7 +284,7 @@ export class DashboardService {
           new Date(right.occurred_at).getTime() -
           new Date(left.occurred_at).getTime(),
       )
-      .slice(0, 3);
+      .slice(0, 5);
   }
 
   private async getVerifiedTalentActivity(
@@ -353,12 +329,13 @@ export class DashboardService {
     const candidateLabel = matchingCount === 1 ? 'candidate' : 'candidates';
 
     return {
+      id: `act_${latestMatch.id}`,
       type: EmployerDashboardActivityType.VERIFIED_TALENT,
       title: `${matchingCount} new verified ${trackLabel} ${candidateLabel} added`,
       description:
         'Fresh Job Ready talent now matches your hiring preferences.',
       occurred_at: latestMatch.verified_at.toISOString(),
-      route: '/e/dashboard',
+      link: '/employer/discovery/candidates',
     };
   }
 
@@ -376,12 +353,13 @@ export class DashboardService {
     }
 
     return {
+      id: `act_${latestSaved.id}`,
       type: EmployerDashboardActivityType.SHORTLIST,
       title: `You shortlisted ${latestSaved.candidate.fullname}`,
       description:
         'Your shortlist has a new verified candidate ready for review.',
       occurred_at: latestSaved.created_at.toISOString(),
-      route: '/e/shortlist',
+      link: '/employer/discovery/candidates',
     };
   }
 
@@ -405,13 +383,79 @@ export class DashboardService {
     }
 
     return {
+      id: `act_${latestAcceptedOffer.id}`,
       type: EmployerDashboardActivityType.OFFER_ACCEPTED,
       title: `${latestAcceptedOffer.candidate.fullname} accepted your offer`,
       description: `Role: ${latestAcceptedOffer.role_title}.`,
       occurred_at: (
         latestAcceptedOffer.responded_at ?? latestAcceptedOffer.created_at
       ).toISOString(),
-      route: '/e/offers',
+      link: `/employer/offers/${latestAcceptedOffer.id}`,
+    };
+  }
+
+  private async getRoleCreatedActivity(
+    employerUserId: string,
+  ): Promise<EmployerDashboardActivity | null> {
+    const latestRole = await this.employerRoleRepository.findOne({
+      where: { employer_user_id: employerUserId },
+      order: { created_at: 'DESC' },
+    });
+
+    if (!latestRole) {
+      return null;
+    }
+
+    return {
+      id: `act_role_${latestRole.id}`,
+      type: EmployerDashboardActivityType.ROLE_CREATED,
+      title: `You created a new role: ${latestRole.title}`,
+      description: 'Your role is live and ready for candidate matching.',
+      occurred_at: latestRole.created_at.toISOString(),
+      link: `/employer/roles/${latestRole.id}`,
+    };
+  }
+
+  private async getAssessmentCompletedActivity(
+    employerUserId: string,
+  ): Promise<EmployerDashboardActivity | null> {
+    const latestSubmission = await this.employerAssessmentSubmissionRepository
+      .createQueryBuilder('sub')
+      .innerJoin(
+        'employer_assessments',
+        'ea',
+        'ea.id = sub.assessment_id AND ea.employer_user_id = :uid',
+        { uid: employerUserId },
+      )
+      .innerJoin('users', 'u', 'u.id = sub.candidate_user_id')
+      .select([
+        'sub.id as sub_id',
+        'sub.assessment_id as assessment_id',
+        'sub.completed_at as completed_at',
+        "CONCAT(u.first_name, ' ', u.last_name) as candidate_name",
+        'ea.title as assessment_title',
+      ])
+      .where('sub.completed_at IS NOT NULL')
+      .orderBy('sub.completed_at', 'DESC')
+      .getRawOne<{
+        sub_id: string;
+        assessment_id: string;
+        completed_at: Date;
+        candidate_name: string;
+        assessment_title: string;
+      }>();
+
+    if (!latestSubmission) {
+      return null;
+    }
+
+    return {
+      id: `act_sub_${latestSubmission.sub_id}`,
+      type: EmployerDashboardActivityType.ASSESSMENT_COMPLETED,
+      title: `${latestSubmission.candidate_name} completed your assessment`,
+      description: `Assessment: ${latestSubmission.assessment_title}.`,
+      occurred_at: new Date(latestSubmission.completed_at).toISOString(),
+      link: `/employer/assessments/${latestSubmission.assessment_id}`,
     };
   }
 
