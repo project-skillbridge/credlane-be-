@@ -308,7 +308,7 @@ export class EmployerService {
           hiring_locations: [dto.region.trim()],
           region: dto.region.trim(),
           hiring_region: dto.region.trim(),
-          hiring_count_range: dto.hiringCountRange,
+          hiring_count_range: dto.hiringCountRange ?? null,
           company_website: companyWebsite,
           website_url: companyWebsite,
           linkedin_company_page_url: dto.linkedinCompanyPageUrl?.trim() || null,

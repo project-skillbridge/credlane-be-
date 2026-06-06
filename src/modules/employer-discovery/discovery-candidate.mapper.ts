@@ -46,7 +46,6 @@ export type DiscoveryCandidateCard = {
   validated_level: string | null;
   tier: string;
   score: number;
-  composite_score: number;
   skills: string[];
   top_skills: string[];
   about_tags: string[];
@@ -136,7 +135,6 @@ export function mapDiscoveryCandidateCard(
     validated_level: seniorityBadge ?? null,
     tier: row.tier,
     score: row.score,
-    composite_score: row.score,
     skills,
     top_skills: skills.slice(0, 2),
     about_tags: buildAboutTags({

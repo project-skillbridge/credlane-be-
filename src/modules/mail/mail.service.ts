@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Resend } from 'resend';
 import { env } from '../../config/env';
+import { resolveEmailLogo, withEmailLogoAttachment } from './mail-logo';
 import { loadMailTemplateFile, substituteMailTemplate } from './mail-templates';
 import type {
   AdvancedRetakeAvailableEmailPayload,
@@ -66,15 +67,13 @@ export class MailService {
     const padded = params.otp.padStart(6, '0');
 
     const base = env.FRONTEND_URL.replace(/\/$/, '');
-    const logoUrl =
-      env.EMAIL_LOGO_URL ??
-      'https://placehold.co/140x40/1f5f6b/ffffff/png?text=SkillBridge';
+    const logo = resolveEmailLogo();
 
     const vars: Record<string, string> = {
       name: params.recipientFirstName.trim() || 'there',
       code: padded,
       verifyUrl: `${base}/verify-email`,
-      logoUrl,
+      logoUrl: logo.logoUrl,
       playStoreUrl: '',
       appStoreUrl: '',
       playStoreLink: '#',
@@ -97,14 +96,13 @@ export class MailService {
       subject: 'Verify your SkillBridge email',
       text,
       html,
+      attachments: withEmailLogoAttachment(undefined, logo),
     });
   }
 
   async sendAssessmentPerformance(params: AssessmentPerformanceEmailPayload) {
     const base = env.FRONTEND_URL.replace(/\/$/, '');
-    const logoUrl =
-      env.EMAIL_LOGO_URL ??
-      'https://placehold.co/140x40/1f5f6b/ffffff/png?text=SkillBridge';
+    const logo = resolveEmailLogo();
     const dashboardUrl = `${base}/t/dashboard`;
     const name = params.recipientFirstName.trim() || 'there';
 
@@ -115,7 +113,7 @@ export class MailService {
       percentage: String(params.percentage),
       tierLabel: params.tierLabel,
       dashboardUrl,
-      logoUrl,
+      logoUrl: logo.logoUrl,
       supportEmail: env.SUPPORT_EMAIL,
       year: String(new Date().getFullYear()),
     };
@@ -132,6 +130,7 @@ export class MailService {
       subject: 'Your SkillBridge assessment results are ready',
       text,
       html,
+      attachments: withEmailLogoAttachment(undefined, logo),
     });
   }
 
@@ -139,16 +138,14 @@ export class MailService {
     params: AdvancedRetakeAvailableEmailPayload,
   ) {
     const base = env.FRONTEND_URL.replace(/\/$/, '');
-    const logoUrl =
-      env.EMAIL_LOGO_URL ??
-      'https://placehold.co/140x40/1f5f6b/ffffff/png?text=SkillBridge';
+    const logo = resolveEmailLogo();
     const dashboardUrl = `${base}/t/dashboard`;
     const name = params.recipientFirstName.trim() || 'there';
 
     const vars: Record<string, string> = {
       name,
       dashboardUrl,
-      logoUrl,
+      logoUrl: logo.logoUrl,
       supportEmail: env.SUPPORT_EMAIL,
       year: String(new Date().getFullYear()),
     };
@@ -165,14 +162,13 @@ export class MailService {
       subject: 'You can retake your advanced assessment',
       text,
       html,
+      attachments: withEmailLogoAttachment(undefined, logo),
     });
   }
 
   async sendJobReadyMatchesDigest(params: JobReadyMatchesDigestEmailPayload) {
     const base = env.FRONTEND_URL.replace(/\/$/, '');
-    const logoUrl =
-      env.EMAIL_LOGO_URL ??
-      'https://placehold.co/140x40/1f5f6b/ffffff/png?text=SkillBridge';
+    const logo = resolveEmailLogo();
     const discoveryUrl = `${base}/employer/discovery/candidates`;
     const name = params.recipientFirstName.trim() || 'there';
     const label = params.matchCount === 1 ? 'candidate' : 'candidates';
@@ -185,7 +181,7 @@ export class MailService {
       matchCountSuffix: params.matchCount === 1 ? '' : 'es',
       summaryLine,
       discoveryUrl,
-      logoUrl,
+      logoUrl: logo.logoUrl,
       supportEmail: env.SUPPORT_EMAIL,
       unsubscribeUrl: `${base}/email-preferences`,
       year: String(new Date().getFullYear()),
@@ -203,20 +199,19 @@ export class MailService {
       subject: 'New Job Ready candidates match your hiring preferences',
       text,
       html,
+      attachments: withEmailLogoAttachment(undefined, logo),
     });
   }
 
   async sendDataExportReady(params: DataExportReadyEmailPayload) {
     const base = env.FRONTEND_URL.replace(/\/$/, '');
-    const logoUrl =
-      env.EMAIL_LOGO_URL ??
-      'https://placehold.co/140x40/1f5f6b/ffffff/png?text=SkillBridge';
+    const logo = resolveEmailLogo();
     const name = params.recipientFirstName.trim() || 'there';
 
     const vars: Record<string, string> = {
       name,
       fileName: params.fileName,
-      logoUrl,
+      logoUrl: logo.logoUrl,
       contactUrl: `${base}/contact`,
       unsubscribeUrl: `${base}/email-preferences`,
       year: String(new Date().getFullYear()),
@@ -234,9 +229,10 @@ export class MailService {
       subject: 'Your SkillBridge data export',
       text,
       html,
-      attachments: [
-        { filename: params.fileName, content: params.attachmentContent },
-      ],
+      attachments: withEmailLogoAttachment(
+        [{ filename: params.fileName, content: params.attachmentContent }],
+        logo,
+      ),
     });
   }
 

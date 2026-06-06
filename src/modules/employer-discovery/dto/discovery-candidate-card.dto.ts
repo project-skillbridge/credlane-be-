@@ -32,11 +32,11 @@ export class DiscoveryCandidateCardDto {
   @ApiProperty({ example: 'job_ready' })
   tier: string;
 
-  @ApiProperty({ example: 85 })
+  @ApiProperty({
+    example: 85,
+    description: 'Credit score as a percentage (0–100)',
+  })
   score: number;
-
-  @ApiProperty({ example: 85 })
-  composite_score: number;
 
   @ApiProperty({ example: 'Mid Level', nullable: true })
   validated_level: string | null;

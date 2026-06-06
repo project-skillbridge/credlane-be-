@@ -376,6 +376,7 @@ describe('EmployerDiscoveryService', () => {
       expect(result.candidates[0].full_name).toBe('Alice Dev');
       expect(result.candidates[0].role).toBe('Frontend Developer');
       expect(result.candidates[0].seniority_badge).toBe('Mid Level');
+      expect(result.candidates[0].score).toBe(85);
       expect(result.candidates[0].skills).toEqual(['react', 'typescript']);
       expect(result.candidates[0].avatar_url).toBe(
         'https://example.com/alice.jpg',

@@ -76,6 +76,7 @@ export const env = createEnv({
 
     FRONTEND_URL: z.string().default('http://localhost:5173'),
     EMAIL_LOGO_URL: z.string().url().optional(),
+    EMAIL_LOGO_WHITE_URL: z.string().url().optional(),
     SUPPORT_EMAIL: z.email().default('support@skillbridge.com'),
 
     /**
