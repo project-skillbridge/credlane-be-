@@ -813,7 +813,6 @@ export class AdvancedAssessmentService {
         await this.employerPoolProfileService.upsert({
           profile,
           userId,
-          score: Math.round(totalRawScore),
           tier,
           percentage,
           scoredTextAnswers,

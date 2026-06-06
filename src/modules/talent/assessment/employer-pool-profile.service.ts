@@ -12,8 +12,8 @@ import { sanitiseCompetencyList } from './competency-taxonomy';
 export interface EmployerPoolProfileInput {
   profile: TalentProfile;
   userId: string;
-  score: number;
   tier: AssessmentTier;
+  /** Assessment percentage (0–100); stored as pool.score for employer discovery. */
   percentage: number;
   scoredTextAnswers: ScoredTextAnswer[];
   /**
@@ -40,7 +40,7 @@ export class EmployerPoolProfileService {
     const {
       profile,
       userId,
-      score,
+      percentage,
       tier,
       scoredTextAnswers,
       integrityClean,
@@ -66,7 +66,7 @@ export class EmployerPoolProfileService {
       track: profile.track ?? null,
       specialization: this.resolveSpecialization(personalContext),
       verified_level: profile.validated_level ?? '',
-      score,
+      score: Math.round(percentage),
       tier,
       strong_competencies: strongCompetencies,
       competency_scores: competencyScores,
