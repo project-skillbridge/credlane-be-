@@ -29,6 +29,9 @@ export class EmployerNotificationItemDto {
 
   @ApiPropertyOptional({ type: EmployerNotificationLinkDto, nullable: true })
   link: EmployerNotificationLinkDto | null;
+
+  @ApiPropertyOptional({ nullable: true })
+  data: Record<string, unknown> | null;
 }
 
 export class EmployerNotificationsListResponseDto {

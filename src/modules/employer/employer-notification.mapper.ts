@@ -13,6 +13,7 @@ export type EmployerNotificationItem = {
   timestamp: string;
   read: boolean;
   link: EmployerNotificationLink | null;
+  data: Record<string, unknown> | null;
 };
 
 export function mapEmployerNotificationType(type: NotificationType): string {
@@ -73,5 +74,6 @@ export function toEmployerNotificationItem(
     timestamp: item.created_at,
     read: item.is_read,
     link: buildEmployerNotificationLink(item.data),
+    data: item.data,
   };
 }
