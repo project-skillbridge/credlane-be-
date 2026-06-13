@@ -459,6 +459,7 @@ describe('EmployerService', () => {
         timestamp: '2026-06-03T10:00:00.000Z',
         read: false,
         link: { entity_id: 'candidate-2', entity_type: 'candidate' },
+        data: { candidateUserId: 'candidate-2' },
       });
     });
   });
