@@ -27,8 +27,6 @@ describe('AccountSettingsController', () => {
     email: 'talent@example.com',
     role: 'TALENT' as never,
     onboarding_complete: true,
-    iat: 0,
-    exp: 0,
   };
 
   const buildMockResponse = (): Response => {
@@ -136,7 +134,7 @@ describe('AccountSettingsController', () => {
 
   it('requests an email change OTP without clearing cookies', () => {
     const dto: RequestEmailChangeDto = {
-      new_email: 'new.email@example.com',
+      newEmail: 'new.email@example.com',
     };
     const serviceResult = {
       status: 'success' as const,
@@ -152,7 +150,7 @@ describe('AccountSettingsController', () => {
 
   it('verifies email change and clears cookies', async () => {
     const dto: VerifyEmailChangeDto = {
-      new_email: 'new.email@example.com',
+      newEmail: 'new.email@example.com',
       otp: '123456',
     };
     const serviceResult = {
@@ -171,7 +169,7 @@ describe('AccountSettingsController', () => {
 
   it('does not clear cookies when email verification fails', async () => {
     const dto: VerifyEmailChangeDto = {
-      new_email: 'new.email@example.com',
+      newEmail: 'new.email@example.com',
       otp: '000000',
     };
     authService.verifyEmailChange.mockRejectedValue(

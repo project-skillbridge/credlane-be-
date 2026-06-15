@@ -7,6 +7,7 @@ import {
 import { AssessmentTier } from '../../assessments/entities/assessment-result.entity';
 import {
   AssessmentAttempt,
+  AssessmentQuestion,
   AssessmentScore,
   AssessmentScoreQuestionType,
   AssessmentType,
@@ -1256,7 +1257,7 @@ describe('AdvancedAssessmentService', () => {
           .mockReturnValueOnce(generatedQuery),
       };
 
-      const result = await (service as never).findEligibleQuestions(
+      const result = await (service as any).findEligibleQuestions(
         manager,
         profile,
       );
@@ -1291,7 +1292,7 @@ describe('AdvancedAssessmentService', () => {
           .mockReturnValueOnce(generatedQuery),
       };
 
-      await (service as never).findEligibleQuestions(manager, profile);
+      await (service as any).findEligibleQuestions(manager, profile);
 
       const exclusionClause = liveQuery.andWhere.mock.calls.find(
         ([sql]: [string]) => sql.includes('talent_question_history'),
@@ -1450,14 +1451,14 @@ describe('AdvancedAssessmentService', () => {
       });
 
       jest
-        .spyOn(service as never, 'findEligibleQuestions' as never)
-        .mockResolvedValue([]);
+        .spyOn(service as any, 'findEligibleQuestions')
+        .mockResolvedValue([] as any);
       jest
-        .spyOn(service as never, 'selectQuestionBlocks' as never)
+        .spyOn(service as any, 'selectQuestionBlocks')
         .mockResolvedValue({
-          mcq: [],
-          shortText: [],
-          longText: [],
+          mcq: [] as any,
+          shortText: [] as any,
+          longText: [] as any,
         });
 
       const skillResultQuery = {

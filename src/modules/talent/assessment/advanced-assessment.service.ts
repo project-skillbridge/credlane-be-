@@ -658,6 +658,15 @@ export class AdvancedAssessmentService {
 
     const scoredTextAnswers = await this.rubricScoring.scoreAnswers(textInputs);
 
+    const pendingCount = scoredTextAnswers.filter(
+      (s) => s.rubric.pending,
+    ).length;
+    if (pendingCount > 0) {
+      throw new Error(
+        `Rubric scoring pending for ${pendingCount}/${scoredTextAnswers.length} text answers — will retry`,
+      );
+    }
+
     let textRawScore = 0;
     let textMaxScore = 0;
     const scoredByQuestion = new Map<string, ScoredTextAnswer>();
@@ -1169,9 +1178,17 @@ export class AdvancedAssessmentService {
     }
 
     const userAnswer = Array.isArray(answer)
-      ? answer.join(',').toLowerCase().trim()
+      ? answer.map((a) => a.trim()).sort().join(',').toLowerCase()
       : String(answer).toLowerCase().trim();
-    const correctAnswer = String(question.correct_answer).toLowerCase().trim();
+
+    const correctAnswer = Array.isArray(answer)
+      ? String(question.correct_answer)
+          .toLowerCase()
+          .split(',')
+          .map((a) => a.trim())
+          .sort()
+          .join(',')
+      : String(question.correct_answer).toLowerCase().trim();
 
     return userAnswer === correctAnswer;
   }
