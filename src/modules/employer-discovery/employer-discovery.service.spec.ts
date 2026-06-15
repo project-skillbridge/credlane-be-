@@ -542,5 +542,47 @@ describe('EmployerDiscoveryService', () => {
       expect(result.candidates[0].is_saved).toBe(false);
       expect(result.candidates[0].full_name).toBe('Bob');
     });
+
+    it("should default roleTrack to employer's desired_roles when query.roleTrack is not provided", async () => {
+      const poolQb = createMockQb([], 0);
+      mockPoolProfileRepo.createQueryBuilder.mockReturnValue(poolQb);
+      mockEmployerProfileRepo.findOne.mockResolvedValue({
+        desired_roles: ['backend_developer', 'devops_engineer'],
+      });
+
+      await service.discoverCandidates('employer-1', {
+        page: 1,
+        limit: 20,
+      });
+
+      expect(mockEmployerProfileRepo.findOne).toHaveBeenCalledWith({
+        where: { user_id: 'employer-1' },
+        select: ['desired_roles'],
+      });
+      expect(poolQb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('pool.track'),
+        expect.objectContaining({ roleTracks: ['backend_developer', 'devops_engineer'] }),
+      );
+    });
+
+    it("should not override roleTrack with desired_roles when query.roleTrack is explicitly provided", async () => {
+      const poolQb = createMockQb([], 0);
+      mockPoolProfileRepo.createQueryBuilder.mockReturnValue(poolQb);
+      mockEmployerProfileRepo.findOne.mockResolvedValue({
+        desired_roles: ['backend_developer', 'devops_engineer'],
+      });
+
+      await service.discoverCandidates('employer-1', {
+        page: 1,
+        limit: 20,
+        roleTrack: ['frontend_developer'],
+      });
+
+      expect(mockEmployerProfileRepo.findOne).not.toHaveBeenCalled();
+      expect(poolQb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('pool.track'),
+        expect.objectContaining({ roleTracks: ['frontend_developer'] }),
+      );
+    });
   });
 });
