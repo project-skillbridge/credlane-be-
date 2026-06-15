@@ -157,6 +157,9 @@ export class VerifiedProfileResponseDto {
   @ApiProperty({ example: '/resources' })
   resource_page_url: '/resources';
 
+  @ApiProperty({ example: 'user@example.com' })
+  email: string;
+
   @ApiProperty({
     example: 'https://cdn.example.com/resumes/resume.pdf',
     nullable: true,

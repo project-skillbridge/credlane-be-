@@ -447,7 +447,7 @@ describe('EmployerService', () => {
           type: NotificationType.OFFER_DECLINED,
           title: 'Offer declined',
           body: 'John declined your offer',
-          data: { candidateUserId: 'candidate-2' },
+          data: { candidate_user_id: 'candidate-2' },
           is_read: false,
           read_at: null,
           created_at: '2026-06-03T10:00:00.000Z',
@@ -459,7 +459,7 @@ describe('EmployerService', () => {
         timestamp: '2026-06-03T10:00:00.000Z',
         read: false,
         link: { entity_id: 'candidate-2', entity_type: 'candidate' },
-        data: { candidateUserId: 'candidate-2' },
+        data: { candidate_user_id: 'candidate-2' },
       });
     });
   });

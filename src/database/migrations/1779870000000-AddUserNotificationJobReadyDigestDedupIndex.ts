@@ -6,7 +6,7 @@ export class AddUserNotificationJobReadyDigestDedupIndex1779870000000 implements
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`
       CREATE UNIQUE INDEX "UQ_user_notifications_job_ready_digest_week"
-      ON "user_notifications" ("user_id", "type", (data->>'digestWeekStart'))
+      ON "user_notifications" ("user_id", "type", (data->>'digest_week_start'))
       WHERE "type" = 'job_ready_matches_available'
     `);
   }

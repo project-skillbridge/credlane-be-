@@ -231,10 +231,10 @@ describe('EmployerJobReadyDigestService', () => {
       title: 'New Job Ready candidates match your preferences',
       body: '1 new Job Ready candidate matches your hiring preferences this week.',
       data: {
-        digestWeekStart: digestWeekStartKey,
-        digestWeekEnd: referenceDate.toISOString(),
-        matchCount: 1,
-        candidateUserIds: ['cand-1'],
+        digest_week_start: digestWeekStartKey,
+        digest_week_end: referenceDate.toISOString(),
+        match_count: 1,
+        candidate_user_ids: ['cand-1'],
       },
     });
     expect(mailService.sendJobReadyMatchesDigest).toHaveBeenCalledTimes(1);
@@ -329,9 +329,9 @@ describe('EmployerJobReadyDigestService', () => {
     expect(notificationsService.create).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
-          digestWeekStart: digestWeekStartKey,
-          digestWeekEnd: referenceDate.toISOString(),
-          candidateUserIds: ['cand-boundary'],
+          digest_week_start: digestWeekStartKey,
+          digest_week_end: referenceDate.toISOString(),
+          candidate_user_ids: ['cand-boundary'],
         }),
       }),
     );
@@ -362,7 +362,7 @@ describe('EmployerJobReadyDigestService', () => {
 
     expect(notificationRepo.createQueryBuilder).toHaveBeenCalledTimes(2);
     expect(dedupeQb.andWhere).toHaveBeenCalledWith(
-      "notification.data->>'digestWeekStart' = :digestWeekStart",
+      "notification.data->>'digest_week_start' = :digestWeekStart",
       { digestWeekStart: digestWeekStartKey },
     );
     expect(notificationsService.create).toHaveBeenCalledTimes(1);
