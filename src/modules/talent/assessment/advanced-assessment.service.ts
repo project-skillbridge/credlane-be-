@@ -973,19 +973,22 @@ export class AdvancedAssessmentService {
   ): ScoredTextAnswer[] {
     return scoreRows
       .filter((row) => row.question_type !== AssessmentScoreQuestionType.MCQ)
-      .map((row) => ({
-        question_id: row.question_id,
-        raw_score: row.raw_score,
-        max_score: row.max_score,
-        rubric: {
-          relevance: 0,
-          reasoning: 0,
-          specificity: 0,
-          completeness: 0,
-          total: row.raw_score,
-          feedback: '',
-        },
-      }));
+      .map((row) => {
+        const evalJson = row.ai_evaluation_json ?? {};
+        return {
+          question_id: row.question_id,
+          raw_score: row.raw_score,
+          max_score: row.max_score,
+          rubric: {
+            relevance: Number(evalJson.relevance) || 0,
+            reasoning: Number(evalJson.reasoning) || 0,
+            specificity: Number(evalJson.specificity) || 0,
+            completeness: Number(evalJson.completeness) || 0,
+            total: row.raw_score,
+            feedback: typeof evalJson.feedback === 'string' ? evalJson.feedback : '',
+          },
+        };
+      });
   }
 
   private async persistGuidanceReport(
@@ -1118,15 +1121,12 @@ export class AdvancedAssessmentService {
           1,
         );
 
-        const updatedAttempt = await manager.findOne(AssessmentAttempt, {
-          where: { id: attempt.id },
-          lock: { mode: 'pessimistic_write' },
-        });
-        if (!updatedAttempt) {
-          throw new NotFoundException(
-            ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_NOT_FOUND,
-          );
-        }
+        const tabSwitchCount =
+          attempt.tab_switch_count +
+          (counterField === 'tab_switch_count' ? 1 : 0);
+        const copyPasteCount =
+          attempt.copy_paste_count +
+          (counterField === 'copy_paste_count' ? 1 : 0);
 
         const lockedFrom = new Date();
         const unlocksAt = new Date(lockedFrom);
@@ -1149,8 +1149,8 @@ export class AdvancedAssessmentService {
 
         return {
           attemptId: attempt.id,
-          tabSwitchCount: updatedAttempt.tab_switch_count,
-          copyPasteCount: updatedAttempt.copy_paste_count,
+          tabSwitchCount,
+          copyPasteCount,
         };
       },
     );
@@ -1216,9 +1216,9 @@ export class AdvancedAssessmentService {
     }
 
     const mcqPercentage =
-      mcqMaxScore > 0 ? Math.round((mcqScore / mcqMaxScore) * 100) : 0;
+      mcqMaxScore > 0 ? (mcqScore / mcqMaxScore) * 100 : 0;
     const textPercentage =
-      textMaxScore > 0 ? Math.round((textScore / textMaxScore) * 100) : 0;
+      textMaxScore > 0 ? (textScore / textMaxScore) * 100 : 0;
     let percentage: number;
 
     if (hasMcq && hasText) {
@@ -1226,7 +1226,7 @@ export class AdvancedAssessmentService {
         mcqPercentage * mcqWeight + textPercentage * (1 - mcqWeight),
       );
     } else {
-      percentage = hasMcq ? mcqPercentage : textPercentage;
+      percentage = Math.round(hasMcq ? mcqPercentage : textPercentage);
     }
 
     return {
