@@ -68,12 +68,12 @@ export class EmployerRolesController {
         category: { type: 'string', maxLength: 255 },
         description: {
           type: 'string',
-          maxLength: 10000,
+          maxLength: 50000,
           description: 'Job description text',
         },
         jd_text: {
           type: 'string',
-          maxLength: 10000,
+          maxLength: 50000,
           description: 'Alias for description — use one or the other',
         },
         jd_file: {
@@ -186,10 +186,10 @@ export class EmployerRolesController {
       properties: {
         title: { type: 'string', maxLength: 255 },
         category: { type: 'string', maxLength: 255 },
-        description: { type: 'string', maxLength: 10000 },
+        description: { type: 'string', maxLength: 50000 },
         jd_text: {
           type: 'string',
-          maxLength: 10000,
+          maxLength: 50000,
           description: 'Alias for description',
         },
         jd_file: {

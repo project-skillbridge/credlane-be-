@@ -31,7 +31,7 @@ export class CreateRoleDto {
   })
   @IsOptional()
   @IsString()
-  @MaxLength(10000)
+  @MaxLength(50000)
   description?: string;
 
   @ApiPropertyOptional({
@@ -39,7 +39,7 @@ export class CreateRoleDto {
   })
   @IsOptional()
   @IsString()
-  @MaxLength(10000)
+  @MaxLength(50000)
   jd_text?: string;
 
   @ApiPropertyOptional({
