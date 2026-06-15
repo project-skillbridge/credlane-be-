@@ -252,7 +252,7 @@ export class EmployerJobReadyDigestService
       .andWhere('notification.type = :type', {
         type: NotificationType.JOB_READY_MATCHES_AVAILABLE,
       })
-      .andWhere("notification.data->>'digestWeekStart' = :digestWeekStart", {
+      .andWhere("notification.data->>'digest_week_start' = :digestWeekStart", {
         digestWeekStart,
       })
       .getCount();
@@ -273,10 +273,10 @@ export class EmployerJobReadyDigestService
         title: 'New Job Ready candidates match your preferences',
         body: `${matchCount} new Job Ready ${label} ${verb} your hiring preferences this week.`,
         data: {
-          digestWeekStart,
-          digestWeekEnd,
-          matchCount,
-          candidateUserIds,
+          digest_week_start: digestWeekStart,
+          digest_week_end: digestWeekEnd,
+          match_count: matchCount,
+          candidate_user_ids: candidateUserIds,
         },
       });
     } catch (error) {

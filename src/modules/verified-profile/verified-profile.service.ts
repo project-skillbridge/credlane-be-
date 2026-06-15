@@ -331,6 +331,7 @@ export class VerifiedProfileService {
       skill_breakdown_tabs: skillBreakdownTabs,
       recommended_resources: guidanceReport.recommended_resources ?? [],
       resource_page_url: '/resources',
+      email: user.email,
       resume_url: profile.resume_url ?? null,
       share_url: shareUrl,
       qr_code_url: qrCodeUrl ?? null,

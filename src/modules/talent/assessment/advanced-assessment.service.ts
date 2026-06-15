@@ -1566,8 +1566,20 @@ export class AdvancedAssessmentService {
   ): Promise<AssessmentQuestion[]> {
     const verifiedLevel = profile.validated_level ?? VerifiedLevel.JUNIOR;
     const track = profile.track ?? 'general';
+    const historyExclusion = `NOT EXISTS (
+      SELECT 1
+      FROM talent_question_history history
+      INNER JOIN assessment_attempt attempt
+        ON attempt.id = history.attempt_id
+      WHERE history.question_id = question.id
+      AND history.talent_profile_id = :talentProfileId
+      AND (
+        attempt.completed_at IS NOT NULL
+        OR attempt.force_submitted = true
+      )
+    )`;
 
-    const primary = await manager
+    const live = await manager
       .createQueryBuilder(AssessmentQuestion, 'question')
       .where('question.assessment_type = :assessmentType', {
         assessmentType: AssessmentType.ADVANCED,
@@ -1575,23 +1587,11 @@ export class AdvancedAssessmentService {
       .andWhere('question.is_live = true')
       .andWhere('question.track = :track', { track })
       .andWhere('question.verified_level = :verifiedLevel', { verifiedLevel })
-      .andWhere(
-        `NOT EXISTS (
-          SELECT 1
-          FROM talent_question_history history
-          WHERE history.question_id = question.id
-          AND history.talent_profile_id = :talentProfileId
-        )`,
-        { talentProfileId: profile.id },
-      )
+      .andWhere(historyExclusion, { talentProfileId: profile.id })
       .orderBy('RANDOM()')
       .getMany();
 
-    if (primary.length > 0) {
-      return primary;
-    }
-
-    return manager
+    const generated = await manager
       .createQueryBuilder(AssessmentQuestion, 'question')
       .where('question.assessment_type = :assessmentType', {
         assessmentType: AssessmentType.ADVANCED,
@@ -1599,17 +1599,11 @@ export class AdvancedAssessmentService {
       .andWhere('question.is_live = false')
       .andWhere('question.track = :track', { track })
       .andWhere('question.verified_level = :verifiedLevel', { verifiedLevel })
-      .andWhere(
-        `NOT EXISTS (
-          SELECT 1
-          FROM talent_question_history history
-          WHERE history.question_id = question.id
-          AND history.talent_profile_id = :talentProfileId
-        )`,
-        { talentProfileId: profile.id },
-      )
+      .andWhere(historyExclusion, { talentProfileId: profile.id })
       .orderBy('RANDOM()')
       .getMany();
+
+    return [...live, ...generated];
   }
 
   private async selectQuestionBlocks(

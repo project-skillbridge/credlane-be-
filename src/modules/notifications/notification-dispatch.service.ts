@@ -458,10 +458,10 @@ export class NotificationDispatchService
       body: `You scored ${result.score}/${result.maxScore} (${result.percentage}%) — ${tierLabel}.`,
       data: {
         score: result.score,
-        maxScore: result.maxScore,
+        max_score: result.maxScore,
         percentage: result.percentage,
         tier: result.tier,
-        tierLabel,
+        tier_label: tierLabel,
       },
     });
 
@@ -497,7 +497,7 @@ export class NotificationDispatchService
         type: NotificationType.ADVANCED_RETAKE_AVAILABLE,
         title: 'Advanced assessment retake is available',
         body: 'Your 14-day waiting period has ended. You can retake the advanced assessment now.',
-        data: { eligibilityDate: payload.eligibilityDate },
+        data: { eligibility_date: payload.eligibilityDate },
       });
     } catch (error) {
       if (isNotificationDuplicateError(error)) {
@@ -534,10 +534,10 @@ export class NotificationDispatchService
       title: 'New offer received',
       body: `${payload.employerName} sent you an offer for ${payload.roleTitle}.`,
       data: {
-        offerId: payload.offerId,
-        employerUserId: payload.employerUserId,
-        employerName: payload.employerName,
-        roleTitle: payload.roleTitle,
+        offer_id: payload.offerId,
+        employer_user_id: payload.employerUserId,
+        employer_name: payload.employerName,
+        role_title: payload.roleTitle,
       },
     });
 
@@ -578,10 +578,10 @@ export class NotificationDispatchService
       title,
       body: `${payload.candidateName} has ${actionLabel} your offer for ${payload.roleTitle}.`,
       data: {
-        offerId: payload.offerId,
-        candidateUserId: payload.candidateUserId,
-        candidateName: payload.candidateName,
-        roleTitle: payload.roleTitle,
+        offer_id: payload.offerId,
+        candidate_user_id: payload.candidateUserId,
+        candidate_name: payload.candidateName,
+        role_title: payload.roleTitle,
         action: resolvedAction,
       },
     });
@@ -615,9 +615,9 @@ export class NotificationDispatchService
       title: 'New contact request',
       body: `${payload.employerName} wants to connect with you.`,
       data: {
-        contactRequestId: payload.contactRequestId,
-        employerUserId: payload.employerUserId,
-        employerName: payload.employerName,
+        contact_request_id: payload.contactRequestId,
+        employer_user_id: payload.employerUserId,
+        employer_name: payload.employerName,
       },
     });
 
@@ -650,10 +650,10 @@ export class NotificationDispatchService
       title: 'New assessment received',
       body: `You have been invited to take ${payload.title}.`,
       data: {
-        assessmentId: payload.assessmentId,
+        assessment_id: payload.assessmentId,
         title: payload.title,
-        roleTrack: payload.roleTrack,
-        shareUrl: payload.shareUrl,
+        role_track: payload.roleTrack,
+        share_url: payload.shareUrl,
       },
     });
 
@@ -686,10 +686,10 @@ export class NotificationDispatchService
       title: 'Offer withdrawn',
       body: `${payload.employerName} has withdrawn their offer for ${payload.roleTitle}.`,
       data: {
-        offerId: payload.offerId,
-        employerUserId: payload.employerUserId,
-        employerName: payload.employerName,
-        roleTitle: payload.roleTitle,
+        offer_id: payload.offerId,
+        employer_user_id: payload.employerUserId,
+        employer_name: payload.employerName,
+        role_title: payload.roleTitle,
       },
     });
   }
@@ -710,10 +710,10 @@ export class NotificationDispatchService
       title: 'Assessment window expired',
       body: `The assessment window for ${payload.roleTitle} has closed without a submission.`,
       data: {
-        offerId: payload.offerId,
-        candidateUserId: payload.candidateUserId,
-        candidateName: payload.candidateName,
-        roleTitle: payload.roleTitle,
+        offer_id: payload.offerId,
+        candidate_user_id: payload.candidateUserId,
+        candidate_name: payload.candidateName,
+        role_title: payload.roleTitle,
       },
     });
   }
@@ -734,11 +734,11 @@ export class NotificationDispatchService
       title: 'Assessment window opened',
       body: `You have 5 days to complete the assessment for ${payload.roleTitle}. Deadline: ${new Date(payload.assessmentDeadline).toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' })}.`,
       data: {
-        offerId: payload.offerId,
-        employerUserId: payload.employerUserId,
-        employerName: payload.employerName,
-        roleTitle: payload.roleTitle,
-        assessmentDeadline: payload.assessmentDeadline,
+        offer_id: payload.offerId,
+        employer_user_id: payload.employerUserId,
+        employer_name: payload.employerName,
+        role_title: payload.roleTitle,
+        assessment_deadline: payload.assessmentDeadline,
       },
     });
   }
@@ -759,11 +759,11 @@ export class NotificationDispatchService
       title: 'Assessment window extended',
       body: `Your assessment window for ${payload.roleTitle} has been extended. New deadline: ${new Date(payload.newDeadline).toLocaleDateString('en-US', { timeZone: 'UTC', year: 'numeric', month: 'short', day: 'numeric' })}.`,
       data: {
-        offerId: payload.offerId,
-        employerUserId: payload.employerUserId,
-        employerName: payload.employerName,
-        roleTitle: payload.roleTitle,
-        newDeadline: payload.newDeadline,
+        offer_id: payload.offerId,
+        employer_user_id: payload.employerUserId,
+        employer_name: payload.employerName,
+        role_title: payload.roleTitle,
+        new_deadline: payload.newDeadline,
       },
     });
   }
@@ -784,11 +784,11 @@ export class NotificationDispatchService
       title: 'Assessment window expiring soon',
       body: `${payload.candidateName} has less than 24 hours to submit the assessment for ${payload.roleTitle}.`,
       data: {
-        offerId: payload.offerId,
-        candidateUserId: payload.candidateUserId,
-        candidateName: payload.candidateName,
-        roleTitle: payload.roleTitle,
-        assessmentDeadline: payload.assessmentDeadline,
+        offer_id: payload.offerId,
+        candidate_user_id: payload.candidateUserId,
+        candidate_name: payload.candidateName,
+        role_title: payload.roleTitle,
+        assessment_deadline: payload.assessmentDeadline,
       },
     });
   }
@@ -818,11 +818,11 @@ export class NotificationDispatchService
       title,
       body,
       data: {
-        offerId: payload.offerId,
-        candidateUserId: payload.candidateUserId,
-        candidateName: payload.candidateName,
-        employerUserId: payload.employerUserId,
-        roleTitle: payload.roleTitle,
+        offer_id: payload.offerId,
+        candidate_user_id: payload.candidateUserId,
+        candidate_name: payload.candidateName,
+        employer_user_id: payload.employerUserId,
+        role_title: payload.roleTitle,
         score: payload.score,
       },
     });

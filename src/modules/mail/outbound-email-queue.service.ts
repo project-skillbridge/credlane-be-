@@ -18,7 +18,7 @@ const QUEUE_NAME = 'password-reset-email';
 const passwordResetEmailJobSchema = z.object({
   to: z.string().min(1),
   otp: z.string().min(1),
-  recipientFirstName: z.string().min(1),
+  recipientFirstName: z.string().nullish(),
   expiresAt: z.union([z.date(), z.string(), z.number()]),
 });
 
@@ -132,21 +132,17 @@ export class OutboundEmailQueueService
 
     const name = params.recipientFirstName?.trim() || 'there';
     const padded = otp.padStart(6, '0');
-    const digits = padded.split('');
-    const digitVars = Object.fromEntries(
-      digits.map((d, i) => [`digit${i + 1}`, d]),
-    ) as Record<string, string>;
 
     const logo = resolveEmailLogo();
 
     const rawHtml = loadMailTemplateFile('password-reset.html');
     const html = substituteMailTemplate(rawHtml, {
       name,
+      code: padded,
       expiresMinutes: String(expiresInMinutes),
       logoUrl: logo.logoUrl,
       supportEmail: env.SUPPORT_EMAIL,
       year: String(new Date().getFullYear()),
-      ...digitVars,
     });
 
     const text = `Hi ${name},\n\nYour SkillBridge password reset code is ${padded}. It expires in ${expiresInMinutes} minute(s).\n\nIf you did not request a reset, ignore this email.`;

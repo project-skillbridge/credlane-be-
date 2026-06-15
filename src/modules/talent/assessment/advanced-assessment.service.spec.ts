@@ -1221,6 +1221,87 @@ describe('AdvancedAssessmentService', () => {
     });
   });
 
+  describe('findEligibleQuestions()', () => {
+    it('supplements live questions with generated questions instead of falling back only when live is empty', async () => {
+      const profile = makeTalentProfile({
+        id: 'profile-1',
+        track: 'backend_developer',
+        validated_level: VerifiedLevel.MID,
+      });
+
+      const liveQuestions = [
+        { id: 'live-1', is_live: true },
+        { id: 'live-2', is_live: true },
+      ] as AssessmentQuestion[];
+      const generatedQuestions = [
+        { id: 'generated-1', is_live: false },
+      ] as AssessmentQuestion[];
+
+      const liveQuery = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(liveQuestions),
+      };
+      const generatedQuery = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue(generatedQuestions),
+      };
+      const manager = {
+        createQueryBuilder: jest
+          .fn()
+          .mockReturnValueOnce(liveQuery)
+          .mockReturnValueOnce(generatedQuery),
+      };
+
+      const result = await (service as never).findEligibleQuestions(
+        manager,
+        profile,
+      );
+
+      expect(result).toEqual([...liveQuestions, ...generatedQuestions]);
+      expect(manager.createQueryBuilder).toHaveBeenCalledTimes(2);
+    });
+
+    it('only excludes questions from completed or force-submitted attempts', async () => {
+      const profile = makeTalentProfile({
+        id: 'profile-1',
+        track: 'backend_developer',
+        validated_level: VerifiedLevel.MID,
+      });
+
+      const liveQuery = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+      const generatedQuery = {
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        getMany: jest.fn().mockResolvedValue([]),
+      };
+      const manager = {
+        createQueryBuilder: jest
+          .fn()
+          .mockReturnValueOnce(liveQuery)
+          .mockReturnValueOnce(generatedQuery),
+      };
+
+      await (service as never).findEligibleQuestions(manager, profile);
+
+      const exclusionClause = liveQuery.andWhere.mock.calls.find(
+        ([sql]: [string]) => sql.includes('talent_question_history'),
+      )?.[0];
+
+      expect(exclusionClause).toContain('attempt.completed_at IS NOT NULL');
+      expect(exclusionClause).toContain('attempt.force_submitted = true');
+    });
+  });
+
   // ── start — retake gate ─────────────────────────────────────────────────────
 
   describe('start() retake gate', () => {

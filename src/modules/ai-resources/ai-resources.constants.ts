@@ -1,6 +1,6 @@
 export const AI_RESOURCE_CONSTANTS = {
   // The number of items the AI is instructed to generate per category
-  POOL_GENERATION_COUNT: 15,
+  POOL_GENERATION_COUNT: 10,
 
   // The number of resource items to randomly select and return
   RANDOM_RESOURCE_RETURN_COUNT: 5,
