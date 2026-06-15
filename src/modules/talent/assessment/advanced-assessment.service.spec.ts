@@ -335,6 +335,11 @@ describe('AdvancedAssessmentService', () => {
         .fn()
         .mockImplementation((_entity: unknown, data: unknown) => data),
       update: entityManagerUpdate,
+      createQueryBuilder: jest.fn().mockReturnValue({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      }),
     };
 
     talentProfileRepo = {
@@ -500,6 +505,12 @@ describe('AdvancedAssessmentService', () => {
         findOne: jest.fn().mockResolvedValue(makeAttempt()),
         find: jest.fn().mockResolvedValue([processingAttempt]),
         save: jest.fn(),
+        update: jest.fn(),
+        createQueryBuilder: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          getOne: jest.fn().mockResolvedValue(processingAttempt),
+        }),
       };
       talentProfileRepo.manager.transaction.mockImplementationOnce(
         (work: (em: typeof txManager) => Promise<unknown>) => work(txManager),
@@ -1352,7 +1363,11 @@ describe('AdvancedAssessmentService', () => {
         createQueryBuilder: jest
           .fn()
           .mockReturnValueOnce(skillResultQuery)
-          .mockReturnValueOnce(activeSessionQuery),
+          .mockReturnValueOnce({
+            where: jest.fn().mockReturnThis(),
+            andWhere: jest.fn().mockReturnThis(),
+            getOne: jest.fn().mockResolvedValue(processingAttempt),
+          }),
       };
 
       talentProfileRepo.manager.transaction.mockImplementationOnce(
@@ -1490,6 +1505,11 @@ describe('AdvancedAssessmentService', () => {
             createQueryBuilder: jest
               .fn()
               .mockReturnValueOnce(skillResultQuery)
+              .mockReturnValueOnce({
+                where: jest.fn().mockReturnThis(),
+                andWhere: jest.fn().mockReturnThis(),
+                getOne: jest.fn().mockResolvedValue(null),
+              })
               .mockReturnValueOnce(activeSessionQuery),
             create: jest.fn((_entity: unknown, data: unknown) => data),
             save: jest

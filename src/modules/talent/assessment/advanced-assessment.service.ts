@@ -587,6 +587,7 @@ export class AdvancedAssessmentService {
 
     let mcqRawScore = 0;
     let mcqTotal = 0;
+    const mcqCorrectMap = new Map<string, boolean>();
     const textInputs: TextAnswerInput[] = [];
     const responsesToSave: Partial<AssessmentResponse>[] = [];
     // Map keyed by question_id so each text answer scored by the AI rubric
@@ -604,6 +605,7 @@ export class AdvancedAssessmentService {
         mcqTotal++;
         const correct = this.scoreMcq(question, submitted?.answer ?? null);
         mcqRawScore += correct ? 1 : 0;
+        mcqCorrectMap.set(question.question_id, correct);
         responsesToSave.push({
           attempt_id: attempt.id,
           question_id: question.question_id,
@@ -757,6 +759,7 @@ export class AdvancedAssessmentService {
         abnormalTimingByQuestion,
         integrityConfidence,
         answerMap,
+        mcqCorrectMap,
       });
       if (scoreRows.length > 0) {
         await manager.save(AssessmentScore, scoreRows);
@@ -1273,22 +1276,23 @@ export class AdvancedAssessmentService {
     talentProfileId: string,
     excludeAttemptId?: string,
   ): Promise<AssessmentAttempt | null> {
-    const attempts = await manager.find(AssessmentAttempt, {
-      where: {
-        talent_profile_id: talentProfileId,
-        assessment_type: AssessmentType.ADVANCED,
-        completed_at: IsNull(),
-        force_submitted: false,
-      },
-    });
+    const query = manager
+      .createQueryBuilder(AssessmentAttempt, 'attempt')
+      .where('attempt.talent_profile_id = :talentProfileId', { talentProfileId })
+      .andWhere('attempt.assessment_type = :assessmentType', {
+        assessmentType: AssessmentType.ADVANCED,
+      })
+      .andWhere('attempt.completed_at IS NULL')
+      .andWhere('attempt.force_submitted = false')
+      .andWhere(
+        "attempt.generated_questions_json -> 'context' ->> 'submit_enqueued_at' IS NOT NULL",
+      );
 
-    return (
-      attempts.find(
-        (attempt) =>
-          attempt.id !== excludeAttemptId &&
-          this.isAdvancedSubmitInFlight(attempt),
-      ) ?? null
-    );
+    if (excludeAttemptId) {
+      query.andWhere('attempt.id != :excludeAttemptId', { excludeAttemptId });
+    }
+
+    return query.getOne() ?? null;
   }
 
   private buildAdvancedSubmitProcessingConflict(
@@ -1425,6 +1429,7 @@ export class AdvancedAssessmentService {
     abnormalTimingByQuestion: Map<string, boolean>;
     integrityConfidence: IntegrityConfidenceLevel;
     answerMap: Map<string, { answer: string | string[] }>;
+    mcqCorrectMap: Map<string, boolean>;
   }): Partial<AssessmentScore>[] {
     const rows: Partial<AssessmentScore>[] = [];
     const {
@@ -1434,7 +1439,8 @@ export class AdvancedAssessmentService {
       scoredByQuestion,
       abnormalTimingByQuestion,
       integrityConfidence,
-      answerMap,
+      _answerMap,
+      mcqCorrectMap,
     } = input;
 
     for (const question of sessionQuestions) {
@@ -1446,10 +1452,7 @@ export class AdvancedAssessmentService {
         question.question_type === QuestionType.MULTI_PICK;
 
       if (isMcq) {
-        const correct = this.scoreMcq(
-          question,
-          answerMap.get(question.question_id)?.answer ?? null,
-        );
+        const correct = mcqCorrectMap.get(question.question_id) ?? false;
         rows.push({
           attempt_id: attempt.id,
           talent_profile_id: talentProfileId,
@@ -2011,6 +2014,9 @@ export class AdvancedAssessmentService {
   ): AdvancedAssessmentSessionPayload {
     const payload = attempt.generated_questions_json;
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      this.logger.warn(
+        `Session payload corrupt for attempt ${attempt.id}: type=${typeof payload} isArray=${Array.isArray(payload)}`,
+      );
       return {};
     }
     return payload as AdvancedAssessmentSessionPayload;
