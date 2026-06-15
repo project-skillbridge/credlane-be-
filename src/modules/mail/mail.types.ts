@@ -17,7 +17,7 @@ export type SendMailOptions = {
 export type PasswordResetEmailPayload = {
   to: string;
   otp: string;
-  recipientFirstName: string;
+  recipientFirstName?: string | null;
   /** May be a string when job data is deserialized from Redis (BullMQ). */
   expiresAt: Date | string | number;
 };
