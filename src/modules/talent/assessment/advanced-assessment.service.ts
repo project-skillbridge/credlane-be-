@@ -1286,6 +1286,9 @@ export class AdvancedAssessmentService {
       .andWhere('attempt.force_submitted = false')
       .andWhere(
         "attempt.generated_questions_json -> 'context' ->> 'submit_enqueued_at' IS NOT NULL",
+      )
+      .andWhere(
+        "length(attempt.generated_questions_json -> 'context' ->> 'submit_enqueued_at') > 0",
       );
 
     if (excludeAttemptId) {
