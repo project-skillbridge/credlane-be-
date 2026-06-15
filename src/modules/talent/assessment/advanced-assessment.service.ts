@@ -1439,7 +1439,7 @@ export class AdvancedAssessmentService {
       scoredByQuestion,
       abnormalTimingByQuestion,
       integrityConfidence,
-      _answerMap,
+      answerMap: _answerMap,
       mcqCorrectMap,
     } = input;
 
