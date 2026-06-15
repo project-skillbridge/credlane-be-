@@ -10,6 +10,7 @@ import { EmployerVerificationService } from '../employer/employer-verification.s
 import { Offer } from '../offers/entities/offer.entity';
 import { VerifiedProfileService } from '../verified-profile/verified-profile.service';
 import { ForbiddenError, NotFoundError } from '../../shared';
+import { EmployerProfile } from '../employer/entities/employer-profile.entity';
 
 describe('EmployerDiscoveryService', () => {
   let service: EmployerDiscoveryService;
@@ -36,6 +37,10 @@ describe('EmployerDiscoveryService', () => {
 
   const mockOfferRepo = {
     createQueryBuilder: jest.fn(),
+  };
+
+  const mockEmployerProfileRepo = {
+    findOne: jest.fn(),
   };
 
   const mockNotificationDispatch = {
@@ -73,6 +78,10 @@ describe('EmployerDiscoveryService', () => {
         {
           provide: getRepositoryToken(Offer),
           useValue: mockOfferRepo,
+        },
+        {
+          provide: getRepositoryToken(EmployerProfile),
+          useValue: mockEmployerProfileRepo,
         },
         {
           provide: NotificationDispatchService,
