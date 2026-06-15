@@ -72,7 +72,15 @@ export class EmployerDiscoveryService {
     query: DiscoveryCandidatesQueryDto,
   ): Promise<DiscoveryListResult> {
     // Default roleTrack to employer's desired_roles from onboarding
-    if (!query.roleTrack?.length) {
+    const hasExplicitFilters =
+      Boolean(query.search?.trim()) ||
+      Boolean(query.region?.trim()) ||
+      Boolean(query.availability?.length) ||
+      Boolean(query.experienceLevel?.length) ||
+      query.minScore != null ||
+      query.maxScore != null;
+
+    if (!query.roleTrack?.length && !hasExplicitFilters) {
       const profile = await this.employerProfileRepo.findOne({
         where: { user_id: employerUserId },
         select: ['desired_roles'],
