@@ -62,6 +62,9 @@ export class CreateRoleDto {
 
   @ApiPropertyOptional({ type: [String], example: ['NestJS', 'PostgreSQL'] })
   @IsOptional()
+  @Transform(({ value }) =>
+    Array.isArray(value) ? value : value ? [value] : undefined,
+  )
   @IsArray()
   @IsString({ each: true })
   keywords?: string[];
