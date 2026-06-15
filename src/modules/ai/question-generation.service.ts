@@ -1,12 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { QuestionType } from '../assessments/entities/assessment-question.entity';
 import { GeneratedQuestion, GenerateQuestionsInput } from './ai.types';
 import { questionGenerationSchema } from './ai.schemas';
 import { OpenRouterService } from './openrouter.service';
-
-const SYSTEM_PROMPT = `You are a senior technical curriculum designer creating assessment questions for a professional skills evaluation platform.
-
-Generate questions that accurately assess real-world competency. Return ONLY valid JSON — no markdown, no explanation outside the JSON object.`;
+import {
+  buildQuestionGenerationPrompt,
+  QUESTION_GENERATION_SYSTEM_PROMPT,
+} from './prompt-builders';
 
 @Injectable()
 export class QuestionGenerationService {
@@ -17,49 +16,18 @@ export class QuestionGenerationService {
   async generateQuestions(
     input: GenerateQuestionsInput,
   ): Promise<GeneratedQuestion[]> {
-    const userPrompt = this.buildPrompt(input);
+    const userPrompt = buildQuestionGenerationPrompt(input);
 
     const raw = await this.openRouter.chat(
-      SYSTEM_PROMPT,
+      QUESTION_GENERATION_SYSTEM_PROMPT,
       userPrompt,
       questionGenerationSchema,
-      0.7,
+      0.3,
+      false,
+      undefined,
+      'question_generation',
     );
     return raw.questions.map((q) => this.parseQuestion(q, input));
-  }
-
-  private buildPrompt(input: GenerateQuestionsInput): string {
-    const isMcq =
-      input.question_type === QuestionType.SINGLE_PICK ||
-      input.question_type === QuestionType.MULTI_PICK;
-
-    const lines = [
-      `Track: ${input.track}`,
-      `Level: ${input.verified_level}`,
-      `Assessment type: ${input.assessment_type}`,
-      `Question type: ${input.question_type}`,
-      input.slot_type ? `Slot type: ${input.slot_type}` : null,
-      input.competency ? `Competency: ${input.competency}` : null,
-      input.industry_context
-        ? `Industry context: ${input.industry_context}`
-        : null,
-      `Count: generate exactly ${input.count} question(s)`,
-    ].filter(Boolean);
-
-    const schema = isMcq
-      ? `{"question_text":"...","options":["A","B","C","D"],"correct_answer":"A","competency":"...","industry_context":"..."}`
-      : `{"question_text":"...","options":null,"correct_answer":null,"competency":"...","industry_context":"..."}`;
-
-    return `${lines.join('\n')}
-
-Return JSON: {"questions": [${schema}]}
-
-Rules:
-- question_text: clear, unambiguous, professionally worded
-${isMcq ? '- options: exactly 4 strings, plausible distractors\n- correct_answer: must exactly match one option string' : '- Do NOT include options or correct_answer for text questions'}
-- competency: short label (e.g. "stakeholder_management")
-- Calibrate difficulty to the specified level
-- Questions must NOT repeat onboarding fields (goal, region, educationLevel, linkedinProfile)`;
   }
 
   private parseQuestion(

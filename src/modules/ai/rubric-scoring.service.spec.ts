@@ -128,6 +128,9 @@ describe('RubricScoringService', () => {
       expect.stringContaining('Award 0 when the answer is empty, gibberish'),
       expect.anything(),
       0.1,
+      false,
+      undefined,
+      'rubric_scoring_full',
     );
   });
 
