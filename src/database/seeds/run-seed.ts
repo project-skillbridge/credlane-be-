@@ -3,9 +3,8 @@ import dataSource from '../data-source';
 import { Seeder } from './seeder.interface';
 import { questionBankSeeder } from './question-bank.seeder';
 import { userSeeder } from './user.seeder';
-import { talentSeeder } from './talent.seeder';
 
-const seeders: Seeder[] = [userSeeder, questionBankSeeder, talentSeeder];
+const seeders: Seeder[] = [userSeeder, questionBankSeeder];
 
 async function run() {
   await dataSource.initialize();
