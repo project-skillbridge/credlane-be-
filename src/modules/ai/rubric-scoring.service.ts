@@ -93,6 +93,9 @@ ${dimensionRule}
           userPrompt,
           rubricLt3Schema,
           0.1,
+          false,
+          undefined,
+          'rubric_scoring_lt3',
         );
         const total = this.clampScore(raw.relevance + raw.reasoning, maxScore);
         return {
@@ -108,6 +111,9 @@ ${dimensionRule}
         userPrompt,
         rubricFullSchema,
         0.1,
+        false,
+        undefined,
+        'rubric_scoring_full',
       );
       const total = this.clampScore(
         raw.relevance + raw.reasoning + raw.specificity + raw.completeness,
@@ -163,6 +169,9 @@ Rules:
         userPrompt,
         rubricGuideScoreSchema,
         0.1,
+        false,
+        undefined,
+        'rubric_scoring_guide',
       );
       const total = this.clampScore(raw.score, MAX_SCORE_GUIDE);
       return {

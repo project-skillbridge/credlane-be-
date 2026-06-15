@@ -3,13 +3,10 @@ import { OpenRouterService } from './openrouter.service';
 import { UrlResolutionService } from './url-resolution.service';
 import { aiResourcesPayloadSchema } from './ai.schemas';
 import { AiResourcesPayload } from './ai.types';
-import { AI_RESOURCE_CONSTANTS } from '../ai-resources/ai-resources.constants';
-
-const SYSTEM_PROMPT = `You are a professional career advisor, mentor, and learning curator.
-Your task is to recommend high-quality, practical learning resources (articles, documentations, courses, and videos) to help candidates level up their skills.
-Focus on generating accurate TITLES and DESCRIPTIONS that clearly identify real, well-known resources from recognizable platforms (e.g., MDN Web Docs, freeCodeCamp, official docs, YouTube tutorials, Coursera, etc.).
-For the URL field, provide your best guess of the URL — it will be verified and replaced by an external search API after generation.
-Return ONLY valid JSON matching the schema — do not wrap in markdown unless requested by the model driver, and output no conversational text.`;
+import {
+  buildResourceGenerationPrompt,
+  RESOURCE_GENERATION_SYSTEM_PROMPT,
+} from './prompt-builders';
 
 @Injectable()
 export class ResourceGenerationService {
@@ -45,54 +42,16 @@ export class ResourceGenerationService {
       throw new Error(`Unknown level: ${level}`);
     }
 
-    const userPrompt = `
-Track: ${track}
-Level: ${level}
-
-Focus for recommendations:
-${focusGuide}
-
-Please generate a LARGE POOL of learning resources and return them in this JSON format:
-{
-  "banner_title": "A short motivational title (e.g., 'Life as a Frontend Developer' or 'Mastering Product Management')",
-  "banner_description": "A short summary encouraging the candidate to review these resources to level up in their track.",
-  "resources": [
-    // GENERATE AT LEAST ${AI_RESOURCE_CONSTANTS.POOL_GENERATION_COUNT} ITEMS HERE!
-    {
-      "title": "Clear, concise resource title — use the EXACT title of a real resource you know",
-      "description": "Short summary of what this article/course covers.",
-      "url": "https://example.com/your-best-guess-url",
-      "duration": "5 min read" or "2 hours",
-      "type": "article" or "course"
-    }
-  ],
-  "videos": [
-    // GENERATE AT LEAST ${AI_RESOURCE_CONSTANTS.POOL_GENERATION_COUNT} ITEMS HERE!
-    {
-      "title": "Clear, concise video title — use the EXACT title of a real YouTube video you know",
-      "description": "Short summary of what this video/tutorial covers. Include the channel name if possible.",
-      "url": "https://youtube.com/watch?v=placeholder",
-      "duration": "15 mins" or "1 hour",
-      "type": "video"
-    }
-  ]
-}
-
-Rules:
-- Generate at least ${AI_RESOURCE_CONSTANTS.POOL_GENERATION_COUNT} items for "resources" and at least ${AI_RESOURCE_CONSTANTS.POOL_GENERATION_COUNT} items for "videos".
-- Make resources directly relevant to the ${track} track and the indicated depth (${level}).
-- Focus on providing ACCURATE TITLES of real, well-known resources. The titles will be used to search for correct URLs via external APIs.
-- Include the creator/channel name in video descriptions (e.g., "by Traversy Media", "by Fireship").
-- For articles, reference well-known platforms: MDN, freeCodeCamp, dev.to, official docs, CSS-Tricks, etc.
-`.trim();
+    const userPrompt = buildResourceGenerationPrompt(track, level, focusGuide);
 
     const payload = await this.openRouter.chat(
-      SYSTEM_PROMPT,
+      RESOURCE_GENERATION_SYSTEM_PROMPT,
       userPrompt,
       aiResourcesPayloadSchema,
       0.6,
       false, // no web search needed — we verify URLs externally
       timeoutMs,
+      'resource_generation',
     );
 
     this.logger.log(
