@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { IsNull, QueryFailedError, Repository } from 'typeorm';
+import { keysToSnake } from '../../common/utils/case-transform';
 import type {
   NewNotificationPayload,
   NotificationListItem,
@@ -104,7 +105,7 @@ export class NotificationsService {
       type: row.type,
       title: row.title,
       body: row.body,
-      data: row.data,
+      data: keysToSnake(row.data),
       is_read: row.read_at != null,
       read_at: row.read_at?.toISOString() ?? null,
       created_at: row.created_at.toISOString(),
