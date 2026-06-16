@@ -163,7 +163,6 @@ export class EmployerRolesService {
         role.description = null;
       }
     }
-    }
     if (dto.employmentType !== undefined) {
       role.employment_type = dto.employmentType;
     }
