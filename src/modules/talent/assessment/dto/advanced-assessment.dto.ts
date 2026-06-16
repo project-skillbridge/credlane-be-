@@ -50,7 +50,7 @@ export class AdvancedAnswerDto {
         value:
           'I would implement idempotency by using unique request IDs to track processed requests and prevent duplicate operations.',
         description:
-          'For text questions, provide your answer as a string (60-600 chars for short_text, 150-2000 chars for long_text)',
+          'For text questions, provide your answer as a string (10-600 chars for short_text, 60-2000 chars for long_text)',
       },
       'Multi-pick MCQ': {
         value: ['Option A', 'Option C'],
@@ -72,8 +72,8 @@ export class AdvancedAnswerDto {
 
   @ApiProperty({
     required: false,
-    description:
-      'Seconds spent on this question (used for abnormal timing detection). Long text questions with <60 seconds are flagged.',
+      description:
+        'Seconds spent on this question (used for abnormal timing detection). Long text answers spent in <5 seconds are flagged as abnormal.',
     example: 120,
     minimum: 0,
   })

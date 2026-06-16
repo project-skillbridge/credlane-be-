@@ -7,6 +7,7 @@ import {
 import { AssessmentTier } from '../../assessments/entities/assessment-result.entity';
 import {
   AssessmentAttempt,
+  AssessmentQuestion,
   AssessmentScore,
   AssessmentScoreQuestionType,
   AssessmentType,
@@ -334,6 +335,11 @@ describe('AdvancedAssessmentService', () => {
         .fn()
         .mockImplementation((_entity: unknown, data: unknown) => data),
       update: entityManagerUpdate,
+      createQueryBuilder: jest.fn().mockReturnValue({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      }),
     };
 
     talentProfileRepo = {
@@ -499,6 +505,12 @@ describe('AdvancedAssessmentService', () => {
         findOne: jest.fn().mockResolvedValue(makeAttempt()),
         find: jest.fn().mockResolvedValue([processingAttempt]),
         save: jest.fn(),
+        update: jest.fn(),
+        createQueryBuilder: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          getOne: jest.fn().mockResolvedValue(processingAttempt),
+        }),
       };
       talentProfileRepo.manager.transaction.mockImplementationOnce(
         (work: (em: typeof txManager) => Promise<unknown>) => work(txManager),
@@ -1256,7 +1268,7 @@ describe('AdvancedAssessmentService', () => {
           .mockReturnValueOnce(generatedQuery),
       };
 
-      const result = await (service as never).findEligibleQuestions(
+      const result = await (service as any).findEligibleQuestions(
         manager,
         profile,
       );
@@ -1291,7 +1303,7 @@ describe('AdvancedAssessmentService', () => {
           .mockReturnValueOnce(generatedQuery),
       };
 
-      await (service as never).findEligibleQuestions(manager, profile);
+      await (service as any).findEligibleQuestions(manager, profile);
 
       const exclusionClause = liveQuery.andWhere.mock.calls.find(
         ([sql]: [string]) => sql.includes('talent_question_history'),
@@ -1351,7 +1363,11 @@ describe('AdvancedAssessmentService', () => {
         createQueryBuilder: jest
           .fn()
           .mockReturnValueOnce(skillResultQuery)
-          .mockReturnValueOnce(activeSessionQuery),
+          .mockReturnValueOnce({
+            where: jest.fn().mockReturnThis(),
+            andWhere: jest.fn().mockReturnThis(),
+            getOne: jest.fn().mockResolvedValue(processingAttempt),
+          }),
       };
 
       talentProfileRepo.manager.transaction.mockImplementationOnce(
@@ -1450,14 +1466,14 @@ describe('AdvancedAssessmentService', () => {
       });
 
       jest
-        .spyOn(service as never, 'findEligibleQuestions' as never)
-        .mockResolvedValue([]);
+        .spyOn(service as any, 'findEligibleQuestions')
+        .mockResolvedValue([] as any);
       jest
-        .spyOn(service as never, 'selectQuestionBlocks' as never)
+        .spyOn(service as any, 'selectQuestionBlocks')
         .mockResolvedValue({
-          mcq: [],
-          shortText: [],
-          longText: [],
+          mcq: [] as any,
+          shortText: [] as any,
+          longText: [] as any,
         });
 
       const skillResultQuery = {
@@ -1489,6 +1505,11 @@ describe('AdvancedAssessmentService', () => {
             createQueryBuilder: jest
               .fn()
               .mockReturnValueOnce(skillResultQuery)
+              .mockReturnValueOnce({
+                where: jest.fn().mockReturnThis(),
+                andWhere: jest.fn().mockReturnThis(),
+                getOne: jest.fn().mockResolvedValue(null),
+              })
               .mockReturnValueOnce(activeSessionQuery),
             create: jest.fn((_entity: unknown, data: unknown) => data),
             save: jest

@@ -112,14 +112,14 @@ class InMemoryUsersService {
       id: `user-${this.nextId++}`,
       email: normalizedEmail,
       password: await argon2.hash(dto.password),
-      first_name: dto.first_name,
-      last_name: dto.last_name,
+      first_name: dto.firstName,
+      last_name: dto.lastName,
       country: dto.country,
-      avatar_url: dto.profile_pic_url ?? null,
+      avatar_url: dto.profilePicUrl ?? null,
       is_verified: false,
       onboarding_complete: false,
       role: dto.role ?? UserRole.TALENT,
-      signup_reason: dto.signup_reason ?? null,
+      signup_reason: dto.signupReason ?? null,
       refreshTokenHash: null,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -1313,10 +1313,10 @@ describe('Google OAuth callback (e2e)', () => {
     await usersService.create({
       email: googleProfile.email,
       password: 'SomeHash',
-      first_name: googleProfile.firstName,
-      last_name: googleProfile.lastName,
+      firstName: googleProfile.firstName,
+      lastName: googleProfile.lastName,
       country: 'Nigeria',
-      profile_pic_url: undefined,
+      profilePicUrl: undefined,
     });
 
     const response = await request(app.getHttpServer())
