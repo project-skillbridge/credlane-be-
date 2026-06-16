@@ -148,11 +148,21 @@ export class EmployerRolesService {
         role.jd_file_url = null;
       }
     }
+    if (
+      jdFileUrl !== undefined &&
+      jdFileUrl !== null &&
+      (dto.description?.trim() || dto.jd_text?.trim())
+    ) {
+      throw new BadRequestException(
+        'Provide either description/jd_text or jd_file, not both.',
+      );
+    }
     if (jdFileUrl !== undefined) {
       role.jd_file_url = jdFileUrl ?? null;
       if (role.jd_file_url) {
         role.description = null;
       }
+    }
     }
     if (dto.employmentType !== undefined) {
       role.employment_type = dto.employmentType;
