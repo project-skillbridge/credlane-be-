@@ -587,6 +587,7 @@ export class AdvancedAssessmentService {
 
     let mcqRawScore = 0;
     let mcqTotal = 0;
+    const mcqCorrectMap = new Map<string, boolean>();
     const textInputs: TextAnswerInput[] = [];
     const responsesToSave: Partial<AssessmentResponse>[] = [];
     // Map keyed by question_id so each text answer scored by the AI rubric
@@ -604,6 +605,7 @@ export class AdvancedAssessmentService {
         mcqTotal++;
         const correct = this.scoreMcq(question, submitted?.answer ?? null);
         mcqRawScore += correct ? 1 : 0;
+        mcqCorrectMap.set(question.question_id, correct);
         responsesToSave.push({
           attempt_id: attempt.id,
           question_id: question.question_id,
@@ -657,6 +659,15 @@ export class AdvancedAssessmentService {
     }
 
     const scoredTextAnswers = await this.rubricScoring.scoreAnswers(textInputs);
+
+    const pendingCount = scoredTextAnswers.filter(
+      (s) => s.rubric.pending,
+    ).length;
+    if (pendingCount > 0) {
+      throw new Error(
+        `Rubric scoring pending for ${pendingCount}/${scoredTextAnswers.length} text answers — will retry`,
+      );
+    }
 
     let textRawScore = 0;
     let textMaxScore = 0;
@@ -748,6 +759,7 @@ export class AdvancedAssessmentService {
         abnormalTimingByQuestion,
         integrityConfidence,
         answerMap,
+        mcqCorrectMap,
       });
       if (scoreRows.length > 0) {
         await manager.save(AssessmentScore, scoreRows);
@@ -964,19 +976,22 @@ export class AdvancedAssessmentService {
   ): ScoredTextAnswer[] {
     return scoreRows
       .filter((row) => row.question_type !== AssessmentScoreQuestionType.MCQ)
-      .map((row) => ({
-        question_id: row.question_id,
-        raw_score: row.raw_score,
-        max_score: row.max_score,
-        rubric: {
-          relevance: 0,
-          reasoning: 0,
-          specificity: 0,
-          completeness: 0,
-          total: row.raw_score,
-          feedback: '',
-        },
-      }));
+      .map((row) => {
+        const evalJson = row.ai_evaluation_json ?? {};
+        return {
+          question_id: row.question_id,
+          raw_score: row.raw_score,
+          max_score: row.max_score,
+          rubric: {
+            relevance: Number(evalJson.relevance) || 0,
+            reasoning: Number(evalJson.reasoning) || 0,
+            specificity: Number(evalJson.specificity) || 0,
+            completeness: Number(evalJson.completeness) || 0,
+            total: row.raw_score,
+            feedback: typeof evalJson.feedback === 'string' ? evalJson.feedback : '',
+          },
+        };
+      });
   }
 
   private async persistGuidanceReport(
@@ -1109,15 +1124,12 @@ export class AdvancedAssessmentService {
           1,
         );
 
-        const updatedAttempt = await manager.findOne(AssessmentAttempt, {
-          where: { id: attempt.id },
-          lock: { mode: 'pessimistic_write' },
-        });
-        if (!updatedAttempt) {
-          throw new NotFoundException(
-            ErrorMessages.ADVANCED_ASSESSMENT.ATTEMPT_NOT_FOUND,
-          );
-        }
+        const tabSwitchCount =
+          attempt.tab_switch_count +
+          (counterField === 'tab_switch_count' ? 1 : 0);
+        const copyPasteCount =
+          attempt.copy_paste_count +
+          (counterField === 'copy_paste_count' ? 1 : 0);
 
         const lockedFrom = new Date();
         const unlocksAt = new Date(lockedFrom);
@@ -1140,8 +1152,8 @@ export class AdvancedAssessmentService {
 
         return {
           attemptId: attempt.id,
-          tabSwitchCount: updatedAttempt.tab_switch_count,
-          copyPasteCount: updatedAttempt.copy_paste_count,
+          tabSwitchCount,
+          copyPasteCount,
         };
       },
     );
@@ -1169,9 +1181,17 @@ export class AdvancedAssessmentService {
     }
 
     const userAnswer = Array.isArray(answer)
-      ? answer.join(',').toLowerCase().trim()
+      ? answer.map((a) => a.trim()).sort().join(',').toLowerCase()
       : String(answer).toLowerCase().trim();
-    const correctAnswer = String(question.correct_answer).toLowerCase().trim();
+
+    const correctAnswer = Array.isArray(answer)
+      ? String(question.correct_answer)
+          .toLowerCase()
+          .split(',')
+          .map((a) => a.trim())
+          .sort()
+          .join(',')
+      : String(question.correct_answer).toLowerCase().trim();
 
     return userAnswer === correctAnswer;
   }
@@ -1199,9 +1219,9 @@ export class AdvancedAssessmentService {
     }
 
     const mcqPercentage =
-      mcqMaxScore > 0 ? Math.round((mcqScore / mcqMaxScore) * 100) : 0;
+      mcqMaxScore > 0 ? (mcqScore / mcqMaxScore) * 100 : 0;
     const textPercentage =
-      textMaxScore > 0 ? Math.round((textScore / textMaxScore) * 100) : 0;
+      textMaxScore > 0 ? (textScore / textMaxScore) * 100 : 0;
     let percentage: number;
 
     if (hasMcq && hasText) {
@@ -1209,7 +1229,7 @@ export class AdvancedAssessmentService {
         mcqPercentage * mcqWeight + textPercentage * (1 - mcqWeight),
       );
     } else {
-      percentage = hasMcq ? mcqPercentage : textPercentage;
+      percentage = Math.round(hasMcq ? mcqPercentage : textPercentage);
     }
 
     return {
@@ -1256,22 +1276,26 @@ export class AdvancedAssessmentService {
     talentProfileId: string,
     excludeAttemptId?: string,
   ): Promise<AssessmentAttempt | null> {
-    const attempts = await manager.find(AssessmentAttempt, {
-      where: {
-        talent_profile_id: talentProfileId,
-        assessment_type: AssessmentType.ADVANCED,
-        completed_at: IsNull(),
-        force_submitted: false,
-      },
-    });
+    const query = manager
+      .createQueryBuilder(AssessmentAttempt, 'attempt')
+      .where('attempt.talent_profile_id = :talentProfileId', { talentProfileId })
+      .andWhere('attempt.assessment_type = :assessmentType', {
+        assessmentType: AssessmentType.ADVANCED,
+      })
+      .andWhere('attempt.completed_at IS NULL')
+      .andWhere('attempt.force_submitted = false')
+      .andWhere(
+        "attempt.generated_questions_json -> 'context' ->> 'submit_enqueued_at' IS NOT NULL",
+      )
+      .andWhere(
+        "length(attempt.generated_questions_json -> 'context' ->> 'submit_enqueued_at') > 0",
+      );
 
-    return (
-      attempts.find(
-        (attempt) =>
-          attempt.id !== excludeAttemptId &&
-          this.isAdvancedSubmitInFlight(attempt),
-      ) ?? null
-    );
+    if (excludeAttemptId) {
+      query.andWhere('attempt.id != :excludeAttemptId', { excludeAttemptId });
+    }
+
+    return query.getOne() ?? null;
   }
 
   private buildAdvancedSubmitProcessingConflict(
@@ -1408,6 +1432,7 @@ export class AdvancedAssessmentService {
     abnormalTimingByQuestion: Map<string, boolean>;
     integrityConfidence: IntegrityConfidenceLevel;
     answerMap: Map<string, { answer: string | string[] }>;
+    mcqCorrectMap: Map<string, boolean>;
   }): Partial<AssessmentScore>[] {
     const rows: Partial<AssessmentScore>[] = [];
     const {
@@ -1417,7 +1442,8 @@ export class AdvancedAssessmentService {
       scoredByQuestion,
       abnormalTimingByQuestion,
       integrityConfidence,
-      answerMap,
+      answerMap: _answerMap,
+      mcqCorrectMap,
     } = input;
 
     for (const question of sessionQuestions) {
@@ -1429,10 +1455,7 @@ export class AdvancedAssessmentService {
         question.question_type === QuestionType.MULTI_PICK;
 
       if (isMcq) {
-        const correct = this.scoreMcq(
-          question,
-          answerMap.get(question.question_id)?.answer ?? null,
-        );
+        const correct = mcqCorrectMap.get(question.question_id) ?? false;
         rows.push({
           attempt_id: attempt.id,
           talent_profile_id: talentProfileId,
@@ -1994,6 +2017,9 @@ export class AdvancedAssessmentService {
   ): AdvancedAssessmentSessionPayload {
     const payload = attempt.generated_questions_json;
     if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
+      this.logger.warn(
+        `Session payload corrupt for attempt ${attempt.id}: type=${typeof payload} isArray=${Array.isArray(payload)}`,
+      );
       return {};
     }
     return payload as AdvancedAssessmentSessionPayload;

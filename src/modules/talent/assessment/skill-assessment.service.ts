@@ -962,9 +962,17 @@ export class SkillAssessmentService {
     }
 
     const userAnswer = Array.isArray(answer)
-      ? answer.join(',').toLowerCase().trim()
+      ? answer.map((a) => a.trim()).sort().join(',').toLowerCase()
       : String(answer).toLowerCase().trim();
-    const correctAnswer = String(question.correct_answer).toLowerCase().trim();
+
+    const correctAnswer = Array.isArray(answer)
+      ? String(question.correct_answer)
+          .toLowerCase()
+          .split(',')
+          .map((a) => a.trim())
+          .sort()
+          .join(',')
+      : String(question.correct_answer).toLowerCase().trim();
 
     return userAnswer === correctAnswer;
   }

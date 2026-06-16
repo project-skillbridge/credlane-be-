@@ -106,11 +106,11 @@ describe('TalentSettingsController', () => {
 
   it('updates settings profile fields', async () => {
     const dto: UpdateTalentSettingsProfileDto = {
-      first_name: 'Alex',
-      last_name: 'Smith',
-      role_track: 'frontend_developer',
-      linkedin_url: 'https://www.linkedin.com/in/alexsmith',
-      personal_website: 'https://alexsmith.dev',
+      firstName: 'Alex',
+      lastName: 'Smith',
+      roleTrack: 'frontend_developer',
+      linkedinUrl: 'https://www.linkedin.com/in/alexsmith',
+      personalWebsite: 'https://alexsmith.dev',
     };
     const serviceResult = {
       status: 'success',
@@ -159,7 +159,7 @@ describe('TalentSettingsController', () => {
 
   it('updates availability', async () => {
     const dto: UpdateTalentAvailabilityDto = {
-      availability_status: TalentAvailabilityStatus.ACTIVELY_LOOKING,
+      availabilityStatus: TalentAvailabilityStatus.ACTIVELY_LOOKING,
     };
     const serviceResult = {
       status: 'success',
@@ -201,11 +201,11 @@ describe('TalentSettingsController', () => {
   it('updates communication preferences', async () => {
     const dto: UpdateCommunicationPreferencesDto = {
       email: {
-        new_offers: true,
-        assessment_reminders: false,
+        newOffers: true,
+        assessmentReminders: false,
       },
-      in_app: {
-        retake_window_open: false,
+      inApp: {
+        retakeWindowOpen: false,
       },
     };
     const serviceResult = {
@@ -234,7 +234,7 @@ describe('TalentSettingsController', () => {
         email: {
           new_offers: false,
           assessment_reminders: false,
-          retake_window_open: false,
+        retakeWindowOpen: false,
         },
       },
     };

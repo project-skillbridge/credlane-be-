@@ -7,7 +7,8 @@ jest.mock('../../config/env', () => ({
   },
 }));
 
-import { env } from '../../config/env';
+import { env as envUntyped } from '../../config/env';
+const env = envUntyped as { CONTENT_TEAM_BANK_ALERT_EMAILS: string };
 
 describe('BankExhaustedAlertService', () => {
   let service: BankExhaustedAlertService;

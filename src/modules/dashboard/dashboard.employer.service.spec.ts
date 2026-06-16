@@ -58,14 +58,16 @@ describe('DashboardService employer home', () => {
     };
 
     assessmentResultRepository = {
-      createQueryBuilder: jest.fn(() => ({
-        innerJoin: jest.fn().mockReturnThis(),
-        where: jest.fn().mockReturnThis(),
-        andWhere: jest.fn().mockReturnThis(),
-        orderBy: jest.fn().mockReturnThis(),
-        addOrderBy: jest.fn().mockReturnThis(),
-        getOne: jest.fn().mockResolvedValue(null),
-      })),
+      createQueryBuilder: jest.fn(() =>
+        ({
+          innerJoin: jest.fn().mockReturnThis(),
+          where: jest.fn().mockReturnThis(),
+          andWhere: jest.fn().mockReturnThis(),
+          orderBy: jest.fn().mockReturnThis(),
+          addOrderBy: jest.fn().mockReturnThis(),
+          getOne: jest.fn().mockResolvedValue(null),
+        }) as never,
+      ),
     };
 
     assessmentAttemptRepository = {
@@ -332,7 +334,6 @@ function makeSavedCandidate(
 function makeOffer(overrides: Partial<Offer>): Offer {
   return Object.assign(new Offer(), {
     id: 'offer-1',
-    id: 'offer-1',
     employer_user_id: 'user-1',
     candidate_user_id: 'candidate-2',
     employer_pool_profile_id: 'pool-1',
@@ -360,7 +361,6 @@ function makePoolProfile(
   overrides: Partial<EmployerPoolProfile>,
 ): EmployerPoolProfile {
   return Object.assign(new EmployerPoolProfile(), {
-    id: 'pool-1',
     id: 'pool-1',
     talent_profile_id: 'talent-profile-1',
     candidate_id: 'candidate-3',

@@ -1,3 +1,4 @@
+import { keysToSnake } from '../../common/utils/case-transform';
 import { NotificationType } from '../notifications/notification-type.enum';
 import type { NotificationListItem } from '../notifications/notification.types';
 
@@ -75,6 +76,6 @@ export function toEmployerNotificationItem(
     timestamp: item.created_at,
     read: item.is_read,
     link: buildEmployerNotificationLink(item.data),
-    data: item.data,
+    data: keysToSnake(item.data),
   };
 }
