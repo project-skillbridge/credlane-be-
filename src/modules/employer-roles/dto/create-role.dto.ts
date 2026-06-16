@@ -31,7 +31,7 @@ export class CreateRoleDto {
   })
   @IsOptional()
   @IsString()
-  @MaxLength(10000)
+  @MaxLength(50000)
   description?: string;
 
   @ApiPropertyOptional({
@@ -39,7 +39,7 @@ export class CreateRoleDto {
   })
   @IsOptional()
   @IsString()
-  @MaxLength(10000)
+  @MaxLength(50000)
   jd_text?: string;
 
   @ApiPropertyOptional({
@@ -62,6 +62,9 @@ export class CreateRoleDto {
 
   @ApiPropertyOptional({ type: [String], example: ['NestJS', 'PostgreSQL'] })
   @IsOptional()
+  @Transform(({ value }) =>
+    Array.isArray(value) ? value : value ? [value] : undefined,
+  )
   @IsArray()
   @IsString({ each: true })
   keywords?: string[];
@@ -72,11 +75,11 @@ export class CreateRoleDto {
     example: ['NestJS', 'PostgreSQL'],
   })
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
   @Transform(({ value }) =>
     Array.isArray(value) ? value : value ? [value] : undefined,
   )
+  @IsArray()
+  @IsString({ each: true })
   keyword?: string[];
 
   @ApiPropertyOptional({ example: 80000 })

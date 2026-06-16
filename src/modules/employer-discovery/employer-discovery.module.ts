@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EmployerPoolProfile } from '../talent/entities/employer-pool-profile.entity';
+import { EmployerProfile } from '../employer/entities/employer-profile.entity';
 import { User } from '../users/entities/user.entity';
 import { Offer } from '../offers/entities/offer.entity';
 import { NotificationsModule } from '../notifications/notifications.module';
@@ -15,6 +16,7 @@ import { EmployerDiscoveryService } from './employer-discovery.service';
   imports: [
     TypeOrmModule.forFeature([
       EmployerPoolProfile,
+      EmployerProfile,
       EmployerSavedCandidate,
       EmployerContactRequest,
       User,

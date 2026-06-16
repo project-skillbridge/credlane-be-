@@ -144,9 +144,24 @@ export class EmployerRolesService {
     if (dto.category !== undefined) role.category = dto.category.trim();
     if (dto.description !== undefined || dto.jd_text !== undefined) {
       role.description = dto.description?.trim() || dto.jd_text?.trim() || null;
+      if (role.description) {
+        role.jd_file_url = null;
+      }
+    }
+    if (
+      jdFileUrl !== undefined &&
+      jdFileUrl !== null &&
+      (dto.description?.trim() || dto.jd_text?.trim())
+    ) {
+      throw new BadRequestException(
+        'Provide either description/jd_text or jd_file, not both.',
+      );
     }
     if (jdFileUrl !== undefined) {
       role.jd_file_url = jdFileUrl ?? null;
+      if (role.jd_file_url) {
+        role.description = null;
+      }
     }
     if (dto.employmentType !== undefined) {
       role.employment_type = dto.employmentType;

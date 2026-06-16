@@ -10,6 +10,7 @@ import { EmployerVerificationService } from '../employer/employer-verification.s
 import { Offer } from '../offers/entities/offer.entity';
 import { VerifiedProfileService } from '../verified-profile/verified-profile.service';
 import { ForbiddenError, NotFoundError } from '../../shared';
+import { EmployerProfile } from '../employer/entities/employer-profile.entity';
 
 describe('EmployerDiscoveryService', () => {
   let service: EmployerDiscoveryService;
@@ -36,6 +37,10 @@ describe('EmployerDiscoveryService', () => {
 
   const mockOfferRepo = {
     createQueryBuilder: jest.fn(),
+  };
+
+  const mockEmployerProfileRepo = {
+    findOne: jest.fn(),
   };
 
   const mockNotificationDispatch = {
@@ -73,6 +78,10 @@ describe('EmployerDiscoveryService', () => {
         {
           provide: getRepositoryToken(Offer),
           useValue: mockOfferRepo,
+        },
+        {
+          provide: getRepositoryToken(EmployerProfile),
+          useValue: mockEmployerProfileRepo,
         },
         {
           provide: NotificationDispatchService,
@@ -533,5 +542,70 @@ describe('EmployerDiscoveryService', () => {
       expect(result.candidates[0].is_saved).toBe(false);
       expect(result.candidates[0].full_name).toBe('Bob');
     });
+
+    it("should default roleTrack to employer's desired_roles when query.roleTrack is not provided", async () => {
+      const poolQb = createMockQb([], 0);
+      mockPoolProfileRepo.createQueryBuilder.mockReturnValue(poolQb);
+      mockEmployerProfileRepo.findOne.mockResolvedValue({
+        desired_roles: ['backend_developer', 'devops_engineer'],
+      });
+
+      await service.discoverCandidates('employer-1', {
+        page: 1,
+        limit: 20,
+      });
+
+      expect(mockEmployerProfileRepo.findOne).toHaveBeenCalledWith({
+        where: { user_id: 'employer-1' },
+        select: ['desired_roles'],
+      });
+      expect(poolQb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('pool.track'),
+        expect.objectContaining({ roleTracks: ['backend_developer', 'devops_engineer'] }),
+      );
+    });
+
+    it("should not override roleTrack with desired_roles when query.roleTrack is explicitly provided", async () => {
+      const poolQb = createMockQb([], 0);
+      mockPoolProfileRepo.createQueryBuilder.mockReturnValue(poolQb);
+      mockEmployerProfileRepo.findOne.mockResolvedValue({
+        desired_roles: ['backend_developer', 'devops_engineer'],
+      });
+
+      await service.discoverCandidates('employer-1', {
+        page: 1,
+        limit: 20,
+        roleTrack: ['frontend_developer'],
+      });
+
+      expect(mockEmployerProfileRepo.findOne).not.toHaveBeenCalled();
+      expect(poolQb.andWhere).toHaveBeenCalledWith(
+        expect.stringContaining('pool.track'),
+        expect.objectContaining({ roleTracks: ['frontend_developer'] }),
+      );
+    });
+
+    it.each([
+      { search: 'Alice' },
+      { region: 'Nigeria' },
+      { availability: ['immediately_available'] },
+      { experienceLevel: ['mid'] as any },
+      { minScore: 80 },
+      { maxScore: 90 },
+    ])(
+      'should not fetch desired_roles when explicit filters are present: %p',
+      async (filters) => {
+        const poolQb = createMockQb([], 0);
+        mockPoolProfileRepo.createQueryBuilder.mockReturnValue(poolQb);
+
+        await service.discoverCandidates('employer-1', {
+          page: 1,
+          limit: 20,
+          ...filters,
+        });
+
+        expect(mockEmployerProfileRepo.findOne).not.toHaveBeenCalled();
+      },
+    );
   });
 });

@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, SelectQueryBuilder, ObjectLiteral } from 'typeorm';
 import { ConflictError, ForbiddenError, NotFoundError } from '../../shared';
 import { EmployerPoolProfile } from '../talent/entities/employer-pool-profile.entity';
+import { EmployerProfile } from '../employer/entities/employer-profile.entity';
 import { User } from '../users/entities/user.entity';
 import { EmployerContactRequest } from './entities/employer-contact-request.entity';
 import { EmployerSavedCandidate } from './entities/employer-saved-candidate.entity';
@@ -59,6 +60,8 @@ export class EmployerDiscoveryService {
     private readonly userRepo: Repository<User>,
     @InjectRepository(Offer)
     private readonly offerRepo: Repository<Offer>,
+    @InjectRepository(EmployerProfile)
+    private readonly employerProfileRepo: Repository<EmployerProfile>,
     private readonly notificationDispatch: NotificationDispatchService,
     private readonly verificationService: EmployerVerificationService,
     private readonly verifiedProfileService: VerifiedProfileService,
@@ -68,6 +71,25 @@ export class EmployerDiscoveryService {
     employerUserId: string,
     query: DiscoveryCandidatesQueryDto,
   ): Promise<DiscoveryListResult> {
+    // Default roleTrack to employer's desired_roles from onboarding
+    const hasExplicitFilters =
+      Boolean(query.search?.trim()) ||
+      Boolean(query.region?.trim()) ||
+      Boolean(query.availability?.length) ||
+      Boolean(query.experienceLevel?.length) ||
+      query.minScore != null ||
+      query.maxScore != null;
+
+    if (!query.roleTrack?.length && !hasExplicitFilters) {
+      const profile = await this.employerProfileRepo.findOne({
+        where: { user_id: employerUserId },
+        select: ['desired_roles'],
+      });
+      if (profile?.desired_roles?.length) {
+        query.roleTrack = profile.desired_roles;
+      }
+    }
+
     const page = query.page ?? 1;
     const limit = query.limit ?? 20;
     const offset = (page - 1) * limit;
