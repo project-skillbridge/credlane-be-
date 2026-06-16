@@ -584,5 +584,28 @@ describe('EmployerDiscoveryService', () => {
         expect.objectContaining({ roleTracks: ['frontend_developer'] }),
       );
     });
+
+    it.each([
+      { search: 'Alice' },
+      { region: 'Nigeria' },
+      { availability: ['immediately_available'] },
+      { experienceLevel: ['mid'] as any },
+      { minScore: 80 },
+      { maxScore: 90 },
+    ])(
+      'should not fetch desired_roles when explicit filters are present: %p',
+      async (filters) => {
+        const poolQb = createMockQb([], 0);
+        mockPoolProfileRepo.createQueryBuilder.mockReturnValue(poolQb);
+
+        await service.discoverCandidates('employer-1', {
+          page: 1,
+          limit: 20,
+          ...filters,
+        });
+
+        expect(mockEmployerProfileRepo.findOne).not.toHaveBeenCalled();
+      },
+    );
   });
 });
