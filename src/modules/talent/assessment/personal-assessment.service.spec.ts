@@ -216,6 +216,8 @@ describe('PersonalAssessmentService', () => {
       repository as unknown as Repository<TalentProfile>,
       usersService as UsersService,
       trackCatalog as never,
+      {} as never,
+      undefined,
     );
 
     const result = await trackService.startGenerated(userId);

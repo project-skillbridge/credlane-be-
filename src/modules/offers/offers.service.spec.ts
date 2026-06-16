@@ -105,6 +105,7 @@ describe('OffersService', () => {
   describe('createOffer', () => {
     const dto = {
       candidateUserId: 'candidate-1',
+      roleId: 'role-1',
       roleTitle: 'Frontend Developer',
       roleDescription: 'We would like to offer you a position',
       compensation: '$80k - $100k',

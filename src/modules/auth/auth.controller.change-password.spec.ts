@@ -25,8 +25,6 @@ describe('AccountSettingsController — POST /auth/change-password', () => {
     email: 'alice@example.com',
     role: 'TALENT' as never,
     onboarding_complete: true,
-    iat: 0,
-    exp: 0,
   };
 
   const dto: ChangePasswordDto = {
