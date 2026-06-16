@@ -290,7 +290,7 @@ describe('EmployerController', () => {
           timestamp: '2026-06-01T10:00:00.000Z',
           read: false,
           link: { entity_id: 'offer-1', entity_type: 'offer' },
-          data: { offerId: 'offer-1' },
+          data: { offer_id: 'offer-1' },
         },
       ],
     });
