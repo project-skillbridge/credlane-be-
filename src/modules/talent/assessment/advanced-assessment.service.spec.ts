@@ -234,7 +234,7 @@ describe('AdvancedAssessmentService', () => {
       validated_level: VerifiedLevel.MID,
       assessment_locked_until: null,
       personal_assessment_completed_at: new Date(),
-      track: 'software_eng',
+      track: 'backend_developer',
     });
     attemptStore = makeAttempt();
     attemptData = { current: attemptStore };
@@ -357,7 +357,7 @@ describe('AdvancedAssessmentService', () => {
 
     personalAssessmentService = {
       getAiContext: jest.fn().mockResolvedValue({
-        track: 'software_eng',
+        track: 'backend_developer',
         educationLevel: 'bachelor',
         region: 'Lagos',
         country: 'Nigeria',
