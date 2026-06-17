@@ -21,7 +21,6 @@ export const COMPETENCY_TAXONOMY: Record<string, readonly string[]> = {
     'state_management',
     'component_architecture',
     'release_management',
-    'stakeholder_communication',
   ],
   backend_developer: [
     'api_design',
@@ -242,12 +241,12 @@ export function resolveQuestionCompetency(input: {
     : null;
   const sourceCompetency =
     typeof metadata.source_competency === 'string' &&
-    metadata.source_competency.trim().length > 0
+      metadata.source_competency.trim().length > 0
       ? slugifyCompetency(metadata.source_competency)
       : null;
   const metadataCompetency =
     typeof metadata.competency === 'string' &&
-    metadata.competency.trim().length > 0
+      metadata.competency.trim().length > 0
       ? slugifyCompetency(metadata.competency)
       : null;
 
