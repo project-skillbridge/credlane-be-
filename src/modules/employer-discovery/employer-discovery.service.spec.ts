@@ -561,11 +561,13 @@ describe('EmployerDiscoveryService', () => {
       });
       expect(poolQb.andWhere).toHaveBeenCalledWith(
         expect.stringContaining('pool.track'),
-        expect.objectContaining({ roleTracks: ['backend_developer', 'devops_engineer'] }),
+        expect.objectContaining({
+          roleTracks: ['backend_developer', 'devops_engineer'],
+        }),
       );
     });
 
-    it("should not override roleTrack with desired_roles when query.roleTrack is explicitly provided", async () => {
+    it('should not override roleTrack with desired_roles when query.roleTrack is explicitly provided', async () => {
       const poolQb = createMockQb([], 0);
       mockPoolProfileRepo.createQueryBuilder.mockReturnValue(poolQb);
       mockEmployerProfileRepo.findOne.mockResolvedValue({

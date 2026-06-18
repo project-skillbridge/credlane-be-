@@ -962,7 +962,11 @@ export class SkillAssessmentService {
     }
 
     const userAnswer = Array.isArray(answer)
-      ? answer.map((a) => a.trim()).sort().join(',').toLowerCase()
+      ? answer
+          .map((a) => a.trim())
+          .sort()
+          .join(',')
+          .toLowerCase()
       : String(answer).toLowerCase().trim();
 
     const correctAnswer = Array.isArray(answer)

@@ -178,7 +178,10 @@ export class OpenRouterService {
           abortSignal: AbortSignal.timeout(timeout),
         });
         const output = this.parseJsonResponse(result.text, schema);
-        const metrics = this.extractUsageMetrics(result, Date.now() - startedAt);
+        const metrics = this.extractUsageMetrics(
+          result,
+          Date.now() - startedAt,
+        );
         this.logUsage(label, metrics);
         return { output, metrics };
       }
@@ -239,13 +242,13 @@ export class OpenRouterService {
     },
     durationMs: number,
   ): AiUsageMetrics {
-    const usage = (result.usage ?? {});
-    const rawUsage = ((usage.raw as Record<string, unknown> | undefined) ??
-      {});
-    const providerMetadata = (result.providerMetadata ??
-      {});
-    const openRouterMetadata = (providerMetadata.openrouter ??
-      {}) as Record<string, unknown>;
+    const usage = result.usage ?? {};
+    const rawUsage = (usage.raw as Record<string, unknown> | undefined) ?? {};
+    const providerMetadata = result.providerMetadata ?? {};
+    const openRouterMetadata = (providerMetadata.openrouter ?? {}) as Record<
+      string,
+      unknown
+    >;
     const responseBody =
       result.response?.body &&
       typeof result.response.body === 'object' &&

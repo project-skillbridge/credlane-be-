@@ -55,7 +55,9 @@ describe('verified-profile.utils', () => {
     it('returns empty object for non-object types', () => {
       expect(readPersonalAnswers('string' as never)).toEqual({});
       expect(readPersonalAnswers(123 as never)).toEqual({});
-      expect(readPersonalAnswers([] as unknown as Record<string, unknown>)).toEqual({});
+      expect(
+        readPersonalAnswers([] as unknown as Record<string, unknown>),
+      ).toEqual({});
     });
   });
 
@@ -208,7 +210,9 @@ describe('verified-profile.utils', () => {
       expect(readSessionQuestions({})).toEqual([]);
       expect(readSessionQuestions({ questions: 'not-array' })).toEqual([]);
       expect(readSessionQuestions({ questions: null })).toEqual([]);
-      expect(readSessionQuestions([] as unknown as Record<string, unknown>)).toEqual([]);
+      expect(
+        readSessionQuestions([] as unknown as Record<string, unknown>),
+      ).toEqual([]);
       expect(readSessionQuestions('string' as never)).toEqual([]);
     });
   });

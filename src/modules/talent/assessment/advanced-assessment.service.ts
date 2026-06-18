@@ -988,7 +988,8 @@ export class AdvancedAssessmentService {
             specificity: Number(evalJson.specificity) || 0,
             completeness: Number(evalJson.completeness) || 0,
             total: row.raw_score,
-            feedback: typeof evalJson.feedback === 'string' ? evalJson.feedback : '',
+            feedback:
+              typeof evalJson.feedback === 'string' ? evalJson.feedback : '',
           },
         };
       });
@@ -1181,7 +1182,11 @@ export class AdvancedAssessmentService {
     }
 
     const userAnswer = Array.isArray(answer)
-      ? answer.map((a) => a.trim()).sort().join(',').toLowerCase()
+      ? answer
+          .map((a) => a.trim())
+          .sort()
+          .join(',')
+          .toLowerCase()
       : String(answer).toLowerCase().trim();
 
     const correctAnswer = Array.isArray(answer)
@@ -1218,8 +1223,7 @@ export class AdvancedAssessmentService {
       return { score: 0, maxScore: 0, percentage: 0 };
     }
 
-    const mcqPercentage =
-      mcqMaxScore > 0 ? (mcqScore / mcqMaxScore) * 100 : 0;
+    const mcqPercentage = mcqMaxScore > 0 ? (mcqScore / mcqMaxScore) * 100 : 0;
     const textPercentage =
       textMaxScore > 0 ? (textScore / textMaxScore) * 100 : 0;
     let percentage: number;
@@ -1278,7 +1282,9 @@ export class AdvancedAssessmentService {
   ): Promise<AssessmentAttempt | null> {
     const query = manager
       .createQueryBuilder(AssessmentAttempt, 'attempt')
-      .where('attempt.talent_profile_id = :talentProfileId', { talentProfileId })
+      .where('attempt.talent_profile_id = :talentProfileId', {
+        talentProfileId,
+      })
       .andWhere('attempt.assessment_type = :assessmentType', {
         assessmentType: AssessmentType.ADVANCED,
       })
