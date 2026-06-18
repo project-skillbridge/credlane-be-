@@ -175,7 +175,7 @@ jobs:
             COUNT=$((COUNT + 1))
             echo "$COUNT" > "$COUNTER_FILE"
 
-            printf '# HELP deployment_total Total number of deployments\n# TYPE deployment_total counter\ndeployment_total{environment="%s",status="success",branch="%s",app="%s",service="backend"} %s\n# HELP deployment_timestamp_seconds Unix timestamp of last deployment\n# TYPE deployment_timestamp_seconds gauge\ndeployment_timestamp_seconds{environment="%s",branch="%s",app="%s",service="backend"} %s\n' \
+            printf '# HELP deployment_total Total number of deployments\n# TYPE deployment_total counter\ndeployment_total{environment="%s",status="success",branch="%s",app="%s"} %s\n# HELP deployment_timestamp_seconds Unix timestamp of last deployment\n# TYPE deployment_timestamp_seconds gauge\ndeployment_timestamp_seconds{environment="%s",branch="%s",app="%s"} %s\n' \
               "$ENV_FLAG" "$BRANCH" "$APP_NAME" "$COUNT" \
               "$ENV_FLAG" "$BRANCH" "$APP_NAME" "$DEPLOY_TS" | \
               curl -sf --max-time 5 --data-binary @- \
