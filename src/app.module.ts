@@ -10,7 +10,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import type { TypeOrmModuleOptions } from '@nestjs/typeorm';
 import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 import { CaseTransformMiddleware } from './common/middleware/case-transform.middleware';
+import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
+import { loggerConfig } from './config/logger.config';
+import { LoggerModule } from 'nestjs-pino';
 import { TransformInterceptor } from './common/interceptors/transform.interceptor';
 import { appConfig } from './config/app.config';
 import { databaseConfig } from './config/database.config';
@@ -44,6 +47,7 @@ import { MetricsInterceptor } from './modules/metrics/metrics.interceptor';
 
 @Module({
   imports: [
+    LoggerModule.forRoot(loggerConfig),
     ConfigModule.forRoot({
       isGlobal: true,
       load: [appConfig, databaseConfig, jwtConfig],
@@ -95,6 +99,6 @@ import { MetricsInterceptor } from './modules/metrics/metrics.interceptor';
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
-    consumer.apply(CaseTransformMiddleware).forRoutes('*');
+    consumer.apply(RequestIdMiddleware, CaseTransformMiddleware).forRoutes('*');
   }
 }

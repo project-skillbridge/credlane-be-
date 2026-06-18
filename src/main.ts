@@ -1,5 +1,6 @@
-import { Logger } from '@nestjs/common';
 import { NestFactory, Reflector } from '@nestjs/core';
+import './tracing';
+import { Logger } from 'nestjs-pino';
 import { ClassSerializerInterceptor } from '@nestjs/common';
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
@@ -17,6 +18,7 @@ async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     bufferLogs: true,
   });
+  app.useLogger(app.get(Logger));
 
   app.set('etag', false);
   app.use(helmet());
@@ -55,7 +57,7 @@ async function bootstrap() {
 
   await app.listen(env.PORT);
 
-  const logger = new Logger('Bootstrap');
+  const logger = app.get(Logger);
   logger.log(`Application running on http://localhost:${env.PORT}/api/v1`);
   if (env.SWAGGER_ENABLED) {
     logger.log(`Swagger docs at http://localhost:${env.PORT}/api/docs`);
