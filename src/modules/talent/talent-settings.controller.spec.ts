@@ -234,7 +234,7 @@ describe('TalentSettingsController', () => {
         email: {
           new_offers: false,
           assessment_reminders: false,
-        retakeWindowOpen: false,
+          retakeWindowOpen: false,
         },
       },
     };

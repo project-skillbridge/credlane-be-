@@ -58,15 +58,16 @@ describe('DashboardService employer home', () => {
     };
 
     assessmentResultRepository = {
-      createQueryBuilder: jest.fn(() =>
-        ({
-          innerJoin: jest.fn().mockReturnThis(),
-          where: jest.fn().mockReturnThis(),
-          andWhere: jest.fn().mockReturnThis(),
-          orderBy: jest.fn().mockReturnThis(),
-          addOrderBy: jest.fn().mockReturnThis(),
-          getOne: jest.fn().mockResolvedValue(null),
-        }) as never,
+      createQueryBuilder: jest.fn(
+        () =>
+          ({
+            innerJoin: jest.fn().mockReturnThis(),
+            where: jest.fn().mockReturnThis(),
+            andWhere: jest.fn().mockReturnThis(),
+            orderBy: jest.fn().mockReturnThis(),
+            addOrderBy: jest.fn().mockReturnThis(),
+            getOne: jest.fn().mockResolvedValue(null),
+          }) as never,
       ),
     };
 

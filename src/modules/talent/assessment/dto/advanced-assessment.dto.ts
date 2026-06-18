@@ -72,8 +72,8 @@ export class AdvancedAnswerDto {
 
   @ApiProperty({
     required: false,
-      description:
-        'Seconds spent on this question (used for abnormal timing detection). Long text answers spent in <5 seconds are flagged as abnormal.',
+    description:
+      'Seconds spent on this question (used for abnormal timing detection). Long text answers spent in <5 seconds are flagged as abnormal.',
     example: 120,
     minimum: 0,
   })
