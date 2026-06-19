@@ -1598,7 +1598,7 @@ export class AdvancedAssessmentService {
     const historyExclusion = `NOT EXISTS (
       SELECT 1
       FROM talent_question_history history
-      INNER JOIN assessment_attempt attempt
+      INNER JOIN assessment_attempts attempt
         ON attempt.id = history.attempt_id
       WHERE history.question_id = question.id
       AND history.talent_profile_id = :talentProfileId
