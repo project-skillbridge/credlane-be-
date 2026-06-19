@@ -109,9 +109,7 @@ export const env = createEnv({
     AWS_PUBLIC_URL: z.string().url().optional(),
 
     OPENROUTER_API_KEY: z.string().min(1).optional(),
-    OPENROUTER_PROVIDER: z
-      .enum(['openrouter', 'nvidia'])
-      .default('openrouter'),
+    OPENROUTER_PROVIDER: z.enum(['openrouter', 'nvidia']).default('openrouter'),
     OPENROUTER_MODEL: z.string().default('openai/gpt-oss-120b:free'),
     OPENROUTER_BASE_URL: z.string().default('https://openrouter.ai/api/v1'),
 

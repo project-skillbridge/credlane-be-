@@ -4,15 +4,20 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
-  Logger,
+  Injectable,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
 import { MulterError } from 'multer';
+import { PinoLogger } from 'nestjs-pino';
 import { ErrorMessages } from '../../shared';
+import { normaliseRoute } from '../utils/normalise-route';
 
 @Catch()
+@Injectable()
 export class HttpExceptionFilter implements ExceptionFilter {
-  private readonly logger = new Logger(HttpExceptionFilter.name);
+  constructor(private readonly logger: PinoLogger) {
+    this.logger.setContext(HttpExceptionFilter.name);
+  }
 
   catch(exception: unknown, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
@@ -48,11 +53,23 @@ export class HttpExceptionFilter implements ExceptionFilter {
       }
     }
 
+    const requestId = request.requestId;
+    const route = normaliseRoute(request.url);
+    const logPayload = {
+      requestId,
+      method: request.method,
+      route,
+      status,
+      error,
+    };
+
     if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
       this.logger.error(
-        `${request.method} ${request.url} → ${status}`,
-        exception instanceof Error ? exception.stack : undefined,
+        logPayload,
+        exception instanceof Error ? exception.stack : 'Internal server error',
       );
+    } else if (status >= HttpStatus.BAD_REQUEST) {
+      this.logger.warn(logPayload, 'Request failed');
     }
 
     response.status(status).json({
@@ -62,6 +79,7 @@ export class HttpExceptionFilter implements ExceptionFilter {
       message,
       ...details,
       path: request.url,
+      requestId,
       timestamp: new Date().toISOString(),
     });
   }

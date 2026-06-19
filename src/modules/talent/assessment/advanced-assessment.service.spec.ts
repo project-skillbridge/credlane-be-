@@ -1468,13 +1468,11 @@ describe('AdvancedAssessmentService', () => {
       jest
         .spyOn(service as any, 'findEligibleQuestions')
         .mockResolvedValue([] as any);
-      jest
-        .spyOn(service as any, 'selectQuestionBlocks')
-        .mockResolvedValue({
-          mcq: [] as any,
-          shortText: [] as any,
-          longText: [] as any,
-        });
+      jest.spyOn(service as any, 'selectQuestionBlocks').mockResolvedValue({
+        mcq: [] as any,
+        shortText: [] as any,
+        longText: [] as any,
+      });
 
       const skillResultQuery = {
         innerJoin: jest.fn().mockReturnThis(),
