@@ -1,7 +1,11 @@
 import * as argon2 from 'argon2';
 import { DataSource } from 'typeorm';
 import { env } from '../../config/env';
-import { User, UserRole } from '../../modules/users/entities/user.entity';
+import {
+  AdminTier,
+  User,
+  UserRole,
+} from '../../modules/users/entities/user.entity';
 import { Seeder } from './seeder.interface';
 
 const splitName = (fullName: string) => {
@@ -35,6 +39,7 @@ export const userSeeder: Seeder = {
       is_verified: true,
       onboarding_complete: true,
       role: UserRole.ADMIN,
+      admin_tier: AdminTier.SUPER_ADMIN,
     });
     await repository.save(admin);
     console.log(`[UserSeeder] created admin user ${adminEmail}`);

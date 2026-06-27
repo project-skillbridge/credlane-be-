@@ -18,6 +18,10 @@ export const ErrorMessages = {
     SAME_PASSWORD: 'New password must differ from the current password',
     OAUTH_ACCOUNT_NO_PASSWORD:
       'This account uses social login and has no password to change',
+    ACCOUNT_DEACTIVATED:
+      'This account has been deactivated. Contact a Super Admin for access.',
+    INCORRECT_EMAIL_OR_PASSWORD: 'Incorrect email or password.',
+    NO_ADMIN_ACCOUNT_FOUND: 'No account found with this email.',
   },
   USER: {
     EMAIL_ALREADY_REGISTERED: 'Email already registered',

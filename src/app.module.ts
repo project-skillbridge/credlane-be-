@@ -23,6 +23,7 @@ import { AiModule } from './modules/ai/ai.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './modules/auth/guards/roles.guard';
+import { AdminTiersGuard } from './modules/auth/guards/admin-tiers.guard';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { VerifiedProfileModule } from './modules/verified-profile/verified-profile.module';
 import { TalentModule } from './modules/talent/talent.module';
@@ -90,6 +91,7 @@ import { MetricsInterceptor } from './modules/metrics/metrics.interceptor';
     },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: AdminTiersGuard },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
