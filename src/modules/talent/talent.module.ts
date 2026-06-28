@@ -26,6 +26,8 @@ import { AdvancedAssessmentSubmitProcessor } from './assessment/advanced-assessm
 import { EmployerPoolProfileService } from './assessment/employer-pool-profile.service';
 import { SkillAssessmentController } from './assessment/skill-assessment.controller';
 import { SkillAssessmentService } from './assessment/skill-assessment.service';
+import { SkillGuidanceReportProcessor } from './assessment/skill-guidance-report.processor';
+import { SkillGuidanceReportQueueService } from './assessment/skill-guidance-report-queue.service';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { MailModule } from '../mail/mail.module';
 import { UserNotificationPreference } from '../notifications/user-notification-preference.entity';
@@ -66,6 +68,8 @@ import { TalentService } from './talent.service';
     PersonalAssessmentQuestionService,
     PersonalAssessmentService,
     SkillAssessmentService,
+    SkillGuidanceReportProcessor,
+    SkillGuidanceReportQueueService,
     AdvancedAssessmentAiService,
     AdvancedAssessmentService,
     AdvancedAssessmentSubmitProcessor,

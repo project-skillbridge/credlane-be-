@@ -22,6 +22,7 @@ import {
   SKILL_ASSESSMENT_SESSION_TIMEOUT_MS,
 } from '../talent.constants';
 import { SkillAssessmentService } from './skill-assessment.service';
+import { SkillGuidanceReportQueueService } from './skill-guidance-report-queue.service';
 import { makeTalentProfile } from './personal-assessment.test-fixtures';
 import { IntegrityEventType } from './dto/integrity-event.dto';
 
@@ -41,6 +42,7 @@ describe('SkillAssessmentService', () => {
   };
   let questionRepo: Record<string, jest.Mock>;
 
+  let guidanceReportQueue: Pick<SkillGuidanceReportQueueService, 'enqueue'>;
   let bankExhaustedAlert: { notify: jest.Mock };
   let eligibleSkillQuestions: AssessmentQuestion[];
   let warmCacheMock: jest.Mock;
@@ -57,6 +59,12 @@ describe('SkillAssessmentService', () => {
     let eligibleQueryCount = 0;
     talentProfileRepo.manager.transaction.mockImplementation(
       async (work: (manager: EntityManagerLike) => Promise<unknown>) => {
+        const insertBuilder = {
+          into: jest.fn().mockReturnThis(),
+          values: jest.fn().mockReturnThis(),
+          orUpdate: jest.fn().mockReturnThis(),
+          execute: jest.fn().mockResolvedValue(undefined),
+        };
         const manager: EntityManagerLike = {
           findOne: jest.fn().mockResolvedValue(profile),
           getRepository: jest.fn(() => attemptRepo),
@@ -71,6 +79,7 @@ describe('SkillAssessmentService', () => {
               }
               return probeQuestions;
             }),
+            insert: jest.fn(() => insertBuilder),
           })),
           create: jest.fn(
             (
@@ -136,6 +145,8 @@ describe('SkillAssessmentService', () => {
 
     warmCacheMock = jest.fn().mockResolvedValue(undefined);
 
+    guidanceReportQueue = { enqueue: jest.fn() };
+
     service = new SkillAssessmentService(
       talentProfileRepo as never,
       questionRepo as never,
@@ -146,6 +157,7 @@ describe('SkillAssessmentService', () => {
       { generate: jest.fn() } as never,
       bankExhaustedAlert as never,
       { warmCache: warmCacheMock } as never,
+      guidanceReportQueue as Pick<SkillGuidanceReportQueueService, 'enqueue'>,
     );
   });
 
@@ -567,6 +579,7 @@ describe('SkillAssessmentService', () => {
     expect(result.session_id).toBe('attempt-1');
     expect(result.attempt_number).toBe(1);
     expect(result).not.toHaveProperty('attempt_id');
+    expect(guidanceReportQueue.enqueue).not.toHaveBeenCalled();
   });
 
   it('includes retake metadata in the submit response', async () => {
@@ -608,6 +621,13 @@ describe('SkillAssessmentService', () => {
     expect(result.max_attempts).toBe(SKILL_ASSESSMENT_MAX_ATTEMPTS);
     expect(result.attempts_used).toBe(1);
     expect(result.retake_available).toBe(true);
+    expect(guidanceReportQueue.enqueue).toHaveBeenCalledWith({
+      attemptId: 'attempt-1',
+      track: 'frontend_developer',
+      claimed_level: VerifiedLevel.MID,
+      validated_level: VerifiedLevel.JUNIOR,
+      percentage: 0,
+    });
   });
 
   it('does not pass when all primary MCQs are wrong', async () => {
@@ -665,6 +685,13 @@ describe('SkillAssessmentService', () => {
     expect(result.passed).toBe(false);
     expect(result.failed).toBe(true);
     expect(result.validated_level).toBeNull();
+    expect(guidanceReportQueue.enqueue).toHaveBeenCalledWith({
+      attemptId: 'attempt-1',
+      track: 'frontend_developer',
+      claimed_level: VerifiedLevel.MID,
+      validated_level: VerifiedLevel.JUNIOR,
+      percentage: 0,
+    });
   });
 
   it('returns failed without profile verification when overall is below 50%', async () => {
@@ -713,10 +740,18 @@ describe('SkillAssessmentService', () => {
     const updateMock = jest.fn();
     talentProfileRepo.manager.transaction.mockImplementation(
       async (work: (manager: EntityManagerLike) => Promise<unknown>) => {
+        const insertBuilder = {
+          into: jest.fn().mockReturnThis(),
+          values: jest.fn().mockReturnThis(),
+          orUpdate: jest.fn().mockReturnThis(),
+          execute: jest.fn().mockResolvedValue(undefined),
+        };
         const manager: EntityManagerLike = {
           findOne: jest.fn(),
           getRepository: jest.fn(() => attemptRepo),
-          createQueryBuilder: jest.fn(),
+          createQueryBuilder: jest.fn(() => ({
+            insert: jest.fn(() => insertBuilder),
+          })),
           save: jest.fn(),
           update: updateMock,
           create: jest.fn((_entity: unknown, data: unknown) => data),
@@ -750,6 +785,13 @@ describe('SkillAssessmentService', () => {
         skill_assessment_completed_at: expect.any(Date),
       }),
     );
+    expect(guidanceReportQueue.enqueue).toHaveBeenCalledWith({
+      attemptId: 'attempt-1',
+      track: 'frontend_developer',
+      claimed_level: VerifiedLevel.MID,
+      validated_level: VerifiedLevel.JUNIOR,
+      percentage: 0,
+    });
   });
 
   it('scores MCQ answers correctly as pass when majority are correct', async () => {
@@ -810,6 +852,7 @@ describe('SkillAssessmentService', () => {
       profile.track,
       expect.any(String),
     );
+    expect(guidanceReportQueue.enqueue).not.toHaveBeenCalled();
   });
 
   it('resolves Stage 2 confirmed-level outcomes from claimed-level score', () => {
