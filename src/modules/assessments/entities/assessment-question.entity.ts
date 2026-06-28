@@ -3,9 +3,12 @@ import {
   Column,
   CreateDateColumn,
   Entity,
+  JoinColumn,
+  ManyToOne,
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { User } from '../../users/entities/user.entity';
 
 export enum AssessmentType {
   SKILL = 'skill',
@@ -30,6 +33,18 @@ export enum SlotType {
   SITUATIONAL = 'situational',
   WORK_TASK = 'work_task',
   REFLECTION = 'reflection',
+}
+
+export enum QuestionReviewStatus {
+  ACTIVE = 'active',
+  FLAGGED = 'flagged',
+  REMOVED = 'removed',
+}
+
+export enum QuestionSource {
+  IMPORT = 'import',
+  MANUAL = 'manual',
+  AI_GENERATED = 'ai_generated',
 }
 
 @Entity('assessment_questions')
@@ -121,6 +136,34 @@ export class AssessmentQuestion {
   })
   @Column({ type: 'boolean', default: false })
   is_live: boolean;
+
+  @ApiProperty({
+    enum: QuestionReviewStatus,
+    description:
+      'Moderation status. Removing a question also sets is_live=false so it stops being served to candidates; restoring sets is_live back to true. Flagging does not affect is_live — flagged questions stay in rotation pending review.',
+  })
+  @Column({
+    type: 'enum',
+    enum: QuestionReviewStatus,
+    default: QuestionReviewStatus.ACTIVE,
+  })
+  review_status: QuestionReviewStatus;
+
+  @ApiProperty({ enum: QuestionSource })
+  @Column({
+    type: 'enum',
+    enum: QuestionSource,
+    default: QuestionSource.IMPORT,
+  })
+  source: QuestionSource;
+
+  @ApiProperty({ required: false, nullable: true, format: 'uuid' })
+  @Column({ type: 'uuid', nullable: true })
+  added_by: string | null;
+
+  @ManyToOne(() => User, { onDelete: 'SET NULL' })
+  @JoinColumn({ name: 'added_by' })
+  added_by_user: User | null;
 
   @ApiProperty()
   @CreateDateColumn({ type: 'timestamp with time zone' })
