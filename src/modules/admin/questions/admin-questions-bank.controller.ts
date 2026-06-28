@@ -104,4 +104,13 @@ export class AdminQuestionsBankController {
   async listQualityNotes(@Param('id') id: string) {
     return this.adminQuestionsBankService.listQualityNotes(id);
   }
+
+  @Get('health-grid')
+  @ApiOperation({
+    summary:
+      'Raw question counts per assessment_type/track/verified_level. No target capacity exists yet, so this returns counts only — no warning/critical percentage.',
+  })
+  async getHealthGrid() {
+    return this.adminQuestionsBankService.getHealthGrid();
+  }
 }
