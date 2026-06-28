@@ -14,17 +14,19 @@ import {
   ApiUnprocessableEntityResponse,
 } from '@nestjs/swagger';
 import { Roles } from '../../../common/decorators/roles.decorator';
+import { AdminTiers } from '../../../common/decorators/admin-tiers.decorator';
 import { PersonalAssessmentQuestionService } from '../../talent/assessment/personal-assessment-question.service';
 import type {
   PersonalAssessmentQuestionImportItem,
   PersonalAssessmentQuestionImportResult,
 } from '../../talent/assessment/personal-assessment-question-import.types';
-import { UserRole } from '../../users/entities/user.entity';
+import { AdminTier, UserRole } from '../../users/entities/user.entity';
 import { ImportPersonalAssessmentQuestionsDto } from './dto/import-personal-assessment-questions.dto';
 
 @ApiTags('admin-personal-assessment')
 @ApiBearerAuth()
 @Roles(UserRole.ADMIN)
+@AdminTiers(AdminTier.SUPER_ADMIN, AdminTier.ADMIN)
 @Controller('admin/personal-assessment/questions')
 export class AdminPersonalAssessmentQuestionsController {
   constructor(

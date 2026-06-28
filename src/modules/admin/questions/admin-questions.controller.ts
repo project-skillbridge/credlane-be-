@@ -15,13 +15,15 @@ import {
 } from '@nestjs/swagger';
 import { memoryStorage } from 'multer';
 import { Roles } from '../../../common/decorators/roles.decorator';
-import { UserRole } from '../../users/entities/user.entity';
+import { AdminTiers } from '../../../common/decorators/admin-tiers.decorator';
+import { AdminTier, UserRole } from '../../users/entities/user.entity';
 import { QuestionImportService } from '../../../database/import/question-import.service';
 import { ImportQuestionsByUrlDto } from './dto/import-questions.dto';
 
 @ApiTags('admin-questions')
 @ApiBearerAuth()
 @Roles(UserRole.ADMIN)
+@AdminTiers(AdminTier.SUPER_ADMIN, AdminTier.ADMIN)
 @Controller('admin/questions')
 export class AdminQuestionsController {
   constructor(private readonly questionImportService: QuestionImportService) {}
