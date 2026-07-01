@@ -83,6 +83,10 @@ describe('AdminOffersService', () => {
       // avg hire days = round(7.5) = 8
       expect(stats.avg_time_offer_to_hire_days.value).toBe(8);
 
+      // Trend: total 10 vs 7 prior => up
+      expect(stats.total_offers_sent.trend.direction).toBe('up');
+    });
+
     it('returns zero values with no data', async () => {
       offerRepo.createQueryBuilder.mockImplementation(() => {
         const qb = buildQueryBuilder([]);
