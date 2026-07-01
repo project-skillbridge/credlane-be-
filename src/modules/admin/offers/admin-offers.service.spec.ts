@@ -3,7 +3,7 @@ import { OfferStatus } from '../../offers/entities/offer.entity';
 
 // ─── Test helpers ─────────────────────────────────────────────────
 
-/** Builds a chainable query-builder mock that resolves getRawMany/getRawOne to a fixed value. */
+/** Builds a chainable query-builder mock that resolves getRawMany, getRawOne, getManyAndCount, and getCount to a fixed value. */
 const buildQueryBuilder = (resolvedValue: unknown) => {
   const qb: Record<string, jest.Mock> = {
     select: jest.fn(),
@@ -88,10 +88,6 @@ describe('AdminOffersService', () => {
     });
 
     it('returns zero values with no data', async () => {
-      offerRepo.createQueryBuilder.mockImplementation(() =>
-        buildQueryBuilder([]),
-      );
-      // Patch getRawOne for avgHireDays
       let callIdx = 0;
       offerRepo.createQueryBuilder.mockImplementation(() => {
         callIdx++;
@@ -156,6 +152,7 @@ describe('AdminOffersService', () => {
         (s) => s.stage === OfferStatus.ASSESSMENT_UNLOCKED,
       );
       expect(unlocked?.count).toBe(21);
+      expect(unlocked?.drop_off_percent).toBe(Math.round(((31 - 21) / 31) * 100));
     });
 
     it('returns empty state when no offers exist', async () => {
@@ -261,6 +258,33 @@ describe('AdminOffersService', () => {
       expect(result.offers).toHaveLength(0);
       expect(result.total).toBe(0);
       expect(result.total_pages).toBe(0);
+    });
+
+    it('applies filters for status, date range, and search correctly', async () => {
+      const qb = buildQueryBuilder([[], 0]);
+      offerRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.findAll({
+        status: OfferStatus.ACCEPTED,
+        date_from: '2026-01-01',
+        date_to: '2026-01-31',
+        search: 'Jane',
+      });
+
+      expect(qb.andWhere).toHaveBeenCalledWith('offer.status = :status', { status: OfferStatus.ACCEPTED });
+      expect(qb.andWhere).toHaveBeenCalledWith('offer.created_at >= :dateFrom', { dateFrom: expect.any(Date) });
+      expect(qb.andWhere).toHaveBeenCalledWith('offer.created_at < :dateTo', { dateTo: expect.any(Date) });
+      expect(qb.andWhere).toHaveBeenCalledWith(expect.stringContaining('ILIKE :search'), { search: '%Jane%' });
+    });
+
+    it('applies correct pagination skip and take for page > 1', async () => {
+      const qb = buildQueryBuilder([[], 0]);
+      offerRepo.createQueryBuilder.mockReturnValue(qb);
+
+      await service.findAll({ page: 3, limit: 15 });
+
+      expect(qb.skip).toHaveBeenCalledWith(30);
+      expect(qb.take).toHaveBeenCalledWith(15);
     });
   });
 });

@@ -26,7 +26,7 @@ const DEFAULT_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
  * The forked terminal statuses (passed/failed, accepted/declined/expired) are
  * listed separately so the funnel can render parallel branches.
  */
-const FUNNEL_STAGE_ORDER: readonly string[] = [
+const FUNNEL_STAGE_ORDER: readonly OfferStatus[] = [
   OfferStatus.PENDING,
   OfferStatus.ASSESSMENT_UNLOCKED,
   OfferStatus.ASSESSMENT_COMPLETED,
@@ -43,7 +43,7 @@ const FUNNEL_STAGE_ORDER: readonly string[] = [
  * Maps a current status to all linear stages it has *passed through* (inclusive).
  * Terminal fork statuses only count their own branch.
  */
-const STAGE_REACHED: Record<string, readonly string[]> = {
+const STAGE_REACHED: Record<OfferStatus, readonly OfferStatus[]> = {
   [OfferStatus.PENDING]: [OfferStatus.PENDING],
   [OfferStatus.ASSESSMENT_UNLOCKED]: [
     OfferStatus.PENDING,
@@ -93,6 +93,18 @@ const STAGE_REACHED: Record<string, readonly string[]> = {
     OfferStatus.PENDING,
     OfferStatus.WITHDRAWN,
   ],
+};
+
+const STAGE_PARENT: Partial<Record<OfferStatus, OfferStatus>> = {
+  [OfferStatus.ASSESSMENT_UNLOCKED]: OfferStatus.PENDING,
+  [OfferStatus.ASSESSMENT_COMPLETED]: OfferStatus.ASSESSMENT_UNLOCKED,
+  [OfferStatus.PASSED]: OfferStatus.ASSESSMENT_COMPLETED,
+  [OfferStatus.FAILED]: OfferStatus.ASSESSMENT_COMPLETED,
+  [OfferStatus.ACCEPTED]: OfferStatus.PASSED,
+  [OfferStatus.DECLINED]: OfferStatus.PENDING,
+  [OfferStatus.EXPIRED]: OfferStatus.PENDING,
+  [OfferStatus.HIRED]: OfferStatus.ACCEPTED,
+  [OfferStatus.WITHDRAWN]: OfferStatus.PENDING,
 };
 
 /** Terminal statuses that indicate the offer has been resolved. */
@@ -196,30 +208,25 @@ export class AdminOffersService {
 
     // Build ordered stages with drop-off %
     const stages: FunnelStage[] = [];
-    let prevCount: number | null = null;
 
     for (const stage of FUNNEL_STAGE_ORDER) {
       const count = stageCounts.get(stage) ?? 0;
-      if (count === 0 && prevCount === null) {
+      
+      const parentStage = STAGE_PARENT[stage];
+      const parentCount = parentStage ? (stageCounts.get(parentStage) ?? 0) : null;
+
+      if (count === 0 && parentCount === null) {
         // Skip stages with zero count before we have any data
         stages.push({ stage, count: 0, drop_off_percent: null });
         continue;
       }
-      const dropOff =
-        prevCount !== null && prevCount > 0
-          ? Math.round(((prevCount - count) / prevCount) * 100)
-          : null;
+
+      let dropOff: number | null = null;
+      if (parentCount !== null && parentCount > 0) {
+        dropOff = Math.round(((parentCount - count) / parentCount) * 100);
+      }
 
       stages.push({ stage, count, drop_off_percent: dropOff });
-
-      // Only update prevCount for the main linear stages, not forked terminals
-      if (
-        stage === OfferStatus.PENDING ||
-        stage === OfferStatus.ASSESSMENT_UNLOCKED ||
-        stage === OfferStatus.ASSESSMENT_COMPLETED
-      ) {
-        prevCount = count;
-      }
     }
 
     return {
@@ -264,8 +271,10 @@ export class AdminOffersService {
       });
     }
     if (query.date_to) {
-      qb.andWhere('offer.created_at <= :dateTo', {
-        dateTo: new Date(query.date_to),
+      const end = new Date(query.date_to);
+      end.setDate(end.getDate() + 1);
+      qb.andWhere('offer.created_at < :dateTo', {
+        dateTo: end,
       });
     }
 
@@ -399,7 +408,7 @@ export class AdminOffersService {
     const result: { avg_days: string | null } | undefined = await this.offerRepo
       .createQueryBuilder('offer')
       .select(
-        `AVG(EXTRACT(EPOCH FROM (offer.updated_at - offer.created_at)) / 86400)`,
+        `AVG(EXTRACT(EPOCH FROM (COALESCE(offer.responded_at, offer.updated_at) - offer.created_at)) / 86400)`,
         'avg_days',
       )
       .where('offer.created_at >= :start', { start })
