@@ -1,0 +1,45 @@
+import { Controller, Get, Query } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { Roles } from '../../../common/decorators/roles.decorator';
+import { UserRole } from '../../users/entities/user.entity';
+import { AdminOffersService } from './admin-offers.service';
+import { AdminOffersStatsQueryDto } from './dto/admin-offers-stats-query.dto';
+import { AdminListOffersQueryDto } from './dto/admin-list-offers-query.dto';
+
+@ApiTags('admin-offers')
+@ApiBearerAuth()
+@Roles(UserRole.ADMIN)
+// TODO: Add @AdminTiers(AdminTier.SUPER_ADMIN, AdminTier.ADMIN) once PR 264 is merged
+@Controller('admin/offers')
+export class AdminOffersController {
+  constructor(private readonly offersService: AdminOffersService) {}
+
+  @Get('stats')
+  @ApiOperation({ summary: 'Offers page stat cards (row of 4)' })
+  async getStats(@Query() query: AdminOffersStatsQueryDto) {
+    const data = await this.offersService.getStats(
+      query.date_from,
+      query.date_to,
+    );
+    return { status: 'success', data };
+  }
+
+  @Get('funnel')
+  @ApiOperation({ summary: 'Offer status funnel chart data' })
+  async getFunnel(@Query() query: AdminOffersStatsQueryDto) {
+    const data = await this.offersService.getFunnel(
+      query.date_from,
+      query.date_to,
+    );
+    return { status: 'success', data };
+  }
+
+  @Get()
+  @ApiOperation({
+    summary: 'All Offers table — paginated, filtered, searchable',
+  })
+  async findAll(@Query() query: AdminListOffersQueryDto) {
+    const data = await this.offersService.findAll(query);
+    return { status: 'success', data };
+  }
+}
