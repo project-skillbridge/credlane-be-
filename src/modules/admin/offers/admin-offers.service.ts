@@ -5,55 +5,15 @@ import { Offer, OfferStatus } from '../../offers/entities/offer.entity';
 import { User } from '../../users/entities/user.entity';
 import { EmployerProfile } from '../../employer/entities/employer-profile.entity';
 import { AdminListOffersQueryDto } from './dto/admin-list-offers-query.dto';
-
-// ─── Response interfaces ──────────────────────────────────────────
-
-export interface TrendIndicator {
-  direction: 'up' | 'down' | null;
-  change_percent: number | null;
-}
-
-export interface StatCard {
-  value: number;
-  trend: TrendIndicator;
-}
-
-export interface OffersPageStats {
-  total_offers_sent: StatCard;
-  offer_to_acceptance_rate: StatCard;
-  offer_to_hire_rate: StatCard;
-  avg_time_offer_to_hire_days: StatCard;
-}
-
-export interface FunnelStage {
-  stage: string;
-  count: number;
-  drop_off_percent: number | null;
-}
-
-export interface OfferFunnelResult {
-  stages: FunnelStage[];
-  total: number;
-  empty: boolean;
-}
-
-export interface AdminOfferRow {
-  id: string;
-  candidate_name: string;
-  employer_name: string;
-  role_title: string;
-  status: OfferStatus;
-  date_sent: Date;
-  date_resolved: Date | null;
-}
-
-export interface AdminOfferListResult {
-  offers: AdminOfferRow[];
-  total: number;
-  page: number;
-  limit: number;
-  total_pages: number;
-}
+import {
+  AdminOfferListResult,
+  AdminOfferRow,
+  FunnelStage,
+  OfferFunnelResult,
+  OffersPageStats,
+  StatCard,
+  TrendIndicator,
+} from './dto/admin-offers-responses.dto';
 
 // ─── Constants ────────────────────────────────────────────────────
 
