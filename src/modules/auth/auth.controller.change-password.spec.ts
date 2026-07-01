@@ -24,6 +24,7 @@ describe('AccountSettingsController — POST /auth/change-password', () => {
     sub: 'user-abc',
     email: 'alice@example.com',
     role: 'TALENT' as never,
+    admin_tier: null,
     onboarding_complete: true,
   };
 

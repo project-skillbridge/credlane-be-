@@ -52,6 +52,7 @@ import { GuidanceReportService } from '../../ai/guidance-report.service';
 import { GuidanceReport } from '../../ai/ai.types';
 import { BankExhaustedAlertService } from '../../mail/bank-exhausted-alert.service';
 import { AiResourcesService } from '../../ai-resources/ai-resources.service';
+import { SkillGuidanceReportQueueService } from './skill-guidance-report-queue.service';
 
 const SKILL_ASSESSMENT_MCQ_COUNT = 16;
 const SKILL_PROBE_MCQ_COUNT = 2;
@@ -161,6 +162,7 @@ export class SkillAssessmentService {
     private readonly guidanceReport: GuidanceReportService,
     private readonly bankExhaustedAlert: BankExhaustedAlertService,
     private readonly aiResourcesService: AiResourcesService,
+    private readonly guidanceReportQueue: SkillGuidanceReportQueueService,
   ) {}
 
   private async resolveSkillAttemptNumber(
@@ -722,39 +724,44 @@ export class SkillAssessmentService {
     const passed = !failed && validatedLevel !== null;
     const tier = this.resolveSkillTier(percentage);
 
-    let guidanceReport: GuidanceReport | null = null;
     if (!passed) {
-      try {
-        guidanceReport = await this.guidanceReport.generate({
-          report_type: 'emerging',
-          assessment_type: 'skill',
-          track: profile.track ?? 'general',
-          claimed_level: claimed,
-          validated_level:
-            validatedLevel ?? profile.validated_level ?? VerifiedLevel.JUNIOR,
-          percentage,
-          strong_competencies: [],
-          weak_competencies: [],
-        });
-      } catch (error) {
-        this.logger.warn(
-          `Skill guidance report generation failed: ${String(error)}`,
-        );
-      }
+      void this.guidanceReportQueue.enqueue({
+        attemptId: attempt.id,
+        track: profile.track ?? 'general',
+        claimed_level: claimed,
+        validated_level:
+          validatedLevel ?? profile.validated_level ?? VerifiedLevel.JUNIOR,
+        percentage,
+      });
     }
 
     await this.talentProfileRepo.manager.transaction(async (manager) => {
       await manager.save(AssessmentResponse, responsesToSave);
-      for (const [questionId, patch] of historyPatches) {
-        await manager.update(
-          TalentQuestionHistory,
-          {
+      if (historyPatches.size > 0) {
+        const historyValues = Array.from(
+          historyPatches.entries(),
+          ([questionId, patch]) => ({
             talent_profile_id: profile.id,
             question_id: questionId,
             attempt_id: attempt.id,
-          },
-          patch,
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            user_answer: patch.user_answer,
+            is_correct: patch.is_correct,
+            raw_score: patch.raw_score,
+            max_score: patch.max_score,
+            answered_at: patch.answered_at ?? new Date(),
+          }),
         );
+        await manager
+          .createQueryBuilder()
+          .insert()
+          .into(TalentQuestionHistory)
+          .values(historyValues)
+          .orUpdate(
+            ['user_answer', 'is_correct', 'raw_score', 'max_score', 'answered_at'],
+            ['talent_profile_id', 'question_id'],
+          )
+          .execute();
       }
 
       attempt.completed_at = new Date();
@@ -768,7 +775,7 @@ export class SkillAssessmentService {
         claimed_percentage: claimedPercentage,
         validated_level: validatedLevel,
         tier: null,
-        guidance_report: guidanceReport ? { ...guidanceReport } : null,
+        guidance_report: null,
       });
       await manager.save(AssessmentResult, result);
 
@@ -838,7 +845,6 @@ export class SkillAssessmentService {
       retake_available: retakeAvailable,
       max_attempts: SKILL_ASSESSMENT_MAX_ATTEMPTS,
       attempts_used: attemptsUsed,
-      ...(guidanceReport && { guidance_report: guidanceReport }),
       ...(downgraded && {
         personalised_message: SuccessMessages.SKILL_ASSESSMENT.DOWNGRADE_NOTICE,
       }),

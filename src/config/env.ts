@@ -41,6 +41,7 @@ export const env = createEnv({
       .string()
       .min(32, 'JWT_ACCESS_SECRET must be at least 32 chars'),
     JWT_ACCESS_EXPIRES_IN: durationString('15m'),
+    ADMIN_JWT_ACCESS_EXPIRES_IN: durationString('8h'),
     JWT_REFRESH_SECRET: z
       .string()
       .min(32, 'JWT_REFRESH_SECRET must be at least 32 chars'),
@@ -68,6 +69,8 @@ export const env = createEnv({
     SEED_ADMIN_EMAIL: z.email().default('admin@example.com'),
     SEED_ADMIN_PASSWORD: z.string().min(12).default('Admin@123456'),
     SEED_ADMIN_FULL_NAME: z.string().min(1).default('Admin User'),
+    // JSON array of additional admins: '[{"email":"...","password":"...","full_name":"...","admin_tier":"ADMIN"}]'
+    SEED_ADMINS: z.string().optional(),
 
     GOOGLE_CLIENT_ID: z.string().min(1),
     GOOGLE_CLIENT_SECRET: z.string().min(1),

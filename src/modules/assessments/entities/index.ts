@@ -4,6 +4,8 @@ export {
   QuestionType,
   VerifiedLevel,
   SlotType,
+  QuestionReviewStatus,
+  QuestionSource,
 } from './assessment-question.entity';
 export { AssessmentAttempt } from './assessment-attempt.entity';
 export { AssessmentResponse } from './assessment-response.entity';
@@ -14,3 +16,4 @@ export {
 } from './assessment-score.entity';
 export type { IntegrityConfidenceLevel } from './assessment-score.entity';
 export { TalentQuestionHistory } from './talent-question-history.entity';
+export { QuestionQualityNote } from './question-quality-note.entity';

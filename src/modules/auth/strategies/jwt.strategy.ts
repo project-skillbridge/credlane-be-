@@ -6,13 +6,14 @@ import type { AuthenticatedUser } from '../../../common/decorators/current-user.
 import { env } from '../../../config/env';
 import { UsersService } from '../../users/users.service';
 import { ACCESS_TOKEN_COOKIE, readCookie } from '../auth.cookies';
-import { UserRole } from '../../users/entities/user.entity';
-import { ErrorMessages, UnauthorizedError } from '../../../shared';
+import { AdminTier, UserRole } from '../../users/entities/user.entity';
+import { ErrorMessages, ForbiddenError, UnauthorizedError } from '../../../shared';
 
 export interface JwtPayload {
   sub: string;
   email: string;
   role: UserRole;
+  admin_tier: AdminTier | null;
   onboarding_complete: boolean;
 }
 
@@ -37,10 +38,14 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
     if (!user) {
       throw new UnauthorizedError(ErrorMessages.AUTH.INVALID_ACCESS_TOKEN);
     }
+    if (!user.is_active) {
+      throw new ForbiddenError(ErrorMessages.AUTH.ACCOUNT_DEACTIVATED);
+    }
     return {
       sub: user.id,
       email: user.email,
       role: user.role,
+      admin_tier: user.admin_tier,
       onboarding_complete: user.onboarding_complete,
     };
   }

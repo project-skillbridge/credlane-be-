@@ -15,7 +15,7 @@ import { Repository } from 'typeorm';
 import { env } from '../../config/env';
 import { MailService } from '../mail/mail.service';
 import { TalentProfile } from '../talent/entities/talent-profile.entity';
-import { User, UserRole } from '../users/entities/user.entity';
+import { AdminTier, User, UserRole } from '../users/entities/user.entity';
 import { OAUTH_DEFAULT_COUNTRY, UsersService } from '../users/users.service';
 import type { AccountDeletionMetadata } from '../users/users.service';
 import { ChangePasswordDto } from './dto/change-password.dto';
@@ -43,6 +43,7 @@ import {
 import {
   BadRequestError,
   ErrorMessages,
+  NotFoundError,
   SuccessMessages,
   UnauthorizedError,
 } from '../../shared';
@@ -56,6 +57,7 @@ export interface AuthUser {
   avatar_url: string | null;
   country: string;
   role: UserRole;
+  admin_tier?: AdminTier | null;
   track?: string | null;
   is_verified: boolean;
   onboarding_complete: boolean;
@@ -251,6 +253,47 @@ export class AuthService {
     }
 
     return this.issueTokens(user, SuccessMessages.AUTH.LOGIN);
+  }
+
+  /**
+   * Login for the Super Admin Dashboard (super_admin/admin/reviewer tiers).
+   * Unlike the generic login(), this surfaces distinct error messages per
+   * the dashboard spec — admin accounts are invite-only, so leaking
+   * existence here is an accepted tradeoff.
+   */
+  async adminLogin(dto: LoginDto): Promise<AuthResult & { data: { user: AuthUser; redirect_path: string } }> {
+    const user = await this.usersService.findByEmail(dto.email);
+    if (!user || user.role !== UserRole.ADMIN) {
+      throw new NotFoundError(ErrorMessages.AUTH.NO_ADMIN_ACCOUNT_FOUND);
+    }
+
+    if (!user.is_active) {
+      throw new ForbiddenException({
+        error: 'ACCOUNT_DEACTIVATED',
+        message: ErrorMessages.AUTH.ACCOUNT_DEACTIVATED,
+      });
+    }
+
+    if (!user.password) {
+      throw new UnauthorizedError(ErrorMessages.AUTH.INCORRECT_EMAIL_OR_PASSWORD);
+    }
+    const valid = await argon2.verify(user.password, dto.password);
+    if (!valid) {
+      throw new UnauthorizedError(ErrorMessages.AUTH.INCORRECT_EMAIL_OR_PASSWORD);
+    }
+
+    const result = await this.issueTokens(user, SuccessMessages.AUTH.LOGIN);
+    return {
+      ...result,
+      data: {
+        ...result.data,
+        redirect_path: this.getAdminRedirectPath(user.admin_tier),
+      },
+    };
+  }
+
+  private getAdminRedirectPath(tier: AdminTier | null): string {
+    return tier === AdminTier.REVIEWER ? '/question-bank' : '/overview';
   }
 
   async forgotPassword(
@@ -746,18 +789,23 @@ export class AuthService {
   }
 
   private async signTokens(user: User): Promise<AuthTokens> {
-    const payload = {
+    const payload: JwtPayload = {
       sub: user.id,
       email: user.email,
       role: user.role,
+      admin_tier: user.admin_tier,
       onboarding_complete: user.onboarding_complete,
     };
+    const accessTokenExpiresIn =
+      user.role === UserRole.ADMIN
+        ? env.ADMIN_JWT_ACCESS_EXPIRES_IN
+        : env.JWT_ACCESS_EXPIRES_IN;
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(
         { ...payload, jti: randomUUID() },
         {
           secret: env.JWT_ACCESS_SECRET,
-          expiresIn: env.JWT_ACCESS_EXPIRES_IN as StringValue,
+          expiresIn: accessTokenExpiresIn as StringValue,
         },
       ),
       this.jwtService.signAsync(
@@ -792,6 +840,7 @@ export class AuthService {
       avatar_url: user.avatar_url,
       country: user.country,
       role: user.role,
+      admin_tier: user.admin_tier,
       is_verified: user.is_verified,
       onboarding_complete: user.onboarding_complete,
     };

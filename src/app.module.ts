@@ -23,6 +23,7 @@ import { AiModule } from './modules/ai/ai.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { JwtAuthGuard } from './modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from './modules/auth/guards/roles.guard';
+import { AdminTiersGuard } from './modules/auth/guards/admin-tiers.guard';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { VerifiedProfileModule } from './modules/verified-profile/verified-profile.module';
 import { TalentModule } from './modules/talent/talent.module';
@@ -37,6 +38,12 @@ import { AiResourcesModule } from './modules/ai-resources/ai-resources.module';
 import { AiReportModule } from './modules/ai-report/ai-report.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { AdminQuestionsModule } from './modules/admin/questions/admin-questions.module';
+import { AdminOverviewModule } from './modules/admin/overview/admin-overview.module';
+import { AdminTalentsModule } from './modules/admin/talents/admin-talents.module';
+import { AdminEmployersModule } from './modules/admin/employers/admin-employers.module';
+import { AdminIntegrityModule } from './modules/admin/integrity/admin-integrity.module';
+import { AdminPaymentsModule } from './modules/admin/payments/admin-payments.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 import { EmployerDiscoveryModule } from './modules/employer-discovery/employer-discovery.module';
 import { OffersModule } from './modules/offers/offers.module';
 import { EmployerAssessmentsModule } from './modules/employer-assessments/employer-assessments.module';
@@ -71,6 +78,12 @@ import { MetricsInterceptor } from './modules/metrics/metrics.interceptor';
     AiReportModule,
     NotificationsModule,
     AdminQuestionsModule,
+    AdminOverviewModule,
+    AdminTalentsModule,
+    AdminEmployersModule,
+    AdminIntegrityModule,
+    AdminPaymentsModule,
+    PaymentsModule,
     EmployerDiscoveryModule,
     OffersModule,
     EmployerAssessmentsModule,
@@ -90,6 +103,7 @@ import { MetricsInterceptor } from './modules/metrics/metrics.interceptor';
     },
     { provide: APP_GUARD, useClass: JwtAuthGuard },
     { provide: APP_GUARD, useClass: RolesGuard },
+    { provide: APP_GUARD, useClass: AdminTiersGuard },
     { provide: APP_FILTER, useClass: HttpExceptionFilter },
     { provide: APP_INTERCEPTOR, useClass: LoggingInterceptor },
     { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },

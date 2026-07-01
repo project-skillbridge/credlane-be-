@@ -122,6 +122,48 @@ describe('validateSectionAnswers', () => {
     expect(result.specialization).toBe('web_apps');
   });
 
+  it('accepts specialization for cybersecurity and marketing tracks using mapped assessment tracks', () => {
+    const cyberProfile = makeTalentProfile({
+      track: 'cybersecurity',
+    });
+    const marketingProfile = makeTalentProfile({
+      track: 'marketing',
+    });
+
+    const cyberResult = validateSectionAnswers(
+      2,
+      {
+        specialization: 'security',
+        claimed_level: 'mid',
+        primary_tool_duration: '1_2_years',
+        mentoring_experience: 'yes_informally',
+        shipped_deliverable: 'yes_multiple',
+        tools: ['terraform'],
+      },
+      cyberProfile,
+      catalog.getSectionQuestions(2),
+    );
+
+    const marketingResult = validateSectionAnswers(
+      2,
+      {
+        specialization: 'digital_marketing',
+        claimed_level: 'mid',
+        primary_tool_duration: '1_2_years',
+        mentoring_experience: 'yes_informally',
+        shipped_deliverable: 'yes_multiple',
+        tools: ['hubspot'],
+      },
+      marketingProfile,
+      catalog.getSectionQuestions(2),
+    );
+
+    expect(cyberResult.specialization).toBe('security');
+    expect(cyberResult.tools).toEqual(['terraform']);
+    expect(marketingResult.specialization).toBe('digital_marketing');
+    expect(marketingResult.tools).toEqual(['hubspot']);
+  });
+
   it('requires onboarding track before validating specialization', () => {
     const profileWithoutTrack = makeTalentProfile({ track: null });
 

@@ -26,6 +26,7 @@ describe('AccountSettingsController', () => {
     sub: 'user-abc',
     email: 'talent@example.com',
     role: 'TALENT' as never,
+    admin_tier: null,
     onboarding_complete: true,
   };
 

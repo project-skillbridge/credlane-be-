@@ -23,6 +23,22 @@ export const USER_ROLE_VALUES = [
   UserRole.EMPLOYER,
 ] as const;
 
+/**
+ * Sub-classification for UserRole.ADMIN only. Null for talent/employer users.
+ * Drives the CredLane Super Admin Dashboard's page access matrix.
+ */
+export enum AdminTier {
+  SUPER_ADMIN = 'super_admin',
+  ADMIN = 'admin',
+  REVIEWER = 'reviewer',
+}
+
+export const ADMIN_TIER_VALUES = [
+  AdminTier.SUPER_ADMIN,
+  AdminTier.ADMIN,
+  AdminTier.REVIEWER,
+] as const;
+
 @Entity('users')
 export class User {
   @ApiProperty({ format: 'uuid' })
@@ -70,6 +86,19 @@ export class User {
   @ApiProperty({ enum: USER_ROLE_VALUES, default: UserRole.TALENT })
   @Column({ type: 'enum', enum: USER_ROLE_VALUES, default: UserRole.TALENT })
   role: UserRole;
+
+  @ApiProperty({ enum: ADMIN_TIER_VALUES, required: false, nullable: true })
+  @Column({
+    type: 'enum',
+    enum: ADMIN_TIER_VALUES,
+    name: 'admin_tier',
+    nullable: true,
+  })
+  admin_tier: AdminTier | null;
+
+  @ApiProperty({ default: true })
+  @Column({ type: 'boolean', default: true })
+  is_active: boolean;
 
   @ApiProperty({ required: false, nullable: true })
   @Column({
