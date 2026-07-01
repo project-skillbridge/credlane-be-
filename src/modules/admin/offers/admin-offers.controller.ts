@@ -1,7 +1,8 @@
 import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { AdminTiers } from '../../../common/decorators/admin-tiers.decorator';
 import { Roles } from '../../../common/decorators/roles.decorator';
-import { UserRole } from '../../users/entities/user.entity';
+import { AdminTier, UserRole } from '../../users/entities/user.entity';
 import { AdminOffersService } from './admin-offers.service';
 import { AdminOffersStatsQueryDto } from './dto/admin-offers-stats-query.dto';
 import { AdminListOffersQueryDto } from './dto/admin-list-offers-query.dto';
@@ -9,7 +10,7 @@ import { AdminListOffersQueryDto } from './dto/admin-list-offers-query.dto';
 @ApiTags('admin-offers')
 @ApiBearerAuth()
 @Roles(UserRole.ADMIN)
-// TODO: Add @AdminTiers(AdminTier.SUPER_ADMIN, AdminTier.ADMIN) once PR 264 is merged
+@AdminTiers(AdminTier.SUPER_ADMIN, AdminTier.ADMIN)
 @Controller('admin/offers')
 export class AdminOffersController {
   constructor(private readonly offersService: AdminOffersService) {}
