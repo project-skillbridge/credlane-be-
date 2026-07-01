@@ -11,7 +11,6 @@ import {
   FunnelStage,
   OfferFunnelResult,
   OffersPageStats,
-  StatCard,
   TrendIndicator,
 } from './dto/admin-offers-responses.dto';
 
