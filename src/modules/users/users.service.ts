@@ -232,6 +232,14 @@ export class UsersService {
     });
   }
 
+  async recordLastLogin(id: string): Promise<void> {
+    await this.userModelAction.update({
+      ...NO_TRANSACTION,
+      identifierOptions: { id },
+      updatePayload: { last_login_at: new Date() },
+    });
+  }
+
   async markVerified(id: string): Promise<User> {
     await this.userModelAction.update({
       ...NO_TRANSACTION,

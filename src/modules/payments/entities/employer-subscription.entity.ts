@@ -44,7 +44,11 @@ export class EmployerSubscription {
   packageId: string;
 
   @ApiProperty({ enum: EMPLOYER_SUBSCRIPTION_STATUS_VALUES })
-  @Column({ type: 'varchar', length: 20, default: EmployerSubscriptionStatus.FREE })
+  @Column({
+    type: 'varchar',
+    length: 20,
+    default: EmployerSubscriptionStatus.FREE,
+  })
   status: EmployerSubscriptionStatus;
 
   @ApiProperty()
@@ -52,11 +56,19 @@ export class EmployerSubscription {
   startDate: Date;
 
   @ApiProperty({ nullable: true })
-  @Column({ type: 'timestamp with time zone', nullable: true, name: 'next_billing_date' })
+  @Column({
+    type: 'timestamp with time zone',
+    nullable: true,
+    name: 'next_billing_date',
+  })
   nextBillingDate: Date | null;
 
   @ApiProperty({ nullable: true })
-  @Column({ type: 'timestamp with time zone', nullable: true, name: 'grace_period_ends_at' })
+  @Column({
+    type: 'timestamp with time zone',
+    nullable: true,
+    name: 'grace_period_ends_at',
+  })
   gracePeriodEndsAt: Date | null;
 
   @ApiProperty()
@@ -71,7 +83,9 @@ export class EmployerSubscription {
   @JoinColumn({ name: 'employer_id' })
   employer: User;
 
-  @ManyToOne(() => EmployerPackage, (pkg) => pkg.subscriptions, { onDelete: 'RESTRICT' })
+  @ManyToOne(() => EmployerPackage, (pkg) => pkg.subscriptions, {
+    onDelete: 'RESTRICT',
+  })
   @JoinColumn({ name: 'package_id' })
   package: EmployerPackage;
 

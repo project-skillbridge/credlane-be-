@@ -31,7 +31,9 @@ export class AdminOverviewController {
   }
 
   @Get('ai-generation-consumption')
-  @ApiOperation({ summary: 'Chart 2 — AI question generation volume over time' })
+  @ApiOperation({
+    summary: 'Chart 2 — AI question generation volume over time',
+  })
   async getAiGenerationConsumption(
     @Query() query: AiGenerationConsumptionQueryDto,
   ) {

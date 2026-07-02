@@ -159,7 +159,8 @@ export class AdminEmployersService {
         industry: profile.industry,
         size: profile.company_size,
         region: profile.region,
-        linkedin: profile.linkedin_company_page_url ?? profile.linkedin_company_url,
+        linkedin:
+          profile.linkedin_company_page_url ?? profile.linkedin_company_url,
       },
       verification_status: verification,
       package_and_subscription: {
@@ -170,11 +171,9 @@ export class AdminEmployersService {
         items: roles.map((r) => ({
           id: r.id,
           title: r.title,
-          status:
-            r.status === EmployerRoleStatus.ACTIVE ? 'Active' : 'Closed',
+          status: r.status === EmployerRoleStatus.ACTIVE ? 'Active' : 'Closed',
         })),
-        empty_message:
-          roles.length === 0 ? 'No roles created yet.' : null,
+        empty_message: roles.length === 0 ? 'No roles created yet.' : null,
       },
       offers_sent: {
         items: offers.map((o) => ({

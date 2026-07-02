@@ -20,9 +20,7 @@ const REVENUE_CHART_EXAMPLE = {
     { period: '2026-01-01T00:00:00.000Z', amount: 1200 },
     { period: '2026-02-01T00:00:00.000Z', amount: 980 },
   ],
-  talent_revenue: [
-    { period: '2026-01-01T00:00:00.000Z', amount: 450 },
-  ],
+  talent_revenue: [{ period: '2026-01-01T00:00:00.000Z', amount: 450 }],
 };
 
 @ApiTags('admin-payments')
@@ -34,9 +32,13 @@ export class AdminPaymentsController {
   constructor(private readonly paymentsService: AdminPaymentsService) {}
 
   @Get('stats')
-  @ApiOperation({ summary: 'Stat cards: total revenue, active subscriptions, failed payment count' })
+  @ApiOperation({
+    summary:
+      'Stat cards: total revenue, active subscriptions, failed payment count',
+  })
   @ApiOkResponse({
-    description: 'Returns total_revenue (value + currency), active_employer_subscriptions, active_talent_subscriptions, failed_payment_count',
+    description:
+      'Returns total_revenue (value + currency), active_employer_subscriptions, active_talent_subscriptions, failed_payment_count',
     schema: {
       type: 'object',
       properties: {
@@ -67,9 +69,12 @@ export class AdminPaymentsController {
   }
 
   @Get('revenue-chart')
-  @ApiOperation({ summary: 'Revenue chart data split by employer/talent, with period toggle' })
+  @ApiOperation({
+    summary: 'Revenue chart data split by employer/talent, with period toggle',
+  })
   @ApiOkResponse({
-    description: 'Returns employer_revenue[] and talent_revenue[] arrays of { period, amount } objects, grouped by the selected period',
+    description:
+      'Returns employer_revenue[] and talent_revenue[] arrays of { period, amount } objects, grouped by the selected period',
     schema: {
       type: 'object',
       properties: {
@@ -113,7 +118,8 @@ export class AdminPaymentsController {
   @Get('employer-packages')
   @ApiOperation({ summary: 'List employer packages (Free + Paid tiers)' })
   @ApiOkResponse({
-    description: 'Returns array of packages — each with id, name, price, offer_limit, features, is_free',
+    description:
+      'Returns array of packages — each with id, name, price, offer_limit, features, is_free',
     schema: {
       type: 'object',
       properties: {
@@ -143,9 +149,12 @@ export class AdminPaymentsController {
   }
 
   @Get('subscriptions')
-  @ApiOperation({ summary: 'Subscriptions table — employer and talent, paginated' })
+  @ApiOperation({
+    summary: 'Subscriptions table — employer and talent, paginated',
+  })
   @ApiOkResponse({
-    description: 'Paginated list of subscriptions — each with subscriber_name, type, package_tier, monthly_price, status, start_date, next_billing_date, days_left_in_grace',
+    description:
+      'Paginated list of subscriptions — each with subscriber_name, type, package_tier, monthly_price, status, start_date, next_billing_date, days_left_in_grace',
     schema: {
       type: 'object',
       properties: {
@@ -161,12 +170,24 @@ export class AdminPaymentsController {
                   id: { type: 'string', format: 'uuid' },
                   subscriber_name: { type: 'string', example: 'Jane Doe' },
                   type: { type: 'string', enum: ['employer', 'talent'] },
-                  package_tier: { type: 'string', nullable: true, example: 'Free' },
+                  package_tier: {
+                    type: 'string',
+                    nullable: true,
+                    example: 'Free',
+                  },
                   monthly_price: { type: 'number', nullable: true, example: 0 },
                   status: { type: 'string', example: 'active' },
                   start_date: { type: 'string', format: 'date-time' },
-                  next_billing_date: { type: 'string', format: 'date-time', nullable: true },
-                  days_left_in_grace: { type: 'number', nullable: true, example: null },
+                  next_billing_date: {
+                    type: 'string',
+                    format: 'date-time',
+                    nullable: true,
+                  },
+                  days_left_in_grace: {
+                    type: 'number',
+                    nullable: true,
+                    example: null,
+                  },
                 },
               },
             },
@@ -187,9 +208,12 @@ export class AdminPaymentsController {
   }
 
   @Get('transactions')
-  @ApiOperation({ summary: 'Transactions table — paginated with status/date filters' })
+  @ApiOperation({
+    summary: 'Transactions table — paginated with status/date filters',
+  })
   @ApiOkResponse({
-    description: 'Paginated list of transactions — each with subscriber_name, type, amount, currency, date, status, linked_subscription_id',
+    description:
+      'Paginated list of transactions — each with subscriber_name, type, amount, currency, date, status, linked_subscription_id',
     schema: {
       type: 'object',
       properties: {
@@ -208,8 +232,15 @@ export class AdminPaymentsController {
                   amount: { type: 'number', example: 49.99 },
                   currency: { type: 'string', example: 'USD' },
                   date: { type: 'string', format: 'date-time' },
-                  status: { type: 'string', enum: ['successful', 'failed', 'refunded'] },
-                  linked_subscription_id: { type: 'string', format: 'uuid', nullable: true },
+                  status: {
+                    type: 'string',
+                    enum: ['successful', 'failed', 'refunded'],
+                  },
+                  linked_subscription_id: {
+                    type: 'string',
+                    format: 'uuid',
+                    nullable: true,
+                  },
                 },
               },
             },
@@ -230,9 +261,12 @@ export class AdminPaymentsController {
   }
 
   @Get('talent-subscriptions')
-  @ApiOperation({ summary: 'Talent subscription summary — active/cancelled counts and price' })
+  @ApiOperation({
+    summary: 'Talent subscription summary — active/cancelled counts and price',
+  })
   @ApiOkResponse({
-    description: 'Returns total_active, total_cancelled counts and the monthly_price of the paid tier (null if not set)',
+    description:
+      'Returns total_active, total_cancelled counts and the monthly_price of the paid tier (null if not set)',
     schema: {
       type: 'object',
       properties: {

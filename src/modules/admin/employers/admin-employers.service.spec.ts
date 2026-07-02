@@ -147,9 +147,9 @@ describe('AdminEmployersService', () => {
 
       const result = await service.findOne('profile-1');
 
-      expect(verificationService.getVerificationStatusDetail).toHaveBeenCalledWith(
-        'employer-user-1',
-      );
+      expect(
+        verificationService.getVerificationStatusDetail,
+      ).toHaveBeenCalledWith('employer-user-1');
       expect(result.verification_status.verified).toBe(true);
     });
 
@@ -166,8 +166,16 @@ describe('AdminEmployersService', () => {
     it('maps role status to display labels', async () => {
       employerProfileRepo.findOne.mockResolvedValue(baseProfile);
       employerRoleRepo.find.mockResolvedValue([
-        { id: 'role-1', title: 'Backend Engineer', status: EmployerRoleStatus.ACTIVE },
-        { id: 'role-2', title: 'Frontend Engineer', status: EmployerRoleStatus.CLOSED },
+        {
+          id: 'role-1',
+          title: 'Backend Engineer',
+          status: EmployerRoleStatus.ACTIVE,
+        },
+        {
+          id: 'role-2',
+          title: 'Frontend Engineer',
+          status: EmployerRoleStatus.CLOSED,
+        },
       ]);
 
       const result = await service.findOne('profile-1');

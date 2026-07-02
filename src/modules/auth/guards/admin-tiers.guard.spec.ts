@@ -41,6 +41,8 @@ describe('AdminTiersGuard', () => {
 
   it('throws when the user has no admin tier at all', () => {
     const guard = buildGuard([AdminTier.SUPER_ADMIN]);
-    expect(() => guard.canActivate(buildContext({ admin_tier: null }))).toThrow();
+    expect(() =>
+      guard.canActivate(buildContext({ admin_tier: null })),
+    ).toThrow();
   });
 });

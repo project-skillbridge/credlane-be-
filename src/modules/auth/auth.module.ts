@@ -51,6 +51,6 @@ import { EmailChangeOtpService } from './email-change-otp.service';
     GoogleStrategy,
     VerificationOtpService,
   ],
-  exports: [AuthService],
+  exports: [AuthService, PasswordResetQueueService],
 })
 export class AuthModule {}

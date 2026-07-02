@@ -254,10 +254,7 @@ export class AdminQuestionsBankService {
       .addSelect('q.track', 'track')
       .addSelect('q.verified_level', 'verified_level')
       .addSelect('COUNT(*)', 'total')
-      .addSelect(
-        'COUNT(*) FILTER (WHERE q.is_live)',
-        'live_count',
-      )
+      .addSelect('COUNT(*) FILTER (WHERE q.is_live)', 'live_count')
       .addSelect(
         `COUNT(*) FILTER (WHERE q.review_status = '${QuestionReviewStatus.FLAGGED}')`,
         'flagged_count',

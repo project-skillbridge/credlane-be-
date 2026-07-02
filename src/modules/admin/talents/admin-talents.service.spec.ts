@@ -144,9 +144,21 @@ describe('AdminTalentsService', () => {
     it('computes retakes used from attempt count minus the first attempt', async () => {
       talentProfileRepo.findOne.mockResolvedValue(baseProfile);
       assessmentAttemptRepo.find.mockResolvedValue([
-        { id: 'a1', assessment_type: AssessmentType.SKILL, force_submitted: false },
-        { id: 'a2', assessment_type: AssessmentType.SKILL, force_submitted: false },
-        { id: 'a3', assessment_type: AssessmentType.SKILL, force_submitted: false },
+        {
+          id: 'a1',
+          assessment_type: AssessmentType.SKILL,
+          force_submitted: false,
+        },
+        {
+          id: 'a2',
+          assessment_type: AssessmentType.SKILL,
+          force_submitted: false,
+        },
+        {
+          id: 'a3',
+          assessment_type: AssessmentType.SKILL,
+          force_submitted: false,
+        },
       ]);
 
       const result = await service.findOne('talent-1');
@@ -199,7 +211,11 @@ describe('AdminTalentsService', () => {
       ]);
       assessmentScoreRepo.count.mockResolvedValue(3);
       assessmentResultRepo.find.mockResolvedValue([
-        { percentage: 70, tier: AssessmentTier.JOB_READY, integrity_confidence: 'high' },
+        {
+          percentage: 70,
+          tier: AssessmentTier.JOB_READY,
+          integrity_confidence: 'high',
+        },
       ]);
 
       const result = await service.findOne('talent-1');

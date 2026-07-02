@@ -25,9 +25,7 @@ export class SkillGuidanceReportQueueService
   private inlinePending = 0;
   private inlineIdleWaiters: Array<() => void> = [];
 
-  constructor(
-    private readonly processor: SkillGuidanceReportProcessor,
-  ) {}
+  constructor(private readonly processor: SkillGuidanceReportProcessor) {}
 
   onModuleInit(): void {
     const conn = redisQueueConnection();

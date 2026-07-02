@@ -55,9 +55,7 @@ export class AdminIntegrityService {
   async getStats(): Promise<IntegrityStats> {
     const now = new Date();
     const periodStart = new Date(now.getTime() - TREND_WINDOW_MS);
-    const priorPeriodStart = new Date(
-      periodStart.getTime() - TREND_WINDOW_MS,
-    );
+    const priorPeriodStart = new Date(periodStart.getTime() - TREND_WINDOW_MS);
 
     const [
       flaggedNow,
@@ -185,7 +183,10 @@ export class AdminIntegrityService {
         ? await this.violationSummaryForAttempts(attemptIds)
         : new Map<
             string,
-            { count: number; highestConfidence: 'high' | 'medium' | 'low' | null }
+            {
+              count: number;
+              highestConfidence: 'high' | 'medium' | 'low' | null;
+            }
           >();
 
     const items: VoidedAttemptRow[] = rawRows.map((row) => {
@@ -211,7 +212,10 @@ export class AdminIntegrityService {
   private async violationSummaryForAttempts(
     attemptIds: string[],
   ): Promise<
-    Map<string, { count: number; highestConfidence: 'high' | 'medium' | 'low' | null }>
+    Map<
+      string,
+      { count: number; highestConfidence: 'high' | 'medium' | 'low' | null }
+    >
   > {
     const scores = await this.scoreRepo
       .createQueryBuilder('s')

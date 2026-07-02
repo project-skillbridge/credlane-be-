@@ -29,11 +29,15 @@ export const employerPackageSeeder: Seeder = {
 
     const missing = defaults.filter((p) => !existingNames.has(p.name));
     if (missing.length === 0) {
-      console.log('[EmployerPackageSeeder] all packages already exist - skipping');
+      console.log(
+        '[EmployerPackageSeeder] all packages already exist - skipping',
+      );
       return;
     }
 
     await repo.save(missing);
-    console.log(`[EmployerPackageSeeder] inserted missing packages: ${missing.map((p) => p.name).join(', ')}`);
+    console.log(
+      `[EmployerPackageSeeder] inserted missing packages: ${missing.map((p) => p.name).join(', ')}`,
+    );
   },
 };
