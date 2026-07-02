@@ -3,6 +3,9 @@ import {
   ExecutionContext,
   INestApplication,
   Injectable,
+  MiddlewareConsumer,
+  Module,
+  NestModule,
   ValidationPipe,
 } from '@nestjs/common';
 import {
@@ -13,9 +16,11 @@ import {
 } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { PinoLogger } from 'nestjs-pino';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
+import { CaseTransformMiddleware } from '../src/common/middleware/case-transform.middleware';
 import { RolesGuard } from '../src/modules/auth/guards/roles.guard';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
 import { AdvancedAssessmentController } from '../src/modules/talent/assessment/advanced-assessment.controller';
@@ -50,6 +55,7 @@ import { VerifiedLevel } from '../src/modules/assessments/entities/assessment-qu
 import { AssessmentTier } from '../src/modules/assessments/entities/assessment-result.entity';
 import { QuestionGenerationService } from '../src/modules/ai/question-generation.service';
 import { MailService } from '../src/modules/mail/mail.service';
+import { BankExhaustedAlertService } from '../src/modules/mail/bank-exhausted-alert.service';
 import { NotificationDispatchService } from '../src/modules/notifications/notification-dispatch.service';
 import { UserRole } from '../src/modules/users/entities/user.entity';
 import { UsersService } from '../src/modules/users/users.service';
@@ -76,6 +82,13 @@ class MockJwtAuthGuard implements CanActivate {
     const req = context.switchToHttp().getRequest<{ user?: AuthUser }>();
     req.user = MockJwtAuthGuard.nextUser;
     return true;
+  }
+}
+
+@Module({})
+class TestCaseTransformModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(CaseTransformMiddleware).forRoutes('*');
   }
 }
 
@@ -168,14 +181,14 @@ function submitBody() {
   return {
     session_id: ATTEMPT_ID,
     answers: session.questions.map((q) => ({
-      question_id: q.question_id,
+      questionId: q.question_id,
       answer:
         q.block === 'mcq'
           ? 'Option A'
           : q.block === 'short_text'
             ? SHORT_ANSWER
             : LONG_ANSWER,
-      time_spent_seconds: 20,
+      timeSpentSeconds: 20,
     })),
   };
 }
@@ -221,23 +234,12 @@ describe('Advanced assessment (e2e)', () => {
         }
         return Promise.resolve(null);
       }),
-      increment: jest
-        .fn()
-        .mockImplementation(
-          (
-            _entity: unknown,
-            _criteria: Record<string, unknown>,
-            field: string,
-            value: number,
-          ) => {
-            if (field === 'tab_switch_count') {
-              attemptStore.tab_switch_count += value;
-            } else if (field === 'copy_paste_count') {
-              attemptStore.copy_paste_count += value;
-            }
-            return Promise.resolve({ affected: 1 });
-          },
-        ),
+      createQueryBuilder: jest.fn(() => ({
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        getOne: jest.fn().mockResolvedValue(null),
+      })),
+      increment: jest.fn().mockResolvedValue({ affected: 1 }),
       save: jest
         .fn()
         .mockImplementation((_e: unknown, d: unknown) => Promise.resolve(d)),
@@ -311,6 +313,7 @@ describe('Advanced assessment (e2e)', () => {
     };
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [TestCaseTransformModule],
       controllers: [AdvancedAssessmentController],
       providers: [
         AdvancedAssessmentService,
@@ -452,8 +455,20 @@ describe('Advanced assessment (e2e)', () => {
           useValue: { sendAssessmentPerformance: jest.fn() },
         },
         {
+          provide: BankExhaustedAlertService,
+          useValue: { notify: jest.fn() },
+        },
+        {
           provide: NotificationDispatchService,
           useValue: { dispatch: jest.fn().mockResolvedValue(undefined) },
+        },
+        {
+          provide: PinoLogger,
+          useValue: {
+            setContext: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+          },
         },
         { provide: APP_GUARD, useClass: MockJwtAuthGuard },
         { provide: APP_GUARD, useClass: RolesGuard },
@@ -494,7 +509,7 @@ describe('Advanced assessment (e2e)', () => {
         .expect(202)
         .expect((res) => {
           expect(res.body.status).toBe('processing');
-          expect(res.body.session_id).toBe(ATTEMPT_ID);
+          expect(res.body.session_id ?? res.body.sessionId).toBe(ATTEMPT_ID);
           expect(res.body.score).toBeUndefined();
         });
 
@@ -540,9 +555,9 @@ describe('Advanced assessment (e2e)', () => {
         .send({
           session_id: ATTEMPT_ID,
           answers: [
-            { question_id: MCQ_IDS[0], answer: 'Option A' },
-            { question_id: SHORT_IDS[0], answer: SHORT_ANSWER },
-            { question_id: LONG_IDS[0], answer: LONG_ANSWER },
+            { questionId: MCQ_IDS[0], answer: 'Option A' },
+            { questionId: SHORT_IDS[0], answer: SHORT_ANSWER },
+            { questionId: LONG_IDS[0], answer: LONG_ANSWER },
           ],
         })
         .expect(202)
@@ -580,8 +595,8 @@ describe('Advanced assessment (e2e)', () => {
         .expect((res) => {
           expect(res.body.status).toBe('voided');
           expect(res.body.action).toBe('logout');
-          expect(res.body.session_voided).toBe(true);
-          expect(res.body.tab_switch_count).toBe(1);
+          expect(res.body.sessionVoided).toBe(true);
+          expect(res.body.tabSwitchCount).toBe(1);
         });
     });
 
@@ -593,8 +608,8 @@ describe('Advanced assessment (e2e)', () => {
         .expect((res) => {
           expect(res.body.status).toBe('voided');
           expect(res.body.action).toBe('logout');
-          expect(res.body.session_voided).toBe(true);
-          expect(res.body.copy_paste_count).toBe(1);
+          expect(res.body.sessionVoided).toBe(true);
+          expect(res.body.copyPasteCount).toBe(1);
         });
     });
 

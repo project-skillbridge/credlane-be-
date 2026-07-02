@@ -6,6 +6,7 @@ import { App } from 'supertest/types';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
 import { HealthModule } from '../src/modules/health/health.module';
 import { ProbeController } from '../src/probe.controller';
+import { SuccessMessages } from '../src/shared';
 import { WelcomeController } from '../src/welcome.controller';
 
 describe('Health (e2e)', () => {
@@ -40,7 +41,7 @@ describe('Health (e2e)', () => {
       .expect(200)
       .expect((res) => {
         expect(res.body.status_code).toBe(200);
-        expect(res.body.message).toBe('I am the NestJs api responding');
+        expect(res.body.message).toBe(SuccessMessages.COMMON.API_PROBE);
         expect(res.body.data).toBeUndefined();
       });
   });
@@ -51,7 +52,7 @@ describe('Health (e2e)', () => {
       .expect(200)
       .expect((res) => {
         expect(res.body.status_code).toBe(200);
-        expect(res.body.message).toBe('I am the NestJs api responding');
+        expect(res.body.message).toBe(SuccessMessages.COMMON.API_PROBE);
       });
   });
 
