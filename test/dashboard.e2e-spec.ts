@@ -12,6 +12,7 @@ import {
 } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { PinoLogger } from 'nestjs-pino';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
@@ -30,6 +31,13 @@ import {
   TalentProfile,
   TalentProfileStatus,
 } from '../src/modules/talent/entities/talent-profile.entity';
+import { EmployerPoolProfile } from '../src/modules/talent/entities/employer-pool-profile.entity';
+import { EmployerProfile } from '../src/modules/employer/entities/employer-profile.entity';
+import { EmployerRole } from '../src/modules/employer-roles/entities/employer-role.entity';
+import { EmployerSavedCandidate } from '../src/modules/employer-discovery/entities/employer-saved-candidate.entity';
+import { EmployerAssessment } from '../src/modules/employer-assessments/entities/employer-assessment.entity';
+import { EmployerAssessmentSubmission } from '../src/modules/employer-assessments/entities/employer-assessment-submission.entity';
+import { Offer } from '../src/modules/offers/entities/offer.entity';
 import { User, UserRole } from '../src/modules/users/entities/user.entity';
 import { UsersService } from '../src/modules/users/users.service';
 import { DashboardJourneyStatus } from '../src/modules/dashboard/dto/dashboard-home.dto';
@@ -186,9 +194,69 @@ describe('Dashboard home (e2e)', () => {
           },
         },
         {
+          provide: getRepositoryToken(EmployerProfile),
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+          },
+        },
+        {
+          provide: getRepositoryToken(EmployerRole),
+          useValue: {
+            count: jest.fn().mockResolvedValue(0),
+            find: jest.fn().mockResolvedValue([]),
+          },
+        },
+        {
+          provide: getRepositoryToken(EmployerSavedCandidate),
+          useValue: {
+            count: jest.fn().mockResolvedValue(0),
+            findOne: jest.fn().mockResolvedValue(null),
+          },
+        },
+        {
+          provide: getRepositoryToken(EmployerAssessment),
+          useValue: {
+            count: jest.fn().mockResolvedValue(0),
+          },
+        },
+        {
+          provide: getRepositoryToken(EmployerAssessmentSubmission),
+          useValue: {
+            createQueryBuilder: jest.fn(() => ({
+              innerJoin: jest.fn().mockReturnThis(),
+              select: jest.fn().mockReturnThis(),
+              orderBy: jest.fn().mockReturnThis(),
+              getRawOne: jest.fn().mockResolvedValue({ cnt: '0' }),
+              getOne: jest.fn().mockResolvedValue(null),
+            })),
+          },
+        },
+        {
+          provide: getRepositoryToken(Offer),
+          useValue: {
+            count: jest.fn().mockResolvedValue(0),
+            findOne: jest.fn().mockResolvedValue(null),
+          },
+        },
+        {
+          provide: getRepositoryToken(EmployerPoolProfile),
+          useValue: {
+            count: jest.fn().mockResolvedValue(0),
+            findOne: jest.fn().mockResolvedValue(null),
+          },
+        },
+        {
           provide: NotificationDispatchService,
           useValue: {
             notifyAdvancedRetakeIfEligible: jest.fn().mockResolvedValue(null),
+          },
+        },
+        {
+          provide: PinoLogger,
+          useValue: {
+            setContext: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
           },
         },
         { provide: APP_GUARD, useClass: MockJwtAuthGuard },
@@ -257,6 +325,7 @@ describe('Dashboard home (e2e)', () => {
               completed_at: '2026-05-02T00:00:00.000Z',
               attempts_used: 0,
               attempts_remaining: 3,
+              failed: false,
             },
             advanced: {
               score: 88,

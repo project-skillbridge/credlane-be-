@@ -4,11 +4,13 @@ import {
   ValidationPipe,
 } from '@nestjs/common';
 import { JwtModule, JwtService } from '@nestjs/jwt';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { PassportModule } from '@nestjs/passport';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import type { StringValue } from 'ms';
+import { PinoLogger } from 'nestjs-pino';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
@@ -21,9 +23,12 @@ import {
   TalentProfile,
   TalentProfileStatus,
 } from '../src/modules/talent/entities/talent-profile.entity';
+import { EmployerPoolProfile } from '../src/modules/talent/entities/employer-pool-profile.entity';
 import { EmployerController } from '../src/modules/employer/employer.controller';
 import { EmployerService } from '../src/modules/employer/employer.service';
 import { EmployerProfile } from '../src/modules/employer/entities/employer-profile.entity';
+import { EmployerVerificationService } from '../src/modules/employer/employer-verification.service';
+import { AiResourcesService } from '../src/modules/ai-resources/ai-resources.service';
 import {
   ACCESS_TOKEN_COOKIE,
   REFRESH_TOKEN_COOKIE,
@@ -32,11 +37,14 @@ import { AuthService } from '../src/modules/auth/auth.service';
 import { PasswordResetOtp } from '../src/modules/auth/entities/password-reset-otp.entity';
 import { PasswordResetOtpService } from '../src/modules/auth/password-reset-otp.service';
 import { PasswordResetQueueService } from '../src/modules/auth/password-reset-queue.service';
+import { EmailChangeOtpService } from '../src/modules/auth/email-change-otp.service';
 import { VerificationOtpService } from '../src/modules/auth/verification-otp.service';
 import { JwtAuthGuard } from '../src/modules/auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../src/modules/auth/guards/roles.guard';
 import { JwtStrategy } from '../src/modules/auth/strategies/jwt.strategy';
 import { MailService } from '../src/modules/mail/mail.service';
+import { NotificationsService } from '../src/modules/notifications/notifications.service';
+import { UserNotificationPreference } from '../src/modules/notifications/user-notification-preference.entity';
 import { User, UserRole } from '../src/modules/users/entities/user.entity';
 import { UsersService } from '../src/modules/users/users.service';
 
@@ -79,6 +87,8 @@ class InMemoryUsersService {
       avatar_url: null,
       is_verified: true,
       onboarding_complete: false,
+      admin_tier: null,
+      is_active: true,
       refreshTokenHash: null,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -352,6 +362,7 @@ describe('Onboarding (e2e)', () => {
   beforeEach(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [
+        ThrottlerModule.forRoot([{ ttl: 60_000, limit: 5 }]),
         PassportModule.register({ defaultStrategy: 'jwt' }),
         JwtModule.register({ secret: env.JWT_ACCESS_SECRET }),
       ],
@@ -367,6 +378,36 @@ describe('Onboarding (e2e)', () => {
           useFactory: (inMemoryUsersService: InMemoryUsersService) =>
             new InMemoryTalentProfileRepository(inMemoryUsersService),
           inject: [UsersService],
+        },
+        {
+          provide: getRepositoryToken(EmployerPoolProfile),
+          useValue: {
+            findOne: jest.fn().mockResolvedValue(null),
+            create: jest.fn((payload: Partial<EmployerPoolProfile>) =>
+              Object.assign(new EmployerPoolProfile(), payload),
+            ),
+            save: jest
+              .fn()
+              .mockImplementation((profile: EmployerPoolProfile) =>
+                Promise.resolve(profile),
+              ),
+            update: jest.fn().mockResolvedValue({ affected: 0 }),
+          },
+        },
+        {
+          provide: getRepositoryToken(UserNotificationPreference),
+          useValue: {
+            find: jest.fn().mockResolvedValue([]),
+            manager: {
+              transaction: jest
+                .fn()
+                .mockImplementation((work: (manager: unknown) => unknown) =>
+                  work({
+                    upsert: jest.fn().mockResolvedValue({}),
+                  }),
+                ),
+            },
+          },
         },
         {
           provide: getRepositoryToken(EmployerProfile),
@@ -390,6 +431,15 @@ describe('Onboarding (e2e)', () => {
           },
         },
         {
+          provide: EmailChangeOtpService,
+          useValue: {
+            issue: jest
+              .fn()
+              .mockResolvedValue({ code: '123456', expiresAt: new Date() }),
+            consume: jest.fn().mockResolvedValue(true),
+          },
+        },
+        {
           provide: getRepositoryToken(PasswordResetOtp),
           useValue: {},
         },
@@ -410,6 +460,44 @@ describe('Onboarding (e2e)', () => {
               .mockResolvedValue(
                 'https://bucket.s3.region.amazonaws.com/avatars/test.jpg',
               ),
+          },
+        },
+        {
+          provide: EmployerVerificationService,
+          useValue: {
+            checkAndUpdateVerification: jest.fn().mockResolvedValue(false),
+            getVerificationStatusDetail: jest.fn().mockResolvedValue({
+              verified: false,
+              criteria: {
+                email_verified: true,
+                website_resolvable: false,
+                linkedin_provided: false,
+              },
+              banner_visible: true,
+            }),
+          },
+        },
+        {
+          provide: NotificationsService,
+          useValue: {
+            listForUser: jest.fn().mockResolvedValue([]),
+            countUnread: jest.fn().mockResolvedValue(0),
+            markAllAsRead: jest.fn().mockResolvedValue(undefined),
+            markAsRead: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: AiResourcesService,
+          useValue: {
+            warmCache: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: PinoLogger,
+          useValue: {
+            setContext: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
           },
         },
         { provide: APP_GUARD, useClass: JwtAuthGuard },
@@ -447,7 +535,7 @@ describe('Onboarding (e2e)', () => {
       .post('/talent/onboarding')
       .set('Cookie', cookieHeader)
       .send({
-        roleTrack: 'frontend',
+        roleTrack: 'frontend_developer',
         bio: 'Entry-level frontend engineer focused on accessible web apps.',
       })
       .expect(200);
@@ -464,7 +552,7 @@ describe('Onboarding (e2e)', () => {
       },
       profile: {
         user_id: user.id,
-        role_track: 'frontend',
+        role_track: 'frontend_developer',
         status: TalentProfileStatus.NOT_STARTED,
       },
     });
@@ -480,7 +568,7 @@ describe('Onboarding (e2e)', () => {
     await request(app.getHttpServer())
       .post('/talent/onboarding')
       .set('Cookie', cookieHeader)
-      .send({ roleTrack: 'frontend' })
+      .send({ roleTrack: 'frontend_developer' })
       .expect(200);
 
     const secondAccessCookie = await accessCookieHeaderFor(
@@ -491,7 +579,7 @@ describe('Onboarding (e2e)', () => {
     await request(app.getHttpServer())
       .post('/talent/onboarding')
       .set('Cookie', secondAccessCookie)
-      .send({ roleTrack: 'frontend' })
+      .send({ roleTrack: 'frontend_developer' })
       .expect(403)
       .expect((response) => {
         expect(response.body).toMatchObject({

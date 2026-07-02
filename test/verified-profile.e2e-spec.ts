@@ -11,6 +11,7 @@ import {
   Reflector,
 } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
+import { PinoLogger } from 'nestjs-pino';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
@@ -145,6 +146,14 @@ describe('Verified profile (e2e)', () => {
         {
           provide: VerifiedProfileService,
           useValue: verifiedProfileService,
+        },
+        {
+          provide: PinoLogger,
+          useValue: {
+            setContext: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+          },
         },
         { provide: APP_GUARD, useClass: MockJwtAuthGuard },
         { provide: APP_GUARD, useClass: RolesGuard },
