@@ -13,6 +13,7 @@ import {
 } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
+import { PinoLogger } from 'nestjs-pino';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
@@ -24,6 +25,8 @@ import { PersonalAssessmentQuestionService } from '../src/modules/talent/assessm
 import type { PersonalAssessmentInputType } from '../src/modules/talent/assessment/personal-assessment.schema';
 import { PERSONAL_ASSESSMENT_TEST_QUESTIONS } from '../src/modules/talent/assessment/personal-assessment.test-questions';
 import { PersonalAssessmentQuestionEntity } from '../src/modules/talent/entities/personal-assessment-question.entity';
+import { AiResourcesService } from '../src/modules/ai-resources/ai-resources.service';
+import { OpenRouterService } from '../src/modules/ai/openrouter.service';
 import {
   makeTalentProfile,
   makeTalentUser,
@@ -201,6 +204,26 @@ describe('Personal assessment (e2e)', () => {
               },
             };
           })(),
+        },
+        {
+          provide: AiResourcesService,
+          useValue: {
+            warmCache: jest.fn().mockResolvedValue(undefined),
+          },
+        },
+        {
+          provide: OpenRouterService,
+          useValue: {
+            generateJson: jest.fn().mockRejectedValue(new Error('AI disabled')),
+          },
+        },
+        {
+          provide: PinoLogger,
+          useValue: {
+            setContext: jest.fn(),
+            error: jest.fn(),
+            warn: jest.fn(),
+          },
         },
         { provide: APP_GUARD, useClass: MockJwtAuthGuard },
         { provide: APP_GUARD, useClass: RolesGuard },

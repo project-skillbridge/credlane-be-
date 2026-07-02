@@ -1,7 +1,7 @@
 import { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class AddAdminManagementSupport1782100000000 implements MigrationInterface {
-  name = 'AddAdminManagementSupport1782100000000';
+export class AddAdminManagementSupport1782200000000 implements MigrationInterface {
+  name = 'AddAdminManagementSupport1782200000000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
     await queryRunner.query(`

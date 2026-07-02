@@ -15,6 +15,7 @@ import * as argon2 from 'argon2';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { Response } from 'supertest';
+import { PinoLogger } from 'nestjs-pino';
 import { HttpExceptionFilter } from '../src/common/filters/http-exception.filter';
 import { TransformInterceptor } from '../src/common/interceptors/transform.interceptor';
 import { env } from '../src/config/env';
@@ -29,6 +30,7 @@ import { SuccessMessages } from '../src/shared';
 import { PasswordResetOtp } from '../src/modules/auth/entities/password-reset-otp.entity';
 import { PasswordResetOtpService } from '../src/modules/auth/password-reset-otp.service';
 import { PasswordResetDeliveryService } from '../src/modules/auth/password-reset-delivery.service';
+import { EmailChangeOtpService } from '../src/modules/auth/email-change-otp.service';
 import { GoogleOAuthGuard } from '../src/modules/auth/guards/google-auth.guard';
 import type { GoogleProfile } from '../src/modules/auth/strategies/google.strategy';
 import { OAuthUser } from '../src/modules/users/entities/user-oauth.entity';
@@ -119,6 +121,8 @@ class InMemoryUsersService {
       is_verified: false,
       onboarding_complete: false,
       role: dto.role ?? UserRole.TALENT,
+      admin_tier: null,
+      is_active: true,
       signup_reason: dto.signupReason ?? null,
       refreshTokenHash: null,
       createdAt: new Date(),
@@ -262,6 +266,8 @@ class InMemoryUsersService {
       is_verified: true,
       onboarding_complete: false,
       role,
+      admin_tier: null,
+      is_active: true,
       refreshTokenHash: null,
       createdAt: new Date(),
       updatedAt: new Date(),
@@ -487,6 +493,20 @@ const mockPasswordResetOtpService = {
   countRecentRequests: jest.fn().mockResolvedValue(0),
 };
 
+const mockEmailChangeOtpService = {
+  issue: jest.fn().mockResolvedValue({
+    code: '123456',
+    expiresAt: new Date(Date.now() + 15 * 60 * 1000),
+  }),
+  consume: jest.fn().mockResolvedValue(true),
+};
+
+const mockPinoLogger = {
+  setContext: jest.fn(),
+  error: jest.fn(),
+  warn: jest.fn(),
+};
+
 describe('Auth (e2e)', () => {
   let app: INestApplication<App>;
   let usersService: InMemoryUsersService;
@@ -520,6 +540,10 @@ describe('Auth (e2e)', () => {
           useValue: mockPasswordResetOtpService,
         },
         {
+          provide: EmailChangeOtpService,
+          useValue: mockEmailChangeOtpService,
+        },
+        {
           provide: getRepositoryToken(PasswordResetOtp),
           useValue: {},
         },
@@ -527,6 +551,7 @@ describe('Auth (e2e)', () => {
           provide: getRepositoryToken(TalentProfile),
           useValue: { findOne: jest.fn().mockResolvedValue(null) },
         },
+        { provide: PinoLogger, useValue: mockPinoLogger },
         { provide: APP_GUARD, useClass: JwtAuthGuard },
         { provide: APP_FILTER, useClass: HttpExceptionFilter },
         { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },
@@ -1243,6 +1268,10 @@ describe('Google OAuth callback (e2e)', () => {
           useValue: mockPasswordResetOtpService,
         },
         {
+          provide: EmailChangeOtpService,
+          useValue: mockEmailChangeOtpService,
+        },
+        {
           provide: getRepositoryToken(PasswordResetOtp),
           useValue: {},
         },
@@ -1259,6 +1288,7 @@ describe('Google OAuth callback (e2e)', () => {
             onModuleInit: jest.fn(),
           },
         },
+        { provide: PinoLogger, useValue: mockPinoLogger },
         { provide: APP_GUARD, useClass: JwtAuthGuard },
         { provide: APP_FILTER, useClass: HttpExceptionFilter },
         { provide: APP_INTERCEPTOR, useClass: TransformInterceptor },

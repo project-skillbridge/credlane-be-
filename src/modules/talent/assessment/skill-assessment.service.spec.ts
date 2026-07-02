@@ -157,7 +157,7 @@ describe('SkillAssessmentService', () => {
       { generate: jest.fn() } as never,
       bankExhaustedAlert as never,
       { warmCache: warmCacheMock } as never,
-      guidanceReportQueue as Pick<SkillGuidanceReportQueueService, 'enqueue'>,
+      guidanceReportQueue as never,
     );
   });
 
