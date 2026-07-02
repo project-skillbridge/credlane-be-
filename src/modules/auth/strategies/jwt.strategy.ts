@@ -7,7 +7,11 @@ import { env } from '../../../config/env';
 import { UsersService } from '../../users/users.service';
 import { ACCESS_TOKEN_COOKIE, readCookie } from '../auth.cookies';
 import { AdminTier, UserRole } from '../../users/entities/user.entity';
-import { ErrorMessages, ForbiddenError, UnauthorizedError } from '../../../shared';
+import {
+  ErrorMessages,
+  ForbiddenError,
+  UnauthorizedError,
+} from '../../../shared';
 
 export interface JwtPayload {
   sub: string;

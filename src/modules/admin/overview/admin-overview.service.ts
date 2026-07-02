@@ -150,9 +150,7 @@ export class AdminOverviewService {
     };
   }
 
-  async getScoreDistribution(
-    track?: string,
-  ): Promise<ScoreDistributionResult> {
+  async getScoreDistribution(track?: string): Promise<ScoreDistributionResult> {
     const qb = this.assessmentResultRepo
       .createQueryBuilder('result')
       .innerJoin('result.attempt', 'attempt')
@@ -178,7 +176,8 @@ export class AdminOverviewService {
 
     for (const row of rows) {
       const pct = Math.min(99, Math.max(0, row.percentage));
-      const bucketStart = Math.floor(pct / SCORE_BUCKET_SIZE) * SCORE_BUCKET_SIZE;
+      const bucketStart =
+        Math.floor(pct / SCORE_BUCKET_SIZE) * SCORE_BUCKET_SIZE;
       bucketCounts.set(bucketStart, (bucketCounts.get(bucketStart) ?? 0) + 1);
     }
 
@@ -202,7 +201,7 @@ export class AdminOverviewService {
    * endpoint returns the contract shape now so the FE can wire the chart and
    * empty state ahead of that data existing.
    */
-   
+
   getAiGenerationConsumption(
     _period: string,
   ): Promise<AiGenerationConsumptionResult> {
@@ -249,7 +248,9 @@ export class AdminOverviewService {
         : Promise.resolve([]),
     ]);
 
-    const talentByUserId = new Map(talentIds.length ? talentProfiles.map((p) => [p.user_id, p]) : []);
+    const talentByUserId = new Map(
+      talentIds.length ? talentProfiles.map((p) => [p.user_id, p]) : [],
+    );
     const employerByUserId = new Map(
       employerIds.length ? employerProfiles.map((p) => [p.user_id, p]) : [],
     );

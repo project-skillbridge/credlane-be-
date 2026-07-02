@@ -138,11 +138,21 @@ export class CreatePaymentTables1782000000000 implements MigrationInterface {
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {
-    await queryRunner.query(`ALTER TABLE "transactions" DROP CONSTRAINT IF EXISTS "CK_transactions_linkage"`);
-    await queryRunner.query(`ALTER TABLE "transactions" DROP CONSTRAINT IF EXISTS "CK_transactions_status"`);
-    await queryRunner.query(`ALTER TABLE "transactions" DROP CONSTRAINT IF EXISTS "CK_transactions_subscriber_type"`);
-    await queryRunner.query(`ALTER TABLE "talent_subscriptions" DROP CONSTRAINT IF EXISTS "CK_talent_subscriptions_status"`);
-    await queryRunner.query(`ALTER TABLE "employer_subscriptions" DROP CONSTRAINT IF EXISTS "CK_employer_subscriptions_status"`);
+    await queryRunner.query(
+      `ALTER TABLE "transactions" DROP CONSTRAINT IF EXISTS "CK_transactions_linkage"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transactions" DROP CONSTRAINT IF EXISTS "CK_transactions_status"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "transactions" DROP CONSTRAINT IF EXISTS "CK_transactions_subscriber_type"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "talent_subscriptions" DROP CONSTRAINT IF EXISTS "CK_talent_subscriptions_status"`,
+    );
+    await queryRunner.query(
+      `ALTER TABLE "employer_subscriptions" DROP CONSTRAINT IF EXISTS "CK_employer_subscriptions_status"`,
+    );
     await queryRunner.query(`DROP TABLE IF EXISTS "transactions"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "talent_subscriptions"`);
     await queryRunner.query(`DROP TABLE IF EXISTS "employer_subscriptions"`);

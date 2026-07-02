@@ -73,4 +73,13 @@ export const SuccessMessages = {
   EMPLOYER_VERIFICATION: {
     VERIFIED: 'Employer verification complete',
   },
+  ADMIN_MANAGEMENT: {
+    INVITE_SENT: (email: string) => `Invite sent to ${email}`,
+    PASSWORD_RESET_SENT: (email: string) =>
+      `Password reset code sent to ${email}`,
+    EMAIL_UPDATED: (name: string) => `Email updated for ${name}`,
+    ROLE_UPDATED: (name: string) => `Role updated for ${name}`,
+    ACCOUNT_DEACTIVATED: 'Account deactivated',
+    ACCOUNT_REACTIVATED: 'Account reactivated',
+  },
 } as const;

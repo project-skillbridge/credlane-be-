@@ -102,6 +102,14 @@ export class User {
 
   @ApiProperty({ required: false, nullable: true })
   @Column({
+    type: 'timestamp with time zone',
+    name: 'last_login_at',
+    nullable: true,
+  })
+  last_login_at: Date | null;
+
+  @ApiProperty({ required: false, nullable: true })
+  @Column({
     type: 'varchar',
     length: 255,
     nullable: true,

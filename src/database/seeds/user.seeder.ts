@@ -48,7 +48,8 @@ function resolveAdminEntries(): AdminSeedEntry[] {
         email: email.toLowerCase().trim(),
         password,
         full_name: full_name.trim(),
-        admin_tier: (admin_tier as AdminSeedEntry['admin_tier']) ?? 'SUPER_ADMIN',
+        admin_tier:
+          (admin_tier as AdminSeedEntry['admin_tier']) ?? 'SUPER_ADMIN',
       };
     });
   }
@@ -63,7 +64,10 @@ function resolveAdminEntries(): AdminSeedEntry[] {
   ];
 }
 
-function splitName(fullName: string): { first_name: string; last_name: string } {
+function splitName(fullName: string): {
+  first_name: string;
+  last_name: string;
+} {
   const [firstName, ...lastNameParts] = fullName.trim().split(/\s+/);
   return {
     first_name: firstName || 'Admin',

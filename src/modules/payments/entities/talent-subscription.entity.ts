@@ -41,7 +41,11 @@ export class TalentSubscription {
   price: number | null;
 
   @ApiProperty({ enum: TALENT_SUBSCRIPTION_STATUS_VALUES })
-  @Column({ type: 'varchar', length: 20, default: TalentSubscriptionStatus.FREE })
+  @Column({
+    type: 'varchar',
+    length: 20,
+    default: TalentSubscriptionStatus.FREE,
+  })
   status: TalentSubscriptionStatus;
 
   @ApiProperty()
@@ -49,7 +53,11 @@ export class TalentSubscription {
   startDate: Date;
 
   @ApiProperty({ nullable: true })
-  @Column({ type: 'timestamp with time zone', nullable: true, name: 'next_billing_date' })
+  @Column({
+    type: 'timestamp with time zone',
+    nullable: true,
+    name: 'next_billing_date',
+  })
   nextBillingDate: Date | null;
 
   @ApiProperty()

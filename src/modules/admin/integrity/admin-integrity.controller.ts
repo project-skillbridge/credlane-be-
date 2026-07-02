@@ -15,13 +15,18 @@ export class AdminIntegrityController {
   constructor(private readonly adminIntegrityService: AdminIntegrityService) {}
 
   @Get('stats')
-  @ApiOperation({ summary: 'Integrity stat cards: flagged/voided attempts, confidence, violation rate' })
+  @ApiOperation({
+    summary:
+      'Integrity stat cards: flagged/voided attempts, confidence, violation rate',
+  })
   async getStats() {
     return this.adminIntegrityService.getStats();
   }
 
   @Get('voided-attempts')
-  @ApiOperation({ summary: 'List force-submitted (voided) assessment attempts' })
+  @ApiOperation({
+    summary: 'List force-submitted (voided) assessment attempts',
+  })
   async findVoidedAttempts(@Query() query: ListVoidedAttemptsQueryDto) {
     return this.adminIntegrityService.findVoidedAttempts(query);
   }

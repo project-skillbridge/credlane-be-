@@ -9,7 +9,10 @@ export class ListVoidedAttemptsQueryDto extends PaginationDto {
   @IsEnum(AssessmentType)
   assessment_type?: AssessmentType;
 
-  @ApiProperty({ required: false, description: 'Search by talent name or email' })
+  @ApiProperty({
+    required: false,
+    description: 'Search by talent name or email',
+  })
   @IsOptional()
   @IsString()
   search?: string;

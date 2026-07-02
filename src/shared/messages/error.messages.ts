@@ -148,4 +148,16 @@ export const ErrorMessages = {
     FIELD_LOCKED: (lastChangedAt: string, unlocksAt: string) =>
       `This field was last updated on ${lastChangedAt} and can next be changed on ${unlocksAt}.`,
   },
+  ADMIN_MANAGEMENT: {
+    ADMIN_NOT_FOUND: (id: string) => `Admin account ${id} not found`,
+    EMAIL_UNCHANGED: 'New email must differ from the current email',
+    ROLE_UNCHANGED: 'Role is already set to the requested tier',
+    SUPER_ADMIN_DOWNGRADE_CONFIRMATION_REQUIRED:
+      'Confirm downgrade before changing a Super Admin to a lower tier',
+    CANNOT_SELF_DEACTIVATE: 'You cannot deactivate your own account',
+    ALREADY_DEACTIVATED: 'Account is already deactivated',
+    ALREADY_ACTIVE: 'Account is already active',
+    LAST_SUPER_ADMIN_PROTECTED:
+      'At least one active Super Admin must remain on the platform',
+  },
 } as const;

@@ -68,7 +68,10 @@ export class Transaction {
   @CreateDateColumn({ name: 'created_at', type: 'timestamp with time zone' })
   createdAt: Date;
 
-  @ManyToOne(() => EmployerSubscription, { nullable: true, onDelete: 'SET NULL' })
+  @ManyToOne(() => EmployerSubscription, {
+    nullable: true,
+    onDelete: 'SET NULL',
+  })
   @JoinColumn({ name: 'employer_subscription_id' })
   employerSubscription: EmployerSubscription | null;
 

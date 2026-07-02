@@ -261,7 +261,9 @@ export class AuthService {
    * the dashboard spec — admin accounts are invite-only, so leaking
    * existence here is an accepted tradeoff.
    */
-  async adminLogin(dto: LoginDto): Promise<AuthResult & { data: { user: AuthUser; redirect_path: string } }> {
+  async adminLogin(
+    dto: LoginDto,
+  ): Promise<AuthResult & { data: { user: AuthUser; redirect_path: string } }> {
     const user = await this.usersService.findByEmail(dto.email);
     if (!user || user.role !== UserRole.ADMIN) {
       throw new NotFoundError(ErrorMessages.AUTH.NO_ADMIN_ACCOUNT_FOUND);
@@ -275,12 +277,18 @@ export class AuthService {
     }
 
     if (!user.password) {
-      throw new UnauthorizedError(ErrorMessages.AUTH.INCORRECT_EMAIL_OR_PASSWORD);
+      throw new UnauthorizedError(
+        ErrorMessages.AUTH.INCORRECT_EMAIL_OR_PASSWORD,
+      );
     }
     const valid = await argon2.verify(user.password, dto.password);
     if (!valid) {
-      throw new UnauthorizedError(ErrorMessages.AUTH.INCORRECT_EMAIL_OR_PASSWORD);
+      throw new UnauthorizedError(
+        ErrorMessages.AUTH.INCORRECT_EMAIL_OR_PASSWORD,
+      );
     }
+
+    await this.usersService.recordLastLogin(user.id);
 
     const result = await this.issueTokens(user, SuccessMessages.AUTH.LOGIN);
     return {

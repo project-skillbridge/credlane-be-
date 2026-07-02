@@ -83,25 +83,29 @@ export class AdminPaymentsService {
   ) {}
 
   async getStats(): Promise<StatCards> {
-    const [totalRevenueResult, activeEmployerCount, activeTalentCount, failedCount] =
-      await Promise.all([
-        this.transactionRepo
-          .createQueryBuilder('txn')
-          .select('COALESCE(SUM(txn.amount), 0)', 'total')
-          .where('txn.status = :status', {
-            status: TransactionStatus.SUCCESSFUL,
-          })
-          .getRawOne<{ total: string }>(),
-        this.employerSubscriptionRepo.count({
-          where: { status: EmployerSubscriptionStatus.ACTIVE },
-        }),
-        this.talentSubscriptionRepo.count({
-          where: { status: TalentSubscriptionStatus.ACTIVE },
-        }),
-        this.transactionRepo.count({
-          where: { status: TransactionStatus.FAILED },
-        }),
-      ]);
+    const [
+      totalRevenueResult,
+      activeEmployerCount,
+      activeTalentCount,
+      failedCount,
+    ] = await Promise.all([
+      this.transactionRepo
+        .createQueryBuilder('txn')
+        .select('COALESCE(SUM(txn.amount), 0)', 'total')
+        .where('txn.status = :status', {
+          status: TransactionStatus.SUCCESSFUL,
+        })
+        .getRawOne<{ total: string }>(),
+      this.employerSubscriptionRepo.count({
+        where: { status: EmployerSubscriptionStatus.ACTIVE },
+      }),
+      this.talentSubscriptionRepo.count({
+        where: { status: TalentSubscriptionStatus.ACTIVE },
+      }),
+      this.transactionRepo.count({
+        where: { status: TransactionStatus.FAILED },
+      }),
+    ]);
 
     return {
       total_revenue: {
@@ -114,7 +118,9 @@ export class AdminPaymentsService {
     };
   }
 
-  async getRevenueChart(query: RevenueChartQueryDto): Promise<RevenueChartData> {
+  async getRevenueChart(
+    query: RevenueChartQueryDto,
+  ): Promise<RevenueChartData> {
     const period = query.period ?? 'monthly';
 
     let dateTrunc: string;
@@ -186,9 +192,7 @@ export class AdminPaymentsService {
     }));
   }
 
-  async getSubscriptions(
-    query: ListSubscriptionsQueryDto,
-  ): Promise<{
+  async getSubscriptions(query: ListSubscriptionsQueryDto): Promise<{
     items: SubscriptionRow[];
     total: number;
     page: number;
@@ -230,7 +234,12 @@ export class AdminPaymentsService {
       ]);
 
     if (query.type === 'employer') {
-      return this.paginatedEmployerSubscriptions(employerQb, query, page, limit);
+      return this.paginatedEmployerSubscriptions(
+        employerQb,
+        query,
+        page,
+        limit,
+      );
     }
     if (query.type === 'talent') {
       return this.paginatedTalentSubscriptions(talentQb, query, page, limit);
@@ -258,7 +267,8 @@ export class AdminPaymentsService {
     }
 
     filtered.sort(
-      (a, b) => new Date(b.start_date).getTime() - new Date(a.start_date).getTime(),
+      (a, b) =>
+        new Date(b.start_date).getTime() - new Date(a.start_date).getTime(),
     );
 
     return this.paginateMerged(filtered, page, limit);
@@ -332,13 +342,16 @@ export class AdminPaymentsService {
     };
   }
 
-  private mapEmployerSubRows(raw: Record<string, unknown>[]): SubscriptionRow[] {
+  private mapEmployerSubRows(
+    raw: Record<string, unknown>[],
+  ): SubscriptionRow[] {
     return raw.map((row) => ({
       id: row.id as string,
       subscriber_name: row.subscriber_name as string,
       type: 'employer' as const,
       package_tier: (row.package_tier as string) ?? null,
-      monthly_price: row.monthly_price != null ? Number(row.monthly_price) : null,
+      monthly_price:
+        row.monthly_price != null ? Number(row.monthly_price) : null,
       status: row.status as string,
       start_date: row.start_date as Date,
       next_billing_date: (row.next_billing_date as Date) ?? null,
@@ -354,7 +367,8 @@ export class AdminPaymentsService {
       subscriber_name: row.subscriber_name as string,
       type: 'talent' as const,
       package_tier: null,
-      monthly_price: row.monthly_price != null ? Number(row.monthly_price) : null,
+      monthly_price:
+        row.monthly_price != null ? Number(row.monthly_price) : null,
       status: row.status as string,
       start_date: row.start_date as Date,
       next_billing_date: (row.next_billing_date as Date) ?? null,
@@ -362,7 +376,9 @@ export class AdminPaymentsService {
     }));
   }
 
-  private computeDaysLeftInGrace(gracePeriodEndsAt: Date | null): number | null {
+  private computeDaysLeftInGrace(
+    gracePeriodEndsAt: Date | null,
+  ): number | null {
     if (!gracePeriodEndsAt) return null;
     const diffMs = new Date(gracePeriodEndsAt).getTime() - Date.now();
     if (diffMs <= 0) return 0;
@@ -386,9 +402,7 @@ export class AdminPaymentsService {
     };
   }
 
-  async getTransactions(
-    query: ListTransactionsQueryDto,
-  ): Promise<{
+  async getTransactions(query: ListTransactionsQueryDto): Promise<{
     items: TransactionRow[];
     total: number;
     page: number;
@@ -475,8 +489,12 @@ export class AdminPaymentsService {
 
   async getTalentSubscriptionSummary(): Promise<TalentSubscriptionSummary> {
     const [activeCount, cancelledCount, priceResult] = await Promise.all([
-      this.talentSubscriptionRepo.count({ where: { status: TalentSubscriptionStatus.ACTIVE } }),
-      this.talentSubscriptionRepo.count({ where: { status: TalentSubscriptionStatus.CANCELLED } }),
+      this.talentSubscriptionRepo.count({
+        where: { status: TalentSubscriptionStatus.ACTIVE },
+      }),
+      this.talentSubscriptionRepo.count({
+        where: { status: TalentSubscriptionStatus.CANCELLED },
+      }),
       this.talentSubscriptionRepo
         .createQueryBuilder('ts')
         .select('ts.price', 'price')

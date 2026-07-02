@@ -758,7 +758,13 @@ export class SkillAssessmentService {
           .into(TalentQuestionHistory)
           .values(historyValues)
           .orUpdate(
-            ['user_answer', 'is_correct', 'raw_score', 'max_score', 'answered_at'],
+            [
+              'user_answer',
+              'is_correct',
+              'raw_score',
+              'max_score',
+              'answered_at',
+            ],
             ['talent_profile_id', 'question_id'],
           )
           .execute();
