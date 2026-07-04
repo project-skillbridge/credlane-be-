@@ -8,5 +8,6 @@ import { AdminEngagementService } from './admin-engagement.service';
   imports: [TypeOrmModule.forFeature([AssessmentAttempt])],
   controllers: [AdminEngagementController],
   providers: [AdminEngagementService],
+  exports: [AdminEngagementService],
 })
 export class AdminEngagementModule {}

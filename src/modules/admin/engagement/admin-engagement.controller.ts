@@ -11,7 +11,12 @@ import { AdminTiers } from '../../../common/decorators/admin-tiers.decorator';
 import { Roles } from '../../../common/decorators/roles.decorator';
 import { AdminTier, UserRole } from '../../users/entities/user.entity';
 import { AdminEngagementService } from './admin-engagement.service';
-import { MinorUptakeQueryDto } from './dto/minor-uptake-query.dto';
+import { AdminMinorUptakeQueryDto } from './dto/admin-minor-uptake-query.dto';
+import {
+  AdminEngagementMinorUptakeResponse,
+  AdminEngagementRetakeDropoffResponse,
+  AdminEngagementStatsResponse,
+} from './dto/admin-engagement-responses.dto';
 
 @ApiTags('admin-engagement')
 @ApiBearerAuth()
@@ -22,8 +27,8 @@ export class AdminEngagementController {
   constructor(private readonly engagementService: AdminEngagementService) {}
 
   @Get('stats')
-  @ApiOperation({ summary: 'Engagement stat cards (row of 4)' })
-  @ApiOkResponse({ description: 'Engagement stats with trend indicators' })
+  @ApiOperation({ summary: 'Engagement page stat cards (row of 4)' })
+  @ApiOkResponse({ type: AdminEngagementStatsResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT' })
   @ApiForbiddenResponse({ description: 'Insufficient admin tier' })
   async getStats() {
@@ -32,21 +37,23 @@ export class AdminEngagementController {
   }
 
   @Get('retake-dropoff')
-  @ApiOperation({ summary: 'Chart 1 — Retake drop-off by attempt number' })
-  @ApiOkResponse({ description: 'Bucket counts per attempt number' })
+  @ApiOperation({ summary: 'Retake drop-off by attempt number (bar chart)' })
+  @ApiOkResponse({ type: AdminEngagementRetakeDropoffResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT' })
   @ApiForbiddenResponse({ description: 'Insufficient admin tier' })
-  async getRetakeDropoff() {
+  async getRetakeDropoff(): Promise<AdminEngagementRetakeDropoffResponse> {
     const data = await this.engagementService.getRetakeDropoff();
     return { status: 'success', data };
   }
 
   @Get('minor-uptake')
-  @ApiOperation({ summary: 'Chart 2 — Minor assessment uptake by type' })
-  @ApiOkResponse({ description: 'Uptake buckets per minor assessment type' })
+  @ApiOperation({ summary: 'Minor assessment uptake by type (bar chart)' })
+  @ApiOkResponse({ type: AdminEngagementMinorUptakeResponse })
   @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT' })
   @ApiForbiddenResponse({ description: 'Insufficient admin tier' })
-  getMinorUptake(@Query() query: MinorUptakeQueryDto) {
+  getMinorUptake(
+    @Query() query: AdminMinorUptakeQueryDto,
+  ): AdminEngagementMinorUptakeResponse {
     const data = this.engagementService.getMinorUptake(query.track);
     return { status: 'success', data };
   }
