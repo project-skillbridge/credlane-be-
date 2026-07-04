@@ -194,7 +194,7 @@ describe('AdminQuestionsBankService', () => {
       findOne.mockResolvedValue({ ...baseQuestion });
 
       const result = await service.edit('q-1', {
-        question_text: 'Updated text',
+        questionText: 'Updated text',
       });
 
       expect(result.question.question_text).toBe('Updated text');
@@ -207,11 +207,11 @@ describe('AdminQuestionsBankService', () => {
 
       const result = await service.addManual(
         {
-          assessment_type: AssessmentType.SKILL,
-          question_type: QuestionType.SINGLE_PICK,
-          question_text: 'New question',
+          assessmentType: AssessmentType.SKILL,
+          questionType: QuestionType.SINGLE_PICK,
+          questionText: 'New question',
           track: 'frontend_developer',
-          verified_level: VerifiedLevel.MID,
+          verifiedLevel: VerifiedLevel.MID,
         },
         'admin-1',
       );

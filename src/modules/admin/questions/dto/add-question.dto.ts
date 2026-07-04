@@ -19,16 +19,16 @@ import { TALENT_ROLE_TRACKS } from '../../../talent/talent.constants';
 export class AddQuestionDto {
   @ApiProperty({ enum: AssessmentType })
   @IsEnum(AssessmentType)
-  assessment_type: AssessmentType;
+  assessmentType: AssessmentType;
 
   @ApiProperty({ enum: QuestionType })
   @IsEnum(QuestionType)
-  question_type: QuestionType;
+  questionType: QuestionType;
 
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
-  question_text: string;
+  questionText: string;
 
   @ApiProperty({ enum: TALENT_ROLE_TRACKS })
   @IsIn(TALENT_ROLE_TRACKS as readonly string[])
@@ -36,7 +36,7 @@ export class AddQuestionDto {
 
   @ApiProperty({ enum: VerifiedLevel })
   @IsEnum(VerifiedLevel)
-  verified_level: VerifiedLevel;
+  verifiedLevel: VerifiedLevel;
 
   @ApiProperty({ required: false, type: [String] })
   @IsOptional()
@@ -48,7 +48,7 @@ export class AddQuestionDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
-  correct_answer?: string;
+  correctAnswer?: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
@@ -58,5 +58,5 @@ export class AddQuestionDto {
   @ApiProperty({ required: false, enum: SlotType })
   @IsOptional()
   @IsEnum(SlotType)
-  slot_type?: SlotType;
+  slotType?: SlotType;
 }
