@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, HttpCode, HttpStatus, Post, Res } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiForbiddenResponse,
@@ -7,8 +7,11 @@ import {
   ApiTags,
   ApiUnauthorizedResponse,
 } from '@nestjs/swagger';
+import { SuccessMessages } from '../../../shared';
 import { CurrentUser } from '../../../common/decorators/current-user.decorator';
 import { Roles } from '../../../common/decorators/roles.decorator';
+import { clearAuthCookies } from '../../auth/auth.cookies';
+import type { Response } from 'express';
 import { UserRole } from '../../users/entities/user.entity';
 import { AdminAccountService } from './admin-account.service';
 
@@ -18,6 +21,21 @@ import { AdminAccountService } from './admin-account.service';
 @Controller('admin')
 export class AdminAccountController {
   constructor(private readonly adminAccountService: AdminAccountService) {}
+
+  @Post('logout')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Revoke admin session and clear auth cookies' })
+  @ApiOkResponse({ description: 'Logged out successfully' })
+  @ApiUnauthorizedResponse({ description: 'Missing or invalid JWT token' })
+  @ApiForbiddenResponse({ description: 'Caller is not an admin dashboard user' })
+  async logout(
+    @CurrentUser('sub') userId: string,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    await this.adminAccountService.logout(userId);
+    clearAuthCookies(response);
+    return { status: 'success', message: SuccessMessages.AUTH.LOGGED_OUT };
+  }
 
   @Get('me')
   @ApiOperation({
