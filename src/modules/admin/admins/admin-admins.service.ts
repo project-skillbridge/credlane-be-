@@ -1,8 +1,11 @@
 import { Injectable } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 import { DataSource, QueryFailedError, Repository } from 'typeorm';
+import * as argon2 from 'argon2';
 import { normalizeEmail } from '../../../common/transforms/normalize-email';
 import { PasswordResetQueueService } from '../../auth/password-reset-queue.service';
+import { MailService } from '../../mail/mail.service';
 import { AdminEmailChangeAudit } from '../../users/entities/admin-email-change-audit.entity';
 import { AdminTier, User, UserRole } from '../../users/entities/user.entity';
 import { UsersService } from '../../users/users.service';
@@ -44,6 +47,14 @@ function deriveAdminStatus(user: User): AdminAccountStatus {
   return 'active';
 }
 
+function generateTempPassword(): string {
+  const chars =
+    'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789!@#$';
+  return Array.from(randomBytes(12))
+    .map((b) => chars[b % chars.length])
+    .join('');
+}
+
 function invitePlaceholderName(email: string): {
   first_name: string;
   last_name: string;
@@ -74,6 +85,7 @@ export class AdminAdminsService {
     private readonly emailChangeAuditRepo: Repository<AdminEmailChangeAudit>,
     private readonly usersService: UsersService,
     private readonly passwordResetQueue: PasswordResetQueueService,
+    private readonly mailService: MailService,
     @InjectDataSource() private readonly dataSource: DataSource,
   ) {}
 
@@ -128,7 +140,7 @@ export class AdminAdminsService {
   async invite(
     dto: InviteAdminDto,
     actorId: string,
-  ): Promise<{ message: string; account: AdminAccountRow }> {
+  ): Promise<{ message: string; temp_password: string; account: AdminAccountRow }> {
     void actorId;
     const normalizedEmail = normalizeEmail(dto.email) as string;
     const existing = await this.usersService.findByEmail(normalizedEmail);
@@ -137,13 +149,15 @@ export class AdminAdminsService {
     }
 
     const { first_name, last_name } = invitePlaceholderName(normalizedEmail);
+    const tempPassword = generateTempPassword();
+    const passwordHash = await argon2.hash(tempPassword);
 
     let user: User;
     try {
       user = await this.userRepo.save(
         this.userRepo.create({
           email: normalizedEmail,
-          password: null,
+          password: passwordHash,
           first_name,
           last_name,
           country: 'Nigeria',
@@ -162,10 +176,21 @@ export class AdminAdminsService {
       throw err;
     }
 
-    this.passwordResetQueue.enqueue(user.id);
+    void this.mailService
+      .send({
+        to: normalizedEmail,
+        subject: 'You have been invited to Skillbridge Admin',
+        html: `<p>Hi ${first_name},</p>
+<p>You have been added as an admin on Skillbridge. Use the credentials below to log in and change your password immediately.</p>
+<p><strong>Email:</strong> ${normalizedEmail}<br/>
+<strong>Temporary password:</strong> <code>${tempPassword}</code></p>
+<p>For security, please change this password as soon as you log in.</p>`,
+      })
+      .catch(() => void 0);
 
     return {
       message: SuccessMessages.ADMIN_MANAGEMENT.INVITE_SENT(normalizedEmail),
+      temp_password: tempPassword,
       account: this.toAdminAccountRow(user),
     };
   }

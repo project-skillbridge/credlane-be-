@@ -28,6 +28,7 @@ describe('AdminAdminsService', () => {
   let emailChangeAuditRepo: { create: jest.Mock; save: jest.Mock };
   let usersService: { findByEmail: jest.Mock };
   let passwordResetQueue: { enqueue: jest.Mock };
+  let mailService: { send: jest.Mock };
   let dataSource: { transaction: jest.Mock };
   let service: AdminAdminsService;
 
@@ -46,6 +47,7 @@ describe('AdminAdminsService', () => {
     };
     usersService = { findByEmail: jest.fn() };
     passwordResetQueue = { enqueue: jest.fn() };
+    mailService = { send: jest.fn().mockResolvedValue(undefined) };
     dataSource = {
       transaction: jest.fn(async (cb) =>
         cb({
@@ -62,6 +64,7 @@ describe('AdminAdminsService', () => {
       emailChangeAuditRepo as never,
       usersService as never,
       passwordResetQueue as never,
+      mailService as never,
       dataSource as never,
     );
   });
@@ -113,12 +116,12 @@ describe('AdminAdminsService', () => {
   });
 
   describe('invite', () => {
-    it('creates a pending-setup admin and queues setup email', async () => {
+    it('creates an active admin with a hashed temp password and sends invite email', async () => {
       usersService.findByEmail.mockResolvedValue(null);
       const saved = buildAdminUser({
         id: 'new-admin',
         email: 'new@credlane.com',
-        password: null,
+        password: 'argon2-hash',
         first_name: 'New',
         last_name: 'Admin',
         fullname: 'New Admin',
@@ -133,13 +136,17 @@ describe('AdminAdminsService', () => {
       expect(userRepo.save).toHaveBeenCalledWith(
         expect.objectContaining({
           email: 'new@credlane.com',
-          password: null,
+          password: expect.any(String),
           role: UserRole.ADMIN,
           admin_tier: AdminTier.ADMIN,
         }),
       );
-      expect(passwordResetQueue.enqueue).toHaveBeenCalledWith('new-admin');
-      expect(result.account.status).toBe('pending_setup');
+      const savedCall = userRepo.save.mock.calls[0][0];
+      expect(savedCall.password).not.toBeNull();
+      expect(passwordResetQueue.enqueue).not.toHaveBeenCalled();
+      expect(result.temp_password).toBeDefined();
+      expect(typeof result.temp_password).toBe('string');
+      expect(result.account.status).toBe('active');
     });
   });
 

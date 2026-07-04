@@ -10,6 +10,7 @@ import { EmployerProfile } from '../../employer/entities/employer-profile.entity
 import { Offer } from '../../offers/entities/offer.entity';
 import { AssessmentResult } from '../../assessments/entities/assessment-result.entity';
 import { AssessmentType } from '../../assessments/entities/assessment-question.entity';
+import { AiUsageLog } from '../../ai/ai-usage-log.entity';
 import { NewUsersQueryDto } from './dto/new-users-query.dto';
 
 export interface TrendIndicator {
@@ -41,8 +42,29 @@ export interface ScoreDistributionResult {
   empty: boolean;
 }
 
+export interface AiUsageBucket {
+  label: string;
+  calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+}
+
+export interface AiFeatureSummary {
+  calls: number;
+  total_tokens: number;
+  cost_usd: number;
+}
+
 export interface AiGenerationConsumptionResult {
-  buckets: { label: string; count: number }[];
+  buckets: AiUsageBucket[];
+  by_feature: Record<string, AiFeatureSummary>;
+  totals: {
+    calls: number;
+    input_tokens: number;
+    output_tokens: number;
+    cost_usd: number;
+  };
   empty: boolean;
 }
 
@@ -70,6 +92,8 @@ export class AdminOverviewService {
     private readonly offerRepo: Repository<Offer>,
     @InjectRepository(AssessmentResult)
     private readonly assessmentResultRepo: Repository<AssessmentResult>,
+    @InjectRepository(AiUsageLog)
+    private readonly aiUsageLogRepo: Repository<AiUsageLog>,
   ) {}
 
   async getStats(): Promise<OverviewStats> {
@@ -195,17 +219,108 @@ export class AdminOverviewService {
     };
   }
 
-  /**
-   * No AI question-generation log exists yet — that instrumentation lands
-   * with the Question Bank page's generate-with-AI flow (spec §7.3.4). This
-   * endpoint returns the contract shape now so the FE can wire the chart and
-   * empty state ahead of that data existing.
-   */
-
-  getAiGenerationConsumption(
-    _period: string,
+  async getAiGenerationConsumption(
+    period: string,
   ): Promise<AiGenerationConsumptionResult> {
-    return Promise.resolve({ buckets: [], empty: true });
+    // Map tag prefixes to display feature names
+    const featureSql = `
+      CASE
+        WHEN tag LIKE 'rubric_scoring%' THEN 'scoring'
+        WHEN tag = 'guidance_report'    THEN 'report'
+        WHEN tag = 'resource_generation' THEN 'resources'
+        WHEN tag = 'question_generation' THEN 'question_gen'
+        WHEN tag = 'lt3_generation'      THEN 'lt3_gen'
+        ELSE tag
+      END
+    `;
+
+    const truncUnit =
+      period === 'yearly'
+        ? 'year'
+        : period === 'weekly'
+          ? 'week'
+          : period === 'daily'
+            ? 'day'
+            : 'month';
+
+    // How many buckets to look back
+    const lookback =
+      period === 'yearly' ? '5 years' : period === 'daily' ? '30 days' : '12 months';
+
+    const bucketRows = await this.aiUsageLogRepo.query<
+      {
+        label: string;
+        calls: string;
+        input_tokens: string;
+        output_tokens: string;
+        cost_usd: string;
+      }[]
+    >(
+      `
+      SELECT
+        to_char(date_trunc($1, created_at), 'YYYY-MM-DD') AS label,
+        COUNT(*)::int                                       AS calls,
+        COALESCE(SUM(input_tokens), 0)::int                AS input_tokens,
+        COALESCE(SUM(output_tokens), 0)::int               AS output_tokens,
+        COALESCE(SUM(cost_usd), 0)::numeric(18,10)         AS cost_usd
+      FROM ai_usage_logs
+      WHERE created_at >= now() - $2::interval
+      GROUP BY date_trunc($1, created_at)
+      ORDER BY date_trunc($1, created_at)
+      `,
+      [truncUnit, lookback],
+    );
+
+    const featureRows = await this.aiUsageLogRepo.query<
+      {
+        feature: string;
+        calls: string;
+        total_tokens: string;
+        cost_usd: string;
+      }[]
+    >(
+      `
+      SELECT
+        (${featureSql})                             AS feature,
+        COUNT(*)::int                               AS calls,
+        COALESCE(SUM(total_tokens), 0)::int         AS total_tokens,
+        COALESCE(SUM(cost_usd), 0)::numeric(18,10)  AS cost_usd
+      FROM ai_usage_logs
+      WHERE created_at >= now() - $1::interval
+      GROUP BY 1
+      ORDER BY calls DESC
+      `,
+      [lookback],
+    );
+
+    const buckets: AiUsageBucket[] = bucketRows.map((r) => ({
+      label: r.label,
+      calls: Number(r.calls),
+      input_tokens: Number(r.input_tokens),
+      output_tokens: Number(r.output_tokens),
+      cost_usd: Number(r.cost_usd),
+    }));
+
+    const by_feature: Record<string, AiFeatureSummary> = {};
+    for (const r of featureRows) {
+      by_feature[r.feature] = {
+        calls: Number(r.calls),
+        total_tokens: Number(r.total_tokens),
+        cost_usd: Number(r.cost_usd),
+      };
+    }
+
+    const totals = buckets.reduce(
+      (acc, b) => ({
+        calls: acc.calls + b.calls,
+        input_tokens: acc.input_tokens + b.input_tokens,
+        output_tokens: acc.output_tokens + b.output_tokens,
+        cost_usd: acc.cost_usd + b.cost_usd,
+      }),
+      { calls: 0, input_tokens: 0, output_tokens: 0, cost_usd: 0 },
+    );
+
+    return { buckets, by_feature, totals, empty: totals.calls === 0 };
   }
 
   async getNewUsers(query: NewUsersQueryDto): Promise<{

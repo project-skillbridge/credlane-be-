@@ -54,6 +54,7 @@ describe('AdminOverviewService', () => {
         employerProfileRepo as never,
         offerRepo as never,
         {} as never,
+        {} as never,
       );
     });
 
@@ -138,6 +139,7 @@ describe('AdminOverviewService', () => {
         {} as never,
         {} as never,
         assessmentResultRepo as never,
+        {} as never,
       );
     });
 
@@ -191,6 +193,7 @@ describe('AdminOverviewService', () => {
         userRepo as never,
         talentProfileRepo as never,
         employerProfileRepo as never,
+        {} as never,
         {} as never,
         {} as never,
       );

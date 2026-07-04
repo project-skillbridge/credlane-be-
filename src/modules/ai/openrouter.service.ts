@@ -3,6 +3,8 @@ import {
   Logger,
   ServiceUnavailableException,
 } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
 import { createAnthropic } from '@ai-sdk/anthropic';
 import { createGoogleGenerativeAI } from '@ai-sdk/google';
 import { createOpenAI } from '@ai-sdk/openai';
@@ -10,6 +12,7 @@ import { createOpenRouter } from '@openrouter/ai-sdk-provider';
 import { APICallError, generateText, LanguageModel, Output } from 'ai';
 import { z } from 'zod';
 import { env } from '../../config/env';
+import { AiUsageLog } from './ai-usage-log.entity';
 
 type AiProviderFactory = (modelId: string, options?: unknown) => LanguageModel;
 
@@ -45,7 +48,10 @@ export class OpenRouterService {
   private readonly openAiCompatibleProvider: AiProviderFactory | null;
   private readonly openRouterProvider: AiProviderFactory | null;
 
-  constructor() {
+  constructor(
+    @InjectRepository(AiUsageLog)
+    private readonly aiUsageLogRepo: Repository<AiUsageLog>,
+  ) {
     this.useAnthropic = !!env.ANTHROPIC_API_KEY;
     this.useGemini = !this.useAnthropic && !!env.GEMINI_API_KEY;
     this.useNvidia =
@@ -277,6 +283,24 @@ export class OpenRouterService {
     this.logger.log(
       `AI usage label=${tag} provider=${metrics.provider ?? 'unknown'} model=${metrics.modelId ?? 'unknown'} input_tokens=${metrics.inputTokens ?? 'n/a'} output_tokens=${metrics.outputTokens ?? 'n/a'} total_tokens=${metrics.totalTokens ?? 'n/a'} cost_usd=${cost} duration_ms=${metrics.durationMs}`,
     );
+    void this.aiUsageLogRepo
+      .save(
+        this.aiUsageLogRepo.create({
+          tag,
+          provider: metrics.provider,
+          model_id: metrics.modelId,
+          input_tokens: metrics.inputTokens,
+          output_tokens: metrics.outputTokens,
+          total_tokens: metrics.totalTokens,
+          cost_usd: metrics.costUsd,
+          duration_ms: metrics.durationMs,
+        }),
+      )
+      .catch((err: unknown) =>
+        this.logger.error(
+          `Failed to persist AI usage log: ${err instanceof Error ? err.message : String(err)}`,
+        ),
+      );
   }
 
   private readNumber(value: unknown): number | null {

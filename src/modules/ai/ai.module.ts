@@ -1,4 +1,6 @@
 import { Global, Module } from '@nestjs/common';
+import { TypeOrmModule } from '@nestjs/typeorm';
+import { AiUsageLog } from './ai-usage-log.entity';
 import { GuidanceReportService } from './guidance-report.service';
 import { Lt3GenerationService } from './lt3-generation.service';
 import { OpenRouterService } from './openrouter.service';
@@ -9,6 +11,7 @@ import { UrlResolutionService } from './url-resolution.service';
 
 @Global()
 @Module({
+  imports: [TypeOrmModule.forFeature([AiUsageLog])],
   providers: [
     OpenRouterService,
     RubricScoringService,
