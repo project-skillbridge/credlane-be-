@@ -264,13 +264,13 @@ export class AdminOffersService {
     if (query.status) {
       qb.andWhere('offer.status = :status', { status: query.status });
     }
-    if (query.date_from) {
+    if (query.dateFrom) {
       qb.andWhere('offer.created_at >= :dateFrom', {
-        dateFrom: new Date(query.date_from),
+        dateFrom: new Date(query.dateFrom),
       });
     }
-    if (query.date_to) {
-      const end = new Date(query.date_to);
+    if (query.dateTo) {
+      const end = new Date(query.dateTo);
       end.setDate(end.getDate() + 1);
       qb.andWhere('offer.created_at < :dateTo', {
         dateTo: end,

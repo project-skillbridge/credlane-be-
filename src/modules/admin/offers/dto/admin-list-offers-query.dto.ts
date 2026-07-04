@@ -19,14 +19,14 @@ export class AdminListOffersQueryDto extends PaginationDto {
   })
   @IsOptional()
   @IsDateString()
-  date_from?: string;
+  dateFrom?: string;
 
   @ApiPropertyOptional({
     description: 'End of date range filter (ISO 8601)',
   })
   @IsOptional()
   @IsDateString()
-  date_to?: string;
+  dateTo?: string;
 
   @ApiPropertyOptional({
     description:

@@ -8,7 +8,7 @@ export class AdminOffersStatsQueryDto {
   })
   @IsOptional()
   @IsDateString()
-  date_from?: string;
+  dateFrom?: string;
 
   @ApiPropertyOptional({
     description:
@@ -16,5 +16,5 @@ export class AdminOffersStatsQueryDto {
   })
   @IsOptional()
   @IsDateString()
-  date_to?: string;
+  dateTo?: string;
 }
