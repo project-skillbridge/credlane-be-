@@ -25,8 +25,8 @@ export class AdminOffersController {
   @ApiOkResponse({ type: AdminOffersStatsResponse })
   async getStats(@Query() query: AdminOffersStatsQueryDto): Promise<AdminOffersStatsResponse> {
     const data = await this.offersService.getStats(
-      query.date_from,
-      query.date_to,
+      query.dateFrom,
+      query.dateTo,
     );
     return { status: 'success', data };
   }
@@ -36,8 +36,8 @@ export class AdminOffersController {
   @ApiOkResponse({ type: AdminOfferFunnelResponse })
   async getFunnel(@Query() query: AdminOffersStatsQueryDto): Promise<AdminOfferFunnelResponse> {
     const data = await this.offersService.getFunnel(
-      query.date_from,
-      query.date_to,
+      query.dateFrom,
+      query.dateTo,
     );
     return { status: 'success', data };
   }

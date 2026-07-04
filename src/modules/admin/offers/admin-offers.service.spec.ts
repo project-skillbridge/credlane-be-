@@ -264,8 +264,8 @@ describe('AdminOffersService', () => {
 
       await service.findAll({
         status: OfferStatus.ACCEPTED,
-        date_from: '2026-01-01',
-        date_to: '2026-01-31',
+        dateFrom: '2026-01-01',
+        dateTo: '2026-01-31',
         search: 'Jane',
       });
 

@@ -12,7 +12,7 @@ export class EditQuestionDto {
   @IsOptional()
   @IsString()
   @MaxLength(5000)
-  question_text?: string;
+  questionText?: string;
 
   @ApiProperty({ required: false, type: [String] })
   @IsOptional()
@@ -24,5 +24,5 @@ export class EditQuestionDto {
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
-  correct_answer?: string;
+  correctAnswer?: string;
 }

@@ -81,11 +81,11 @@ export class AdminTalentsService {
     if (query.tier) {
       qb.andWhere('tp.status = :tier', { tier: query.tier });
     }
-    if (query.date_from) {
-      qb.andWhere('tp.created_at >= :dateFrom', { dateFrom: query.date_from });
+    if (query.dateFrom) {
+      qb.andWhere('tp.created_at >= :dateFrom', { dateFrom: query.dateFrom });
     }
-    if (query.date_to) {
-      qb.andWhere('tp.created_at <= :dateTo', { dateTo: query.date_to });
+    if (query.dateTo) {
+      qb.andWhere('tp.created_at <= :dateTo', { dateTo: query.dateTo });
     }
     if (query.search) {
       qb.andWhere(
@@ -93,14 +93,14 @@ export class AdminTalentsService {
         { search: `%${query.search}%` },
       );
     }
-    if (query.score_min !== undefined) {
+    if (query.scoreMin !== undefined) {
       qb.andWhere(`(${latestScoreSubQuery}) >= :scoreMin`, {
-        scoreMin: query.score_min,
+        scoreMin: query.scoreMin,
       });
     }
-    if (query.score_max !== undefined) {
+    if (query.scoreMax !== undefined) {
       qb.andWhere(`(${latestScoreSubQuery}) <= :scoreMax`, {
-        scoreMax: query.score_max,
+        scoreMax: query.scoreMax,
       });
     }
 

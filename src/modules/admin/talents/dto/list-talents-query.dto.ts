@@ -36,7 +36,7 @@ export class ListTalentsQueryDto extends PaginationDto {
   @IsInt()
   @Min(0)
   @Max(100)
-  score_min?: number;
+  scoreMin?: number;
 
   @ApiPropertyOptional({ minimum: 0, maximum: 100 })
   @IsOptional()
@@ -44,17 +44,17 @@ export class ListTalentsQueryDto extends PaginationDto {
   @IsInt()
   @Min(0)
   @Max(100)
-  score_max?: number;
+  scoreMax?: number;
 
   @ApiPropertyOptional({ format: 'date' })
   @IsOptional()
   @IsDateString()
-  date_from?: string;
+  dateFrom?: string;
 
   @ApiPropertyOptional({ format: 'date' })
   @IsOptional()
   @IsDateString()
-  date_to?: string;
+  dateTo?: string;
 
   @ApiPropertyOptional({ description: 'Search by name or email' })
   @IsOptional()

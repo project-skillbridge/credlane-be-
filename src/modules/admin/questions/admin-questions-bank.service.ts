@@ -80,17 +80,17 @@ export class AdminQuestionsBankService {
       .skip((page - 1) * limit)
       .take(limit);
 
-    if (query.assessment_type) {
+    if (query.assessmentType) {
       qb.andWhere('q.assessment_type = :assessmentType', {
-        assessmentType: query.assessment_type,
+        assessmentType: query.assessmentType,
       });
     }
     if (query.track) {
       qb.andWhere('q.track = :track', { track: query.track });
     }
-    if (query.verified_level) {
+    if (query.verifiedLevel) {
       qb.andWhere('q.verified_level = :verifiedLevel', {
-        verifiedLevel: query.verified_level,
+        verifiedLevel: query.verifiedLevel,
       });
     }
     if (query.search) {
@@ -157,14 +157,14 @@ export class AdminQuestionsBankService {
   ): Promise<{ question: QuestionListRow }> {
     const question = await this.getQuestionOrThrow(id);
 
-    if (dto.question_text !== undefined) {
-      question.question_text = dto.question_text;
+    if (dto.questionText !== undefined) {
+      question.question_text = dto.questionText;
     }
     if (dto.options !== undefined) {
       question.options = dto.options;
     }
-    if (dto.correct_answer !== undefined) {
-      question.correct_answer = dto.correct_answer;
+    if (dto.correctAnswer !== undefined) {
+      question.correct_answer = dto.correctAnswer;
     }
 
     const saved = await this.questionRepository.save(question);
@@ -177,23 +177,23 @@ export class AdminQuestionsBankService {
   ): Promise<{ question: QuestionListRow }> {
     const existingCount = await this.questionRepository.count({
       where: {
-        assessment_type: dto.assessment_type,
+        assessment_type: dto.assessmentType,
         track: dto.track,
-        verified_level: dto.verified_level,
+        verified_level: dto.verifiedLevel,
       },
     });
 
     const question = this.questionRepository.create({
-      assessment_type: dto.assessment_type,
-      question_type: dto.question_type,
-      question_text: dto.question_text,
+      assessment_type: dto.assessmentType,
+      question_type: dto.questionType,
+      question_text: dto.questionText,
       question_number: existingCount + 1,
       track: dto.track,
-      verified_level: dto.verified_level,
+      verified_level: dto.verifiedLevel,
       options: dto.options ?? null,
-      correct_answer: dto.correct_answer ?? null,
+      correct_answer: dto.correctAnswer ?? null,
       competency: dto.competency ?? null,
-      slot_type: dto.slot_type ?? null,
+      slot_type: dto.slotType ?? null,
       is_live: true,
       review_status: QuestionReviewStatus.ACTIVE,
       source: QuestionSource.MANUAL,

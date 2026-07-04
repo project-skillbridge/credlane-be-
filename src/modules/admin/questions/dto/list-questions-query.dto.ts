@@ -11,7 +11,7 @@ export class ListQuestionsQueryDto extends PaginationDto {
   @ApiProperty({ required: false, enum: AssessmentType })
   @IsOptional()
   @IsEnum(AssessmentType)
-  assessment_type?: AssessmentType;
+  assessmentType?: AssessmentType;
 
   @ApiProperty({ required: false, enum: TALENT_ROLE_TRACKS })
   @IsOptional()
@@ -21,7 +21,7 @@ export class ListQuestionsQueryDto extends PaginationDto {
   @ApiProperty({ required: false, enum: VerifiedLevel })
   @IsOptional()
   @IsEnum(VerifiedLevel)
-  verified_level?: VerifiedLevel;
+  verifiedLevel?: VerifiedLevel;
 
   @ApiProperty({ required: false, description: 'Search question text' })
   @IsOptional()
