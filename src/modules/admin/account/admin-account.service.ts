@@ -12,6 +12,10 @@ const ADMIN_ROLE_BADGE_LABELS: Record<AdminTier, string> = {
 export class AdminAccountService {
   constructor(private readonly usersService: UsersService) {}
 
+  async logout(userId: string): Promise<void> {
+    await this.usersService.setRefreshTokenHash(userId, null);
+  }
+
   async getMe(userId: string): Promise<{
     id: string;
     name: string;
