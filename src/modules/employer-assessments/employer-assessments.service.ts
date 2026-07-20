@@ -25,7 +25,10 @@ import {
   VerifiedLevel,
 } from '../assessments/entities/assessment-question.entity';
 import { EmployerSavedCandidate } from '../employer-discovery/entities/employer-saved-candidate.entity';
+import { EmployerProfile } from '../employer/entities/employer-profile.entity';
 import { EmployerRole } from '../employer-roles/entities/employer-role.entity';
+import { EmployerPoolProfile } from '../talent/entities/employer-pool-profile.entity';
+import { MailService } from '../mail/mail.service';
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
 import { NotificationType } from '../notifications/notification-type.enum';
 import { Offer, OfferStatus } from '../offers/entities/offer.entity';
@@ -34,6 +37,11 @@ import {
   CreateEmployerAssessmentDto,
   EmployerAssessmentQuestionInputDto,
 } from './dto/create-employer-assessment.dto';
+import {
+  RegisterExternalAssessmentDto,
+  SubmitExternalAssessmentDto,
+} from './dto/external-assessment.dto';
+import { InviteEmployerAssessmentDto } from './dto/invite-employer-assessment.dto';
 import { ListEmployerAssessmentResultsQueryDto } from './dto/list-employer-assessment-results-query.dto';
 import { PublicEmployerAssessmentResponseDto } from './dto/employer-assessment-response.dto';
 import { SearchAssessmentCandidatesQueryDto } from './dto/search-assessment-candidates-query.dto';
@@ -42,7 +50,11 @@ import {
   EmployerAssessment,
   EmployerAssessmentExperienceLevel,
   EmployerAssessmentQuestionSource,
+  EmployerAssessmentType,
 } from './entities/employer-assessment.entity';
+import { EmployerAssessmentExternalApplicant } from './entities/employer-assessment-external-applicant.entity';
+import { EmployerAssessmentExternalInvite } from './entities/employer-assessment-external-invite.entity';
+import { EmployerAssessmentExternalSubmission } from './entities/employer-assessment-external-submission.entity';
 import {
   EmployerAssessmentDeliveryMode,
   EmployerAssessmentInvite,
@@ -74,6 +86,7 @@ export type AssessmentListResultsResponse = {
 
 const ACTIVE_ASSESSMENT_LIMIT = 5;
 const MIN_COMPANY_QUESTIONS = 5;
+const EXTERNAL_SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 const TEMPLATE_COLUMNS = [
   'Question Text',
   'Question Type',
@@ -125,15 +138,26 @@ export class EmployerAssessmentsService {
     private readonly bankQuestionRepo: Repository<AssessmentQuestion>,
     @InjectRepository(EmployerSavedCandidate)
     private readonly savedCandidateRepo: Repository<EmployerSavedCandidate>,
+    @InjectRepository(EmployerPoolProfile)
+    private readonly poolProfileRepo: Repository<EmployerPoolProfile>,
     @InjectRepository(User)
     private readonly userRepo: Repository<User>,
     @InjectRepository(EmployerRole)
     private readonly employerRoleRepo: Repository<EmployerRole>,
+    @InjectRepository(EmployerProfile)
+    private readonly employerProfileRepo: Repository<EmployerProfile>,
     @InjectRepository(Offer)
     private readonly offerRepo: Repository<Offer>,
+    @InjectRepository(EmployerAssessmentExternalApplicant)
+    private readonly externalApplicantRepo: Repository<EmployerAssessmentExternalApplicant>,
+    @InjectRepository(EmployerAssessmentExternalInvite)
+    private readonly externalInviteRepo: Repository<EmployerAssessmentExternalInvite>,
+    @InjectRepository(EmployerAssessmentExternalSubmission)
+    private readonly externalSubmissionRepo: Repository<EmployerAssessmentExternalSubmission>,
     @InjectRepository(CredlaneCatalogueAssessment)
     private readonly catalogueRepo: Repository<CredlaneCatalogueAssessment>,
     private readonly notificationDispatch: NotificationDispatchService,
+    private readonly mailService: MailService,
   ) {}
 
   async createAssessment(
@@ -222,6 +246,7 @@ export class EmployerAssessmentsService {
               : null,
           share_via_link: dto.shareViaLink,
           send_to_candidates: dto.sendToCandidates,
+          type: dto.type ?? EmployerAssessmentType.INTERNAL,
           share_token: randomBytes(24).toString('hex'),
           is_active: true,
         } as Partial<EmployerAssessment>);
@@ -259,6 +284,11 @@ export class EmployerAssessmentsService {
 
     return Object.assign(assessment, {
       shareUrl: this.buildShareUrl(assessment.share_token),
+      share_url: this.buildShareUrl(assessment.share_token),
+      token:
+        assessment.type === EmployerAssessmentType.EXTERNAL
+          ? assessment.share_token
+          : null,
     });
   }
 
@@ -295,6 +325,9 @@ export class EmployerAssessmentsService {
     return {
       assessments: assessments.map((a) => ({
         ...a,
+        token:
+          a.type === EmployerAssessmentType.EXTERNAL ? a.share_token : null,
+        share_url: this.buildShareUrl(a.share_token),
         submission_count: countMap.get(a.id) ?? 0,
         status: a.is_active ? 'active' : 'inactive',
       })),
@@ -375,6 +408,11 @@ export class EmployerAssessmentsService {
 
     return Object.assign(assessment, {
       shareUrl: this.buildShareUrl(assessment.share_token),
+      share_url: this.buildShareUrl(assessment.share_token),
+      token:
+        assessment.type === EmployerAssessmentType.EXTERNAL
+          ? assessment.share_token
+          : null,
       status: assessment.is_active ? 'active' : 'inactive',
       results,
     });
@@ -393,6 +431,211 @@ export class EmployerAssessmentsService {
       throw new NotFoundError('Active assessment not found');
     }
     return { status: 'success', message: 'Assessment link deactivated' };
+  }
+
+  async inviteAssessment(
+    employerUserId: string,
+    assessmentId: string,
+    dto: InviteEmployerAssessmentDto,
+  ): Promise<{
+    invited_count: number;
+    already_invited: string[];
+    failed: Array<{ target: string; reason: string }>;
+  }> {
+    await this.ensureVerifiedEmployer(employerUserId);
+    const assessment = await this.assessmentRepo.findOne({
+      where: { id: assessmentId, employer_user_id: employerUserId },
+    });
+    if (!assessment) {
+      throw new NotFoundError('Assessment not found');
+    }
+
+    const talentIds = dto.talentIds ?? [];
+    const emails = (dto.emails ?? []).map((email) => email.toLowerCase());
+    if (assessment.type === EmployerAssessmentType.INTERNAL) {
+      if (talentIds.length === 0 || emails.length > 0) {
+        throw new BadRequestError(
+          'Internal assessments must be invited with talent_ids only.',
+        );
+      }
+
+      const existing = await this.inviteRepo.find({
+        where: { assessment_id: assessmentId, candidate_user_id: In(talentIds) },
+      });
+      const alreadyInvited = new Set(
+        existing.map((invite) => invite.candidate_user_id),
+      );
+      const nextTalentIds = talentIds.filter((id) => !alreadyInvited.has(id));
+
+      const users = nextTalentIds.length
+        ? await this.userRepo.findBy({ id: In(nextTalentIds) })
+        : [];
+      const existingUsers = new Set(users.map((user) => user.id));
+      const failed = nextTalentIds
+        .filter((id) => !existingUsers.has(id))
+        .map((id) => ({ target: id, reason: 'Talent user not found' }));
+      const invitableTalentIds = nextTalentIds.filter((id) =>
+        existingUsers.has(id),
+      );
+
+      if (invitableTalentIds.length > 0) {
+        await this.inviteRepo.save(
+          invitableTalentIds.map((candidateUserId) => ({
+            assessment_id: assessmentId,
+            candidate_user_id: candidateUserId,
+            delivery_mode: EmployerAssessmentDeliveryMode.DIRECT,
+          })),
+        );
+        await this.notifyCandidates(assessment, invitableTalentIds);
+      }
+
+      return {
+        invited_count: invitableTalentIds.length,
+        already_invited: [...alreadyInvited],
+        failed,
+      };
+    }
+
+    if (emails.length === 0 || talentIds.length > 0) {
+      throw new BadRequestError(
+        'External assessments must be invited with emails only.',
+      );
+    }
+
+    const existingInvites = await this.externalInviteRepo.find({
+      where: { assessment_id: assessmentId, email: In(emails) },
+    });
+    const alreadyInvited = new Set(existingInvites.map((invite) => invite.email));
+    const nextEmails = emails.filter((email) => !alreadyInvited.has(email));
+
+    if (nextEmails.length > 0) {
+      await this.externalInviteRepo.save(
+        nextEmails.map((email) => ({
+          assessment_id: assessmentId,
+          email,
+        })),
+      );
+    }
+
+    const emailResults = await Promise.allSettled(
+      nextEmails.map((email) =>
+        this.mailService.send({
+          to: email,
+          subject: `Assessment invite: ${assessment.title}`,
+          text: `You have been invited to take ${assessment.title}. Open ${this.buildShareUrl(assessment.share_token)} to begin.`,
+        }),
+      ),
+    );
+    const failed = emailResults
+      .map((result, index) =>
+        result.status === 'rejected'
+          ? {
+              target: nextEmails[index],
+              reason:
+                result.reason instanceof Error
+                  ? result.reason.message
+                  : 'Email failed to send',
+            }
+          : null,
+      )
+      .filter(
+        (result): result is { target: string; reason: string } =>
+          result !== null,
+      );
+
+    return {
+      invited_count: nextEmails.length - failed.length,
+      already_invited: [...alreadyInvited],
+      failed,
+    };
+  }
+
+  async getAssessmentToken(
+    employerUserId: string,
+    assessmentId: string,
+  ): Promise<{ token: string; assessment_id: string; type: 'external' }> {
+    await this.ensureVerifiedEmployer(employerUserId);
+    const assessment = await this.assessmentRepo.findOne({
+      where: {
+        id: assessmentId,
+        employer_user_id: employerUserId,
+        type: EmployerAssessmentType.EXTERNAL,
+      },
+    });
+    if (!assessment) {
+      throw new NotFoundError('External assessment not found');
+    }
+    return {
+      token: assessment.share_token,
+      assessment_id: assessment.id,
+      type: EmployerAssessmentType.EXTERNAL,
+    };
+  }
+
+  async getAssessmentShareLink(
+    employerUserId: string,
+    assessmentId: string,
+  ): Promise<{
+    token: string;
+    assessment_id: string;
+    type: 'external';
+    share_url: string;
+  }> {
+    const tokenPayload = await this.getAssessmentToken(
+      employerUserId,
+      assessmentId,
+    );
+    return {
+      ...tokenPayload,
+      share_url: this.buildShareUrl(tokenPayload.token),
+    };
+  }
+
+  async searchVerifiedTalent(
+    employerUserId: string,
+    q = '',
+    limit = 10,
+  ): Promise<{
+    results: Array<Record<string, unknown>>;
+  }> {
+    await this.ensureVerifiedEmployer(employerUserId);
+    const search = q.trim();
+    const qb = this.poolProfileRepo
+      .createQueryBuilder('pool')
+      .innerJoin(User, 'u', 'u.id = pool.candidate_id')
+      .where('pool.tier = :tier', { tier: 'job_ready' });
+
+    if (search) {
+      qb.andWhere(
+        `(u.email ILIKE :search OR u.first_name ILIKE :search OR u.last_name ILIKE :search OR CONCAT(u.first_name, ' ', u.last_name) ILIKE :search)`,
+        { search: `%${search}%` },
+      );
+    }
+
+    const rows = await qb
+      .select([
+        'u.id AS "userId"',
+        'u.first_name AS "firstName"',
+        'u.last_name AS "lastName"',
+        'u.email AS "email"',
+        'u.avatar_url AS "avatarUrl"',
+        'pool.track AS "roleTrack"',
+        'pool.verified_level AS "verifiedLevel"',
+      ])
+      .orderBy('pool.verified_at', 'DESC')
+      .limit(Math.min(Math.max(limit, 1), 50))
+      .getRawMany<Record<string, string | null>>();
+
+    return {
+      results: rows.map((row) => ({
+        user_id: row.userId,
+        full_name: `${row.firstName ?? ''} ${row.lastName ?? ''}`.trim(),
+        email: row.email,
+        avatar_url: row.avatarUrl,
+        role: row.verifiedLevel,
+        role_track: row.roleTrack,
+      })),
+    };
   }
 
   async getPublicAssessmentByToken(
@@ -426,6 +669,205 @@ export class EmployerAssessmentsService {
         options: question.options,
       })),
     };
+  }
+
+  async getExternalAssessmentByToken(token: string): Promise<{
+    assessment_id: string;
+    title: string;
+    employer_name: string | null;
+    employer_logo_url: string | null;
+    modules: Array<Record<string, unknown>>;
+    deadline: null;
+    is_expired: boolean;
+  }> {
+    const assessment = await this.assessmentRepo.findOne({
+      where: { share_token: token, type: EmployerAssessmentType.EXTERNAL },
+      relations: ['questions', 'employer'],
+      order: { questions: { position: 'ASC' } },
+    });
+    if (!assessment) {
+      throw new NotFoundError('Assessment not found');
+    }
+    if (!assessment.is_active) {
+      throw new ForbiddenError(
+        'This assessment is no longer accepting submissions.',
+      );
+    }
+
+    const profile = await this.employerProfileRepo.findOne({
+      where: { user_id: assessment.employer_user_id },
+    });
+
+    return {
+      assessment_id: assessment.id,
+      title: assessment.title,
+      employer_name:
+        profile?.company_name ??
+        `${assessment.employer?.first_name ?? ''} ${
+          assessment.employer?.last_name ?? ''
+        }`.trim() ??
+        null,
+      employer_logo_url: assessment.employer?.avatar_url ?? null,
+      modules: [
+        {
+          id: assessment.id,
+          title: assessment.title,
+          time_limit_minutes: assessment.time_limit_minutes,
+          questions: assessment.questions.map((question) => ({
+            id: question.id,
+            position: question.position,
+            question_text: question.question_text,
+            question_type: question.question_type,
+            options: question.options,
+          })),
+        },
+      ],
+      deadline: null,
+      is_expired: false,
+    };
+  }
+
+  async registerExternalApplicant(
+    token: string,
+    dto: RegisterExternalAssessmentDto,
+  ): Promise<{
+    external_applicant_id: string;
+    email: string;
+    session_token: string;
+  }> {
+    const assessment = await this.assessmentRepo.findOne({
+      where: { share_token: token, type: EmployerAssessmentType.EXTERNAL },
+    });
+    if (!assessment) {
+      throw new NotFoundError('Assessment not found');
+    }
+    if (!assessment.is_active) {
+      throw new ForbiddenError(
+        'This assessment is no longer accepting submissions.',
+      );
+    }
+
+    const email = dto.email.toLowerCase();
+    const existing = await this.externalApplicantRepo.findOne({
+      where: { assessment_id: assessment.id, email },
+    });
+    if (existing) {
+      return {
+        external_applicant_id: existing.id,
+        email: existing.email,
+        session_token: existing.session_token,
+      };
+    }
+
+    const applicant = await this.externalApplicantRepo.save({
+      assessment_id: assessment.id,
+      email,
+      consented_marketing: dto.consentedMarketing,
+      consented_at: new Date(),
+      session_token: randomBytes(36).toString('hex'),
+      session_expires_at: new Date(Date.now() + EXTERNAL_SESSION_TTL_MS),
+    } as Partial<EmployerAssessmentExternalApplicant>);
+
+    return {
+      external_applicant_id: applicant.id,
+      email: applicant.email,
+      session_token: applicant.session_token,
+    };
+  }
+
+  async submitExternalAssessment(
+    token: string,
+    sessionToken: string,
+    dto: SubmitExternalAssessmentDto,
+  ): Promise<{ submission_id: string; submitted_at: Date }> {
+    const assessment = await this.assessmentRepo.findOne({
+      where: { share_token: token, type: EmployerAssessmentType.EXTERNAL },
+      relations: ['questions'],
+      order: { questions: { position: 'ASC' } },
+    });
+    if (!assessment) {
+      throw new NotFoundError('Assessment not found');
+    }
+    if (!assessment.is_active) {
+      throw new ForbiddenError(
+        'This assessment is no longer accepting submissions.',
+      );
+    }
+
+    const applicant = await this.externalApplicantRepo.findOne({
+      where: {
+        id: dto.externalApplicantId,
+        assessment_id: assessment.id,
+        session_token: sessionToken,
+      },
+    });
+    if (!applicant) {
+      throw new ForbiddenError('Invalid external assessment session');
+    }
+    if (applicant.session_expires_at.getTime() <= Date.now()) {
+      throw new ForbiddenError('External assessment session has expired');
+    }
+
+    const existing = await this.externalSubmissionRepo.findOne({
+      where: {
+        assessment_id: assessment.id,
+        external_applicant_id: applicant.id,
+      },
+    });
+    if (existing) {
+      throw new ConflictError('You have already submitted this assessment.');
+    }
+
+    const answers = this.flattenExternalResponses(dto.responses);
+    const score = this.computeScore(assessment.questions, answers);
+    const passed = score >= assessment.passing_threshold;
+    const submission = await this.externalSubmissionRepo.save({
+      assessment_id: assessment.id,
+      external_applicant_id: applicant.id,
+      responses: dto.responses as unknown as Record<string, unknown>[],
+      score,
+      passed,
+    } as Partial<EmployerAssessmentExternalSubmission>);
+
+    await this.notificationDispatch.dispatch(
+      NotificationType.ASSESSMENT_COMPLETED,
+      assessment.employer_user_id,
+      {
+        assessment_id: assessment.id,
+        submission_id: submission.id,
+        external_applicant_id: applicant.id,
+        email: applicant.email,
+        score,
+        passed,
+      },
+    );
+
+    const employer = await this.userRepo.findOne({
+      where: { id: assessment.employer_user_id },
+    });
+    if (employer) {
+      await this.mailService.send({
+        to: employer.email,
+        subject: `External assessment completed: ${assessment.title}`,
+        text: `${applicant.email} completed ${assessment.title}. Score: ${score}%. Result: ${passed ? 'pass' : 'fail'}. Log in to review the submission.`,
+      });
+    }
+
+    return {
+      submission_id: submission.id,
+      submitted_at: submission.submitted_at,
+    };
+  }
+
+  private flattenExternalResponses(
+    responses: SubmitExternalAssessmentDto['responses'],
+  ): Record<string, unknown> {
+    return responses.reduce<Record<string, unknown>>((acc, moduleResponse) => {
+      for (const answer of moduleResponse.answers) {
+        acc[answer.questionId] = answer.answer;
+      }
+      return acc;
+    }, {});
   }
 
   async submitAssessment(
@@ -550,7 +992,7 @@ export class EmployerAssessmentsService {
     manager: EntityManager,
     candidateUserId: string,
     assessmentId: string,
-    passed: boolean,
+    _passed: boolean,
   ): Promise<OfferNotificationRow[]> {
     const roles = await this.employerRoleRepo.find({
       where: { assessment_id: assessmentId },
@@ -562,37 +1004,16 @@ export class EmployerAssessmentsService {
       return [];
     }
 
-    // Pre-fetch only the UNLOCKED offers that this submission should transition.
-    // This avoids re-fetching historical PASSED/FAILED rows in a subsequent
-    // find after the updates.
+    // Offer lifecycle is interview-invite only; assessment pass/fail lives in
+    // submissions and is surfaced through the candidate pipeline.
     const targetOffers = await manager.find(Offer, {
       where: {
         candidate_user_id: candidateUserId,
         role_id: In(roleIds),
-        status: OfferStatus.ASSESSMENT_UNLOCKED,
+        status: In([OfferStatus.PENDING, OfferStatus.ACCEPTED]),
       },
       select: ['id', 'employer_user_id', 'candidate_user_id', 'role_title'],
     });
-
-    if (targetOffers.length === 0) {
-      return [];
-    }
-
-    const targetIds = targetOffers.map((o) => o.id);
-
-    // Two-step transition: UNLOCKED → COMPLETED → PASSED/FAILED
-    await manager.update(
-      Offer,
-      { id: In(targetIds), status: OfferStatus.ASSESSMENT_UNLOCKED },
-      { status: OfferStatus.ASSESSMENT_COMPLETED },
-    );
-
-    const finalStatus = passed ? OfferStatus.PASSED : OfferStatus.FAILED;
-    await manager.update(
-      Offer,
-      { id: In(targetIds), status: OfferStatus.ASSESSMENT_COMPLETED },
-      { status: finalStatus },
-    );
 
     return targetOffers;
   }

@@ -6,6 +6,9 @@ import { UploadModule } from '../upload/upload.module';
 import { AiResourcesModule } from '../ai-resources/ai-resources.module';
 import { TalentProfile } from './entities/talent-profile.entity';
 import { EmployerPoolProfile } from './entities/employer-pool-profile.entity';
+import { TalentRoleInterest } from './entities/talent-role-interest.entity';
+import { EmployerRole } from '../employer-roles/entities/employer-role.entity';
+import { EmployerProfile } from '../employer/entities/employer-profile.entity';
 import {
   AssessmentAttempt,
   AssessmentQuestion,
@@ -32,6 +35,8 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { MailModule } from '../mail/mail.module';
 import { UserNotificationPreference } from '../notifications/user-notification-preference.entity';
 import { TalentController } from './talent.controller';
+import { TalentExploreJobsController } from './talent-explore-jobs.controller';
+import { TalentExploreJobsService } from './talent-explore-jobs.service';
 import { TalentSettingsController } from './talent-settings.controller';
 import { TalentService } from './talent.service';
 
@@ -40,6 +45,9 @@ import { TalentService } from './talent.service';
     TypeOrmModule.forFeature([
       TalentProfile,
       EmployerPoolProfile,
+      TalentRoleInterest,
+      EmployerRole,
+      EmployerProfile,
       PersonalAssessmentQuestionEntity,
       AssessmentQuestion,
       AssessmentAttempt,
@@ -58,6 +66,7 @@ import { TalentService } from './talent.service';
   ],
   controllers: [
     TalentController,
+    TalentExploreJobsController,
     TalentSettingsController,
     PersonalAssessmentController,
     SkillAssessmentController,
@@ -65,6 +74,7 @@ import { TalentService } from './talent.service';
   ],
   providers: [
     TalentService,
+    TalentExploreJobsService,
     PersonalAssessmentQuestionService,
     PersonalAssessmentService,
     SkillAssessmentService,

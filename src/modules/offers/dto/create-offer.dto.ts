@@ -107,6 +107,15 @@ export class CreateOfferDto {
   @IsDateString()
   applicationDeadline?: string;
 
+  @ApiPropertyOptional({
+    example: 'https://meet.google.com/abc-defg-hij',
+    description: 'Optional interview link included when talent accepts.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(1000)
+  interviewLink?: string;
+
   @ApiProperty({
     required: false,
     default: 14,

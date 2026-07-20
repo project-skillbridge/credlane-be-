@@ -197,13 +197,13 @@ describe('AdminEmployersService', () => {
       expect(result.offers_sent.empty_message).toBe('No offers sent yet.');
     });
 
-    it('filters hire history to offers with HIRED status only', async () => {
+    it('filters hire history to accepted interview invites', async () => {
       employerProfileRepo.findOne.mockResolvedValue(baseProfile);
       const hiredAt = new Date('2026-01-01');
       offerRepo.find.mockResolvedValue([
         {
           id: 'offer-1',
-          status: OfferStatus.HIRED,
+          status: OfferStatus.ACCEPTED,
           role_title: 'Backend Engineer',
           candidate: { fullname: 'Tina Talent' },
           responded_at: hiredAt,

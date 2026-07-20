@@ -17,9 +17,15 @@ export enum EmployerRoleStatus {
   CLOSED = 'closed',
 }
 
+export enum EmployerRoleVisibility {
+  PUBLIC = 'public',
+  PRIVATE = 'private',
+}
+
 @Entity('employer_roles')
 @Index('IDX_employer_roles_employer', ['employer_user_id'])
 @Index('IDX_employer_roles_status', ['status'])
+@Index('IDX_employer_roles_visibility', ['visibility'])
 export class EmployerRole {
   @ApiProperty({ format: 'uuid' })
   @PrimaryGeneratedColumn('uuid')
@@ -97,6 +103,26 @@ export class EmployerRole {
   @ApiProperty({ default: 0 })
   @Column({ type: 'integer', default: 0 })
   offers_sent_count: number;
+
+  @ApiProperty({
+    enum: EmployerRoleVisibility,
+    default: EmployerRoleVisibility.PUBLIC,
+  })
+  @Column({
+    type: 'enum',
+    enum: EmployerRoleVisibility,
+    enumName: 'employer_role_visibility_enum',
+    default: EmployerRoleVisibility.PUBLIC,
+  })
+  visibility: EmployerRoleVisibility;
+
+  @ApiPropertyOptional({ example: 100, nullable: true })
+  @Column({ type: 'integer', nullable: true })
+  applicant_cap: number | null;
+
+  @ApiProperty({ default: 0, readOnly: true })
+  @Column({ type: 'integer', default: 0 })
+  interested_count: number;
 
   @ApiProperty()
   @CreateDateColumn({ type: 'timestamp with time zone' })

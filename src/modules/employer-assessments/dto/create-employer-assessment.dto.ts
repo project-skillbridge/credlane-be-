@@ -21,6 +21,7 @@ import {
 import {
   EmployerAssessmentExperienceLevel,
   EmployerAssessmentQuestionSource,
+  EmployerAssessmentType,
 } from '../entities/employer-assessment.entity';
 import { EmployerQuestionType } from '../entities/employer-assessment-question.entity';
 
@@ -87,6 +88,13 @@ export class CreateEmployerAssessmentDto {
   @ApiProperty({ enum: EmployerAssessmentQuestionSource })
   @IsEnum(EmployerAssessmentQuestionSource)
   questionSource: EmployerAssessmentQuestionSource;
+
+  @ApiProperty({
+    enum: EmployerAssessmentType,
+    description: 'internal invites use talent IDs; external invites use emails.',
+  })
+  @IsEnum(EmployerAssessmentType)
+  type: EmployerAssessmentType;
 
   @ApiProperty({ required: false, type: [EmployerAssessmentQuestionInputDto] })
   @ValidateIf(

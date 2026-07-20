@@ -33,6 +33,7 @@ import { EmployerRolesService } from './employer-roles.service';
 import { UploadService } from '../upload/upload.service';
 import { AttachAssessmentDto } from './dto/attach-assessment.dto';
 import { CreateRoleDto } from './dto/create-role.dto';
+import { SendRoleAssessmentDto } from './dto/send-role-assessment.dto';
 import { UpdateRoleDto } from './dto/update-role.dto';
 import { EmployerRoleStatus } from './entities/employer-role.entity';
 
@@ -107,6 +108,17 @@ export class EmployerRolesController {
           format: 'uuid',
           description: 'Attach an existing assessment',
         },
+        visibility: {
+          type: 'string',
+          enum: ['public', 'private'],
+          default: 'public',
+        },
+        applicantCap: {
+          type: 'integer',
+          minimum: 1,
+          nullable: true,
+          description: 'Maximum interested applicants. Null removes the cap.',
+        },
       },
     },
   })
@@ -176,6 +188,49 @@ export class EmployerRolesController {
     return { status: 'success', data: role };
   }
 
+  @Get(':roleId/candidates')
+  @ApiOperation({ summary: 'List candidates for a role pipeline' })
+  @ApiQuery({
+    name: 'tab',
+    required: false,
+    enum: ['best_match', 'other', 'interested', 'all'],
+  })
+  @ApiQuery({ name: 'page', required: false, example: 1 })
+  @ApiQuery({ name: 'limit', required: false, example: 20 })
+  @ApiQuery({ name: 'search', required: false })
+  async listCandidates(
+    @CurrentUser('sub') userId: string,
+    @Param('roleId', ParseUUIDPipe) roleId: string,
+    @Query('tab') tab?: 'best_match' | 'other' | 'interested' | 'all',
+    @Query('page') page?: number,
+    @Query('limit') limit?: number,
+    @Query('search') search?: string,
+  ) {
+    return this.rolesService.listRoleCandidates(userId, roleId, {
+      tab,
+      page: Number(page ?? 1),
+      limit: Number(limit ?? 20),
+      search,
+    });
+  }
+
+  @Post(':roleId/candidates/:candidateId/send-assessment')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Send an assessment to a role candidate' })
+  async sendAssessmentToCandidate(
+    @CurrentUser('sub') userId: string,
+    @Param('roleId', ParseUUIDPipe) roleId: string,
+    @Param('candidateId', ParseUUIDPipe) candidateId: string,
+    @Body() dto: SendRoleAssessmentDto,
+  ) {
+    return this.rolesService.sendAssessmentToCandidate(
+      userId,
+      roleId,
+      candidateId,
+      dto.assessmentId,
+    );
+  }
+
   @Patch(':roleId')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Update a role (supports optional jd_file upload)' })
@@ -216,6 +271,16 @@ export class EmployerRolesController {
         salaryMax: { type: 'integer', minimum: 0, maximum: 99999999 },
         currency: { type: 'string', maxLength: 10 },
         assessmentId: { type: 'string', format: 'uuid' },
+        visibility: {
+          type: 'string',
+          enum: ['public', 'private'],
+        },
+        applicantCap: {
+          type: 'integer',
+          minimum: 1,
+          nullable: true,
+          description: 'Maximum interested applicants. Null removes the cap.',
+        },
       },
     },
   })

@@ -29,6 +29,7 @@ import { OffersService } from './offers.service';
 import { CreateOfferDto } from './dto/create-offer.dto';
 import { RespondOfferDto } from './dto/respond-offer.dto';
 import { ListOffersQueryDto } from './dto/list-offers-query.dto';
+import { UpdateInterviewLinkDto } from './dto/update-interview-link.dto';
 import {
   EMPLOYER_OFFERS_SUBTAB_NEXTJS_GUIDE,
   EmployerCandidatesOffersListDataDto,
@@ -46,7 +47,7 @@ export class OffersController {
 
   @Post('employer/offers')
   @Roles(UserRole.EMPLOYER)
-  @HttpCode(HttpStatus.CREATED)
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({
     summary:
       'Send offer(s) to one or more candidates for a role. Pass multiple candidateIds for bulk sending.',
@@ -55,7 +56,8 @@ export class OffersController {
     @CurrentUser('sub') employerUserId: string,
     @Body() dto: CreateOfferDto,
   ) {
-    return this.offersService.sendOffers(employerUserId, dto);
+    const result = await this.offersService.sendOffers(employerUserId, dto);
+    return { message: 'Interview invite sent', data: result };
   }
 
   @Get('employer/offers')
@@ -268,14 +270,19 @@ export class OffersController {
     return await this.offersService.withdrawOffer(employerUserId, offerId);
   }
 
-  @Patch('employer/offers/:offerId/assessment-window/extend')
+  @Patch('employer/offers/:offerId/interview-link')
   @Roles(UserRole.EMPLOYER)
-  @ApiOperation({ summary: 'Extend an unlocked assessment offer window once' })
-  async extendAssessmentWindow(
+  @ApiOperation({ summary: 'Update the interview link for an invite' })
+  async updateInterviewLink(
     @CurrentUser('sub') employerUserId: string,
     @Param('offerId', ParseUUIDPipe) offerId: string,
+    @Body() dto: UpdateInterviewLinkDto,
   ) {
-    return this.offersService.extendAssessmentWindow(employerUserId, offerId);
+    return this.offersService.updateInterviewLink(
+      employerUserId,
+      offerId,
+      dto.interviewLink,
+    );
   }
 
   // ─── Talent endpoints ─────────────────────────────────────────────────────
@@ -313,5 +320,41 @@ export class OffersController {
       offerId,
       dto.action,
     );
+  }
+
+  @Patch('talent/offers/:offerId/accept')
+  @Roles(UserRole.TALENT)
+  @ApiOperation({ summary: 'Accept an interview invite' })
+  async acceptOffer(
+    @CurrentUser('sub') candidateUserId: string,
+    @Param('offerId', ParseUUIDPipe) offerId: string,
+  ) {
+    return this.offersService.respondToOffer(candidateUserId, offerId, 'accept');
+  }
+
+  @Patch('talent/offers/:offerId/decline')
+  @Roles(UserRole.TALENT)
+  @ApiOperation({ summary: 'Decline an interview invite' })
+  async declineOffer(
+    @CurrentUser('sub') candidateUserId: string,
+    @Param('offerId', ParseUUIDPipe) offerId: string,
+  ) {
+    return this.offersService.respondToOffer(
+      candidateUserId,
+      offerId,
+      'decline',
+    );
+  }
+
+  @Post('talent/offers/:offerId/request-call')
+  @Roles(UserRole.TALENT)
+  @ApiOperation({
+    summary: 'Ask the employer to provide a call link for an accepted invite',
+  })
+  async requestCall(
+    @CurrentUser('sub') candidateUserId: string,
+    @Param('offerId', ParseUUIDPipe) offerId: string,
+  ) {
+    return this.offersService.requestCall(candidateUserId, offerId);
   }
 }

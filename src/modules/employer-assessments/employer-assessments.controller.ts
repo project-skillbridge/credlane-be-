@@ -2,6 +2,9 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseUUIDPipe,
   Patch,
@@ -34,6 +37,11 @@ import {
   ApiSubmitEmployerAssessment,
 } from './docs/employer-assessments.swagger';
 import { CreateEmployerAssessmentDto } from './dto/create-employer-assessment.dto';
+import {
+  RegisterExternalAssessmentDto,
+  SubmitExternalAssessmentDto,
+} from './dto/external-assessment.dto';
+import { InviteEmployerAssessmentDto } from './dto/invite-employer-assessment.dto';
 import { ListCredlaneCatalogueQueryDto } from './dto/list-credlane-catalogue-query.dto';
 import { ListEmployerAssessmentResultsQueryDto } from './dto/list-employer-assessment-results-query.dto';
 import { SearchAssessmentCandidatesQueryDto } from './dto/search-assessment-candidates-query.dto';
@@ -78,6 +86,21 @@ export class EmployerAssessmentsController {
     return this.employerAssessmentsService.searchCandidates(
       employerUserId,
       query,
+    );
+  }
+
+  @Get('employer/assessments/search-talent')
+  @Roles(UserRole.EMPLOYER)
+  @ApiSearchAssessmentCandidates()
+  searchVerifiedTalent(
+    @CurrentUser('sub') employerUserId: string,
+    @Query('q') q?: string,
+    @Query('limit') limit?: number,
+  ) {
+    return this.employerAssessmentsService.searchVerifiedTalent(
+      employerUserId,
+      q ?? '',
+      Number(limit ?? 10),
     );
   }
 
@@ -163,6 +186,45 @@ export class EmployerAssessmentsController {
     );
   }
 
+  @Post('employer/assessments/:assessmentId/invite')
+  @HttpCode(HttpStatus.OK)
+  @Roles(UserRole.EMPLOYER)
+  inviteAssessment(
+    @CurrentUser('sub') employerUserId: string,
+    @Param('assessmentId', ParseUUIDPipe) assessmentId: string,
+    @Body() dto: InviteEmployerAssessmentDto,
+  ) {
+    return this.employerAssessmentsService.inviteAssessment(
+      employerUserId,
+      assessmentId,
+      dto,
+    );
+  }
+
+  @Get('employer/assessments/:assessmentId/token')
+  @Roles(UserRole.EMPLOYER)
+  getAssessmentToken(
+    @CurrentUser('sub') employerUserId: string,
+    @Param('assessmentId', ParseUUIDPipe) assessmentId: string,
+  ) {
+    return this.employerAssessmentsService.getAssessmentToken(
+      employerUserId,
+      assessmentId,
+    );
+  }
+
+  @Get('employer/assessments/:assessmentId/share-link')
+  @Roles(UserRole.EMPLOYER)
+  getAssessmentShareLink(
+    @CurrentUser('sub') employerUserId: string,
+    @Param('assessmentId', ParseUUIDPipe) assessmentId: string,
+  ) {
+    return this.employerAssessmentsService.getAssessmentShareLink(
+      employerUserId,
+      assessmentId,
+    );
+  }
+
   @Get('employer/assessments/:assessmentId/results')
   @Roles(UserRole.EMPLOYER)
   @ApiListEmployerAssessmentResults()
@@ -183,6 +245,36 @@ export class EmployerAssessmentsController {
   @ApiGetPublicAssessment()
   getPublicAssessment(@Param('token') token: string) {
     return this.employerAssessmentsService.getPublicAssessmentByToken(token);
+  }
+
+  @Get('assessments/external/:token')
+  @Public()
+  getExternalAssessment(@Param('token') token: string) {
+    return this.employerAssessmentsService.getExternalAssessmentByToken(token);
+  }
+
+  @Post('assessments/external/:token/register')
+  @Public()
+  registerExternalAssessment(
+    @Param('token') token: string,
+    @Body() dto: RegisterExternalAssessmentDto,
+  ) {
+    return this.employerAssessmentsService.registerExternalApplicant(token, dto);
+  }
+
+  @Post('assessments/external/:token/submit')
+  @HttpCode(HttpStatus.OK)
+  @Public()
+  submitExternalAssessment(
+    @Param('token') token: string,
+    @Headers('x-session-token') sessionToken: string,
+    @Body() dto: SubmitExternalAssessmentDto,
+  ) {
+    return this.employerAssessmentsService.submitExternalAssessment(
+      token,
+      sessionToken,
+      dto,
+    );
   }
 
   @Post('assessments/link/:token/submissions')

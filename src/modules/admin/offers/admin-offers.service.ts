@@ -22,19 +22,13 @@ const DEFAULT_PERIOD_MS = 30 * 24 * 60 * 60 * 1000;
  * Linear funnel stages in the offer lifecycle. An offer at a later stage has
  * implicitly passed through all earlier stages.
  *
- * The forked terminal statuses (passed/failed, accepted/declined/expired) are
- * listed separately so the funnel can render parallel branches.
+ * Offer status now represents the interview invite lifecycle only.
  */
 const FUNNEL_STAGE_ORDER: readonly OfferStatus[] = [
   OfferStatus.PENDING,
-  OfferStatus.ASSESSMENT_UNLOCKED,
-  OfferStatus.ASSESSMENT_COMPLETED,
-  OfferStatus.PASSED,
-  OfferStatus.FAILED,
   OfferStatus.ACCEPTED,
   OfferStatus.DECLINED,
   OfferStatus.EXPIRED,
-  OfferStatus.HIRED,
   OfferStatus.WITHDRAWN,
 ] as const;
 
@@ -44,32 +38,8 @@ const FUNNEL_STAGE_ORDER: readonly OfferStatus[] = [
  */
 const STAGE_REACHED: Record<OfferStatus, readonly OfferStatus[]> = {
   [OfferStatus.PENDING]: [OfferStatus.PENDING],
-  [OfferStatus.ASSESSMENT_UNLOCKED]: [
-    OfferStatus.PENDING,
-    OfferStatus.ASSESSMENT_UNLOCKED,
-  ],
-  [OfferStatus.ASSESSMENT_COMPLETED]: [
-    OfferStatus.PENDING,
-    OfferStatus.ASSESSMENT_UNLOCKED,
-    OfferStatus.ASSESSMENT_COMPLETED,
-  ],
-  [OfferStatus.PASSED]: [
-    OfferStatus.PENDING,
-    OfferStatus.ASSESSMENT_UNLOCKED,
-    OfferStatus.ASSESSMENT_COMPLETED,
-    OfferStatus.PASSED,
-  ],
-  [OfferStatus.FAILED]: [
-    OfferStatus.PENDING,
-    OfferStatus.ASSESSMENT_UNLOCKED,
-    OfferStatus.ASSESSMENT_COMPLETED,
-    OfferStatus.FAILED,
-  ],
   [OfferStatus.ACCEPTED]: [
     OfferStatus.PENDING,
-    OfferStatus.ASSESSMENT_UNLOCKED,
-    OfferStatus.ASSESSMENT_COMPLETED,
-    OfferStatus.PASSED,
     OfferStatus.ACCEPTED,
   ],
   [OfferStatus.DECLINED]: [
@@ -80,14 +50,6 @@ const STAGE_REACHED: Record<OfferStatus, readonly OfferStatus[]> = {
     OfferStatus.PENDING,
     OfferStatus.EXPIRED,
   ],
-  [OfferStatus.HIRED]: [
-    OfferStatus.PENDING,
-    OfferStatus.ASSESSMENT_UNLOCKED,
-    OfferStatus.ASSESSMENT_COMPLETED,
-    OfferStatus.PASSED,
-    OfferStatus.ACCEPTED,
-    OfferStatus.HIRED,
-  ],
   [OfferStatus.WITHDRAWN]: [
     OfferStatus.PENDING,
     OfferStatus.WITHDRAWN,
@@ -95,14 +57,9 @@ const STAGE_REACHED: Record<OfferStatus, readonly OfferStatus[]> = {
 };
 
 const STAGE_PARENT: Partial<Record<OfferStatus, OfferStatus>> = {
-  [OfferStatus.ASSESSMENT_UNLOCKED]: OfferStatus.PENDING,
-  [OfferStatus.ASSESSMENT_COMPLETED]: OfferStatus.ASSESSMENT_UNLOCKED,
-  [OfferStatus.PASSED]: OfferStatus.ASSESSMENT_COMPLETED,
-  [OfferStatus.FAILED]: OfferStatus.ASSESSMENT_COMPLETED,
-  [OfferStatus.ACCEPTED]: OfferStatus.PASSED,
+  [OfferStatus.ACCEPTED]: OfferStatus.PENDING,
   [OfferStatus.DECLINED]: OfferStatus.PENDING,
   [OfferStatus.EXPIRED]: OfferStatus.PENDING,
-  [OfferStatus.HIRED]: OfferStatus.ACCEPTED,
   [OfferStatus.WITHDRAWN]: OfferStatus.PENDING,
 };
 
@@ -111,9 +68,7 @@ const RESOLVED_STATUSES = new Set<OfferStatus>([
   OfferStatus.ACCEPTED,
   OfferStatus.DECLINED,
   OfferStatus.EXPIRED,
-  OfferStatus.HIRED,
   OfferStatus.WITHDRAWN,
-  OfferStatus.FAILED,
 ]);
 
 @Injectable()
@@ -394,7 +349,7 @@ export class AdminOffersService {
       const count = Number(row.cnt);
       total += count;
       if (row.status === OfferStatus.ACCEPTED) accepted += count;
-      if (row.status === OfferStatus.HIRED) hired += count;
+      if (row.status === OfferStatus.ACCEPTED) hired += count;
     }
 
     return { total, accepted, hired };
@@ -412,7 +367,7 @@ export class AdminOffersService {
       )
       .where('offer.created_at >= :start', { start })
       .andWhere('offer.created_at < :end', { end })
-      .andWhere('offer.status = :status', { status: OfferStatus.HIRED })
+      .andWhere('offer.status = :status', { status: OfferStatus.ACCEPTED })
       .getRawOne();
 
     if (!result?.avg_days) return null;

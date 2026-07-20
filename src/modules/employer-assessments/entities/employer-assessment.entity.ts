@@ -29,6 +29,11 @@ export enum EmployerAssessmentQuestionSource {
   ADMIN_UPLOAD = 'admin_upload',
 }
 
+export enum EmployerAssessmentType {
+  INTERNAL = 'internal',
+  EXTERNAL = 'external',
+}
+
 @Entity('employer_assessments')
 @Index('IDX_employer_assessments_employer_active', [
   'employer_user_id',
@@ -89,6 +94,18 @@ export class EmployerAssessment {
   @ApiProperty()
   @Column({ type: 'boolean', default: false })
   send_to_candidates: boolean;
+
+  @ApiProperty({
+    enum: EmployerAssessmentType,
+    default: EmployerAssessmentType.INTERNAL,
+  })
+  @Column({
+    type: 'enum',
+    enum: EmployerAssessmentType,
+    enumName: 'employer_assessment_type_enum',
+    default: EmployerAssessmentType.INTERNAL,
+  })
+  type: EmployerAssessmentType;
 
   @ApiProperty()
   @Column({ type: 'varchar', length: 64 })

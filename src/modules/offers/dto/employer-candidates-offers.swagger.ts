@@ -14,8 +14,8 @@ Use \`credentials: 'include'\` on fetch when the app and API share a cookie doma
 **Base URL:** \`\${NEXT_PUBLIC_API_URL}/api/v1\`
 
 ### 1) Initial list
-\`GET /employer/candidates/offers\` — optional \`?page=&limit=&status=pending|declined|expired\`.
-Default (no \`status\`) returns pending, declined, and expired (not accepted).
+\`GET /employer/candidates/offers\` — optional \`?page=&limit=&status=pending|accepted|declined|expired|withdrawn\`.
+Default (no \`status\`) returns all interview invite lifecycle statuses.
 JSON is wrapped: \`{ status_code, message, data: { offers, total, page, limit, totalPages, emptyStateMessage } }\`.
 When the employer has never sent an offer, \`emptyStateMessage\` is the copy for the empty state; otherwise \`null\` (render your list or a filtered-empty UI).
 
@@ -28,7 +28,7 @@ When the employer has never sent an offer, \`emptyStateMessage\` is the copy for
 - Same auth as above (cookie or Bearer).
 - Lines: \`data: <JSON>\` (ignore \`: heartbeat\` comments).
 - Event \`type\`: \`offer_status_changed\`; \`status\`: \`accepted\` | \`declined\`.
-- On event: update the row in state, or refetch the list. \`accepted\` drops off the default list.
+- On event: update the row in state, or refetch the list.
 
 **Browser (same-site cookies):**
 \`\`\`ts
@@ -109,13 +109,11 @@ export class OfferStatusChangeEventDto {
   @ApiProperty({
     enum: [
       OfferStatus.ACCEPTED,
-      OfferStatus.ASSESSMENT_UNLOCKED,
       OfferStatus.DECLINED,
     ],
   })
   status:
     | OfferStatus.ACCEPTED
-    | OfferStatus.ASSESSMENT_UNLOCKED
     | OfferStatus.DECLINED;
 
   @ApiProperty({ type: String, format: 'date-time' })

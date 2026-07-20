@@ -55,12 +55,10 @@ describe('AdminOffersService', () => {
       const currentStatusRows = [
         { status: OfferStatus.PENDING, cnt: '5' },
         { status: OfferStatus.ACCEPTED, cnt: '3' },
-        { status: OfferStatus.HIRED, cnt: '2' },
       ];
       const priorStatusRows = [
         { status: OfferStatus.PENDING, cnt: '4' },
         { status: OfferStatus.ACCEPTED, cnt: '2' },
-        { status: OfferStatus.HIRED, cnt: '1' },
       ];
 
       let callIdx = 0;
@@ -74,16 +72,16 @@ describe('AdminOffersService', () => {
 
       const stats = await service.getStats();
 
-      // total = 5+3+2 = 10
-      expect(stats.total_offers_sent.value).toBe(10);
-      // acceptance rate = 3/10 * 100 = 30%
-      expect(stats.offer_to_acceptance_rate.value).toBe(30);
-      // hire rate = 2/10 * 100 = 20%
-      expect(stats.offer_to_hire_rate.value).toBe(20);
+      // total = 5+3 = 8
+      expect(stats.total_offers_sent.value).toBe(8);
+      // acceptance rate = 3/8 * 100 = 38%
+      expect(stats.offer_to_acceptance_rate.value).toBe(38);
+      // accepted is the positive terminal invite outcome under the new lifecycle
+      expect(stats.offer_to_hire_rate.value).toBe(38);
       // avg hire days = round(7.5) = 8
       expect(stats.avg_time_offer_to_hire_days.value).toBe(8);
 
-      // Trend: total 10 vs 7 prior => up
+      // Trend: total 8 vs 6 prior => up
       expect(stats.total_offers_sent.trend.direction).toBe('up');
     });
 
@@ -126,31 +124,29 @@ describe('AdminOffersService', () => {
       offerRepo.createQueryBuilder.mockReturnValue(
         buildQueryBuilder([
           { status: OfferStatus.PENDING, count: '10' },
-          { status: OfferStatus.ASSESSMENT_UNLOCKED, count: '8' },
-          { status: OfferStatus.ASSESSMENT_COMPLETED, count: '6' },
-          { status: OfferStatus.PASSED, count: '4' },
           { status: OfferStatus.ACCEPTED, count: '2' },
-          { status: OfferStatus.HIRED, count: '1' },
+          { status: OfferStatus.DECLINED, count: '1' },
         ]),
       );
 
       const result = await service.getFunnel();
 
       expect(result.empty).toBe(false);
-      expect(result.total).toBe(31);
+      expect(result.total).toBe(13);
 
-      // Pending = 10+8+6+4+2+1 = 31 (all offers pass through pending)
+      // Pending = 10+2+1 = 13 (all offers pass through pending)
       const pending = result.stages.find(
         (s) => s.stage === OfferStatus.PENDING,
       );
-      expect(pending?.count).toBe(31);
+      expect(pending?.count).toBe(13);
 
-      // Assessment unlocked = 8+6+4+2+1 = 21
-      const unlocked = result.stages.find(
-        (s) => s.stage === OfferStatus.ASSESSMENT_UNLOCKED,
+      const accepted = result.stages.find(
+        (s) => s.stage === OfferStatus.ACCEPTED,
       );
-      expect(unlocked?.count).toBe(21);
-      expect(unlocked?.drop_off_percent).toBe(Math.round(((31 - 21) / 31) * 100));
+      expect(accepted?.count).toBe(2);
+      expect(accepted?.drop_off_percent).toBe(
+        Math.round(((13 - 2) / 13) * 100),
+      );
     });
 
     it('returns empty state when no offers exist', async () => {

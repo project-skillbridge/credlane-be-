@@ -4,6 +4,7 @@ import {
   IsInt,
   IsNotEmpty,
   IsIn,
+  IsEnum,
   IsOptional,
   IsString,
   IsUUID,
@@ -12,6 +13,7 @@ import {
   Min,
 } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { EmployerRoleVisibility } from '../entities/employer-role.entity';
 
 export class CreateRoleDto {
   @ApiProperty({ example: 'Senior Backend Engineer' })
@@ -114,4 +116,27 @@ export class CreateRoleDto {
   @IsOptional()
   @IsUUID()
   assessmentId?: string;
+
+  @ApiPropertyOptional({
+    enum: EmployerRoleVisibility,
+    default: EmployerRoleVisibility.PUBLIC,
+  })
+  @IsOptional()
+  @IsEnum(EmployerRoleVisibility)
+  visibility?: EmployerRoleVisibility;
+
+  @ApiPropertyOptional({
+    example: 100,
+    nullable: true,
+    description: 'Maximum interested applicants. Send null to remove the cap.',
+  })
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }): number | null | undefined => {
+    if (value === null) return null;
+    if (value === '' || value === undefined) return undefined;
+    return Number(value);
+  })
+  @IsInt()
+  @Min(1)
+  applicantCap?: number | null;
 }

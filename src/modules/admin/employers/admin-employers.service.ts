@@ -150,7 +150,7 @@ export class AdminEmployersService {
       }),
     ]);
 
-    const hireHistory = offers.filter((o) => o.status === OfferStatus.HIRED);
+    const hireHistory = offers.filter((o) => o.status === OfferStatus.ACCEPTED);
 
     return {
       company_profile: {

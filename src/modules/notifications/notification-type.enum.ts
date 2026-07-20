@@ -14,6 +14,12 @@ export enum NotificationType {
   CONTACT_REQUEST_RECEIVED = 'contact_request_received',
   ASSESSMENT_RECEIVED = 'assessment_received',
   JOB_READY_MATCHES_AVAILABLE = 'job_ready_matches_available',
+  PROFILE_VIEWED_AFTER_INTEREST = 'profile_viewed_after_interest',
+  INTERVIEW_INVITE_RECEIVED = 'interview_invite_received',
+  INTERVIEW_ACCEPTED = 'interview_accepted',
+  INTERVIEW_DECLINED = 'interview_declined',
+  CALL_REQUESTED = 'call_requested',
+  ASSESSMENT_COMPLETED = 'assessment_completed',
 }
 
 export const NOTIFICATION_TYPE_VALUES = [
@@ -32,4 +38,10 @@ export const NOTIFICATION_TYPE_VALUES = [
   NotificationType.CONTACT_REQUEST_RECEIVED,
   NotificationType.ASSESSMENT_RECEIVED,
   NotificationType.JOB_READY_MATCHES_AVAILABLE,
+  NotificationType.PROFILE_VIEWED_AFTER_INTEREST,
+  NotificationType.INTERVIEW_INVITE_RECEIVED,
+  NotificationType.INTERVIEW_ACCEPTED,
+  NotificationType.INTERVIEW_DECLINED,
+  NotificationType.CALL_REQUESTED,
+  NotificationType.ASSESSMENT_COMPLETED,
 ] as const;

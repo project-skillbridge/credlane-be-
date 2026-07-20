@@ -19,10 +19,16 @@ import { EmployerAssessmentSubmission } from './entities/employer-assessment-sub
 import { CredlaneCatalogueAssessment } from './entities/credlane-catalogue-assessment.entity';
 import { AssessmentQuestion } from '../assessments/entities/assessment-question.entity';
 import { EmployerSavedCandidate } from '../employer-discovery/entities/employer-saved-candidate.entity';
+import { EmployerProfile } from '../employer/entities/employer-profile.entity';
+import { EmployerPoolProfile } from '../talent/entities/employer-pool-profile.entity';
 import { EmployerRole } from '../employer-roles/entities/employer-role.entity';
 import { User } from '../users/entities/user.entity';
 import { NotificationDispatchService } from '../notifications/notification-dispatch.service';
 import { Offer, OfferStatus } from '../offers/entities/offer.entity';
+import { MailService } from '../mail/mail.service';
+import { EmployerAssessmentExternalApplicant } from './entities/employer-assessment-external-applicant.entity';
+import { EmployerAssessmentExternalInvite } from './entities/employer-assessment-external-invite.entity';
+import { EmployerAssessmentExternalSubmission } from './entities/employer-assessment-external-submission.entity';
 
 describe('EmployerAssessmentsService', () => {
   let service: EmployerAssessmentsService;
@@ -56,6 +62,10 @@ describe('EmployerAssessmentsService', () => {
     createQueryBuilder: jest.fn(),
   };
 
+  const mockPoolProfileRepo = {
+    createQueryBuilder: jest.fn(),
+  };
+
   const mockUserRepo = {
     findOne: jest.fn(),
     findBy: jest.fn(),
@@ -63,6 +73,10 @@ describe('EmployerAssessmentsService', () => {
 
   const mockEmployerRoleRepo = {
     find: jest.fn(),
+  };
+
+  const mockEmployerProfileRepo = {
+    findOne: jest.fn(),
   };
 
   const mockManager = {
@@ -93,10 +107,29 @@ describe('EmployerAssessmentsService', () => {
     },
   };
 
+  const mockExternalApplicantRepo = {
+    findOne: jest.fn(),
+    save: jest.fn(),
+  };
+
+  const mockExternalInviteRepo = {
+    find: jest.fn(),
+    save: jest.fn(),
+  };
+
+  const mockExternalSubmissionRepo = {
+    findOne: jest.fn(),
+    save: jest.fn(),
+  };
+
   const mockNotificationDispatch = {
     dispatch: jest.fn(),
     notifyAssessmentPassed: jest.fn(),
     notifyAssessmentFailed: jest.fn(),
+  };
+
+  const mockMailService = {
+    send: jest.fn(),
   };
 
   const mockCatalogueRepo = {
@@ -133,6 +166,10 @@ describe('EmployerAssessmentsService', () => {
           useValue: mockSavedCandidateRepo,
         },
         {
+          provide: getRepositoryToken(EmployerPoolProfile),
+          useValue: mockPoolProfileRepo,
+        },
+        {
           provide: getRepositoryToken(User),
           useValue: mockUserRepo,
         },
@@ -141,12 +178,32 @@ describe('EmployerAssessmentsService', () => {
           useValue: mockEmployerRoleRepo,
         },
         {
+          provide: getRepositoryToken(EmployerProfile),
+          useValue: mockEmployerProfileRepo,
+        },
+        {
           provide: getRepositoryToken(Offer),
           useValue: mockOfferRepo,
         },
         {
+          provide: getRepositoryToken(EmployerAssessmentExternalApplicant),
+          useValue: mockExternalApplicantRepo,
+        },
+        {
+          provide: getRepositoryToken(EmployerAssessmentExternalInvite),
+          useValue: mockExternalInviteRepo,
+        },
+        {
+          provide: getRepositoryToken(EmployerAssessmentExternalSubmission),
+          useValue: mockExternalSubmissionRepo,
+        },
+        {
           provide: NotificationDispatchService,
           useValue: mockNotificationDispatch,
+        },
+        {
+          provide: MailService,
+          useValue: mockMailService,
         },
         {
           provide: DataSource,
@@ -574,18 +631,15 @@ describe('EmployerAssessmentsService', () => {
         where: { assessment_id: 'ass-1' },
         select: ['id'],
       });
-      expect(mockManager.update).toHaveBeenNthCalledWith(
-        1,
-        Offer,
-        { id: expect.any(Object), status: OfferStatus.ASSESSMENT_UNLOCKED },
-        { status: OfferStatus.ASSESSMENT_COMPLETED },
-      );
-      expect(mockManager.update).toHaveBeenNthCalledWith(
-        2,
-        Offer,
-        { id: expect.any(Object), status: OfferStatus.ASSESSMENT_COMPLETED },
-        { status: OfferStatus.PASSED },
-      );
+      expect(mockManager.update).not.toHaveBeenCalled();
+      expect(mockManager.find).toHaveBeenCalledWith(Offer, {
+        where: {
+          candidate_user_id: 'candidate-1',
+          role_id: expect.any(Object),
+          status: expect.any(Object),
+        },
+        select: ['id', 'employer_user_id', 'candidate_user_id', 'role_title'],
+      });
     });
 
     it('should compute partial score correctly', async () => {
@@ -661,18 +715,7 @@ describe('EmployerAssessmentsService', () => {
       );
 
       expect(result.passed).toBe(false);
-      expect(mockManager.update).toHaveBeenNthCalledWith(
-        1,
-        Offer,
-        { id: expect.any(Object), status: OfferStatus.ASSESSMENT_UNLOCKED },
-        { status: OfferStatus.ASSESSMENT_COMPLETED },
-      );
-      expect(mockManager.update).toHaveBeenNthCalledWith(
-        2,
-        Offer,
-        { id: expect.any(Object), status: OfferStatus.ASSESSMENT_COMPLETED },
-        { status: OfferStatus.FAILED },
-      );
+      expect(mockManager.update).not.toHaveBeenCalled();
     });
 
     it('should reject duplicate submissions', async () => {

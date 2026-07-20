@@ -102,6 +102,13 @@ export type OfferWithdrawnPayload = {
   roleTitle: string;
 };
 
+export type CallRequestedPayload = {
+  offerId: string;
+  candidateUserId: string;
+  candidateName: string;
+  roleTitle: string;
+};
+
 type RetakeEligibilityProfile = Pick<
   TalentProfile,
   'advanced_retake_required' | 'assessment_locked_until'
@@ -280,6 +287,11 @@ export class NotificationDispatchService
     payload: AssessmentReceivedPayload,
   ): Promise<void>;
   async dispatch(
+    type: NotificationType.CALL_REQUESTED | NotificationType.ASSESSMENT_COMPLETED,
+    userId: string,
+    payload: CallRequestedPayload | Record<string, unknown>,
+  ): Promise<void>;
+  async dispatch(
     type: NotificationType,
     userId: string,
     payload:
@@ -294,7 +306,9 @@ export class NotificationDispatchService
       | AssessmentWindowExpiringPayload
       | AssessmentResultPayload
       | ContactRequestReceivedPayload
-      | AssessmentReceivedPayload,
+      | AssessmentReceivedPayload
+      | CallRequestedPayload
+      | Record<string, unknown>,
   ): Promise<void> {
     try {
       switch (type) {
@@ -372,6 +386,22 @@ export class NotificationDispatchService
           await this.dispatchAssessmentReceived(
             userId,
             payload as AssessmentReceivedPayload,
+          );
+          break;
+        case NotificationType.CALL_REQUESTED:
+          await this.dispatchGeneric(
+            type,
+            userId,
+            'Call requested',
+            payload,
+          );
+          break;
+        case NotificationType.ASSESSMENT_COMPLETED:
+          await this.dispatchGeneric(
+            type,
+            userId,
+            'Assessment completed',
+            payload,
           );
           break;
         default:
@@ -825,6 +855,27 @@ export class NotificationDispatchService
         role_title: payload.roleTitle,
         score: payload.score,
       },
+    });
+  }
+
+  private async dispatchGeneric(
+    type: NotificationType,
+    userId: string,
+    title: string,
+    payload: Record<string, unknown>,
+  ): Promise<void> {
+    const user = await this.usersService.findOne(userId);
+    if (!user) {
+      this.logger.warn(`Notification skipped: user not found user=${userId}`);
+      return;
+    }
+
+    await this.notificationsService.create({
+      userId,
+      type,
+      title,
+      body: title,
+      data: payload,
     });
   }
 

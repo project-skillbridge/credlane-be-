@@ -8,21 +8,16 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
-import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 import { User } from '../../users/entities/user.entity';
 import { EmployerPoolProfile } from '../../talent/entities/employer-pool-profile.entity';
 import { EmployerRole } from '../../employer-roles/entities/employer-role.entity';
 
 export enum OfferStatus {
   PENDING = 'pending',
-  ASSESSMENT_UNLOCKED = 'assessment_unlocked',
-  ASSESSMENT_COMPLETED = 'assessment_completed',
-  PASSED = 'passed',
-  FAILED = 'failed',
   ACCEPTED = 'accepted',
   DECLINED = 'declined',
   EXPIRED = 'expired',
-  HIRED = 'hired',
   WITHDRAWN = 'withdrawn',
 }
 
@@ -35,7 +30,7 @@ export enum OfferStatus {
   ['employer_user_id', 'candidate_user_id', 'role_id'],
   {
     unique: true,
-    where: `"status" IN ('pending', 'assessment_unlocked', 'assessment_completed', 'passed', 'accepted')`,
+    where: `"status" IN ('pending', 'accepted')`,
   },
 )
 export class Offer {
@@ -106,6 +101,10 @@ export class Offer {
   @Column({ type: 'date', nullable: true })
   application_deadline: string | null;
 
+  @ApiProperty({ required: false, nullable: true })
+  @Column({ type: 'varchar', length: 1000, nullable: true })
+  interview_link: string | null;
+
   @ApiProperty({ enum: OfferStatus })
   @Column({
     type: 'enum',
@@ -123,20 +122,6 @@ export class Offer {
   @Column({ type: 'timestamp with time zone', nullable: true })
   responded_at: Date | null;
 
-  @ApiPropertyOptional({ description: 'When the assessment window opens' })
-  @Column({ type: 'timestamp with time zone', nullable: true })
-  assessment_unlocked_at: Date | null;
-
-  @ApiPropertyOptional({ description: 'Assessment window deadline' })
-  @Column({ type: 'timestamp with time zone', nullable: true })
-  assessment_deadline: Date | null;
-
-  @ApiPropertyOptional({
-    description: 'Whether the extension was already used',
-  })
-  @Column({ type: 'boolean', default: false })
-  extension_used: boolean;
-
   @ApiProperty()
   @CreateDateColumn({ type: 'timestamp with time zone' })
   created_at: Date;
@@ -144,10 +129,4 @@ export class Offer {
   @ApiProperty()
   @UpdateDateColumn({ type: 'timestamp with time zone' })
   updated_at: Date;
-
-  @ApiPropertyOptional({
-    description: 'When the 24-hour expiry warning was sent to the employer',
-  })
-  @Column({ type: 'timestamp with time zone', nullable: true })
-  expiry_warning_sent_at: Date | null;
 }
