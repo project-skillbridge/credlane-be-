@@ -35,7 +35,7 @@ Thanks for contributing to **nestjs-starter**! This guide covers setup, branchin
 
 ## Branching
 
-- **Main branch:** `main`
+- **Main branch:** `dev`
 - **Feature work:** create a short-lived branch from `main`.
 - **Naming convention:** `type/short-description` in lowercase kebab-case.
   - Optional issue id: `type/123-short-description`
