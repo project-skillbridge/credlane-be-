@@ -71,12 +71,14 @@ export class EmployerRolesService {
     const role = this.roleRepo.create({
       employer_user_id: employerUserId,
       title,
+      track: dto.track,
       category: dto.category.trim(),
       description,
       jd_file_url: jdFileUrl ?? null,
       employment_type: dto.employmentType ?? null,
       work_arrangement: dto.workArrangement ?? null,
-      education: dto.education?.trim() ?? null,
+      education: dto.education,
+      level: dto.level,
       keywords: keywords.length ? keywords : null,
       salary_min: dto.salaryMin ?? null,
       salary_max: dto.salaryMax ?? null,
@@ -174,7 +176,6 @@ export class EmployerRolesService {
     if (dto.workArrangement !== undefined) {
       role.work_arrangement = dto.workArrangement;
     }
-    if (dto.education !== undefined) role.education = dto.education?.trim();
     if (dto.keywords !== undefined || dto.keyword !== undefined) {
       const raw =
         dto.keywords && dto.keywords.length > 0
