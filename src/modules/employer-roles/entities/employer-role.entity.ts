@@ -52,7 +52,7 @@ export class EmployerRole {
   @Column({ type: 'varchar', length: 255 })
   title: string;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: 'backend_developer',
     enum: TALENT_ROLE_TRACKS,
     description: 'Canonical talent track slug this role maps to',

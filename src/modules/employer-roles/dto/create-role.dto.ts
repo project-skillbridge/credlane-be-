@@ -146,7 +146,7 @@ export class CreateRoleDto {
   @IsEnum(EmployerRoleVisibility)
   visibility?: EmployerRoleVisibility;
 
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: 'backend_developer',
     enum: TALENT_ROLE_TRACKS,
     description: 'Canonical talent track slug this role maps to',
